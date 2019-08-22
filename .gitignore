@@ -1,0 +1,8 @@
+*.o
+*~
+*.cf
+*.s
+core_tb
+fetch_tb
+loadstore_tb
+simple_ram_behavioural_tb
