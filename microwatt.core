@@ -44,6 +44,11 @@ filesets:
       - fpga/nexys_a7.xdc : {file_type : xdc}
       - fpga/clk_gen_bypass.vhd : {file_type : vhdlSource-2008}
 
+  nexys_video:
+    files:
+      - fpga/nexys-video.xdc : {file_type : xdc}
+      - fpga/clk_gen_bypass.vhd : {file_type : vhdlSource-2008}
+
 targets:
   nexys_a7:
     default_tool: vivado
@@ -51,6 +56,14 @@ targets:
     parameters : [memory_size, ram_init_file]
     tools:
       vivado: {part : xc7a100tcsg324-1}
+    toplevel : toplevel
+
+  nexys_video:
+    default_tool: vivado
+    filesets: [core, nexys_video, soc]
+    parameters : [memory_size, ram_init_file]
+    tools:
+      vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
 
 parameters:
