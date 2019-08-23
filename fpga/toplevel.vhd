@@ -3,13 +3,18 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.math_real.all;
 
 library work;
 use work.wishbone_types.all;
 
+
 -- 0x00000000: Main memory (1 MB)
 -- 0xc0002000: UART0 (for host communication)
 entity toplevel is
+  generic (
+    MEMORY_SIZE   : positive := 1048576;
+    RAM_INIT_FILE : string   := "firmware.hex");
 	port(
 		clk       : in  std_logic;
 		reset_n   : in  std_logic;
@@ -54,7 +59,7 @@ architecture behaviour of toplevel is
 	signal uart0_ack_out : std_logic;
 
 	-- Main memory signals:
-	signal main_memory_adr_in  : std_logic_vector(19 downto 0);
+	signal main_memory_adr_in  : std_logic_vector(positive(ceil(log2(real(MEMORY_SIZE))))-1 downto 0);
 	signal main_memory_dat_in  : std_logic_vector(63 downto 0);
 	signal main_memory_dat_out : std_logic_vector(63 downto 0);
 	signal main_memory_cyc_in  : std_logic;
@@ -190,7 +195,8 @@ begin
 
 	main_memory: entity work.pp_soc_memory
 		generic map(
-			MEMORY_SIZE => 1048576
+			MEMORY_SIZE   => MEMORY_SIZE,
+			RAM_INIT_FILE => RAM_INIT_FILE
 		) port map(
 			clk => system_clk,
 			reset => reset,
