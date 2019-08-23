@@ -66,6 +66,12 @@ targets:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
 
+  synth:
+    filesets: [core]
+    tools:
+      vivado: {pnr : none}
+    toplevel: core
+
 parameters:
   memory_size:
     datatype    : int
