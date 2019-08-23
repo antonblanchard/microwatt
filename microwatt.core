@@ -1,0 +1,65 @@
+CAPI=2:
+
+name : ::microwatt:0
+
+filesets:
+  core:
+    files:
+      - decode_types.vhdl
+      - wishbone_types.vhdl
+      - common.vhdl
+      - fetch1.vhdl
+      - fetch2.vhdl
+      - decode1.vhdl
+      - helpers.vhdl
+      - decode2.vhdl
+      - register_file.vhdl
+      - cr_file.vhdl
+      - crhelpers.vhdl
+      - ppc_fx_insns.vhdl
+      - sim_console.vhdl
+      - execute1.vhdl
+      - execute2.vhdl
+      - loadstore1.vhdl
+      - loadstore2.vhdl
+      - multiply.vhdl
+      - writeback.vhdl
+      - wishbone_arbiter.vhdl
+      - core.vhdl
+    file_type : vhdlSource-2008
+
+  soc:
+    files:
+      - fpga/pp_fifo.vhd
+      - fpga/pp_soc_memory.vhd
+      - fpga/pp_soc_reset.vhd
+      - fpga/pp_soc_uart.vhd
+      - fpga/pp_utilities.vhd
+      - fpga/toplevel.vhd
+      - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
+    file_type : vhdlSource-2008
+
+  nexys_a7:
+    files:
+      - fpga/nexys_a7.xdc : {file_type : xdc}
+      - fpga/clk_gen_bypass.vhd : {file_type : vhdlSource-2008}
+
+targets:
+  nexys_a7:
+    default_tool: vivado
+    filesets: [core, nexys_a7, soc]
+    parameters : [memory_size, ram_init_file]
+    tools:
+      vivado: {part : xc7a100tcsg324-1}
+    toplevel : toplevel
+
+parameters:
+  memory_size:
+    datatype    : int
+    description : On-chip memory size (bytes)
+    paramtype   : generic
+
+  ram_init_file:
+    datatype    : file
+    description : Initial on-chip RAM contents
+    paramtype   : generic
