@@ -11,7 +11,8 @@ use work.pp_utilities.all;
 --! @brief Simple memory module for use in Wishbone-based systems.
 entity pp_soc_memory is
 	generic(
-		MEMORY_SIZE : natural := 4096 --! Memory size in bytes.
+		MEMORY_SIZE   : natural := 4096; --! Memory size in bytes.
+		RAM_INIT_FILE : string
 	);
 	port(
 		clk : in std_logic;
@@ -48,7 +49,7 @@ architecture behaviour of pp_soc_memory is
         return temp_ram;
     end function;
 
-    signal memory : ram_t := init_ram("firmware.hex");
+    signal memory : ram_t := init_ram(RAM_INIT_FILE);
 
 	attribute ram_style : string;
 	attribute ram_style of memory : signal is "block";
