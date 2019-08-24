@@ -42,12 +42,12 @@ filesets:
   nexys_a7:
     files:
       - fpga/nexys_a7.xdc : {file_type : xdc}
-      - fpga/clk_gen_bypass.vhd : {file_type : vhdlSource-2008}
+      - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
 
   nexys_video:
     files:
       - fpga/nexys-video.xdc : {file_type : xdc}
-      - fpga/clk_gen_bypass.vhd : {file_type : vhdlSource-2008}
+      - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
 
 targets:
   nexys_a7:
