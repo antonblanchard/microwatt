@@ -114,7 +114,7 @@ unsigned long behavioural_initialize(void *__f, unsigned long size)
 	void *mem;
 
 	if (region_nr == MAX_REGIONS) {
-		fprintf(stderr, "%s: too many regions, bump MAX_REGIONS\n");
+		fprintf(stderr, "%s: too many regions, bump MAX_REGIONS\n", __func__);
 		exit(1);
 	}
 
