@@ -1,4 +1,10 @@
-CROSS_COMPILE = powerpc64le-linux-
+ARCH = $(shell uname -m)
+ifneq ("$(ARCH)", "ppc64")
+ifneq ("$(ARCH)", "ppc64le")
+        CROSS_COMPILE = powerpc64le-linux-
+        endif
+        endif
+
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
