@@ -1,6 +1,6 @@
 GHDL=ghdl
 GHDLFLAGS=--std=08
-CFLAGS=-O2
+CFLAGS=-O2 -Wall
 
 all = core_tb simple_ram_behavioural_tb
 # XXX
