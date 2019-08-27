@@ -48,6 +48,12 @@ filesets:
     files:
       - fpga/nexys-video.xdc : {file_type : xdc}
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
+      
+  arty_a7-35:
+    files:
+      - fpga/arty_a7-35.xdc : {file_type : xdc}
+      - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
+  
 
 targets:
   nexys_a7:
@@ -64,6 +70,14 @@ targets:
     parameters : [memory_size, ram_init_file]
     tools:
       vivado: {part : xc7a200tsbg484-1}
+    toplevel : toplevel
+    
+  arty_a7-35:
+    default_tool: vivado
+    filesets: [core, arty_a7-35, soc]
+    parameters : [memory_size, ram_init_file]
+    tools:
+      vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
 
   synth:
