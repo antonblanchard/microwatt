@@ -13,7 +13,7 @@ use work.wishbone_types.all;
 -- 0xc0002000: UART0 (for host communication)
 entity toplevel is
   generic (
-    MEMORY_SIZE   : positive := 1048576;
+    MEMORY_SIZE   : positive := 524288;
     RAM_INIT_FILE : string   := "firmware.hex");
 	port(
 		clk       : in  std_logic;

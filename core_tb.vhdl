@@ -26,7 +26,7 @@ begin
 			  wishbone_out => wishbone_out, registers => registers, terminate_out => terminate);
 
 	simple_ram_0: entity work.simple_ram_behavioural
-		generic map ( filename => "simple_ram_behavioural.bin", size => 1048576)
+		generic map ( filename => "simple_ram_behavioural.bin", size => 524288)
 		port map (clk => clk, rst => rst, wishbone_in => wishbone_out, wishbone_out => wishbone_in);
 
 	clk_process: process
