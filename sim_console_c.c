@@ -117,7 +117,7 @@ void sim_console_poll(unsigned char *__rt)
 	fdset[0].fd = STDIN_FILENO;
 	fdset[0].events = POLLIN;
 
-	ret = poll(fdset, 1, -1);
+	ret = poll(fdset, 1, 0);
 	//fprintf(stderr, "poll returns %d\n", ret);
 
 	if (ret == 1)
