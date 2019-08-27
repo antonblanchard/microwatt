@@ -66,7 +66,7 @@ begin
 
 	wb_ack_out <= read_ack and wb_stb_in;
 
-	process(clk)
+	memory_0: process(clk)
 	begin
 		if rising_edge(clk) then
 			if reset = '1' then
@@ -102,6 +102,6 @@ begin
 				end if;
 			end if;
 		end if;
-	end process clk;
+	end process;
 
 end architecture behaviour;
