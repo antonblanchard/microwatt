@@ -1,0 +1,8 @@
+language: minimal
+install: skip
+
+services: docker
+
+before_install: docker pull ghdl/vunit:gcc
+
+script: docker run --rm -t -v `pwd`:/build -w /build ghdl/vunit:gcc bash -c "apt install -y python3-pexpect && make GNATMAKE='gnatmake -j'$(nproc) && make -j$(nproc) check_light"
