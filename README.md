@@ -4,6 +4,9 @@ A tiny Open POWER ISA softcore written in VHDL 2008. It aims to be simple and ea
 to understand.
 
 ## Simulation using ghdl
+<p align="center">
+<img src="http://neuling.org/microwatt-micropython.gif" alt="MicroPython running on Microwatt"/>
+</p>
 
 - Build micropython. If you aren't building on a ppc64le box you
   will need a cross compiler. If it isn't available on your distro
