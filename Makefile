@@ -61,13 +61,15 @@ tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 
 check: $(tests) test_micropython test_micropython_long
 
+check_light: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 test_micropython test_micropython_long 
+
 $(tests): core_tb
 	@./scripts/run_test.sh $@
 
-test_micropython:
+test_micropython: core_tb
 	@./scripts/test_micropython.py
 
-test_micropython_long:
+test_micropython_long: core_tb
 	@./scripts/test_micropython_long.py
 
 clean:
