@@ -43,6 +43,7 @@ begin
 		variable result_with_carry : std_ulogic_vector(64 downto 0);
 		variable result_en : integer;
 		variable crnum : integer;
+		variable lo, hi : integer;
 	begin
 		result := (others => '0');
 		result_with_carry := (others => '0');
@@ -114,14 +115,20 @@ begin
 					e_out.write_cr_enable <= '1';
 					crnum := to_integer(unsigned(e.const1(2 downto 0)));
 					e_out.write_cr_mask <= num_to_fxm(crnum);
-					e_out.write_cr_data <= (others => '0');
-					e_out.write_cr_data((4*(7-crnum)+3) downto (4*(7-crnum))) <= ppc_cmp(e.const2(0), e.read_data1, e.read_data2);
+					for i in 0 to 7 loop
+						lo := i*4;
+						hi := lo + 3;
+						e_out.write_cr_data(hi downto lo) <= ppc_cmp(e.const2(0), e.read_data1, e.read_data2);
+					end loop;
 				when OP_CMPL =>
 					e_out.write_cr_enable <= '1';
 					crnum := to_integer(unsigned(e.const1(2 downto 0)));
 					e_out.write_cr_mask <= num_to_fxm(crnum);
-					e_out.write_cr_data <= (others => '0');
-					e_out.write_cr_data((4*(7-crnum)+3) downto (4*(7-crnum))) <= ppc_cmpl(e.const2(0), e.read_data1, e.read_data2);
+					for i in 0 to 7 loop
+						lo := i*4;
+						hi := lo + 3;
+						e_out.write_cr_data(hi downto lo) <= ppc_cmpl(e.const2(0), e.read_data1, e.read_data2);
+					end loop;
 				when OP_CNTLZW =>
 					result := ppc_cntlzw(e.read_data1);
 					result_en := 1;
@@ -173,7 +180,14 @@ begin
 				when OP_MFOCRF =>
 					crnum := fxm_to_num(e.const1(7 downto 0));
 					result := (others => '0');
-					result((4*(7-crnum)+3) downto (4*(7-crnum))) := e.cr((4*(7-crnum)+3) downto (4*(7-crnum)));
+--					result((4*(7-crnum)+3) downto (4*(7-crnum))) := e.cr((4*(7-crnum)+3) downto (4*(7-crnum))); FIXME
+					for i in 0 to 7 loop
+						lo := (7-i)*4;
+						hi := lo + 3;
+						if crnum = i then
+							result(hi downto lo) := e.cr(hi downto lo);
+						end if;
+					end loop;
 					result_en := 1;
 				when OP_MTCRF =>
 					e_out.write_cr_enable <= '1';

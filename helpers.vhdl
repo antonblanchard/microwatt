@@ -194,16 +194,16 @@ package body helpers is
 	begin
 		case_0: case size is
 			when 2 =>
-				upper := 15;
+				ret := resize(signed(val(15 downto 0)), 64);
 			when 4 =>
-				upper := 31;
+				ret := resize(signed(val(31 downto 0)), 64);
 			when 8 =>
-				upper := 63;
+				ret := resize(signed(val(63 downto 0)), 64);
 			when others =>
 				report "bad byte reverse length " & integer'image(size) severity failure;
 		end case;
 
-		ret := resize(signed(val(upper downto 0)), 64);
 		return std_ulogic_vector(ret);
+
 	end;
 end package body helpers;

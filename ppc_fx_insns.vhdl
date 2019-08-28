@@ -339,10 +339,17 @@ package body ppc_fx_insns is
 		tmp2 := (others => '0');
 		if hi < lo then
 			-- Mask wraps around
-			tmp2(63 downto lo) := tmp1(63 downto lo);
-			tmp2(hi downto 0) := tmp1(hi downto 0);
+			for i in 0 to 63 loop
+				if i <= hi or i >= lo then
+					tmp2(i) := tmp1(i);
+				end if;
+			end loop;
 		else
-			tmp2(hi downto lo) := tmp1(hi downto lo);
+			for i in 0 to 63 loop
+				if i >= lo and i <= hi then
+					tmp2(i) := tmp1(i);
+				end if;
+			end loop;
 		end if;
 		return tmp2;
 	end;
@@ -360,10 +367,17 @@ package body ppc_fx_insns is
 		tmp2 := (others => '0');
 		if hi < lo then
 			-- Mask wraps around
-			tmp2(63 downto lo) := tmp1(63 downto lo);
-			tmp2(hi downto 0) := tmp1(hi downto 0);
+			for i in 0 to 63 loop
+				if i <= hi or i >= lo then
+					tmp2(i) := tmp1(i);
+				end if;
+			end loop;
 		else
-			tmp2(hi downto lo) := tmp1(hi downto lo);
+			for i in 0 to 63 loop
+				if i >= lo and i <= hi then
+					tmp2(i) := tmp1(i);
+				end if;
+			end loop;
 		end if;
 		return tmp2;
 	end;
@@ -379,10 +393,17 @@ package body ppc_fx_insns is
 		tmp2 := ra;
 		if hi < lo then
 			-- Mask wraps around
-			tmp2(63 downto lo) := tmp1(63 downto lo);
-			tmp2(hi downto 0) := tmp1(hi downto 0);
+			for i in 0 to 63 loop
+				if i <= hi or i >= lo then
+					tmp2(i) := tmp1(i);
+				end if;
+			end loop;
 		else
-			tmp2(hi downto lo) := tmp1(hi downto lo);
+			for i in 0 to 63 loop
+				if i >= lo and i <= hi then
+					tmp2(i) := tmp1(i);
+				end if;
+			end loop;
 		end if;
 		return tmp2;
 	end;
@@ -394,7 +415,11 @@ package body ppc_fx_insns is
 		hi := 63-to_integer(unsigned(mb));
 		tmp1 := std_ulogic_vector(rotate_left(unsigned(rs), to_integer(unsigned(sh))));
 		tmp2 := (others => '0');
-		tmp2(hi downto 0) := tmp1(hi downto 0);
+		for i in 0 to 63 loop
+			if i <= hi then
+				tmp2(i) := tmp1(i);
+			end if;
+		end loop;
 		return tmp2;
 	end;
 
@@ -405,7 +430,11 @@ package body ppc_fx_insns is
 		lo := 63-to_integer(unsigned(me));
 		tmp1 := std_ulogic_vector(rotate_left(unsigned(rs), to_integer(unsigned(sh))));
 		tmp2 := (others => '0');
-		tmp2(63 downto lo) := tmp1(63 downto lo);
+		for i in 0 to 63 loop
+			if i >= lo then
+				tmp2(i) := tmp1(i);
+			end if;
+		end loop;
 		return tmp2;
 	end;
 
@@ -419,10 +448,17 @@ package body ppc_fx_insns is
 		tmp2 := (others => '0');
 		if hi < lo then
 			-- Mask wraps around
-			tmp2(63 downto lo) := tmp1(63 downto lo);
-			tmp2(hi downto 0) := tmp1(hi downto 0);
+			for i in 0 to 63 loop
+				if i <= hi or i >= lo then
+					tmp2(i) := tmp1(i);
+				end if;
+			end loop;
 		else
-			tmp2(hi downto lo) := tmp1(hi downto lo);
+			for i in 0 to 63 loop
+				if i >= lo and i <= hi then
+					tmp2(i) := tmp1(i);
+				end if;
+			end loop;
 		end if;
 		return tmp2;
 	end;
@@ -434,7 +470,11 @@ package body ppc_fx_insns is
 		hi := 63-to_integer(unsigned(mb));
 		tmp1 := std_ulogic_vector(rotate_left(unsigned(rs), to_integer(unsigned(rb(5 downto 0)))));
 		tmp2 := (others => '0');
-		tmp2(hi downto 0) := tmp1(hi downto 0);
+		for i in 0 to 63 loop
+			if i <= hi then
+				tmp2(i) := tmp1(i);
+			end if;
+		end loop;
 		return tmp2;
 	end;
 
@@ -445,7 +485,11 @@ package body ppc_fx_insns is
 		lo := 63-to_integer(unsigned(me));
 		tmp1 := std_ulogic_vector(rotate_left(unsigned(rs), to_integer(unsigned(rb(5 downto 0)))));
 		tmp2 := (others => '0');
-		tmp2(63 downto lo) := tmp1(63 downto lo);
+		for i in 0 to 63 loop
+			if i >= lo then
+				tmp2(i) := tmp1(i);
+			end if;
+		end loop;
 		return tmp2;
 	end;
 
@@ -459,10 +503,17 @@ package body ppc_fx_insns is
 		tmp2 := ra;
 		if hi < lo then
 			-- Mask wraps around
-			tmp2(63 downto lo) := tmp1(63 downto lo);
-			tmp2(hi downto 0) := tmp1(hi downto 0);
+			for i in 0 to 63 loop
+				if i <= hi or i >= lo then
+					tmp2(i) := tmp1(i);
+				end if;
+			end loop;
 		else
-			tmp2(hi downto lo) := tmp1(hi downto lo);
+			for i in 0 to 63 loop
+				if i >= lo and i <= hi then
+					tmp2(i) := tmp1(i);
+				end if;
+			end loop;
 		end if;
 		return tmp2;
 	end;
@@ -490,12 +541,19 @@ package body ppc_fx_insns is
 	function ppc_srawi (rs : std_ulogic_vector(63 downto 0); sh: std_ulogic_vector(5 downto 0)) return std_ulogic_vector is
 		variable n : integer;
 		variable tmp : signed(31 downto 0);
+		variable mask : std_ulogic_vector(63 downto 0);
 		variable carry: std_ulogic;
 	begin
 		n := to_integer(unsigned(sh));
 		tmp := shift_right(signed(rs(31 downto 0)), n);
 		-- what about n = 0?
-		carry := or rs(n-1 downto 0) and rs(31);
+		mask := (others => '0');
+		for i in 0 to 63 loop
+			if i < n then
+				mask(i) := '1';
+			end if;
+		end loop;
+		carry := '0' when (rs and mask) = (63 downto 0 => '0') else rs(31);
 
 		return carry & std_ulogic_vector(resize(tmp, rs'length));
 	end;
@@ -503,13 +561,19 @@ package body ppc_fx_insns is
 	function ppc_sraw (rs, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
 		variable n : natural;
 		variable tmp : signed(31 downto 0);
+		variable mask : std_ulogic_vector(63 downto 0);
 		variable carry: std_ulogic;
 	begin
 		n := to_integer(unsigned(rb(5 downto 0)));
 		tmp := shift_right(signed(rs(31 downto 0)), n);
 		-- what about n = 0?
-		carry := or rs(n-1 downto 0) and rs(31);
-
+		mask := (others => '0');
+		for i in 0 to 63 loop
+			if i < n then
+				mask(i) := '1';
+			end if;
+		end loop;
+		carry := or (rs and mask) and rs(31);
 		return carry & std_ulogic_vector(resize(tmp, rs'length));
 	end;
 
@@ -530,10 +594,17 @@ package body ppc_fx_insns is
 	function ppc_sradi (rs: std_ulogic_vector(63 downto 0); sh: std_ulogic_vector(5 downto 0)) return std_ulogic_vector is
 		variable n : integer;
 		variable carry: std_ulogic;
+		variable mask : std_ulogic_vector(63 downto 0);
 	begin
 		n := to_integer(unsigned(sh));
 		-- what about n = 0?
-		carry := or rs(n-1 downto 0) and rs(63);
+		mask := (others => '0');
+		for i in 0 to 63 loop
+			if i < n then
+				mask(i) := '1';
+			end if;
+		end loop;
+		carry := '0' when (rs and mask) = (63 downto 0 => '0') else rs(63);
 
 		return carry & std_ulogic_vector(shift_right(signed(rs), n));
 	end;
@@ -541,10 +612,17 @@ package body ppc_fx_insns is
 	function ppc_srad (rs, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
 		variable n : integer;
 		variable carry: std_ulogic;
+		variable mask : std_ulogic_vector(63 downto 0);
 	begin
 		n := to_integer(unsigned(rb(6 downto 0)));
 		-- what about n = 0?
-		carry := or rs(n-1 downto 0) and rs(63);
+		mask := (others => '0');
+		for i in 0 to 63 loop
+			if i < n then
+				mask(i) := '1';
+			end if;
+		end loop;
+		carry := '0' when (rs and mask) = (63 downto 0 => '0') else rs(63);
 
 		return carry & std_ulogic_vector(shift_right(signed(rs), n));
 	end;

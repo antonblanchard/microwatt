@@ -113,7 +113,19 @@ begin
 			when WAITING_FOR_READ_ACK =>
 				if m_in.ack = '1' then
 					tmp := std_logic_vector(shift_right(unsigned(m_in.dat), wishbone_data_shift(l_saved.addr)));
-					data((to_integer(unsigned(l_saved.length))*8-1) downto 0) := tmp((to_integer(unsigned(l_saved.length))*8-1) downto 0);
+					case to_integer(unsigned(l_saved.length)) is
+					when 0 =>
+					when 1 =>
+					        data(7 downto 0) := tmp(7 downto 0);
+					when 2 =>
+					        data(15 downto 0) := tmp(15 downto 0);
+					when 4 =>
+					        data(31 downto 0) := tmp(31 downto 0);
+					when 8 =>
+					        data(63 downto 0) := tmp(63 downto 0);
+					when others =>
+						assert false report "invalid length" severity failure;
+					end case;
 
 					if l_saved.sign_extend = '1' then
 						data := sign_extend(data, to_integer(unsigned(l_saved.length)));
