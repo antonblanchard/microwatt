@@ -13,6 +13,12 @@ end core_tb;
 architecture behave of core_tb is
 	signal clk, rst: std_logic;
 
+	signal wishbone_dcore_in : wishbone_slave_out;
+	signal wishbone_dcore_out : wishbone_master_out;
+
+	signal wishbone_icore_in : wishbone_slave_out;
+	signal wishbone_icore_out : wishbone_master_out;
+
 	signal wishbone_core_in : wishbone_slave_out;
 	signal wishbone_core_out : wishbone_master_out;
 
@@ -30,8 +36,12 @@ architecture behave of core_tb is
 begin
 	core_0: entity work.core
 		generic map (SIM => true)
-		port map (clk => clk, rst => rst, wishbone_in => wishbone_core_in,
-			  wishbone_out => wishbone_core_out, registers => registers, terminate_out => terminate);
+	    port map (clk => clk, rst => rst,
+		      wishbone_insn_in => wishbone_icore_in,
+		      wishbone_insn_out => wishbone_icore_out,
+		      wishbone_data_in => wishbone_dcore_in,
+		      wishbone_data_out => wishbone_dcore_out,
+		      registers => registers, terminate_out => terminate);
 
 	simple_ram_0: entity work.simple_ram_behavioural
 		generic map ( filename => "simple_ram_behavioural.bin", size => 524288)
@@ -40,6 +50,12 @@ begin
 	simple_uart_0: entity work.sim_uart
 		port map ( clk => clk, reset => rst, wishbone_in => wishbone_uart_out, wishbone_out => wishbone_uart_in);
 
+
+	wishbone_arbiter_0: entity work.wishbone_arbiter
+		port map (clk => clk, rst => rst,
+			  wb1_in => wishbone_dcore_out, wb1_out => wishbone_dcore_in,
+			  wb2_in => wishbone_icore_out, wb2_out => wishbone_icore_in,
+			  wb_out => wishbone_core_out, wb_in => wishbone_core_in);
 
 	bus_process: process(wishbone_core_out, wishbone_ram_in, wishbone_uart_in)
 	  -- Selected slave

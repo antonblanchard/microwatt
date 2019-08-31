@@ -14,8 +14,11 @@ entity core is
 		clk          : in std_logic;
 		rst          : in std_logic;
 
-		wishbone_in  : in wishbone_slave_out;
-		wishbone_out : out wishbone_master_out;
+		wishbone_insn_in  : in wishbone_slave_out;
+		wishbone_insn_out : out wishbone_master_out;
+
+		wishbone_data_in  : in wishbone_slave_out;
+		wishbone_data_out : out wishbone_master_out;
 
 		-- Added for debug, ghdl doesn't support external names unfortunately
 		registers    : out regfile;
@@ -55,12 +58,6 @@ architecture behave of core is
 	-- multiply signals
 	signal decode2_to_multiply: Decode2ToMultiplyType;
 	signal multiply_to_writeback: MultiplyToWritebackType;
-
-	-- wishbone signals
-	signal wishbone_data_in : wishbone_slave_out;
-	signal wishbone_data_out : wishbone_master_out;
-	signal wishbone_insn_in : wishbone_slave_out;
-	signal wishbone_insn_out : wishbone_master_out;
 
 	-- local signals
 	signal fetch_enable: std_ulogic := '0';
@@ -123,11 +120,6 @@ begin
 		port map (clk => clk, e_in => execute2_to_writeback, l_in => loadstore2_to_writeback,
 			  m_in => multiply_to_writeback, w_out => writeback_to_register_file,
 			  c_out => writeback_to_cr_file, complete_out => complete);
-
-	wishbone_arbiter_0: entity work.wishbone_arbiter
-		port map (clk => clk, rst => rst, wb1_in => wishbone_data_out, wb1_out => wishbone_data_in,
-			  wb2_in => wishbone_insn_out, wb2_out => wishbone_insn_in, wb_out => wishbone_out,
-			  wb_in => wishbone_in);
 
 	-- Only single issue until we add bypass support
 	single_issue_0: process(clk)

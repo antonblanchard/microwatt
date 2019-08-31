@@ -26,9 +26,13 @@ end entity soc;
 
 architecture behaviour of soc is
 
-    -- wishbone signals:
+    -- Wishbone master signals:
     signal wishbone_proc_out: wishbone_master_out;
     signal wishbone_proc_in: wishbone_slave_out;
+    signal wishbone_dcore_in : wishbone_slave_out;
+    signal wishbone_dcore_out : wishbone_master_out;
+    signal wishbone_icore_in : wishbone_slave_out;
+    signal wishbone_icore_out : wishbone_master_out;
 
     -- Processor signals:
     signal processor_adr_out : std_logic_vector(63 downto 0);
@@ -128,9 +132,22 @@ begin
 	port map(
 	    clk => system_clk,
 	    rst => rst,
+	    wishbone_insn_in => wishbone_icore_in,
+	    wishbone_insn_out => wishbone_icore_out,
+	    wishbone_data_in => wishbone_dcore_in,
+	    wishbone_data_out => wishbone_dcore_out
+	    );
 
-	    wishbone_out => wishbone_proc_out,
-	    wishbone_in => wishbone_proc_in
+    wishbone_arbiter_0: entity work.wishbone_arbiter
+	port map(
+	    clk => system_clk,
+	    rst => rst,
+	    wb1_in => wishbone_dcore_out,
+	    wb1_out => wishbone_dcore_in,
+	    wb2_in => wishbone_icore_out,
+	    wb2_out => wishbone_icore_in,
+	    wb_out => wishbone_proc_out,
+	    wb_in => wishbone_proc_in
 	    );
     processor_adr_out <= wishbone_proc_out.adr;
     processor_dat_out <= wishbone_proc_out.dat;
