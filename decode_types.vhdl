@@ -123,6 +123,8 @@ package decode_types is
 
 		rc           : rc_t;
 		lr           : std_ulogic;
+
+		sgl_pipe     : std_ulogic;
 	end record;
 	constant decode_rom_init : decode_rom_t := (unit => NONE,
 		insn_type => OP_ILLEGAL, input_reg_a => NONE,
@@ -132,7 +134,7 @@ package decode_types is
 		input_carry => '0', output_carry => '0',
 		length => NONE, byte_reverse => '0', sign_extend => '0',
 		update => '0', reserve => '0', mul_32bit => '0',
-		mul_signed => '0', rc => NONE, lr => '0');
+		mul_signed => '0', rc => NONE, lr => '0', sgl_pipe => '0');
 
 end decode_types;
 
