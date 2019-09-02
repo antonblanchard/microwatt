@@ -22,8 +22,8 @@ architecture behaviour of decode1 is
 
 	-- Note: reformat with column -t -o ' '
 	constant decode_rom_array : decode_rom_array_t := (
-		--                       unit     internal     in1         in2          in3   out   const const const CR   CR   cry  cry  ldst  ld   BR   sgn  upd  mul  mul  rc   lk
-		--                                      op                                          1     2     3     in   out  in   out        len       ext       32   sgn
+		--                       unit     internal     in1         in2          in3   out   const const const CR   CR   cry  cry  ldst  BR   sgn  upd  rsrv mul  mul  rc   lk
+		--                                      op                                          1     2     3     in   out  in   out  len        ext             32  sgn
 		PPC_ILLEGAL    =>       (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0'),
 		PPC_ADD        =>       (ALU,    OP_ADD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0'),
 		PPC_ADDC       =>       (ALU,    OP_ADDC,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0'),
