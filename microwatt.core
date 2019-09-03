@@ -25,6 +25,7 @@ filesets:
       - multiply.vhdl
       - writeback.vhdl
       - wishbone_arbiter.vhdl
+      - insn_helpers.vhdl
       - core.vhdl
     file_type : vhdlSource-2008
 
