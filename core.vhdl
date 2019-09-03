@@ -60,9 +60,15 @@ architecture behave of core is
 	signal multiply_to_writeback: MultiplyToWritebackType;
 
 	-- local signals
-	signal fetch_enable: std_ulogic := '0';
+	signal fetch1_stall_in : std_ulogic;
+	signal fetch2_stall_in : std_ulogic;
+	signal fetch2_stall_out : std_ulogic;
+	signal decode1_stall_in : std_ulogic;
+	signal decode2_stall_out : std_ulogic;
+
+	signal flush: std_ulogic;
+
 	signal complete: std_ulogic;
-	signal first_fetch: std_ulogic := '0';
 
 	signal terminate: std_ulogic;
 begin
@@ -71,19 +77,27 @@ begin
 
 	fetch1_0: entity work.fetch1
 		generic map (RESET_ADDRESS => (others => '0'))
-		port map (clk => clk, rst => rst, fetch_one_in => fetch_enable,
+		port map (clk => clk, rst => rst, stall_in => fetch1_stall_in, flush_in => flush,
 			  e_in => execute1_to_fetch1, f_out => fetch1_to_fetch2);
 
+	fetch1_stall_in <= fetch2_stall_out or decode2_stall_out;
+
 	fetch2_0: entity work.fetch2
-		port map (clk => clk, wishbone_in => wishbone_insn_in,
+		port map (clk => clk, rst => rst, stall_in => fetch2_stall_in,
+			  stall_out => fetch2_stall_out, flush_in => flush, wishbone_in => wishbone_insn_in,
 			  wishbone_out => wishbone_insn_out, f_in => fetch1_to_fetch2,
 			  f_out => fetch2_to_decode1);
 
+	fetch2_stall_in <= decode2_stall_out;
+
 	decode1_0: entity work.decode1
-		port map (clk => clk, f_in => fetch2_to_decode1, d_out => decode1_to_decode2);
+		port map (clk => clk, rst => rst, stall_in => decode1_stall_in, flush_in => flush, f_in => fetch2_to_decode1, d_out => decode1_to_decode2);
+
+	decode1_stall_in <= decode2_stall_out;
 
 	decode2_0: entity work.decode2
-		port map (clk => clk, d_in => decode1_to_decode2, e_out => decode2_to_execute1,
+		port map (clk => clk, rst => rst, stall_out => decode2_stall_out, flush_in => flush,
+			  complete_in => complete, d_in => decode1_to_decode2, e_out => decode2_to_execute1,
 			  l_out => decode2_to_loadstore1, m_out => decode2_to_multiply,
 			  r_in => register_file_to_decode2, r_out => decode2_to_register_file,
 			  c_in => cr_file_to_decode2, c_out => decode2_to_cr_file);
@@ -99,7 +113,7 @@ begin
 
 	execute1_0: entity work.execute1
 		generic map (SIM => SIM)
-		port map (clk => clk, e_in => decode2_to_execute1, f_out => execute1_to_fetch1,
+		port map (clk => clk, flush_out => flush, e_in => decode2_to_execute1, f_out => execute1_to_fetch1,
 			  e_out => execute1_to_execute2, terminate_out => terminate);
 
 	execute2_0: entity work.execute2
@@ -120,22 +134,5 @@ begin
 		port map (clk => clk, e_in => execute2_to_writeback, l_in => loadstore2_to_writeback,
 			  m_in => multiply_to_writeback, w_out => writeback_to_register_file,
 			  c_out => writeback_to_cr_file, complete_out => complete);
-
-	-- Only single issue until we add bypass support
-	single_issue_0: process(clk)
-	begin
-		if (rising_edge(clk)) then
-			if rst = '1' then
-				first_fetch <= '1';
-			else
-				if first_fetch = '1' then
-					fetch_enable <= '1';
-					first_fetch <= '0';
-				else
-					fetch_enable <= complete;
-				end if;
-			end if;
-		end if;
-	end process single_issue_0;
 
 end behave;
