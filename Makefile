@@ -17,19 +17,18 @@ core.o: common.o wishbone_types.o fetch1.o fetch2.o decode1.o decode2.o register
 cr_file.o: common.o
 crhelpers.o: common.o
 decode1.o: common.o decode_types.o
-decode2.o: decode_types.o common.o helpers.o
+decode2.o: decode_types.o common.o helpers.o insn_helpers.o
 decode_types.o:
 execute1.o: decode_types.o common.o helpers.o crhelpers.o ppc_fx_insns.o sim_console.o
 execute2.o: common.o crhelpers.o ppc_fx_insns.o
 fetch1.o: common.o
 fetch2.o: common.o wishbone_types.o
-fetch_tb.o: common.o wishbone_types.o fetch.o
 glibc_random_helpers.o:
 glibc_random.o: glibc_random_helpers.o
 helpers.o:
+insn_helpers.o:
 loadstore1.o: common.o
 loadstore2.o: common.o helpers.o wishbone_types.o
-loadstore_tb.o: common.o simple_ram_types.o simple_ram.o loadstore1.o loadstore2.o
 multiply_tb.o: common.o glibc_random.o ppc_fx_insns.o multiply.o
 multiply.o: common.o decode_types.o ppc_fx_insns.o crhelpers.o
 ppc_fx_insns.o: helpers.o
