@@ -63,7 +63,7 @@ package common is
 		data2: std_ulogic_vector(64 downto 0);
 		rc: std_ulogic;
 	end record;
-	constant Decode2ToMultiplyInit : Decode2ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0', others => (others => '0'));
+	constant Decode2ToMultiplyInit : Decode2ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0', others => (others => '-'));
 
 	type Decode2ToRegisterFileType is record
 		read1_enable : std_ulogic;
