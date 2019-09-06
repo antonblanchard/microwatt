@@ -52,7 +52,7 @@ package common is
 		input_cr: std_ulogic;
 		output_cr: std_ulogic;
 	end record;
-	constant Decode2ToExecute1Init : Decode2ToExecute1Type := (valid => '0', insn_type => OP_ILLEGAL, lr => '0', rc => '0', input_carry => '0', output_carry => '0', input_cr => '0', output_cr => '0', others => (others => '0'));
+	constant Decode2ToExecute1Init : Decode2ToExecute1Type := (valid => '0', insn_type => OP_ILLEGAL, lr => '0', rc => '0', input_carry => '0', output_carry => '0', input_cr => '0', output_cr => '0', others => (others => '-'));
 
 	type Decode2ToMultiplyType is record
 		valid: std_ulogic;
