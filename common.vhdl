@@ -178,7 +178,7 @@ package common is
 		write_cr_mask : std_ulogic_vector(7 downto 0);
 		write_cr_data : std_ulogic_vector(31 downto 0);
 	end record;
-	constant WritebackToCrFileInit : WritebackToCrFileType := (write_cr_enable => '0', others => (others => '0'));
+	constant WritebackToCrFileInit : WritebackToCrFileType := (write_cr_enable => '0', others => (others => '-'));
 
 	-- Would prefer not to expose this outside the register file, but ghdl
 	-- doesn't support external names
