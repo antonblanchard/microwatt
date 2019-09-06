@@ -108,7 +108,7 @@ package common is
 		update : std_ulogic;				-- is this an update instruction?
 		update_reg : std_ulogic_vector(4 downto 0);	-- if so, the register to update
 	end record;
-	constant Decode2ToLoadstore1Init : Decode2ToLoadstore1Type := (valid => '0', load => '0', byte_reverse => '0', sign_extend => '0', update => '0', others => (others => '0'));
+	constant Decode2ToLoadstore1Init : Decode2ToLoadstore1Type := (valid => '0', load => '0', byte_reverse => '0', sign_extend => '0', update => '0', others => (others => '-'));
 
 	type Loadstore1ToLoadstore2Type is record
 		valid : std_ulogic;
