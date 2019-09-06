@@ -8,7 +8,7 @@ entity writeback is
 	port (
 		clk          : in std_ulogic;
 
-		w_in         : in Execute2ToWritebackType;
+		e_in         : in Execute2ToWritebackType;
 		l_in         : in Loadstore2ToWritebackType;
 		m_in         : in MultiplyToWritebackType;
 
@@ -20,7 +20,7 @@ entity writeback is
 end entity writeback;
 
 architecture behaviour of writeback is
-	signal w     : Execute2ToWritebackType;
+	signal e     : Execute2ToWritebackType;
 	signal l     : Loadstore2ToWritebackType;
 	signal m     : MultiplyToWritebackType;
 	signal w_tmp : WritebackToRegisterFileType;
@@ -29,7 +29,7 @@ begin
 	writeback_0: process(clk)
 	begin
 		if rising_edge(clk) then
-			w <= w_in;
+			e <= e_in;
 			l <= l_in;
 			m <= m_in;
 		end if;
@@ -38,7 +38,7 @@ begin
 	w_out <= w_tmp;
 	c_out <= c_tmp;
 
-	complete_out <= '1' when w.valid or l.valid or m.valid else '0';
+	complete_out <= '1' when e.valid or l.valid or m.valid else '0';
 
 	writeback_1: process(all)
 	begin
@@ -48,18 +48,18 @@ begin
 		w_tmp <= WritebackToRegisterFileInit;
 		c_tmp <= WritebackToCrFileInit;
 
-		if w.valid = '1' then
-			if w.write_enable = '1' then
-				w_tmp.write_reg <= w.write_reg;
-				w_tmp.write_data <= w.write_data;
+		if e.valid = '1' then
+			if e.write_enable = '1' then
+				w_tmp.write_reg <= e.write_reg;
+				w_tmp.write_data <= e.write_data;
 				w_tmp.write_enable <= '1';
 			end if;
 
-			if w.write_cr_enable = '1' then
+			if e.write_cr_enable = '1' then
 				report "Writing CR ";
 				c_tmp.write_cr_enable <= '1';
-				c_tmp.write_cr_mask <= w.write_cr_mask;
-				c_tmp.write_cr_data <= w.write_cr_data;
+				c_tmp.write_cr_mask <= e.write_cr_mask;
+				c_tmp.write_cr_data <= e.write_cr_data;
 			end if;
 		end if;
 

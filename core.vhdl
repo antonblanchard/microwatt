@@ -120,7 +120,7 @@ begin
 		port map (clk => clk, m_in => decode2_to_multiply, m_out => multiply_to_writeback);
 
 	writeback_0: entity work.writeback
-		port map (clk => clk, w_in => execute2_to_writeback, l_in => loadstore2_to_writeback,
+		port map (clk => clk, e_in => execute2_to_writeback, l_in => loadstore2_to_writeback,
 			  m_in => multiply_to_writeback, w_out => writeback_to_register_file,
 			  c_out => writeback_to_cr_file, complete_out => complete);
 
