@@ -164,7 +164,7 @@ package common is
 		write_cr_mask: std_ulogic_vector(7 downto 0);
 		write_cr_data: std_ulogic_vector(31 downto 0);
 	end record;
-	constant MultiplyToWritebackInit : MultiplyToWritebackType := (valid => '0', write_reg_enable => '0', write_cr_enable => '0', others => (others => '0'));
+	constant MultiplyToWritebackInit : MultiplyToWritebackType := (valid => '0', write_reg_enable => '0', write_cr_enable => '0', others => (others => '-'));
 
 	type WritebackToRegisterFileType is record
 		write_reg : std_ulogic_vector(4 downto 0);
