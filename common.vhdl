@@ -141,7 +141,7 @@ package common is
 		write_cr_data : std_ulogic_vector(31 downto 0);
 		rc : std_ulogic;
 	end record;
-	constant Execute1ToExecute2Init : Execute1ToExecute2Type := (valid => '0', write_enable => '0', write_cr_enable => '0', rc => '0', others => (others => '0'));
+	constant Execute1ToExecute2Init : Execute1ToExecute2Type := (valid => '0', write_enable => '0', write_cr_enable => '0', rc => '0', others => (others => '-'));
 
 	type Execute2ToWritebackType is record
 		valid: std_ulogic;
