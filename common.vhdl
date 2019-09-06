@@ -152,7 +152,7 @@ package common is
 		write_cr_mask : std_ulogic_vector(7 downto 0);
 		write_cr_data : std_ulogic_vector(31 downto 0);
 	end record;
-	constant Execute2ToWritebackInit : Execute2ToWritebackType := (valid => '0', write_enable => '0', write_cr_enable => '0', others => (others => '0'));
+	constant Execute2ToWritebackInit : Execute2ToWritebackType := (valid => '0', write_enable => '0', write_cr_enable => '0', others => (others => '-'));
 
 	type MultiplyToWritebackType is record
 		valid: std_ulogic;
