@@ -12,9 +12,11 @@ use work.wishbone_types.all;
 -- 0x00000000: Main memory (1 MB)
 -- 0xc0002000: UART0 (for host communication)
 entity toplevel is
-  generic (
-    MEMORY_SIZE   : positive := 524288;
-    RAM_INIT_FILE : string   := "firmware.hex");
+	generic (
+		MEMORY_SIZE   : positive := 524288;
+		RAM_INIT_FILE : string   := "firmware.hex";
+		RESET_LOW : boolean := true
+	);
 	port(
 		ext_clk   : in  std_logic;
 		ext_rst   : in  std_logic;
@@ -28,12 +30,12 @@ end entity toplevel;
 architecture behaviour of toplevel is
 
 	-- Reset signals:
-	signal rst : std_logic;
+	signal rst : std_ulogic;
+	signal pll_rst_n : std_ulogic;
 
 	-- Internal clock signals:
-	signal system_clk : std_logic;
-	signal timer_clk  : std_logic;
-	signal system_clk_locked : std_logic;
+	signal system_clk : std_ulogic;
+	signal system_clk_locked : std_ulogic;
 
 	-- wishbone signals:
 	signal wishbone_proc_out: wishbone_master_out;
@@ -137,21 +139,25 @@ begin
 		end case;
 	end process processor_intercon;
 
-	reset_controller: entity work.pp_soc_reset
+	reset_controller: entity work.soc_reset
+		generic map(
+			RESET_LOW => RESET_LOW
+		)
 		port map(
-			clk => system_clk,
-			reset_n => ext_rst,
-			reset_out => rst,
-			system_clk => system_clk,
-			system_clk_locked => system_clk_locked
+			ext_clk => ext_clk,
+			pll_clk => system_clk,
+			pll_locked_in => system_clk_locked,
+			ext_rst_in => ext_rst,
+			pll_rst_out => pll_rst_n,
+			rst_out => rst
 		);
 
 	clkgen: entity work.clock_generator
 		port map(
-			clk => ext_clk,
-			resetn => ext_rst,
-			system_clk => system_clk,
-			locked => system_clk_locked
+			ext_clk => ext_clk,
+			pll_rst_in => pll_rst_n,
+			pll_clk_out => system_clk,
+			pll_locked_out => system_clk_locked
 		);
 
 	processor: entity work.core
