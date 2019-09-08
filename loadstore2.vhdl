@@ -81,15 +81,14 @@ begin
 					m_tmp.cyc <= '1';
 					m_tmp.stb <= '1';
 
+					l_saved <= l_in;
+
 					if l_in.load = '1' then
 						m_tmp.we <= '0';
 
-						l_saved <= l_in;
 						state <= WAITING_FOR_READ_ACK;
 					else
 						m_tmp.we <= '1';
-
-						w_tmp.valid <= '1';
 
 						data := l_in.data;
 						if l_in.byte_reverse = '1' then
@@ -99,12 +98,6 @@ begin
 						m_tmp.dat <= std_logic_vector(shift_left(unsigned(data), wishbone_data_shift(l_in.addr)));
 
 						assert l_in.sign_extend = '0' report "sign extension doesn't make sense for stores" severity failure;
-
-						if l_in.update = '1' then
-							w_tmp.write_enable <= '1';
-							w_tmp.write_reg <= l_in.update_reg;
-							w_tmp.write_data <= l_in.addr;
-						end if;
 
 						state <= WAITING_FOR_WRITE_ACK;
 					end if;
@@ -154,6 +147,13 @@ begin
 
 			when WAITING_FOR_WRITE_ACK =>
 				if m_in.ack = '1' then
+					w_tmp.valid <= '1';
+					if l_saved.update = '1' then
+						w_tmp.write_enable <= '1';
+						w_tmp.write_reg <= l_saved.update_reg;
+						w_tmp.write_data <= l_saved.addr;
+					end if;
+
 					m_tmp <= wishbone_master_out_init;
 					state <= IDLE;
 				end if;
