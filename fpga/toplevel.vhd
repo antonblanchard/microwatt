@@ -78,11 +78,6 @@ architecture behaviour of toplevel is
 
 	-- Interconnect address decoder state:
 	signal intercon_busy : boolean := false;
-
-	-- disable for now
-	signal gpio_pins : std_logic_vector(11 downto 0);
-	signal uart1_txd : std_logic;
-	signal uart1_rxd : std_logic;
 begin
 
 	address_decoder: process(system_clk)
