@@ -56,7 +56,6 @@ begin
 			end if;
 
 			if e.write_cr_enable = '1' then
-				report "Writing CR ";
 				c_tmp.write_cr_enable <= '1';
 				c_tmp.write_cr_mask <= e.write_cr_mask;
 				c_tmp.write_cr_data <= e.write_cr_data;
@@ -81,7 +80,6 @@ begin
 				w_tmp.write_data <= m.write_reg_data;
 			end if;
 			if m.write_cr_enable = '1' then
-				report "Writing CR ";
 				c_tmp.write_cr_enable <= '1';
 				c_tmp.write_cr_mask <= m.write_cr_mask;
 				c_tmp.write_cr_data <= m.write_cr_data;

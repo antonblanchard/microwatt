@@ -79,14 +79,11 @@ package common is
 	end record;
 
 	type Decode2ToCrFileType is record
-		read_cr_nr_1 : integer;
-		read_cr_nr_2 : integer;
+		read : std_ulogic;
 	end record;
 
 	type CrFileToDecode2Type is record
 		read_cr_data   : std_ulogic_vector(31 downto 0);
-		read_cr_data_1 : std_ulogic_vector(3 downto 0);
-		read_cr_data_2 : std_ulogic_vector(3 downto 0);
 	end record;
 
 	type Execute1ToFetch1Type is record
