@@ -10,7 +10,7 @@ use work.crhelpers.all;
 
 entity multiply is
 	generic (
-		PIPELINE_DEPTH : integer := 6
+		PIPELINE_DEPTH : natural := 6
 	);
 	port (
 		clk   : in std_logic;
@@ -58,39 +58,36 @@ begin
 
 		m_out <= MultiplyToWritebackInit;
 
-		if m.valid then
-			v.multiply_pipeline(0).valid := '1';
-			v.multiply_pipeline(0).insn_type := m.insn_type;
-			v.multiply_pipeline(0).data := signed(m.data1) * signed(m.data2);
-			v.multiply_pipeline(0).write_reg := m.write_reg;
-			v.multiply_pipeline(0).rc := m.rc;
-		else
-			v.multiply_pipeline(0).valid := '0';
-		end if;
+		v.multiply_pipeline(0).valid := m.valid;
+		v.multiply_pipeline(0).insn_type := m.insn_type;
+		v.multiply_pipeline(0).data := signed(m.data1) * signed(m.data2);
+		v.multiply_pipeline(0).write_reg := m.write_reg;
+		v.multiply_pipeline(0).rc := m.rc;
 
-		loop_0: for i in 0 to PIPELINE_DEPTH-2 loop
-			v.multiply_pipeline(i+1) := r.multiply_pipeline(i);
+		loop_0: for i in 1 to PIPELINE_DEPTH-1 loop
+			v.multiply_pipeline(i) := r.multiply_pipeline(i-1);
 		end loop;
 
+		d := std_ulogic_vector(v.multiply_pipeline(PIPELINE_DEPTH-1).data);
+
+		case_0: case v.multiply_pipeline(PIPELINE_DEPTH-1).insn_type is
+		when OP_MUL_L64 =>
+			d2 := d(63 downto 0);
+		when OP_MUL_H32 =>
+			d2 := d(63 downto 32) & d(63 downto 32);
+		when OP_MUL_H64 =>
+			d2 := d(127 downto 64);
+		when others =>
+			report "Illegal insn type in multiplier";
+			d2 := (others => '0');
+		end case;
+
+		m_out.write_reg_data <= d2;
+		m_out.write_reg_nr <= v.multiply_pipeline(PIPELINE_DEPTH-1).write_reg;
+
 		if v.multiply_pipeline(PIPELINE_DEPTH-1).valid then
-			d := std_ulogic_vector(v.multiply_pipeline(PIPELINE_DEPTH-1).data);
-
-			case_0: case v.multiply_pipeline(PIPELINE_DEPTH-1).insn_type is
-			when OP_MUL_L64 =>
-				d2 := d(63 downto 0);
-			when OP_MUL_H32 =>
-				d2 := d(63 downto 32) & d(63 downto 32);
-			when OP_MUL_H64 =>
-				d2 := d(127 downto 64);
-			when others =>
-				report "Illegal insn type in multiplier";
-				d2 := (others => '0');
-			end case;
-
 			m_out.valid <= '1';
 			m_out.write_reg_enable <= '1';
-			m_out.write_reg_nr <= v.multiply_pipeline(PIPELINE_DEPTH-1).write_reg;
-			m_out.write_reg_data <= d2;
 
 			if v.multiply_pipeline(PIPELINE_DEPTH-1).rc = '1' then
 				m_out.write_cr_enable <= '1';
