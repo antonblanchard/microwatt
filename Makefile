@@ -2,7 +2,7 @@ GHDL=ghdl
 GHDLFLAGS=--std=08
 CFLAGS=-O2 -Wall
 
-all = core_tb simple_ram_behavioural_tb
+all = core_tb simple_ram_behavioural_tb soc_reset_tb
 # XXX
 # loadstore_tb fetch_tb
 
@@ -40,6 +40,11 @@ simple_ram_behavioural.o: wishbone_types.o simple_ram_behavioural_helpers.o
 wishbone_arbiter.o: wishbone_types.o
 wishbone_types.o:
 writeback.o: common.o
+
+fpga/soc_reset_tb.o: fpga/soc_reset.o
+
+soc_reset_tb: fpga/soc_reset_tb.o fpga/soc_reset.o
+	$(GHDL) -e $(GHDLFLAGS) soc_reset_tb
 
 core_tb: core_tb.o simple_ram_behavioural_helpers_c.o sim_console_c.o
 	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o -Wl,sim_console_c.o $@

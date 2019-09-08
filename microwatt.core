@@ -33,7 +33,7 @@ filesets:
     files:
       - fpga/pp_fifo.vhd
       - fpga/pp_soc_memory.vhd
-      - fpga/pp_soc_reset.vhd
+      - fpga/soc_reset.vhdl
       - fpga/pp_soc_uart.vhd
       - fpga/pp_utilities.vhd
       - fpga/toplevel.vhd

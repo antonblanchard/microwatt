@@ -8,10 +8,10 @@ entity clock_generator is
   generic (
     clk_period_hz : positive := 100000000);
   port (
-    clk        : in  std_logic;
-    resetn     : in  std_logic;
-    system_clk : out std_logic;
-    locked     : out std_logic);
+    ext_clk        : in  std_logic;
+    pll_rst_in   : in  std_logic;
+    pll_clk_out    : out std_logic;
+    pll_locked_out : out std_logic);
 end entity clock_generator;
 
 architecture rtl of clock_generator is
@@ -55,17 +55,17 @@ begin
       DIVCLK_DIVIDE      => pll_settings.divclk_divide,
       STARTUP_WAIT       => "FALSE")
     port map (
-      CLKOUT0  => system_clk,
+      CLKOUT0  => pll_clk_out,
       CLKOUT1  => open,
       CLKOUT2  => open,
       CLKOUT3  => open,
       CLKOUT4  => open,
       CLKOUT5  => open,
       CLKFBOUT => clkfb,
-      LOCKED   => locked,
-      CLKIN1   => clk,
+      LOCKED   => pll_locked_out,
+      CLKIN1   => ext_clk,
       PWRDWN   => '0',
-      RST      => not resetn,
+      RST      => pll_rst_in,
       CLKFBIN  => clkfb);
 
 end architecture rtl;

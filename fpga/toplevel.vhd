@@ -12,12 +12,14 @@ use work.wishbone_types.all;
 -- 0x00000000: Main memory (1 MB)
 -- 0xc0002000: UART0 (for host communication)
 entity toplevel is
-  generic (
-    MEMORY_SIZE   : positive := 524288;
-    RAM_INIT_FILE : string   := "firmware.hex");
+	generic (
+		MEMORY_SIZE   : positive := 524288;
+		RAM_INIT_FILE : string   := "firmware.hex";
+		RESET_LOW : boolean := true
+	);
 	port(
-		clk       : in  std_logic;
-		reset_n   : in  std_logic;
+		ext_clk   : in  std_logic;
+		ext_rst   : in  std_logic;
 		
 		-- UART0 signals:
 		uart0_txd : out std_logic;
@@ -28,12 +30,12 @@ end entity toplevel;
 architecture behaviour of toplevel is
 
 	-- Reset signals:
-	signal reset : std_logic;
+	signal rst : std_ulogic;
+	signal pll_rst_n : std_ulogic;
 
 	-- Internal clock signals:
-	signal system_clk : std_logic;
-	signal timer_clk  : std_logic;
-	signal system_clk_locked : std_logic;
+	signal system_clk : std_ulogic;
+	signal system_clk_locked : std_ulogic;
 
 	-- wishbone signals:
 	signal wishbone_proc_out: wishbone_master_out;
@@ -86,7 +88,7 @@ begin
 	address_decoder: process(system_clk)
 	begin
 		if rising_edge(system_clk) then
-			if reset = '1' then
+			if rst = '1' then
 				intercon_peripheral <= PERIPHERAL_NONE;
 				intercon_busy <= false;
 			else
@@ -137,27 +139,31 @@ begin
 		end case;
 	end process processor_intercon;
 
-	reset_controller: entity work.pp_soc_reset
+	reset_controller: entity work.soc_reset
+		generic map(
+			RESET_LOW => RESET_LOW
+		)
 		port map(
-			clk => system_clk,
-			reset_n => reset_n,
-			reset_out => reset,
-			system_clk => system_clk,
-			system_clk_locked => system_clk_locked
+			ext_clk => ext_clk,
+			pll_clk => system_clk,
+			pll_locked_in => system_clk_locked,
+			ext_rst_in => ext_rst,
+			pll_rst_out => pll_rst_n,
+			rst_out => rst
 		);
 
 	clkgen: entity work.clock_generator
 		port map(
-			clk => clk,
-			resetn => reset_n,
-			system_clk => system_clk,
-			locked => system_clk_locked
+			ext_clk => ext_clk,
+			pll_rst_in => pll_rst_n,
+			pll_clk_out => system_clk,
+			pll_locked_out => system_clk_locked
 		);
 
 	processor: entity work.core
 		port map(
 			clk => system_clk,
-			rst => reset,
+			rst => rst,
 
 			wishbone_out => wishbone_proc_out,
 			wishbone_in => wishbone_proc_in
@@ -176,7 +182,7 @@ begin
 			FIFO_DEPTH => 32
 		) port map(
 			clk => system_clk,
-			reset => reset,
+			reset => rst,
 			txd => uart0_txd,
 			rxd => uart0_rxd,
 			wb_adr_in => uart0_adr_in,
@@ -199,7 +205,7 @@ begin
 			RAM_INIT_FILE => RAM_INIT_FILE
 		) port map(
 			clk => system_clk,
-			reset => reset,
+			reset => rst,
 			wb_adr_in => main_memory_adr_in,
 			wb_dat_in => main_memory_dat_in,
 			wb_dat_out => main_memory_dat_out,
