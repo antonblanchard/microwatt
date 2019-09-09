@@ -31,11 +31,6 @@ begin
 				report "Writing GPR " & to_hstring(w_in.write_reg) & " " & to_hstring(w_in.write_data);
 				registers(to_integer(unsigned(w_in.write_reg))) <= w_in.write_data;
 			end if;
-			if w_in.write_enable2 = '1' then
-				assert not(is_x(w_in.write_data2)) and not(is_x(w_in.write_reg2)) severity failure;
-				report "Writing GPR " & to_hstring(w_in.write_reg2) & " " & to_hstring(w_in.write_data2);
-				registers(to_integer(unsigned(w_in.write_reg2))) <= w_in.write_data2;
-			end if;
 		end if;
 	end process register_write_0;
 
