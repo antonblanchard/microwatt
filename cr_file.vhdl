@@ -55,6 +55,6 @@ begin
 		if d_in.read = '1' then
 			report "Reading CR " & to_hstring(crs_updated);
 		end if;
-		d_out.read_cr_data <= crs;
+		d_out.read_cr_data <= crs_updated;
 	end process;
 end architecture behaviour;
