@@ -48,42 +48,34 @@ begin
 		w_tmp <= WritebackToRegisterFileInit;
 		c_tmp <= WritebackToCrFileInit;
 
-		if e.valid = '1' then
-			if e.write_enable = '1' then
-				w_tmp.write_reg <= e.write_reg;
-				w_tmp.write_data <= e.write_data;
-				w_tmp.write_enable <= '1';
-			end if;
-
-			if e.write_cr_enable = '1' then
-				c_tmp.write_cr_enable <= '1';
-				c_tmp.write_cr_mask <= e.write_cr_mask;
-				c_tmp.write_cr_data <= e.write_cr_data;
-			end if;
+		if e.write_enable = '1' then
+			w_tmp.write_reg <= e.write_reg;
+			w_tmp.write_data <= e.write_data;
+			w_tmp.write_enable <= '1';
 		end if;
 
-		if l.valid = '1' and l.write_enable = '1' then
+		if e.write_cr_enable = '1' then
+			c_tmp.write_cr_enable <= '1';
+			c_tmp.write_cr_mask <= e.write_cr_mask;
+			c_tmp.write_cr_data <= e.write_cr_data;
+		end if;
+
+		if l.write_enable = '1' then
 			w_tmp.write_reg <= l.write_reg;
 			w_tmp.write_data <= l.write_data;
 			w_tmp.write_enable <= '1';
 		end if;
-		if l.valid = '1' and l.write_enable2 = '1' then
-			w_tmp.write_reg2 <= l.write_reg2;
-			w_tmp.write_data2 <= l.write_data2;
-			w_tmp.write_enable2 <= '1';
+
+		if m.write_reg_enable = '1' then
+			w_tmp.write_enable <= '1';
+			w_tmp.write_reg <= m.write_reg_nr;
+			w_tmp.write_data <= m.write_reg_data;
 		end if;
 
-		if m.valid = '1' then
-			if m.write_reg_enable = '1' then
-				w_tmp.write_enable <= '1';
-				w_tmp.write_reg <= m.write_reg_nr;
-				w_tmp.write_data <= m.write_reg_data;
-			end if;
-			if m.write_cr_enable = '1' then
-				c_tmp.write_cr_enable <= '1';
-				c_tmp.write_cr_mask <= m.write_cr_mask;
-				c_tmp.write_cr_data <= m.write_cr_data;
-			end if;
+		if m.write_cr_enable = '1' then
+			c_tmp.write_cr_enable <= '1';
+			c_tmp.write_cr_mask <= m.write_cr_mask;
+			c_tmp.write_cr_data <= m.write_cr_data;
 		end if;
 	end process;
 end;

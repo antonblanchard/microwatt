@@ -128,11 +128,8 @@ package common is
 		write_enable: std_ulogic;
 		write_reg : std_ulogic_vector(4 downto 0);
 		write_data : std_ulogic_vector(63 downto 0);
-		write_enable2: std_ulogic;
-		write_reg2 : std_ulogic_vector(4 downto 0);
-		write_data2 : std_ulogic_vector(63 downto 0);
 	end record;
-	constant Loadstore2ToWritebackInit : Loadstore2ToWritebackType := (valid => '0', write_enable => '0', write_enable2 => '0', others => (others => '0'));
+	constant Loadstore2ToWritebackInit : Loadstore2ToWritebackType := (valid => '0', write_enable => '0', others => (others => '0'));
 
 	type Execute1ToExecute2Type is record
 		valid: std_ulogic;
