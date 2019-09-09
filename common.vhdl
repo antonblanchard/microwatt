@@ -67,8 +67,11 @@ package common is
 	constant Decode2ToMultiplyInit : Decode2ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0', others => (others => '0'));
 
 	type Decode2ToRegisterFileType is record
+		read1_enable : std_ulogic;
 		read1_reg : std_ulogic_vector(4 downto 0);
+		read2_enable : std_ulogic;
 		read2_reg : std_ulogic_vector(4 downto 0);
+		read3_enable : std_ulogic;
 		read3_reg : std_ulogic_vector(4 downto 0);
 	end record;
 

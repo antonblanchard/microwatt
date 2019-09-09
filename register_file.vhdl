@@ -28,12 +28,12 @@ begin
 		if rising_edge(clk) then
 			if w_in.write_enable = '1' then
 				assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
-				report "Writing " & to_hstring(w_in.write_data) & " to " & to_hstring(w_in.write_reg);
+				report "Writing GPR " & to_hstring(w_in.write_reg) & " " & to_hstring(w_in.write_data);
 				registers(to_integer(unsigned(w_in.write_reg))) <= w_in.write_data;
 			end if;
 			if w_in.write_enable2 = '1' then
 				assert not(is_x(w_in.write_data2)) and not(is_x(w_in.write_reg2)) severity failure;
-				report "Writing " & to_hstring(w_in.write_data2) & " to " & to_hstring(w_in.write_reg2);
+				report "Writing GPR " & to_hstring(w_in.write_reg2) & " " & to_hstring(w_in.write_data2);
 				registers(to_integer(unsigned(w_in.write_reg2))) <= w_in.write_data2;
 			end if;
 		end if;
@@ -42,9 +42,15 @@ begin
 	-- asynchronous reads
 	register_read_0: process(all)
 	begin
-		report "read " & to_hstring(d_in.read1_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read1_reg))));
-		report "read " & to_hstring(d_in.read2_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read2_reg))));
-		report "read " & to_hstring(d_in.read3_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read3_reg))));
+		if d_in.read1_enable = '1' then
+			report "Reading GPR " & to_hstring(d_in.read1_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read1_reg))));
+		end if;
+		if d_in.read2_enable = '1' then
+			report "Reading GPR " & to_hstring(d_in.read2_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read2_reg))));
+		end if;
+		if d_in.read3_enable = '1' then
+			report "Reading GPR " & to_hstring(d_in.read3_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read3_reg))));
+		end if;
 		d_out.read1_data <= registers(to_integer(unsigned(d_in.read1_reg)));
 		d_out.read2_data <= registers(to_integer(unsigned(d_in.read2_reg)));
 		d_out.read3_data <= registers(to_integer(unsigned(d_in.read3_reg)));

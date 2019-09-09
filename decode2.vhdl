@@ -206,6 +206,10 @@ begin
 		decoded_reg_b := decode_input_reg_b (d.decode.input_reg_b, d.insn, r_in.read2_data);
 		decoded_reg_c := decode_input_reg_c (d.decode.input_reg_c, d.insn, r_in.read3_data);
 
+		r_out.read1_enable <= decoded_reg_a.reg_valid;
+		r_out.read2_enable <= decoded_reg_b.reg_valid;
+		r_out.read3_enable <= decoded_reg_c.reg_valid;
+
 		case d.decode.unit is
 		when ALU =>
 			e_out.valid <= d.valid;
