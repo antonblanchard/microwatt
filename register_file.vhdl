@@ -51,17 +51,17 @@ begin
 		d_out.read3_data <= registers(to_integer(unsigned(d_in.read3_reg)));
 
 		-- Forward any written data
-		--if w_in.write_enable = '1' then
-			--if d_in.read1_reg = w_in.write_reg then
-				--d_out.read1_data <= w_in.write_data;
-			--end if;
-			--if d_in.read2_reg = w_in.write_reg then
-				--d_out.read2_data <= w_in.write_data;
-			--end if;
-			--if d_in.read3_reg = w_in.write_reg then
-				--d_out.read3_data <= w_in.write_data;
-			--end if;
-		--end if;
+		if w_in.write_enable = '1' then
+			if d_in.read1_reg = w_in.write_reg then
+				d_out.read1_data <= w_in.write_data;
+			end if;
+			if d_in.read2_reg = w_in.write_reg then
+				d_out.read2_data <= w_in.write_data;
+			end if;
+			if d_in.read3_reg = w_in.write_reg then
+				d_out.read3_data <= w_in.write_data;
+			end if;
+		end if;
 	end process register_read_0;
 
 	-- debug
