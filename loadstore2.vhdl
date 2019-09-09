@@ -86,6 +86,17 @@ begin
 					if l_in.load = '1' then
 						m_tmp.we <= '0';
 
+						-- Load with update instructions write two GPR destinations.
+						-- We don't want the expense of two write ports, so make it
+						-- single in the pipeline and write back the update GPR now
+						-- and the load once we get the data back. We'll have to
+						-- revisit this when loads can take exceptions.
+						if l_in.update = '1' then
+							w_tmp.write_enable <= '1';
+							w_tmp.write_reg <= l_in.update_reg;
+							w_tmp.write_data <= l_in.addr;
+						end if;
+
 						state <= WAITING_FOR_READ_ACK;
 					else
 						m_tmp.we <= '1';
@@ -134,12 +145,6 @@ begin
 					w_tmp.valid <= '1';
 					w_tmp.write_enable <= '1';
 					w_tmp.write_reg <= l_saved.write_reg;
-
-					if l_saved.update = '1' then
-						w_tmp.write_enable2 <= '1';
-						w_tmp.write_reg2 <= l_saved.update_reg;
-						w_tmp.write_data2 <= l_saved.addr;
-					end if;
 
 					m_tmp <= wishbone_master_out_init;
 					state <= IDLE;
