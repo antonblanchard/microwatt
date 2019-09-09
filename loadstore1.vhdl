@@ -31,8 +31,6 @@ begin
 
 			if l_in.valid = '1' then
 				report "execute " & to_hstring(l_in.nia);
-				report "loadstore1 " & to_hstring(l_in.addr1) & " " & to_hstring(l_in.addr2);
-
 			end if;
 
 		end if;
