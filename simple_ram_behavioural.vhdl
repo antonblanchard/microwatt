@@ -40,16 +40,13 @@ begin
 			if rst = '1' then
 				state <= IDLE;
 				ret_ack <= '0';
-				report "MEM RST";
 			else
 				ret_dat := x"XXXXXXXXXXXXXXXX";
 
 				-- Active
 				if wishbone_in.cyc = '1' then
-					report "MEM CYC";
 					case state is
 					when IDLE =>
-						report "MEM IDLE";
 						if wishbone_in.stb = '1' then
 							-- write
 							if wishbone_in.we = '1' then
@@ -67,7 +64,6 @@ begin
 							end if;
 						end if;
 					when ACK =>
-						report "MEM ACK";
 						ret_ack <= '0';
 						state <= IDLE;
 					end case;
