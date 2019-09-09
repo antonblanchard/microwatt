@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#define DEBUG
+#undef DEBUG
 
 #define ALIGN_UP(VAL, SIZE)	(((VAL) + ((SIZE)-1)) & ~((SIZE)-1))
 
