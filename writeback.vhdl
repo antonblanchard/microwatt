@@ -1,5 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 library work;
 use work.common.all;
@@ -41,9 +42,21 @@ begin
 	complete_out <= '1' when e.valid or l.valid or m.valid else '0';
 
 	writeback_1: process(all)
+		variable x: std_ulogic_vector(0 downto 0);
+		variable y: std_ulogic_vector(0 downto 0);
+		variable z: std_ulogic_vector(0 downto 0);
 	begin
-		--assert (unsigned(w.valid) + unsigned(l.valid) + unsigned(m.valid)) <= 1;
-		--assert not(w.write_enable = '1' and l.write_enable = '1');
+		x := "" & e.valid;
+		y := "" & l.valid;
+		z := "" & m.valid;
+		assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1;
+
+		x := "" & e.write_enable;
+		y := "" & l.write_enable;
+		z := "" & m.write_reg_enable;
+		assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1;
+
+		assert not(e.write_cr_enable = '1' and m.write_cr_enable = '1');
 
 		w_tmp <= WritebackToRegisterFileInit;
 		c_tmp <= WritebackToCrFileInit;
