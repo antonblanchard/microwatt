@@ -43,19 +43,19 @@ architecture behaviour of decode1 is
 		PPC_ATTN       =>       (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0'),
 		PPC_B          =>       (ALU,    OP_B,         NONE,       CONST_LI,    NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1'),
 		--PPC_BA
-		PPC_BC         =>       (ALU,    OP_BC,        NONE,       CONST_BD,    NONE, NONE, BO,   BI,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1'),
+		PPC_BC         =>       (ALU,    OP_BC,        NONE,       CONST_BD,    NONE, NONE, BO,   BI,   NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1'),
 		--PPC_BCA
-		PPC_BCCTR      =>       (ALU,    OP_BCCTR,     NONE,       NONE,        NONE, NONE, BO,   BI,   BH,   '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1'),
+		PPC_BCCTR      =>       (ALU,    OP_BCCTR,     NONE,       NONE,        NONE, NONE, BO,   BI,   BH,   '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1'),
 		--PPC_BCLA
-		PPC_BCLR       =>       (ALU,    OP_BCLR,      NONE,       NONE,        NONE, NONE, BO,   BI,   BH,   '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1'),
+		PPC_BCLR       =>       (ALU,    OP_BCLR,      NONE,       NONE,        NONE, NONE, BO,   BI,   BH,   '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1'),
 		--PPC_BCTAR
 		--PPC_BPERM
-		PPC_CMP        =>       (ALU,    OP_CMP,       RA,         RB,          NONE, NONE, BF,   L,    NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
-		PPC_CMPB       =>       (ALU,    OP_CMPB,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
+		PPC_CMP        =>       (ALU,    OP_CMP,       RA,         RB,          NONE, NONE, BF,   L,    NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
+		PPC_CMPB       =>       (ALU,    OP_CMPB,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
 		--PPC_CMPEQB
-		PPC_CMPI       =>       (ALU,    OP_CMP,       RA,         CONST_SI,    NONE, NONE, BF,   L,    NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
-		PPC_CMPL       =>       (ALU,    OP_CMPL,      RA,         RB,          NONE, NONE, BF,   L,    NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
-		PPC_CMPLI      =>       (ALU,    OP_CMPL,      RA,         CONST_UI,    NONE, NONE, BF,   L,    NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
+		PPC_CMPI       =>       (ALU,    OP_CMP,       RA,         CONST_SI,    NONE, NONE, BF,   L,    NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
+		PPC_CMPL       =>       (ALU,    OP_CMPL,      RA,         RB,          NONE, NONE, BF,   L,    NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
+		PPC_CMPLI      =>       (ALU,    OP_CMPL,      RA,         CONST_UI,    NONE, NONE, BF,   L,    NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
 		--PPC_CMPRB
 		PPC_CNTLZD     =>       (ALU,    OP_CNTLZD,    RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0'),
 		PPC_CNTLZW     =>       (ALU,    OP_CNTLZW,    RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0'),
@@ -90,7 +90,7 @@ architecture behaviour of decode1 is
 		--PPC_EXTSWSLI
 		--PPC_ICBI
 		PPC_ICBT       =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
-		PPC_ISEL       =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
+		PPC_ISEL       =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
 		PPC_ISYNC      =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0'),
 		PPC_LBARX      =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '1', '0', '0', NONE, '0'),
 		--CONST_LI matches CONST_SI, so reuse it

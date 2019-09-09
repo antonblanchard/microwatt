@@ -184,6 +184,8 @@ begin
 	r_out.read3_reg <= insn_rs(d.insn) when d.decode.input_reg_c = RS else
 			   (others => '0');
 
+	c_out.read <= d.decode.input_cr;
+
 	decode2_1: process(all)
 		variable mul_a : std_ulogic_vector(63 downto 0);
 		variable mul_b : std_ulogic_vector(63 downto 0);
