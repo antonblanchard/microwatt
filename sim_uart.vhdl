@@ -31,18 +31,30 @@ use work.sim_console.all;
 --! enable register. The following bits are available:
 --! - Bit 0: data received (receive buffer not empty)
 --! - Bit 1: ready to send data (transmit buffer empty)
-entity sim_uart is
+entity pp_soc_uart is
+    generic(
+	FIFO_DEPTH : natural := 64 --Unused
+	);
     port(
 	clk : in std_logic;
 	reset : in std_logic;
 
-	-- Wishbone ports:
-	wishbone_in : in wishbone_master_out;
-	wishbone_out : out wishbone_slave_out
-	);
-end entity sim_uart;
+	-- UART ports:
+	txd : out std_logic;
+	rxd : in  std_logic;
 
-architecture behaviour of sim_uart is
+	-- Wishbone ports:
+	wb_adr_in  : in  std_logic_vector(11 downto 0);
+	wb_dat_in  : in  std_logic_vector( 7 downto 0);
+	wb_dat_out : out std_logic_vector( 7 downto 0);
+	wb_we_in   : in  std_logic;
+	wb_cyc_in  : in  std_logic;
+	wb_stb_in  : in  std_logic;
+	wb_ack_out : out std_logic
+	);
+end entity pp_soc_uart;
+
+architecture behaviour of pp_soc_uart is
 
     signal sample_clk_divisor : std_logic_vector(7 downto 0);
 
@@ -56,7 +68,7 @@ architecture behaviour of sim_uart is
 
 begin
 
-    wishbone_out.ack <= wb_ack and wishbone_in.cyc and wishbone_in.stb;
+    wb_ack_out <= wb_ack and wb_cyc_in and wb_stb_in;
 
     wishbone: process(clk)
 	variable sim_tmp : std_logic_vector(63 downto 0);
@@ -71,42 +83,40 @@ begin
 	    else
 		case wb_state is
 		when IDLE =>
-		    if wishbone_in.cyc = '1' and wishbone_in.stb = '1' then
-			if wishbone_in.we = '1' then -- Write to register
-			    if wishbone_in.adr(11 downto 0) = x"000" then
-				report "FOO !";
-				sim_console_write(wishbone_in.dat);
-			    elsif wishbone_in.adr(11 downto 0) = x"018" then
-				sample_clk_divisor <= wishbone_in.dat(7 downto 0);
-			    elsif wishbone_in.adr(11 downto 0) = x"020" then
-				irq_recv_enable <= wishbone_in.dat(0);
-				irq_tx_ready_enable <= wishbone_in.dat(1);
+		    if wb_cyc_in = '1' and wb_stb_in = '1' then
+			if wb_we_in = '1' then -- Write to register
+			    if wb_adr_in(11 downto 0) = x"000" then
+				sim_console_write(x"00000000000000" & wb_dat_in);
+			    elsif wb_adr_in(11 downto 0) = x"018" then
+				sample_clk_divisor <= wb_dat_in;
+			    elsif wb_adr_in(11 downto 0) = x"020" then
+				irq_recv_enable <= wb_dat_in(0);
+				irq_tx_ready_enable <= wb_dat_in(1);
 			    end if;
 			    wb_ack <= '1';
 			    wb_state <= WRITE_ACK;
 			else -- Read from register
-			    if wishbone_in.adr(11 downto 0) = x"008" then
+			    if wb_adr_in(11 downto 0) = x"008" then
 				sim_console_read(sim_tmp);
-				wishbone_out.dat <= sim_tmp;
-			    elsif wishbone_in.adr(11 downto 0) = x"010" then
+				wb_dat_out <= sim_tmp(7 downto 0);
+			    elsif wb_adr_in(11 downto 0) = x"010" then
 				sim_console_poll(sim_tmp);
-				wishbone_out.dat <= x"000000000000000" & '0' &
-						    sim_tmp(0) & '1' & not sim_tmp(0);
-			    elsif wishbone_in.adr(11 downto 0) = x"018" then
-				wishbone_out.dat <= x"00000000000000" & sample_clk_divisor;
-			    elsif wishbone_in.adr(11 downto 0) = x"020" then
-				wishbone_out.dat <= (0 => irq_recv_enable,
-						     1 => irq_tx_ready_enable,
-						     others => '0');
+				wb_dat_out <= "00000" & sim_tmp(0) & '1' & not sim_tmp(0);
+			    elsif wb_adr_in(11 downto 0) = x"018" then
+				wb_dat_out <= sample_clk_divisor;
+			    elsif wb_adr_in(11 downto 0) = x"020" then
+				wb_dat_out <= (0 => irq_recv_enable,
+					       1 => irq_tx_ready_enable,
+					       others => '0');
 			    else
-				wishbone_out.dat <= (others => '0');
+				wb_dat_out <= (others => '0');
 			    end if;
 			    wb_ack <= '1';
 			    wb_state <= READ_ACK;
 			end if;
 		    end if;
 		when WRITE_ACK|READ_ACK =>
-		    if wishbone_in.stb = '0' then
+		    if wb_stb_in = '0' then
 			wb_ack <= '0';
 			wb_state <= IDLE;
 		    end if;

@@ -12,7 +12,7 @@ all: $(all)
 	$(GHDL) -a $(GHDLFLAGS) $<
 
 common.o: decode_types.o
-core_tb.o: common.o wishbone_types.o core.o simple_ram_behavioural.o sim_uart.o
+core_tb.o: common.o core.o soc.o
 core.o: common.o wishbone_types.o fetch1.o fetch2.o decode1.o decode2.o register_file.o cr_file.o execute1.o execute2.o loadstore1.o loadstore2.o multiply.o writeback.o wishbone_arbiter.o
 cr_file.o: common.o
 crhelpers.o: common.o
@@ -41,6 +41,7 @@ simple_ram_behavioural.o: wishbone_types.o simple_ram_behavioural_helpers.o
 wishbone_arbiter.o: wishbone_types.o
 wishbone_types.o:
 writeback.o: common.o
+soc.o: wishbone_types.o simple_ram_behavioural.o sim_uart.o
 
 fpga/soc_reset_tb.o: fpga/soc_reset.o
 

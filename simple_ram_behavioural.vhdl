@@ -7,10 +7,10 @@ library work;
 use work.wishbone_types.all;
 use work.simple_ram_behavioural_helpers.all;
 
-entity simple_ram_behavioural is
+entity mw_soc_memory is
 	generic (
-		FILENAME : string;
-		SIZE     : integer
+		RAM_INIT_FILE : string;
+		MEMORY_SIZE   : integer
 	);
 
 	port (
@@ -20,14 +20,14 @@ entity simple_ram_behavioural is
 		wishbone_in  : in wishbone_master_out;
 		wishbone_out : out wishbone_slave_out
 	);
-end simple_ram_behavioural;
+end mw_soc_memory;
 
-architecture behave of simple_ram_behavioural is
+architecture behave of mw_soc_memory is
 	type wishbone_state_t is (IDLE, ACK);
 
 	signal state      : wishbone_state_t := IDLE;
 	signal ret_ack    : std_ulogic := '0';
-	signal identifier : integer := behavioural_initialize(filename => FILENAME, size => SIZE);
+	signal identifier : integer := behavioural_initialize(filename => RAM_INIT_FILE, size => MEMORY_SIZE);
 	signal reload     : integer := 0;
 begin
 	wishbone_process: process(clk)

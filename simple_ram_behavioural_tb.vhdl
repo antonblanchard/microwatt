@@ -17,8 +17,8 @@ architecture behave of simple_ram_behavioural_tb is
 	signal w_in         : wishbone_slave_out;
 	signal w_out        : wishbone_master_out;
 begin
-	simple_ram_0: entity work.simple_ram_behavioural
-		generic map ( filename => "simple_ram_behavioural_tb.bin", size => 16 )
+	simple_ram_0: entity work.mw_soc_memory
+		generic map ( RAM_INIT_FILE => "simple_ram_behavioural_tb.bin", MEMORY_SIZE => 16 )
 		port map (clk => clk, rst => rst, wishbone_out => w_in, wishbone_in => w_out);
 
 	clock: process

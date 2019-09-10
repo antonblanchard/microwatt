@@ -24,19 +24,23 @@ filesets:
       - loadstore2.vhdl
       - multiply.vhdl
       - writeback.vhdl
-      - wishbone_arbiter.vhdl
       - insn_helpers.vhdl
       - core.vhdl
     file_type : vhdlSource-2008
 
   soc:
     files:
+      - wishbone_arbiter.vhdl
+      - soc.vhdl
+    file_type : vhdlSource-2008
+
+  fpga:
+    files:
       - fpga/pp_fifo.vhd
       - fpga/mw_soc_memory.vhdl
       - fpga/soc_reset.vhdl
       - fpga/pp_soc_uart.vhd
       - fpga/pp_utilities.vhd
-      - fpga/soc.vhdl
       - fpga/toplevel.vhdl
       - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
     file_type : vhdlSource-2008
@@ -64,7 +68,7 @@ filesets:
 targets:
   nexys_a7:
     default_tool: vivado
-    filesets: [core, nexys_a7, soc]
+    filesets: [core, nexys_a7, soc, fpga]
     parameters : [memory_size, ram_init_file]
     tools:
       vivado: {part : xc7a100tcsg324-1}
@@ -72,7 +76,7 @@ targets:
 
   nexys_video:
     default_tool: vivado
-    filesets: [core, nexys_video, soc]
+    filesets: [core, nexys_video, soc, fpga]
     parameters : [memory_size, ram_init_file]
     tools:
       vivado: {part : xc7a200tsbg484-1}
@@ -80,7 +84,7 @@ targets:
 
   arty_a7-35:
     default_tool: vivado
-    filesets: [core, arty_a7-35, soc]
+    filesets: [core, arty_a7-35, soc, fpga]
     parameters : [memory_size, ram_init_file]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -88,14 +92,14 @@ targets:
 
   cmod_a7-35:
     default_tool: vivado
-    filesets: [core, cmod_a7-35, soc]
+    filesets: [core, cmod_a7-35, soc, fpga]
     parameters : [memory_size, ram_init_file, reset_low=false]
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel
 
   synth:
-    filesets: [core]
+    filesets: [core, soc]
     tools:
       vivado: {pnr : none}
     toplevel: core
