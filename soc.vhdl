@@ -64,6 +64,13 @@ architecture behaviour of soc is
     signal dmi_wr	: std_ulogic;
     signal dmi_ack	: std_ulogic;
 
+    -- Per slave DMI signals
+    signal dmi_wb_dout  : std_ulogic_vector(63 downto 0);
+    signal dmi_wb_req   : std_ulogic;
+    signal dmi_wb_ack   : std_ulogic;
+    signal dmi_core_dout  : std_ulogic_vector(63 downto 0);
+    signal dmi_core_req   : std_ulogic;
+    signal dmi_core_ack   : std_ulogic;
 begin
 
     -- Processor core
@@ -198,15 +205,62 @@ begin
 	    dmi_ack	=> dmi_ack
 	    );
 
+    -- DMI interconnect
+    dmi_intercon: process(dmi_addr, dmi_req,
+		     dmi_wb_ack, dmi_wb_dout,
+		     dmi_core_ack, dmi_core_dout)
+
+	-- DMI address map (each address is a full 64-bit register)
+	--
+	-- Offset:   Size:    Slave:
+	--  0         4       Wishbone
+	-- 10        16       Core
+
+	type slave_type is (SLAVE_WB,
+			    SLAVE_CORE,
+			    SLAVE_NONE);
+	variable slave : slave_type;
+    begin
+	-- Simple address decoder
+	if dmi_addr(7 downto 0) = "000000--" then
+	    slave := SLAVE_WB;
+	elsif dmi_addr(7 downto 0) = "0001----" then
+	    slave := SLAVE_CORE;
+	else
+	    slave := SLAVE_NONE;
+	end if;
+
+	-- DMI muxing
+	dmi_wb_req <= '0';
+	dmi_core_req <= '0';
+	case slave is
+	when SLAVE_WB =>
+	    dmi_wb_req <= dmi_req;
+	    dmi_ack <= dmi_wb_ack;
+	    dmi_din <= dmi_wb_dout;
+	when SLAVE_CORE =>
+	    dmi_core_req <= dmi_req;
+	    dmi_ack <= dmi_core_ack;
+	    dmi_din <= dmi_core_dout;
+	when others =>
+	    dmi_ack <= dmi_req;
+	    dmi_din <= (others => '1');
+	end case;
+    end process;
+
+    -- Core dummy
+    dmi_core_ack <= dmi_core_req;
+    dmi_core_dout <= x"0000000000000000";
+
     -- Wishbone debug master (TODO: Add a DMI address decoder)
     wishbone_debug: entity work.wishbone_debug_master
 	port map(clk => system_clk, rst => rst,
 		 dmi_addr => dmi_addr(1 downto 0),
-		 dmi_dout => dmi_din,
+		 dmi_dout => dmi_wb_dout,
 		 dmi_din => dmi_dout,
 		 dmi_wr => dmi_wr,
-		 dmi_ack => dmi_ack,
-		 dmi_req => dmi_req,
+		 dmi_ack => dmi_wb_ack,
+		 dmi_req => dmi_wb_req,
 		 wb_in => wishbone_debug_in,
 		 wb_out => wishbone_debug_out);
 
