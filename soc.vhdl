@@ -20,11 +20,11 @@ entity soc is
 	);
     port(
 	rst          : in  std_ulogic;
-	system_clk   : in  std_logic;
+	system_clk   : in  std_ulogic;
 
 	-- UART0 signals:
-	uart0_txd    : out std_logic;
-	uart0_rxd    : in  std_logic
+	uart0_txd    : out std_ulogic;
+	uart0_rxd    : in  std_ulogic
 	);
 end entity soc;
 
@@ -43,7 +43,7 @@ architecture behaviour of soc is
     -- UART0 signals:
     signal wb_uart0_in   : wishbone_master_out;
     signal wb_uart0_out  : wishbone_slave_out;
-    signal uart_dat8     : std_logic_vector(7 downto 0);
+    signal uart_dat8     : std_ulogic_vector(7 downto 0);
 
     -- Main memory signals:
     signal wb_bram_in     : wishbone_master_out;
