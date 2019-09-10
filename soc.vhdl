@@ -92,10 +92,6 @@ begin
 	    wb_out => wb_master_out, wb_in => wb_master_in
 	    );
 
-    -- Dummy wishbone debug module
-    wishbone_debug_out.cyc <= '0';
-    wishbone_debug_out.stb <= '0';
-
     -- Wishbone slaves address decoder & mux
     slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out)
 	-- Selected slave
@@ -202,8 +198,17 @@ begin
 	    dmi_ack	=> dmi_ack
 	    );
 
-    -- Dummy loopback until a debug module is present
-    dmi_din <= dmi_dout;
-    dmi_ack <= dmi_ack;
+    -- Wishbone debug master (TODO: Add a DMI address decoder)
+    wishbone_debug: entity work.wishbone_debug_master
+	port map(clk => system_clk, rst => rst,
+		 dmi_addr => dmi_addr(1 downto 0),
+		 dmi_dout => dmi_din,
+		 dmi_din => dmi_dout,
+		 dmi_wr => dmi_wr,
+		 dmi_ack => dmi_ack,
+		 dmi_req => dmi_req,
+		 wb_in => wishbone_debug_in,
+		 wb_out => wishbone_debug_out);
+
 
 end architecture behaviour;

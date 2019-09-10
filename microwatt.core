@@ -25,6 +25,7 @@ filesets:
       - multiply.vhdl
       - writeback.vhdl
       - insn_helpers.vhdl
+      - wishbone_debug_master.vhdl
       - core.vhdl
       - icache.vhdl
     file_type : vhdlSource-2008
@@ -32,6 +33,7 @@ filesets:
   soc:
     files:
       - wishbone_arbiter.vhdl
+      - wishbone_debug_master.vhdl
       - soc.vhdl
     file_type : vhdlSource-2008
 

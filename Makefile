@@ -41,12 +41,13 @@ simple_ram_behavioural_helpers.o:
 simple_ram_behavioural_tb.o: wishbone_types.o simple_ram_behavioural.o
 simple_ram_behavioural.o: wishbone_types.o simple_ram_behavioural_helpers.o
 sim_uart.o: wishbone_types.o sim_console.o
-soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o simple_ram_behavioural.o dmi_dtm_xilinx.o
+soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o simple_ram_behavioural.o dmi_dtm_xilinx.o wishbone_debug_master.o
 wishbone_arbiter.o: wishbone_types.o
 wishbone_types.o:
 writeback.o: common.o
-dmi_dtm_tb.o: dmi_dtm_xilinx.o
+dmi_dtm_tb.o: dmi_dtm_xilinx.o wishbone_debug_master.o
 dmi_dtm_xilinx.o: sim-unisim/unisim_vcomponents.o
+wishbone_debug_master.o: wishbone_types.o
 
 UNISIM_BITS = sim-unisim/unisim_vcomponents.vhdl sim-unisim/BSCANE2.vhdl sim-unisim/BUFG.vhdl
 sim-unisim/unisim_vcomponents.o: $(UNISIM_BITS)
@@ -79,8 +80,8 @@ simple_ram_tb: simple_ram_tb.o
 simple_ram_behavioural_tb: simple_ram_behavioural_helpers_c.o simple_ram_behavioural_tb.o
 	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
 
-dmi_dtm_tb: dmi_dtm_tb.o
-	$(GHDL) -e $(GHDLFLAGS) $@
+dmi_dtm_tb: dmi_dtm_tb.o simple_ram_behavioural_helpers_c.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
 
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 

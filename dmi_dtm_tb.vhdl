@@ -50,9 +50,23 @@ begin
 	    dmi_ack	=> dmi_ack
 	    );
 
-    -- Dummy loopback until a debug module is present
-    dmi_din <= dmi_dout;
-    dmi_ack <= dmi_ack;
+    simple_ram_0: entity work.mw_soc_memory
+	generic map(RAM_INIT_FILE => "simple_ram_behavioural.bin",
+		    MEMORY_SIZE => 524288)
+	port map(clk => clk, rst => rst,
+		 wishbone_in => wishbone_ram_out,
+		 wishbone_out => wishbone_ram_in);
+
+    wishbone_debug_0: entity work.wishbone_debug_master
+	port map(clk => clk, rst => rst,
+		 dmi_addr => dmi_addr(1 downto 0),
+		 dmi_dout => dmi_din,
+		 dmi_din => dmi_dout,
+		 dmi_wr => dmi_wr,
+		 dmi_ack => dmi_ack,
+		 dmi_req => dmi_req,
+		 wb_in => wishbone_ram_in,
+		 wb_out => wishbone_ram_out);
 
     -- system clock
     sys_clk: process
@@ -209,6 +223,28 @@ begin
 	-- send command
 	dmi_read(x"00", data);
 	report "Read addr reg:" & to_hstring(data);
+	report "Writing addr reg to all 1's";
+	dmi_write(x"00", (others => '1'));
+	dmi_read(x"00", data);
+	report "Read addr reg:" & to_hstring(data);
+
+	report "Writing ctrl reg to all 1's";
+	dmi_write(x"02", (others => '1'));
+	dmi_read(x"02", data);
+	report "Read ctrl reg:" & to_hstring(data);
+
+	report "Read memory at 0...\n";
+	dmi_write(x"00", x"0000000000000000");
+	dmi_write(x"02", x"00000000000007ff");
+	dmi_read(x"01", data);
+	report "00:" & to_hstring(data);
+	dmi_read(x"01", data);
+	report "08:" & to_hstring(data);
+	dmi_read(x"01", data);
+	report "10:" & to_hstring(data);
+	dmi_read(x"01", data);
+	report "18:" & to_hstring(data);
+	clock(10);
 	std.env.finish;
     end process;
 end behave;
