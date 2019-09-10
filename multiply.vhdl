@@ -78,7 +78,7 @@ begin
 		when OP_MUL_H64 =>
 			d2 := d(127 downto 64);
 		when others =>
-			report "Illegal insn type in multiplier";
+			--report "Illegal insn type in multiplier";
 			d2 := (others => '0');
 		end case;
 
