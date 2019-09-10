@@ -41,7 +41,7 @@ begin
 				state <= IDLE;
 				ret_ack <= '0';
 			else
-				ret_dat := x"XXXXXXXXXXXXXXXX";
+				ret_dat := x"FFFFFFFFFFFFFFFF";
 
 				-- Active
 				if wishbone_in.cyc = '1' then
