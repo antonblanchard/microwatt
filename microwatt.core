@@ -55,7 +55,6 @@ filesets:
       - fpga/pp_fifo.vhd
       - fpga/pp_soc_uart.vhd
       - fpga/pp_utilities.vhd
-      - fpga/toplevel.vhdl
       - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
     file_type : vhdlSource-2008
 
@@ -71,21 +70,25 @@ filesets:
     files:
       - fpga/nexys_a7.xdc : {file_type : xdc}
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
+      - fpga/top-generic.vhdl : {file_type : vhdlSource-2008}
 
   nexys_video:
     files:
       - fpga/nexys-video.xdc : {file_type : xdc}
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
+      - fpga/top-generic.vhdl : {file_type : vhdlSource-2008}
 
   arty_a7:
     files:
       - fpga/arty_a7.xdc : {file_type : xdc}
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
+      - fpga/top-arty.vhdl : {file_type : vhdlSource-2008}
 
   cmod_a7-35:
     files:
       - fpga/cmod_a7-35.xdc : {file_type : xdc}
       - fpga/clk_gen_mcmm.vhd : {file_type : vhdlSource-2008}
+      - fpga/top-generic.vhdl : {file_type : vhdlSource-2008}
 
   litedram:
       depend : [":microwatt:litedram"]
@@ -117,7 +120,7 @@ targets:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
 
-  arty_a7-35:
+  arty_a7-35-nodram:
     default_tool: vivado
     filesets: [core, arty_a7, soc, fpga, debug_xilinx]
     parameters :
@@ -130,7 +133,20 @@ targets:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
 
-  arty_a7-100:
+  arty_a7-35:
+    default_tool: vivado
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - use_litedram=true
+      - disable_flatten_core
+    generate: [dram_arty]
+    tools:
+      vivado: {part : xc7a35ticsg324-1L}
+    toplevel : toplevel
+
+  arty_a7-100-nodram:
     default_tool: vivado
     filesets: [core, arty_a7, soc, fpga, debug_xilinx]
     parameters :
@@ -139,6 +155,19 @@ targets:
       - clk_input
       - clk_frequency
       - disable_flatten_core
+    tools:
+      vivado: {part : xc7a100ticsg324-1L}
+    toplevel : toplevel
+
+  arty_a7-100:
+    default_tool: vivado
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram]
+    parameters:
+      - memory_size
+      - ram_init_file
+      - use_litedram=true
+      - disable_flatten_core
+    generate: [dram_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -162,6 +191,11 @@ targets:
     tools:
       vivado: {pnr : none}
     toplevel: core
+
+generate:
+  dram_arty:
+    generator: litedram_gen
+    parameters: {board : arty}
 
 parameters:
   memory_size:
