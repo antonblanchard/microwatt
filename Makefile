@@ -1,8 +1,9 @@
 GHDL=ghdl
-GHDLFLAGS=--std=08
+GHDLFLAGS=--std=08 -Psim-unisim
 CFLAGS=-O2 -Wall
 
-all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb multiply_tb
+all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb multiply_tb dmi_dtm_tb
+
 # XXX
 # loadstore_tb fetch_tb
 
@@ -40,10 +41,18 @@ simple_ram_behavioural_helpers.o:
 simple_ram_behavioural_tb.o: wishbone_types.o simple_ram_behavioural.o
 simple_ram_behavioural.o: wishbone_types.o simple_ram_behavioural_helpers.o
 sim_uart.o: wishbone_types.o sim_console.o
-soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o simple_ram_behavioural.o
+soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o simple_ram_behavioural.o dmi_dtm_xilinx.o
 wishbone_arbiter.o: wishbone_types.o
 wishbone_types.o:
 writeback.o: common.o
+dmi_dtm_tb.o: dmi_dtm_xilinx.o
+dmi_dtm_xilinx.o: sim-unisim/unisim_vcomponents.o
+
+UNISIM_BITS = sim-unisim/unisim_vcomponents.vhdl sim-unisim/BSCANE2.vhdl sim-unisim/BUFG.vhdl
+sim-unisim/unisim_vcomponents.o: $(UNISIM_BITS)
+	$(GHDL) -a $(GHDLFLAGS) --work=unisim --workdir=sim-unisim $^
+
+
 fpga/soc_reset_tb.o: fpga/soc_reset.o
 
 soc_reset_tb: fpga/soc_reset_tb.o fpga/soc_reset.o
@@ -70,6 +79,9 @@ simple_ram_tb: simple_ram_tb.o
 simple_ram_behavioural_tb: simple_ram_behavioural_helpers_c.o simple_ram_behavioural_tb.o
 	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
 
+dmi_dtm_tb: dmi_dtm_tb.o
+	$(GHDL) -e $(GHDLFLAGS) $@
+
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 
 check: $(tests) test_micropython test_micropython_long
@@ -86,4 +98,5 @@ test_micropython_long: core_tb
 	@./scripts/test_micropython_long.py
 
 clean:
-	rm -f *.o work-*cf $(all)
+	rm -f *.o work-*cf unisim-*cf $(all)
+	rm -f sim-unisim/*.o sim-unisim/unisim-*cf

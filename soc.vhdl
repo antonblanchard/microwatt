@@ -52,9 +52,17 @@ architecture behaviour of soc is
     signal wb_bram_out    : wishbone_slave_out;
     constant mem_adr_bits : positive := positive(ceil(log2(real(MEMORY_SIZE))));
 
-    -- Debug signals (used in SIM only)
+    -- Core debug signals (used in SIM only)
     signal registers     : regfile;
     signal terminate     : std_ulogic;
+
+    -- DMI debug bus signals
+    signal dmi_addr	: std_ulogic_vector(7 downto 0);
+    signal dmi_din	: std_ulogic_vector(63 downto 0);
+    signal dmi_dout	: std_ulogic_vector(63 downto 0);
+    signal dmi_req	: std_ulogic;
+    signal dmi_wr	: std_ulogic;
+    signal dmi_ack	: std_ulogic;
 
 begin
 
@@ -176,5 +184,26 @@ begin
 	    wishbone_in => wb_bram_in,
 	    wishbone_out => wb_bram_out
 	    );
+
+    -- DMI(debug bus) <-> JTAG bridge
+    dtm: entity work.dmi_dtm
+	generic map(
+	    ABITS => 8,
+	    DBITS => 64
+	    )
+	port map(
+	    sys_clk	=> system_clk,
+	    sys_reset	=> rst,
+	    dmi_addr	=> dmi_addr,
+	    dmi_din	=> dmi_din,
+	    dmi_dout	=> dmi_dout,
+	    dmi_req	=> dmi_req,
+	    dmi_wr	=> dmi_wr,
+	    dmi_ack	=> dmi_ack
+	    );
+
+    -- Dummy loopback until a debug module is present
+    dmi_din <= dmi_dout;
+    dmi_ack <= dmi_ack;
 
 end architecture behaviour;

@@ -46,6 +46,14 @@ filesets:
       - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
     file_type : vhdlSource-2008
 
+  debug_xilinx:
+    files:
+      - dmi_dtm_xilinx.vhdl : {file_type : vhdlSource-2008}
+
+  debug_dummy:
+    files:
+      - dmi_dtm_dummy.vhdl : {file_type : vhdlSource-2008}
+
   nexys_a7:
     files:
       - fpga/nexys_a7.xdc : {file_type : xdc}
@@ -69,7 +77,7 @@ filesets:
 targets:
   nexys_a7:
     default_tool: vivado
-    filesets: [core, nexys_a7, soc, fpga]
+    filesets: [core, nexys_a7, soc, fpga, debug_xilinx]
     parameters : [memory_size, ram_init_file]
     tools:
       vivado: {part : xc7a100tcsg324-1}
@@ -77,7 +85,7 @@ targets:
 
   nexys_video:
     default_tool: vivado
-    filesets: [core, nexys_video, soc, fpga]
+    filesets: [core, nexys_video, soc, fpga, debug_xilinx]
     parameters : [memory_size, ram_init_file]
     tools:
       vivado: {part : xc7a200tsbg484-1}
@@ -85,7 +93,7 @@ targets:
 
   arty_a7-35:
     default_tool: vivado
-    filesets: [core, arty_a7-35, soc, fpga]
+    filesets: [core, arty_a7-35, soc, fpga, debug_xilinx]
     parameters : [memory_size, ram_init_file]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -93,7 +101,7 @@ targets:
 
   cmod_a7-35:
     default_tool: vivado
-    filesets: [core, cmod_a7-35, soc, fpga]
+    filesets: [core, cmod_a7-35, soc, fpga, debug_xilinx]
     parameters : [memory_size, ram_init_file, reset_low=false]
     tools:
       vivado: {part : xc7a35tcpg236-1}
