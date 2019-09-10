@@ -36,7 +36,8 @@ filesets:
       - fpga/soc_reset.vhdl
       - fpga/pp_soc_uart.vhd
       - fpga/pp_utilities.vhd
-      - fpga/toplevel.vhd
+      - fpga/soc.vhdl
+      - fpga/toplevel.vhdl
       - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
     file_type : vhdlSource-2008
 

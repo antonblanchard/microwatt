@@ -1,6 +1,3 @@
--- The Potato Processor - SoC design for the Arty FPGA board
--- (c) Kristian Klomsten Skordal 2016 <kristian.skordal@wafflemail.net>
-
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.math_real.all;
@@ -11,31 +8,23 @@ use work.wishbone_types.all;
 
 -- 0x00000000: Main memory (1 MB)
 -- 0xc0002000: UART0 (for host communication)
-entity toplevel is
+entity soc is
 	generic (
-		MEMORY_SIZE   : positive := 524288;
-		RAM_INIT_FILE : string   := "firmware.hex";
-		RESET_LOW : boolean := true
+	    MEMORY_SIZE   : positive;
+	    RAM_INIT_FILE : string;
+	    RESET_LOW     : boolean
 	);
 	port(
-		ext_clk   : in  std_logic;
-		ext_rst   : in  std_logic;
-		
-		-- UART0 signals:
-		uart0_txd : out std_logic;
-		uart0_rxd : in  std_logic
+	    rst          : in  std_ulogic;
+	    system_clk   : in  std_logic;
+
+	    -- UART0 signals:
+	    uart0_txd    : out std_logic;
+	    uart0_rxd    : in  std_logic
 	);
-end entity toplevel;
+end entity soc;
 
-architecture behaviour of toplevel is
-
-	-- Reset signals:
-	signal rst : std_ulogic;
-	signal pll_rst_n : std_ulogic;
-
-	-- Internal clock signals:
-	signal system_clk : std_ulogic;
-	signal system_clk_locked : std_ulogic;
+architecture behaviour of soc is
 
 	-- wishbone signals:
 	signal wishbone_proc_out: wishbone_master_out;
@@ -79,13 +68,9 @@ architecture behaviour of toplevel is
 	-- Interconnect address decoder state:
 	signal intercon_busy : boolean := false;
 
-	-- disable for now
-	signal gpio_pins : std_logic_vector(11 downto 0);
-	signal uart1_txd : std_logic;
-	signal uart1_rxd : std_logic;
 begin
 
-	address_decoder: process(system_clk)
+    address_decoder: process(system_clk)
 	begin
 		if rising_edge(system_clk) then
 			if rst = '1' then
@@ -138,27 +123,6 @@ begin
 				processor_dat_in <= (others => '0');
 		end case;
 	end process processor_intercon;
-
-	reset_controller: entity work.soc_reset
-		generic map(
-			RESET_LOW => RESET_LOW
-		)
-		port map(
-			ext_clk => ext_clk,
-			pll_clk => system_clk,
-			pll_locked_in => system_clk_locked,
-			ext_rst_in => ext_rst,
-			pll_rst_out => pll_rst_n,
-			rst_out => rst
-		);
-
-	clkgen: entity work.clock_generator
-		port map(
-			ext_clk => ext_clk,
-			pll_rst_in => pll_rst_n,
-			pll_clk_out => system_clk,
-			pll_locked_out => system_clk_locked
-		);
 
 	processor: entity work.core
 		port map(
