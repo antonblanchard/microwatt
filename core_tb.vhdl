@@ -1,5 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 library work;
 use work.common.all;
@@ -29,19 +30,21 @@ begin
 	    uart0_txd => open
 	    );
 
-	clk_process: process
-	begin
-		clk <= '0';
-		wait for clk_period/2;
-		clk <= '1';
-		wait for clk_period/2;
-	end process;
+    clk_process: process
+    begin
+	clk <= '0';
+	wait for clk_period/2;
+	clk <= '1';
+	wait for clk_period/2;
+    end process;
 
-	rst_process: process
-	begin
-		rst <= '1';
-		wait for 10*clk_period;
-		rst <= '0';
-		wait;
-	end process;
+    rst_process: process
+    begin
+	rst <= '1';
+	wait for 10*clk_period;
+	rst <= '0';
+	wait;
+    end process;
+
+    jtag: entity work.sim_jtag;
 end;

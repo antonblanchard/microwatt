@@ -13,8 +13,10 @@ all: $(all)
 	$(GHDL) -a $(GHDLFLAGS) $<
 
 common.o: decode_types.o
-core_tb.o: common.o core.o soc.o
-core.o: common.o wishbone_types.o fetch1.o fetch2.o icache.o decode1.o decode2.o register_file.o cr_file.o execute1.o execute2.o loadstore1.o loadstore2.o multiply.o writeback.o
+sim_jtag.o: sim_jtag_socket.o
+core_tb.o: common.o core.o soc.o sim_jtag.o
+core.o: common.o wishbone_types.o fetch1.o fetch2.o icache.o decode1.o decode2.o register_file.o cr_file.o execute1.o execute2.o loadstore1.o loadstore2.o multiply.o writeback.o core_debug.o
+core_debug.o:
 cr_file.o: common.o
 crhelpers.o: common.o
 decode1.o: common.o decode_types.o
@@ -59,8 +61,8 @@ fpga/soc_reset_tb.o: fpga/soc_reset.o
 soc_reset_tb: fpga/soc_reset_tb.o fpga/soc_reset.o
 	$(GHDL) -e $(GHDLFLAGS) soc_reset_tb
 
-core_tb: core_tb.o simple_ram_behavioural_helpers_c.o sim_console_c.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o -Wl,sim_console_c.o $@
+core_tb: core_tb.o simple_ram_behavioural_helpers_c.o sim_console_c.o sim_jtag_socket_c.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o -Wl,sim_console_c.o -Wl,sim_jtag_socket_c.o $@
 
 fetch_tb: fetch_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@

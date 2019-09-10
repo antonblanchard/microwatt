@@ -20,9 +20,14 @@ entity core is
         wishbone_data_in  : in wishbone_slave_out;
         wishbone_data_out : out wishbone_master_out;
 
-        -- Added for debug, ghdl doesn't support external names unfortunately
-        registers     : out regfile;
-        terminate_out : out std_ulogic
+	dmi_addr	: in std_ulogic_vector(3 downto 0);
+	dmi_din	        : in std_ulogic_vector(63 downto 0);
+	dmi_dout	: out std_ulogic_vector(63 downto 0);
+	dmi_req	        : in std_ulogic;
+	dmi_wr		: in std_ulogic;
+	dmi_ack	        : out std_ulogic;
+
+	terminated_out   : out std_logic
         );
 end core;
 
@@ -73,11 +78,23 @@ architecture behave of core is
     signal flush: std_ulogic;
 
     signal complete: std_ulogic;
-
     signal terminate: std_ulogic;
+    signal core_rst: std_ulogic;
+
+    -- Debug actions
+    signal dbg_core_stop: std_ulogic;
+    signal dbg_core_rst: std_ulogic;
+    signal dbg_icache_rst: std_ulogic;
+
+    -- Debug status
+    signal dbg_core_is_stopped: std_ulogic;
+
+    -- For sim
+    signal registers: regfile;
+
 begin
 
-    terminate_out <= terminate;
+    core_rst <= dbg_core_rst or rst;
 
     fetch1_0: entity work.fetch1
         generic map (
@@ -85,7 +102,7 @@ begin
             )
         port map (
             clk => clk,
-            rst => rst,
+            rst => core_rst,
             stall_in => fetch1_stall_in,
             flush_in => flush,
             e_in => execute1_to_fetch1,
@@ -97,12 +114,13 @@ begin
     fetch2_0: entity work.fetch2
         port map (
             clk => clk,
-            rst => rst,
+            rst => core_rst,
             stall_in => fetch2_stall_in,
             stall_out => fetch2_stall_out,
             flush_in => flush,
             i_in => icache_to_fetch2,
             i_out => fetch2_to_icache,
+	    stop_in => dbg_core_stop,
             f_in => fetch1_to_fetch2,
             f_out => fetch2_to_decode1
             );
@@ -116,7 +134,7 @@ begin
             )
         port map(
             clk => clk,
-            rst => rst,
+            rst => rst or dbg_icache_rst,
             i_in => fetch2_to_icache,
             i_out => icache_to_fetch2,
             wishbone_out => wishbone_insn_out,
@@ -126,7 +144,7 @@ begin
     decode1_0: entity work.decode1
         port map (
             clk => clk,
-            rst => rst,
+            rst => core_rst,
             stall_in => decode1_stall_in,
             flush_in => flush,
             f_in => fetch2_to_decode1,
@@ -138,10 +156,11 @@ begin
     decode2_0: entity work.decode2
         port map (
             clk => clk,
-            rst => rst,
+            rst => core_rst,
             stall_out => decode2_stall_out,
             flush_in => flush,
             complete_in => complete,
+	    stopped_out => dbg_core_is_stopped,
             d_in => decode1_to_decode2,
             e_out => decode2_to_execute1,
             l_out => decode2_to_loadstore1,
@@ -221,5 +240,36 @@ begin
             c_out => writeback_to_cr_file,
             complete_out => complete
             );
+
+    debug_0: entity work.core_debug
+	port map (
+	    clk => clk,
+	    rst => rst,
+	    dmi_addr => dmi_addr,
+	    dmi_din => dmi_din,
+	    dmi_dout => dmi_dout,
+	    dmi_req => dmi_req,
+	    dmi_wr => dmi_wr,
+	    dmi_ack => dmi_ack,
+	    core_stop => dbg_core_stop,
+	    core_rst => dbg_core_rst,
+	    icache_rst => dbg_icache_rst,
+	    terminate => terminate,
+	    core_stopped => dbg_core_is_stopped,
+	    nia => fetch1_to_fetch2.nia,
+	    terminated_out => terminated_out
+	    );
+
+    -- Dump registers if core terminates
+    sim_terminate_test: if SIM generate
+	dump_registers: process(all)
+	begin
+	    if terminate = '1' then
+		loop_0: for i in 0 to 31 loop
+		    report "REG " & to_hstring(registers(i));
+		end loop loop_0;
+	    end if;
+	end process;
+    end generate;
 
 end behave;

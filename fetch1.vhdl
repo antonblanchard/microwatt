@@ -68,6 +68,8 @@ begin
 
 		-- Update outputs
 		f_out <= r;
+
+		report "fetch1 R:" & std_ulogic'image(e_in.redirect) & " v.nia:" & to_hstring(v.nia) & " f_out.nia:" & to_hstring(f_out.nia);
 	end process;
 
 end architecture behaviour;
