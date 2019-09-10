@@ -10,24 +10,39 @@ use work.common.all;
 use work.wishbone_types.all;
 
 
--- 0x00000000: Main memory (1 MB)
--- 0xc0002000: UART0 (for host communication)
+-- Memory map:
+--
+-- 0x00000000: Block RAM
+-- 0x40000000: DRAM (when present)
+-- 0xc0002000: UART0
 -- 0xc0004000: XICS ICP
+-- 0xf0000000: Block RAM (aliased & repeated)
+-- 0xffff0000: DRAM init code (if any)
+
 entity soc is
     generic (
 	MEMORY_SIZE   : positive;
 	RAM_INIT_FILE : string;
 	RESET_LOW     : boolean;
 	SIM           : boolean;
-	DISABLE_FLATTEN_CORE : boolean := false
+	DISABLE_FLATTEN_CORE : boolean := false;
+	HAS_DRAM      : boolean  := false
 	);
     port(
 	rst          : in  std_ulogic;
 	system_clk   : in  std_ulogic;
 
+	-- DRAM controller signals
+	wb_dram_in   : out wishbone_master_out;
+	wb_dram_out  : in wishbone_slave_out;
+	wb_dram_csr  : out std_ulogic;
+	wb_dram_init : out std_ulogic;
+
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
 	uart0_rxd    : in  std_ulogic;
+
+	-- DRAM controller signals
 	alt_reset    : in std_ulogic
 	);
 end entity soc;
@@ -35,9 +50,9 @@ end entity soc;
 architecture behaviour of soc is
 
     -- Wishbone master signals:
-    signal wishbone_dcore_in : wishbone_slave_out;
+    signal wishbone_dcore_in  : wishbone_slave_out;
     signal wishbone_dcore_out : wishbone_master_out;
-    signal wishbone_icore_in : wishbone_slave_out;
+    signal wishbone_icore_in  : wishbone_slave_out;
     signal wishbone_icore_out : wishbone_master_out;
     signal wishbone_debug_in : wishbone_slave_out;
     signal wishbone_debug_out : wishbone_master_out;
@@ -49,8 +64,8 @@ architecture behaviour of soc is
     signal wb_masters_in  : wishbone_slave_out_vector(0 to NUM_WB_MASTERS-1);
 
     -- Wishbone master (output of arbiter):
-    signal wb_master_in : wishbone_slave_out;
-    signal wb_master_out : wishbone_master_out;
+    signal wb_master_in       : wishbone_slave_out;
+    signal wb_master_out      : wishbone_master_out;
 
     -- UART0 signals:
     signal wb_uart0_in   : wishbone_master_out;
@@ -130,25 +145,35 @@ begin
 	    );
 
     -- Wishbone slaves address decoder & mux
-    slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out)
+    slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out, wb_dram_out)
 	-- Selected slave
-	type slave_type is (SLAVE_UART_0,
-			    SLAVE_MEMORY,
+	type slave_type is (SLAVE_UART,
+			    SLAVE_BRAM,
+			    SLAVE_DRAM,
+			    SLAVE_DRAM_INIT,
+			    SLAVE_DRAM_CSR,
 			    SLAVE_ICP_0,
 			    SLAVE_NONE);
 	variable slave : slave_type;
     begin
 	-- Simple address decoder.
 	slave := SLAVE_NONE;
-	if wb_master_out.adr(31 downto 24) = x"00" then
-	    slave := SLAVE_MEMORY;
-	elsif wb_master_out.adr(31 downto 24) = x"c0" then
-	    if wb_master_out.adr(23 downto 12) = x"002" then
-		slave := SLAVE_UART_0;
-	    end if;
-	    if wb_master_out.adr(23 downto 12) = x"004" then
-		slave := SLAVE_ICP_0;
-	    end if;
+	-- Simple address decoder. Ignore top bits to save silicon for now
+	slave := SLAVE_NONE;
+	if    std_match(wb_master_out.adr, x"0-------") then
+	    slave := SLAVE_BRAM;
+	elsif std_match(wb_master_out.adr, x"FFFF----") then
+	    slave := SLAVE_DRAM_INIT;
+	elsif std_match(wb_master_out.adr, x"F-------") then
+	    slave := SLAVE_BRAM;
+	elsif std_match(wb_master_out.adr, x"4-------") and HAS_DRAM then
+	    slave := SLAVE_DRAM;
+	elsif std_match(wb_master_out.adr, x"C0002---") then
+	    slave := SLAVE_UART;
+	elsif std_match(wb_master_out.adr, x"C01-----") then
+	    slave := SLAVE_DRAM_CSR;
+	elsif std_match(wb_master_out.adr, x"C0004---") then
+	    slave := SLAVE_ICP_0;
 	end if;
 
 	-- Wishbone muxing. Defaults:
@@ -162,11 +187,27 @@ begin
 	wb_xics0_in.adr <= (others => '0');
 	wb_xics0_in.adr(7 downto 0) <= wb_master_out.adr(7 downto 0);
 	wb_xics0_in.cyc  <= '0';
+
+	wb_dram_in <= wb_master_out;
+	wb_dram_in.cyc <= '0';
+	wb_dram_csr <= '0';
+	wb_dram_init <= '0';
 	case slave is
-	when SLAVE_MEMORY =>
+	when SLAVE_BRAM =>
 	    wb_bram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_bram_out;
-	when SLAVE_UART_0 =>
+	when SLAVE_DRAM =>
+	    wb_dram_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_dram_out;
+	when SLAVE_DRAM_INIT =>
+	    wb_dram_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_dram_out;
+	    wb_dram_init <= '1';
+	when SLAVE_DRAM_CSR =>
+	    wb_dram_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_dram_out;
+	    wb_dram_csr <= '1';
+	when SLAVE_UART =>
 	    wb_uart0_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_uart0_out;
 	when SLAVE_ICP_0 =>
