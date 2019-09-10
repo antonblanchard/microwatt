@@ -79,8 +79,6 @@ begin
 			v.e.valid := '1';
 			v.e.write_reg := e_in.write_reg;
 
-			report "execute " & to_hstring(e_in.nia);
-
 			case_0: case e_in.insn_type is
 
 				when OP_ILLEGAL =>

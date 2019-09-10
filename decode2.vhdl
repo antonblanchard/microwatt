@@ -188,6 +188,15 @@ begin
 	decode2_0: process(clk)
 	begin
 		if rising_edge(clk) then
+			if rin.e.valid = '1' then
+				report "execute " & to_hstring(rin.e.nia);
+			end if;
+			if rin.l.valid = '1' then
+				report "execute " & to_hstring(rin.e.nia);
+			end if;
+			if rin.m.valid = '1' then
+				report "execute " & to_hstring(rin.e.nia);
+			end if;
 			r <= rin;
 			r_int <= rin_int;
 		end if;

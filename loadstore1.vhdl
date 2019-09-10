@@ -28,11 +28,6 @@ begin
 	begin
 		if rising_edge(clk) then
 			l <= l_in;
-
-			if l_in.valid = '1' then
-				report "execute " & to_hstring(l_in.nia);
-			end if;
-
 		end if;
 	end process;
 
