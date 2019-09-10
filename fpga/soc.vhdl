@@ -27,22 +27,14 @@ end entity soc;
 architecture behaviour of soc is
 
     -- Wishbone master signals:
-    signal wishbone_proc_out: wishbone_master_out;
-    signal wishbone_proc_in: wishbone_slave_out;
     signal wishbone_dcore_in : wishbone_slave_out;
     signal wishbone_dcore_out : wishbone_master_out;
     signal wishbone_icore_in : wishbone_slave_out;
     signal wishbone_icore_out : wishbone_master_out;
 
-    -- Processor signals:
-    signal processor_adr_out : std_logic_vector(63 downto 0);
-    signal processor_sel_out : std_logic_vector(7 downto 0);
-    signal processor_cyc_out : std_logic;
-    signal processor_stb_out : std_logic;
-    signal processor_we_out  : std_logic;
-    signal processor_dat_out : std_logic_vector(63 downto 0);
-    signal processor_dat_in  : std_logic_vector(63 downto 0);
-    signal processor_ack_in  : std_logic;
+    -- Wishbone master (output of arbiter):
+    signal wb_master_in : wishbone_slave_out;
+    signal wb_master_out : wishbone_master_out;
 
     -- UART0 signals:
     signal uart0_adr_in  : std_logic_vector(11 downto 0);
@@ -63,71 +55,9 @@ architecture behaviour of soc is
     signal main_memory_we_in   : std_logic;
     signal main_memory_ack_out : std_logic;
 
-    -- Selected peripheral on the interconnect:
-    type intercon_peripheral_type is (
-	PERIPHERAL_UART0, PERIPHERAL_MAIN_MEMORY, PERIPHERAL_ERROR,
-	PERIPHERAL_NONE);
-    signal intercon_peripheral : intercon_peripheral_type := PERIPHERAL_NONE;
-
-    -- Interconnect address decoder state:
-    signal intercon_busy : boolean := false;
-
 begin
 
-    address_decoder: process(system_clk)
-    begin
-	if rising_edge(system_clk) then
-	    if rst = '1' then
-		intercon_peripheral <= PERIPHERAL_NONE;
-		intercon_busy <= false;
-	    else
-		if not intercon_busy then
-		    if processor_cyc_out = '1' then
-			intercon_busy <= true;
-
-			if processor_adr_out(31 downto 24) = x"00" then -- Main memory space
-			    intercon_peripheral <= PERIPHERAL_MAIN_MEMORY;
-			elsif processor_adr_out(31 downto 24) = x"c0" then -- Peripheral memory space
-			    case processor_adr_out(15 downto 12) is
-			    when x"2" =>
-				intercon_peripheral <= PERIPHERAL_UART0;
-			    when others => -- Invalid address - delegated to the error peripheral
-				intercon_peripheral <= PERIPHERAL_ERROR;
-			    end case;
-			else
-			    intercon_peripheral <= PERIPHERAL_ERROR;
-			end if;
-		    else
-			intercon_peripheral <= PERIPHERAL_NONE;
-		    end if;
-		else
-		    if processor_cyc_out = '0' then
-			intercon_busy <= false;
-			intercon_peripheral <= PERIPHERAL_NONE;
-		    end if;
-		end if;
-	    end if;
-	end if;
-    end process address_decoder;
-
-    processor_intercon: process(all)
-    begin
-	case intercon_peripheral is
-	when PERIPHERAL_UART0 =>
-	    processor_ack_in <= uart0_ack_out;
-	    processor_dat_in <= x"00000000000000" & uart0_dat_out;
-	when PERIPHERAL_MAIN_MEMORY =>
-	    processor_ack_in <= main_memory_ack_out;
-	    processor_dat_in <= main_memory_dat_out;
-	when PERIPHERAL_NONE =>
-	    processor_ack_in <= '0';
-	    processor_dat_in <= (others => '0');
-	when others =>
-	    processor_ack_in <= '0';
-	    processor_dat_in <= (others => '0');
-	end case;
-    end process processor_intercon;
-
+    -- Processor core
     processor: entity work.core
 	port map(
 	    clk => system_clk,
@@ -138,6 +68,7 @@ begin
 	    wishbone_data_out => wishbone_dcore_out
 	    );
 
+    -- Wishbone bus master arbiter & mux
     wishbone_arbiter_0: entity work.wishbone_arbiter
 	port map(
 	    clk => system_clk,
@@ -146,18 +77,49 @@ begin
 	    wb1_out => wishbone_dcore_in,
 	    wb2_in => wishbone_icore_out,
 	    wb2_out => wishbone_icore_in,
-	    wb_out => wishbone_proc_out,
-	    wb_in => wishbone_proc_in
+	    wb_out => wb_master_out,
+	    wb_in => wb_master_in
 	    );
-    processor_adr_out <= wishbone_proc_out.adr;
-    processor_dat_out <= wishbone_proc_out.dat;
-    processor_sel_out <= wishbone_proc_out.sel;
-    processor_cyc_out <= wishbone_proc_out.cyc;
-    processor_stb_out <= wishbone_proc_out.stb;
-    processor_we_out <= wishbone_proc_out.we;
-    wishbone_proc_in.dat <= processor_dat_in;
-    wishbone_proc_in.ack <= processor_ack_in;
 
+    -- Wishbone slaves address decoder & mux
+    slave_intercon: process(wb_master_out,
+			    main_memory_ack_out, main_memory_dat_out,
+			    uart0_ack_out, uart0_dat_out)
+	-- Selected slave
+	type slave_type is (SLAVE_UART,
+			    SLAVE_MEMORY,
+			    SLAVE_NONE);
+	variable slave : slave_type;
+    begin
+	-- Simple address decoder
+	slave := SLAVE_NONE;
+	if wb_master_out.adr(63 downto 24) = x"0000000000" then
+	    slave := SLAVE_MEMORY;
+	elsif wb_master_out.adr(63 downto 24) = x"00000000c0" then
+	    if wb_master_out.adr(15 downto 12) = x"2" then
+		slave := SLAVE_UART;
+	    end if;
+	end if;
+
+	-- Wishbone muxing. Defaults:
+	main_memory_cyc_in <= '0';
+	uart0_cyc_in <= '0';
+	case slave is
+	when SLAVE_MEMORY =>
+	    main_memory_cyc_in <= wb_master_out.cyc;
+	    wb_master_in.ack <= main_memory_ack_out;
+	    wb_master_in.dat <= main_memory_dat_out;
+	when SLAVE_UART =>
+	    uart0_cyc_in <= wb_master_out.cyc;
+	    wb_master_in.ack <= uart0_ack_out;
+	    wb_master_in.dat <= x"00000000000000" & uart0_dat_out;
+	when others =>
+	    wb_master_in.dat <= (others => '1');
+	    wb_master_in.ack <= wb_master_out.stb and wb_master_out.cyc;
+	end case;
+    end process slave_intercon;
+
+    -- UART0 wishbone slave
     uart0: entity work.pp_soc_uart
 	generic map(
 	    FIFO_DEPTH => 32
@@ -175,12 +137,16 @@ begin
 	    wb_we_in => uart0_we_in,
 	    wb_ack_out => uart0_ack_out
 	    );
-    uart0_adr_in <= processor_adr_out(uart0_adr_in'range);
-    uart0_dat_in <= processor_dat_out(7 downto 0);
-    uart0_we_in  <= processor_we_out;
-    uart0_cyc_in <= processor_cyc_out when intercon_peripheral = PERIPHERAL_UART0 else '0';
-    uart0_stb_in <= processor_stb_out when intercon_peripheral = PERIPHERAL_UART0 else '0';
+    -- Wire it up: XXX FIXME: Need a proper wb64->wb8 adapter that
+    --                 converts SELs into low address bits and muxes
+    --                 data accordingly (either that or rejects large
+    --                 cycles).
+    uart0_adr_in <= wb_master_out.adr(uart0_adr_in'range);
+    uart0_dat_in <= wb_master_out.dat(7 downto 0);
+    uart0_we_in  <= wb_master_out.we;
+    uart0_stb_in <= wb_master_out.stb;
 
+    -- BRAM Memory slave
     main_memory: entity work.pp_soc_memory
 	generic map(
 	    MEMORY_SIZE   => MEMORY_SIZE,
@@ -198,13 +164,10 @@ begin
 	    wb_we_in => main_memory_we_in,
 	    wb_ack_out => main_memory_ack_out
 	    );
-    main_memory_adr_in <= processor_adr_out(main_memory_adr_in'range);
-    main_memory_dat_in <= processor_dat_out;
-    main_memory_we_in  <= processor_we_out;
-    main_memory_sel_in <= processor_sel_out;
-    main_memory_cyc_in <= processor_cyc_out when
-			  intercon_peripheral = PERIPHERAL_MAIN_MEMORY else '0';
-    main_memory_stb_in <= processor_stb_out when
-			  intercon_peripheral = PERIPHERAL_MAIN_MEMORY else '0';
+    main_memory_adr_in <= wb_master_out.adr(main_memory_adr_in'range);
+    main_memory_dat_in <= wb_master_out.dat;
+    main_memory_we_in  <= wb_master_out.we;
+    main_memory_sel_in <= wb_master_out.sel;
+    main_memory_stb_in <= wb_master_out.stb;
 
 end architecture behaviour;
