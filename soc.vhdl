@@ -35,6 +35,8 @@ architecture behaviour of soc is
     signal wishbone_dcore_out : wishbone_master_out;
     signal wishbone_icore_in : wishbone_slave_out;
     signal wishbone_icore_out : wishbone_master_out;
+    signal wishbone_debug_in : wishbone_slave_out;
+    signal wishbone_debug_out : wishbone_master_out;
 
     -- Wishbone master (output of arbiter):
     signal wb_master_in : wishbone_slave_out;
@@ -75,15 +77,16 @@ begin
     -- Wishbone bus master arbiter & mux
     wishbone_arbiter_0: entity work.wishbone_arbiter
 	port map(
-	    clk => system_clk,
-	    rst => rst,
-	    wb1_in => wishbone_dcore_out,
-	    wb1_out => wishbone_dcore_in,
-	    wb2_in => wishbone_icore_out,
-	    wb2_out => wishbone_icore_in,
-	    wb_out => wb_master_out,
-	    wb_in => wb_master_in
+	    clk => system_clk, rst => rst,
+	    wb1_in => wishbone_dcore_out, wb1_out => wishbone_dcore_in,
+	    wb2_in => wishbone_icore_out, wb2_out => wishbone_icore_in,
+	    wb3_in => wishbone_debug_out, wb3_out => wishbone_debug_in,
+	    wb_out => wb_master_out, wb_in => wb_master_in
 	    );
+
+    -- Dummy wishbone debug module
+    wishbone_debug_out.cyc <= '0';
+    wishbone_debug_out.stb <= '0';
 
     -- Wishbone slaves address decoder & mux
     slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out)
