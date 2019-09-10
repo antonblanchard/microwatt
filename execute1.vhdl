@@ -320,33 +320,11 @@ begin
 					result := ppc_xor(e_in.read_data1, e_in.read_data2);
 					result_en := 1;
 
-				-- sim console
-				when OP_SIM_READ =>
-					if SIM = true then
-						sim_console_read(result);
-						result_en := 1;
-					else
-						terminate_out <= '1';
-						report "illegal";
-					end if;
-				when OP_SIM_POLL =>
-					if SIM = true then
-						sim_console_poll(result);
-						result_en := 1;
-					else
-						terminate_out <= '1';
-						report "illegal";
-					end if;
-				when OP_SIM_WRITE =>
-					if SIM = true then
-						sim_console_write(e_in.read_data1);
-					else
-						terminate_out <= '1';
-						report "illegal";
-					end if;
 				when OP_SIM_CONFIG =>
+					-- bit 0 was used to select the microwatt console, which
+					-- we no longer support.
 					if SIM = true then
-						result := x"0000000000000001";
+						result := x"0000000000000000";
 					else
 						result := x"0000000000000000";
 					end if;

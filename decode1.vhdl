@@ -222,9 +222,6 @@ architecture behaviour of decode1 is
 		PPC_XOR        =>       (ALU,    OP_XOR,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_XORI       =>       (ALU,    OP_XOR,       RS,         CONST_UI,    NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		PPC_XORIS      =>       (ALU,    OP_XOR,       RS,         CONST_UI_HI, NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_SIM_READ   =>       (ALU,    OP_SIM_READ,  NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_SIM_POLL   =>       (ALU,    OP_SIM_POLL,  NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_SIM_WRITE  =>       (ALU,    OP_SIM_WRITE, RS,         NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		PPC_SIM_CONFIG =>       (ALU,    OP_SIM_CONFIG,NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 
 		others => decode_rom_init
@@ -834,15 +831,6 @@ begin
 			elsif std_match(f_in.insn, "011011--------------------------") then
 				report "PPC_xoris";
 				ppc_insn := PPC_XORIS;
-			elsif std_match(f_in.insn, "000001---------------0000000000-") then
-				report "PPC_SIM_READ";
-				ppc_insn := PPC_SIM_READ;
-			elsif std_match(f_in.insn, "000001---------------0000000001-") then
-				report "PPC_SIM_POLL";
-				ppc_insn := PPC_SIM_POLL;
-			elsif std_match(f_in.insn, "000001---------------0000000010-") then
-				report "PPC_SIM_WRITE";
-				ppc_insn := PPC_SIM_WRITE;
 			elsif std_match(f_in.insn, "000001---------------0000000011-") then
 				report "PPC_SIM_CONFIG";
 				ppc_insn := PPC_SIM_CONFIG;
