@@ -1,0 +1,15 @@
+CAPI=2:
+
+name : :microwatt:litedram:0
+
+generators:
+  litedram_gen:
+    interpreter: python3
+    command: extras/fusesoc-add-files.py
+    description: Generate a litedram memory controller
+    usage: |
+      litedram_gen adds the pre-generated LiteX LiteDRAM memory controller
+      based on the board type.
+
+      Parameters:
+        board: The board type (arty, nexys_video)

@@ -152,11 +152,21 @@ TAGS:
 
 .PHONY: TAGS
 
-clean:
+_clean:
 	rm -f *.o work-*cf unisim-*cf $(all)
 	rm -f fpga/*.o fpga/work-*cf
 	rm -f sim-unisim/*.o sim-unisim/unisim-*cf
 	rm -f TAGS
+	rm -f scripts/mw_debug/*.o
+	rm -f scripts/mw_debug/mw_debug
 
-distclean: clean
+clean: _clean
+	make -f scripts/mw_debug/Makefile clean
+
+distclean: _clean
 	rm -f *~ fpga/~
+	rm -rf litedram/build
+	rm -f litedram/extras/*~
+	rm -f litedram/gen-src/*~
+	rm -f litedram/gen-src/sdram_init/*~
+	make -f scripts/mw_debug/Makefile distclean

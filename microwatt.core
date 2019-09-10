@@ -87,6 +87,9 @@ filesets:
       - fpga/cmod_a7-35.xdc : {file_type : xdc}
       - fpga/clk_gen_mcmm.vhd : {file_type : vhdlSource-2008}
 
+  litedram:
+      depend : [":microwatt:litedram"]
+
 targets:
   nexys_a7:
     default_tool: vivado
@@ -192,5 +195,11 @@ parameters:
   disable_flatten_core:
     datatype    : bool
     description : Prevent Vivado from flattening the main core components
+    paramtype   : generic
+    default     : false
+
+  use_litedram:
+    datatype    : bool
+    description : Use liteDRAM
     paramtype   : generic
     default     : false
