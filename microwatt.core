@@ -32,7 +32,7 @@ filesets:
   soc:
     files:
       - fpga/pp_fifo.vhd
-      - fpga/pp_soc_memory.vhd
+      - fpga/mw_soc_memory.vhdl
       - fpga/soc_reset.vhdl
       - fpga/pp_soc_uart.vhd
       - fpga/pp_utilities.vhd

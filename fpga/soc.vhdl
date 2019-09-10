@@ -46,14 +46,9 @@ architecture behaviour of soc is
     signal uart0_ack_out : std_logic;
 
     -- Main memory signals:
-    signal main_memory_adr_in  : std_logic_vector(positive(ceil(log2(real(MEMORY_SIZE))))-1 downto 0);
-    signal main_memory_dat_in  : std_logic_vector(63 downto 0);
-    signal main_memory_dat_out : std_logic_vector(63 downto 0);
-    signal main_memory_cyc_in  : std_logic;
-    signal main_memory_stb_in  : std_logic;
-    signal main_memory_sel_in  : std_logic_vector(7 downto 0);
-    signal main_memory_we_in   : std_logic;
-    signal main_memory_ack_out : std_logic;
+    signal wb_bram_in     : wishbone_master_out;
+    signal wb_bram_out    : wishbone_slave_out;
+    constant mem_adr_bits : positive := positive(ceil(log2(real(MEMORY_SIZE))));
 
 begin
 
@@ -82,8 +77,7 @@ begin
 	    );
 
     -- Wishbone slaves address decoder & mux
-    slave_intercon: process(wb_master_out,
-			    main_memory_ack_out, main_memory_dat_out,
+    slave_intercon: process(wb_master_out,  wb_bram_out,
 			    uart0_ack_out, uart0_dat_out)
 	-- Selected slave
 	type slave_type is (SLAVE_UART,
@@ -102,13 +96,13 @@ begin
 	end if;
 
 	-- Wishbone muxing. Defaults:
-	main_memory_cyc_in <= '0';
+	wb_bram_in <= wb_master_out;
+	wb_bram_in.cyc  <= '0';
 	uart0_cyc_in <= '0';
 	case slave is
 	when SLAVE_MEMORY =>
-	    main_memory_cyc_in <= wb_master_out.cyc;
-	    wb_master_in.ack <= main_memory_ack_out;
-	    wb_master_in.dat <= main_memory_dat_out;
+	    wb_bram_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_bram_out;
 	when SLAVE_UART =>
 	    uart0_cyc_in <= wb_master_out.cyc;
 	    wb_master_in.ack <= uart0_ack_out;
@@ -147,27 +141,16 @@ begin
     uart0_stb_in <= wb_master_out.stb;
 
     -- BRAM Memory slave
-    main_memory: entity work.pp_soc_memory
+    bram0: entity work.mw_soc_memory
 	generic map(
 	    MEMORY_SIZE   => MEMORY_SIZE,
 	    RAM_INIT_FILE => RAM_INIT_FILE
 	    )
 	port map(
 	    clk => system_clk,
-	    reset => rst,
-	    wb_adr_in => main_memory_adr_in,
-	    wb_dat_in => main_memory_dat_in,
-	    wb_dat_out => main_memory_dat_out,
-	    wb_cyc_in => main_memory_cyc_in,
-	    wb_stb_in => main_memory_stb_in,
-	    wb_sel_in => main_memory_sel_in,
-	    wb_we_in => main_memory_we_in,
-	    wb_ack_out => main_memory_ack_out
+	    rst => rst,
+	    wishbone_in => wb_bram_in,
+	    wishbone_out => wb_bram_out
 	    );
-    main_memory_adr_in <= wb_master_out.adr(main_memory_adr_in'range);
-    main_memory_dat_in <= wb_master_out.dat;
-    main_memory_we_in  <= wb_master_out.we;
-    main_memory_sel_in <= wb_master_out.sel;
-    main_memory_stb_in <= wb_master_out.stb;
 
 end architecture behaviour;
