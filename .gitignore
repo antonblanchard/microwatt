@@ -5,4 +5,6 @@
 core_tb
 fetch_tb
 loadstore_tb
+soc_reset_tb
 simple_ram_behavioural_tb
+simple_ram_behavioural.bin
