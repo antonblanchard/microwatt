@@ -29,59 +29,47 @@ end package helpers;
 
 package body helpers is
 	function fls_32 (val: std_ulogic_vector(31 downto 0)) return integer is
-		variable ret: integer;
 	begin
-		ret := 32;
 		for i in val'range loop
 			if val(i) = '1' then
-				ret := 31 - i;
-				exit;
+				return 31 - i;
 			end if;
 		end loop;
 
-		return ret;
+		return 32;
 	end;
 
 	function ffs_32 (val: std_ulogic_vector(31 downto 0)) return integer is
-		variable ret: integer;
 	begin
-		ret := 32;
 		for i in val'reverse_range loop
 			if val(i) = '1' then
-				ret := i;
-				exit;
+				return i;
 			end if;
 		end loop;
 
-		return ret;
+		return 32;
 	end;
 
 	function fls_64 (val: std_ulogic_vector(63 downto 0)) return integer is
-		variable ret: integer;
 	begin
-		ret := 64;
 		for i in val'range loop
 			if val(i) = '1' then
-				ret := 63 - i;
-				exit;
+				return 63 - i;
 			end if;
 		end loop;
 
-		return ret;
+		return 64;
 	end;
 
 	function ffs_64 (val: std_ulogic_vector(63 downto 0)) return integer is
-		variable ret: integer;
 	begin
-		ret := 64;
 		for i in val'reverse_range loop
 			if val(i) = '1' then
-				ret := i;
-				exit;
+				return i;
 			end if;
 		end loop;
 
-		return ret;
+		return 64;
 	end;
 
 	function popcnt8(val: std_ulogic_vector(7 downto 0)) return std_ulogic_vector is
