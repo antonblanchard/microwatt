@@ -21,74 +21,91 @@ entity writeback is
 end entity writeback;
 
 architecture behaviour of writeback is
-	signal e     : Execute2ToWritebackType;
-	signal l     : Loadstore2ToWritebackType;
-	signal m     : MultiplyToWritebackType;
-	signal w_tmp : WritebackToRegisterFileType;
-	signal c_tmp : WritebackToCrFileType;
+	type reg_internal_type is record
+		complete : std_ulogic;
+	end record;
+	type reg_type is record
+		w : WritebackToRegisterFileType;
+		c : WritebackToCrFileType;
+	end record;
+	signal r, rin : reg_type;
+	signal r_int, rin_int : reg_internal_type;
 begin
 	writeback_0: process(clk)
 	begin
 		if rising_edge(clk) then
-			e <= e_in;
-			l <= l_in;
-			m <= m_in;
+			r <= rin;
+			r_int <= rin_int;
 		end if;
 	end process;
-
-	w_out <= w_tmp;
-	c_out <= c_tmp;
-
-	complete_out <= '1' when e.valid or l.valid or m.valid else '0';
 
 	writeback_1: process(all)
 		variable x: std_ulogic_vector(0 downto 0);
 		variable y: std_ulogic_vector(0 downto 0);
 		variable z: std_ulogic_vector(0 downto 0);
+		variable v : reg_type;
+		variable v_int : reg_internal_type;
 	begin
-		x := "" & e.valid;
-		y := "" & l.valid;
-		z := "" & m.valid;
+		v := r;
+		v_int := r_int;
+
+		x := "" & e_in.valid;
+		y := "" & l_in.valid;
+		z := "" & m_in.valid;
 		assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1;
 
-		x := "" & e.write_enable;
-		y := "" & l.write_enable;
-		z := "" & m.write_reg_enable;
+		x := "" & e_in.write_enable;
+		y := "" & l_in.write_enable;
+		z := "" & m_in.write_reg_enable;
 		assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1;
 
-		assert not(e.write_cr_enable = '1' and m.write_cr_enable = '1');
+		assert not(e_in.write_cr_enable = '1' and m_in.write_cr_enable = '1');
 
-		w_tmp <= WritebackToRegisterFileInit;
-		c_tmp <= WritebackToCrFileInit;
+		v.w := WritebackToRegisterFileInit;
+		v.c := WritebackToCrFileInit;
 
-		if e.write_enable = '1' then
-			w_tmp.write_reg <= e.write_reg;
-			w_tmp.write_data <= e.write_data;
-			w_tmp.write_enable <= '1';
+		v_int.complete := '0';
+		if e_in.valid = '1' or l_in.valid = '1' or m_in.valid = '1' then
+			v_int.complete := '1';
 		end if;
 
-		if e.write_cr_enable = '1' then
-			c_tmp.write_cr_enable <= '1';
-			c_tmp.write_cr_mask <= e.write_cr_mask;
-			c_tmp.write_cr_data <= e.write_cr_data;
+		if e_in.write_enable = '1' then
+			v.w.write_reg := e_in.write_reg;
+			v.w.write_data := e_in.write_data;
+			v.w.write_enable := '1';
 		end if;
 
-		if l.write_enable = '1' then
-			w_tmp.write_reg <= l.write_reg;
-			w_tmp.write_data <= l.write_data;
-			w_tmp.write_enable <= '1';
+		if e_in.write_cr_enable = '1' then
+			v.c.write_cr_enable := '1';
+			v.c.write_cr_mask := e_in.write_cr_mask;
+			v.c.write_cr_data := e_in.write_cr_data;
 		end if;
 
-		if m.write_reg_enable = '1' then
-			w_tmp.write_enable <= '1';
-			w_tmp.write_reg <= m.write_reg_nr;
-			w_tmp.write_data <= m.write_reg_data;
+		if l_in.write_enable = '1' then
+			v.w.write_reg := l_in.write_reg;
+			v.w.write_data := l_in.write_data;
+			v.w.write_enable := '1';
 		end if;
 
-		if m.write_cr_enable = '1' then
-			c_tmp.write_cr_enable <= '1';
-			c_tmp.write_cr_mask <= m.write_cr_mask;
-			c_tmp.write_cr_data <= m.write_cr_data;
+		if m_in.write_reg_enable = '1' then
+			v.w.write_enable := '1';
+			v.w.write_reg := m_in.write_reg_nr;
+			v.w.write_data := m_in.write_reg_data;
 		end if;
+
+		if m_in.write_cr_enable = '1' then
+			v.c.write_cr_enable := '1';
+			v.c.write_cr_mask := m_in.write_cr_mask;
+			v.c.write_cr_data := m_in.write_cr_data;
+		end if;
+
+		-- Update registers
+                rin <= v;
+                rin_int <= v_int;
+
+                -- Update outputs
+		complete_out <= r_int.complete;
+                w_out <= r.w;
+                c_out <= r.c;
 	end process;
 end;
