@@ -53,6 +53,6 @@ begin
 		rin <= v;
 
                 -- Update outputs
-                l_out <= v;
+                l_out <= r;
 	end process;
 end;

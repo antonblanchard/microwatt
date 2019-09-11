@@ -52,6 +52,6 @@ begin
 		rin <= v;
 
 		-- Update outputs
-		e_out <= v;
+		e_out <= r;
 	end process;
 end;
