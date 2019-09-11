@@ -254,7 +254,7 @@ begin
 		v.e.cr := c_in.read_cr_data;
 		v.e.input_carry := d_in.decode.input_carry;
 		v.e.output_carry := d_in.decode.output_carry;
-		if d_in.decode.lr then
+		if d_in.decode.lr = '1' then
 			v.e.lr := insn_lk(d_in.insn);
 		end if;
 		v.e.const1 := decode_const_a(d_in.decode.const_a, d_in.insn);
