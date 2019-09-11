@@ -24,7 +24,9 @@ entity soc is
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
-	uart0_rxd    : in  std_ulogic
+	uart0_rxd    : in  std_ulogic;
+
+	nia_out      : out std_ulogic_vector(61 downto 0)
 	);
 end entity soc;
 
@@ -69,7 +71,8 @@ begin
 	    wishbone_data_in => wishbone_dcore_in,
 	    wishbone_data_out => wishbone_dcore_out,
 	    registers => registers,
-	    terminate_out => terminate
+	    terminate_out => terminate,
+	    nia_out => nia_out
 	    );
 
     -- Wishbone bus master arbiter & mux

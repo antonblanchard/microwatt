@@ -13,7 +13,11 @@ entity toplevel is
 
 	-- UART0 signals:
 	uart0_txd : out std_ulogic;
-	uart0_rxd : in  std_ulogic
+	uart0_rxd : in  std_ulogic;
+
+	-- NIA out on GPIOs
+	ja        : out std_ulogic_vector(7 downto 0);
+	jb        : out std_ulogic_vector(7 downto 0)
 	);
 end entity toplevel;
 
@@ -27,7 +31,10 @@ architecture behaviour of toplevel is
     signal system_clk : std_ulogic;
     signal system_clk_locked : std_ulogic;
 
+    signal nia : std_ulogic_vector(61 downto 0);
 begin
+    ja <= nia(7 downto 0);
+    jb <= nia(15 downto 8);
 
     reset_controller: entity work.soc_reset
 	generic map(
@@ -62,7 +69,8 @@ begin
 	    system_clk        => system_clk,
 	    rst               => soc_rst,
 	    uart0_txd         => uart0_txd,
-	    uart0_rxd         => uart0_rxd
+	    uart0_rxd         => uart0_rxd,
+	    nia_out           => nia
 	    );
 
 end architecture behaviour;

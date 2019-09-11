@@ -22,6 +22,7 @@ entity core is
 
         -- Added for debug, ghdl doesn't support external names unfortunately
         registers     : out regfile;
+        nia_out       : out std_ulogic_vector(61 downto 0);
         terminate_out : out std_ulogic
         );
 end core;
@@ -149,7 +150,8 @@ begin
             r_in => register_file_to_decode2,
             r_out => decode2_to_register_file,
             c_in => cr_file_to_decode2,
-            c_out => decode2_to_cr_file
+            c_out => decode2_to_cr_file,
+            nia_out => nia_out
             );
 
     register_file_0: entity work.register_file

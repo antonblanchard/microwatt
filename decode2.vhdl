@@ -28,7 +28,9 @@ entity decode2 is
 		r_out : out Decode2ToRegisterFileType;
 
 		c_in  : in CrFileToDecode2Type;
-		c_out : out Decode2ToCrFileType
+		c_out : out Decode2ToCrFileType;
+
+		nia_out : out std_ulogic_vector(63 downto 2)
 	);
 end entity decode2;
 
@@ -188,7 +190,9 @@ begin
 	decode2_0: process(clk)
 	begin
 		if rising_edge(clk) then
+			nia_out <= (others => '0');
 			if rin.e.valid = '1' or rin.l.valid = '1' or rin.m.valid = '1' then
+				nia_out <= rin.e.nia(63 downto 2);
 				report "execute " & to_hstring(rin.e.nia);
 			end if;
 			r <= rin;
