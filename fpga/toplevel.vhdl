@@ -21,7 +21,7 @@ architecture behaviour of toplevel is
 
     -- Reset signals:
     signal soc_rst : std_ulogic;
-    signal pll_rst_n : std_ulogic;
+    signal pll_rst : std_ulogic;
 
     -- Internal clock signals:
     signal system_clk : std_ulogic;
@@ -38,14 +38,14 @@ begin
 	    pll_clk => system_clk,
 	    pll_locked_in => system_clk_locked,
 	    ext_rst_in => ext_rst,
-	    pll_rst_out => pll_rst_n,
+	    pll_rst_out => pll_rst,
 	    rst_out => soc_rst
 	    );
 
     clkgen: entity work.clock_generator
 	port map(
 	    ext_clk => ext_clk,
-	    pll_rst_in => pll_rst_n,
+	    pll_rst_in => pll_rst,
 	    pll_clk_out => system_clk,
 	    pll_locked_out => system_clk_locked
 	    );
