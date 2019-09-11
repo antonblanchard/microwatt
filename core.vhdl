@@ -31,6 +31,10 @@ architecture behave of core is
     signal fetch1_to_fetch2: Fetch1ToFetch2Type;
     signal fetch2_to_decode1: Fetch2ToDecode1Type;
 
+    -- icache signals
+    signal fetch2_to_icache : Fetch2ToIcacheType;
+    signal icache_to_fetch2 : IcacheToFetch2Type;
+
     -- decode signals
     signal decode1_to_decode2: Decode1ToDecode2Type;
     signal decode2_to_execute1: Decode2ToExecute1Type;
@@ -97,13 +101,27 @@ begin
             stall_in => fetch2_stall_in,
             stall_out => fetch2_stall_out,
             flush_in => flush,
-            wishbone_in => wishbone_insn_in,
-            wishbone_out => wishbone_insn_out,
+            i_in => icache_to_fetch2,
+            i_out => fetch2_to_icache,
             f_in => fetch1_to_fetch2,
             f_out => fetch2_to_decode1
             );
 
     fetch2_stall_in <= decode2_stall_out;
+
+    icache_0: entity work.icache
+        generic map(
+            LINE_SIZE_DW => 8,
+            NUM_LINES => 16
+            )
+        port map(
+            clk => clk,
+            rst => rst,
+            i_in => fetch2_to_icache,
+            i_out => icache_to_fetch2,
+            wishbone_out => wishbone_insn_out,
+            wishbone_in => wishbone_insn_in
+            );
 
     decode1_0: entity work.decode1
         port map (

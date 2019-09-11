@@ -12,8 +12,8 @@ all: $(all)
 	$(GHDL) -a $(GHDLFLAGS) $<
 
 common.o: decode_types.o
-core_tb.o: common.o wishbone_types.o soc.o
-core.o: common.o wishbone_types.o fetch1.o fetch2.o decode1.o decode2.o register_file.o cr_file.o execute1.o execute2.o loadstore1.o loadstore2.o multiply.o writeback.o
+core_tb.o: common.o core.o soc.o
+core.o: common.o wishbone_types.o fetch1.o fetch2.o icache.o decode1.o decode2.o register_file.o cr_file.o execute1.o execute2.o loadstore1.o loadstore2.o multiply.o writeback.o
 cr_file.o: common.o
 crhelpers.o: common.o
 decode1.o: common.o decode_types.o
@@ -26,6 +26,7 @@ fetch2.o: common.o wishbone_types.o
 glibc_random_helpers.o:
 glibc_random.o: glibc_random_helpers.o
 helpers.o:
+icache.o: common.o wishbone_types.o
 insn_helpers.o:
 loadstore1.o: common.o
 loadstore2.o: common.o helpers.o wishbone_types.o
