@@ -15,13 +15,13 @@ package wishbone_types is
 		stb : std_ulogic;
 		sel : std_ulogic_vector(7 downto 0);
 		we  : std_ulogic;
-	end record wishbone_master_out;
+	end record;
 	constant wishbone_master_out_init : wishbone_master_out := (cyc => '0', stb => '0', we => '0', others => (others => '0'));
 
 	type wishbone_slave_out is record
 		dat : wishbone_data_type;
 		ack : std_ulogic;
-	end record wishbone_slave_out;
+	end record;
 	constant wishbone_slave_out_init : wishbone_slave_out := (ack => '0', others => (others => '0'));
 
 end package wishbone_types;

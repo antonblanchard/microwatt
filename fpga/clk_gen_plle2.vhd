@@ -23,7 +23,7 @@ architecture rtl of clock_generator is
     clkfbout_mult : integer range 2 to 64;
     clkout_divide : integer range 1 to 128;
     divclk_divide : integer range 1 to 56;
-  end record pll_settings_t;
+  end record;
 
   function gen_pll_settings (
     constant freq_hz : positive)
