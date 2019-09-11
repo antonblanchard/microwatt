@@ -200,7 +200,6 @@ begin
 				when OP_MFOCRF =>
 					crnum := fxm_to_num(e_in.const1(7 downto 0));
 					result := (others => '0');
---					result((4*(7-crnum)+3) downto (4*(7-crnum))) := e_in.cr((4*(7-crnum)+3) downto (4*(7-crnum))); FIXME
 					for i in 0 to 7 loop
 						lo := (7-i)*4;
 						hi := lo + 3;
