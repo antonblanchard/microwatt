@@ -14,7 +14,8 @@ entity fetch1 is
 		rst           : in std_ulogic;
 
 		-- Control inputs:
-		fetch_one_in  : in std_ulogic;
+		stall_in      : in std_ulogic;
+		flush_in      : in std_ulogic;
 
 		-- redirect from execution unit
 		e_in          : in Execute1ToFetch1Type;
@@ -25,54 +26,48 @@ entity fetch1 is
 end entity fetch1;
 
 architecture behaviour of fetch1 is
-	type reg_type is record
-		pc        : std_ulogic_vector(63 downto 0);
-		fetch_one : std_ulogic;
+	type reg_internal_type is record
+		nia_next : std_ulogic_vector(63 downto 0);
 	end record;
-
-	signal r   : reg_type;
-	signal rin : reg_type;
+	signal r_int, rin_int : reg_internal_type;
+	signal r, rin : Fetch1ToFetch2Type;
 begin
 	regs : process(clk)
 	begin
 		if rising_edge(clk) then
 			r <= rin;
+			r_int <= rin_int;
 		end if;
 	end process;
 
 	comb : process(all)
-		variable v           : reg_type;
-		variable fetch_valid : std_ulogic;
-		variable fetch_nia   : std_ulogic_vector(63 downto 0);
+		variable v     : Fetch1ToFetch2Type;
+		variable v_int : reg_internal_type;
 	begin
 		v := r;
+		v_int := r_int;
 
-		fetch_valid := '0';
-		fetch_nia := (others => '0');
-
-		v.fetch_one := v.fetch_one or fetch_one_in;
-
-		if e_in.redirect = '1' then
-			v.pc := e_in.redirect_nia;
+		if stall_in = '0' then
+			v.nia := r_int.nia_next;
+			v_int.nia_next := std_logic_vector(unsigned(r_int.nia_next) + 4);
 		end if;
 
-		if v.fetch_one = '1' then
-			fetch_nia := v.pc;
-			fetch_valid := '1';
-			v.pc := std_logic_vector(unsigned(v.pc) + 4);
-
-			v.fetch_one := '0';
+		if e_in.redirect = '1' then
+			v.nia := e_in.redirect_nia;
+			v_int.nia_next := std_logic_vector(unsigned(e_in.redirect_nia) + 4);
 		end if;
 
 		if rst = '1' then
-			v.pc := RESET_ADDRESS;
-			v.fetch_one := '0';
+			v.nia := RESET_ADDRESS;
+			v_int.nia_next := std_logic_vector(unsigned(RESET_ADDRESS) + 4);
 		end if;
 
+		-- Update registers
 		rin <= v;
+		rin_int <= v_int;
 
-		f_out.valid <= fetch_valid;
-		f_out.nia <= fetch_nia;
+		-- Update outputs
+		f_out <= r;
 	end process;
 
 end architecture behaviour;

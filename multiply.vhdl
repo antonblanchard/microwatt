@@ -10,7 +10,7 @@ use work.crhelpers.all;
 
 entity multiply is
 	generic (
-		PIPELINE_DEPTH : natural := 6
+		PIPELINE_DEPTH : natural := 2
 	);
 	port (
 		clk   : in std_logic;

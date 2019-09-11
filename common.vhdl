@@ -13,7 +13,6 @@ package common is
 	end record;
 
 	type Fetch1ToFetch2Type is record
-		valid: std_ulogic;
 		nia: std_ulogic_vector(63 downto 0);
 	end record;
 
