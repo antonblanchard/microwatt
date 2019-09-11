@@ -56,7 +56,6 @@ package common is
 	type Decode2ToMultiplyType is record
 		valid: std_ulogic;
 		insn_type: insn_type_t;
-		nia: std_ulogic_vector(63 downto 0);
 		write_reg: std_ulogic_vector(4 downto 0);
 		data1: std_ulogic_vector(64 downto 0);
 		data2: std_ulogic_vector(64 downto 0);
@@ -95,7 +94,6 @@ package common is
 
 	type Decode2ToLoadstore1Type is record
 		valid : std_ulogic;
-		nia: std_ulogic_vector(63 downto 0);
 		load : std_ulogic;				-- is this a load or store
 		addr1 : std_ulogic_vector(63 downto 0);
 		addr2 : std_ulogic_vector(63 downto 0);
