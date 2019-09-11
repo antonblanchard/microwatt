@@ -248,7 +248,7 @@ begin
 
 		ppc_insn := PPC_ILLEGAL;
 
-		if f_in.valid then
+		if f_in.valid = '1' then
 			v.nia  := f_in.nia;
 			v.insn := f_in.insn;
 
