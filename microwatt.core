@@ -76,7 +76,7 @@ filesets:
     files:
       - fpga/nexys-video.xdc : {file_type : xdc}
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
-      - fpga/top-generic.vhdl : {file_type : vhdlSource-2008}
+      - fpga/top-nexys-video.vhdl : {file_type : vhdlSource-2008}
 
   arty_a7:
     files:
@@ -107,7 +107,7 @@ targets:
       vivado: {part : xc7a100tcsg324-1}
     toplevel : toplevel
 
-  nexys_video:
+  nexys_video-nodram:
     default_tool: vivado
     filesets: [core, nexys_video, soc, fpga, debug_xilinx]
     parameters :
@@ -116,6 +116,19 @@ targets:
       - clk_input
       - clk_frequency
       - disable_flatten_core
+    tools:
+      vivado: {part : xc7a200tsbg484-1}
+    toplevel : toplevel
+
+  nexys_video:
+    default_tool: vivado
+    filesets: [core, nexys_video, soc, fpga, debug_xilinx, litedram]
+    parameters:
+      - memory_size
+      - ram_init_file
+      - use_litedram=true
+      - disable_flatten_core
+    generate: [dram_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -196,6 +209,10 @@ generate:
   dram_arty:
     generator: litedram_gen
     parameters: {board : arty}
+
+  dram_nexys_video:
+    generator: litedram_gen
+    parameters: {board : nexys-video}
 
 parameters:
   memory_size:
