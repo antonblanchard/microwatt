@@ -188,13 +188,7 @@ begin
 	decode2_0: process(clk)
 	begin
 		if rising_edge(clk) then
-			if rin.e.valid = '1' then
-				report "execute " & to_hstring(rin.e.nia);
-			end if;
-			if rin.l.valid = '1' then
-				report "execute " & to_hstring(rin.e.nia);
-			end if;
-			if rin.m.valid = '1' then
+			if rin.e.valid = '1' or rin.l.valid = '1' or rin.m.valid = '1' then
 				report "execute " & to_hstring(rin.e.nia);
 			end if;
 			r <= rin;
@@ -268,7 +262,6 @@ begin
 		v.e.const3 := decode_const_c(d_in.decode.const_c, d_in.insn);
 
 		-- multiply unit
-		v.m.nia := d_in.nia;
 		v.m.insn_type := d_in.decode.insn_type;
 		mul_a := decoded_reg_a.data;
 		mul_b := decoded_reg_b.data;
@@ -296,7 +289,6 @@ begin
 		end if;
 
 		-- load/store unit
-		v.l.nia := d_in.nia;
 		v.l.update_reg := decoded_reg_a.reg;
 		v.l.addr1 := decoded_reg_a.data;
 		v.l.addr2 := decoded_reg_b.data;
