@@ -92,10 +92,8 @@ begin
 			    state <= ACK;
 			end if;
 		    when ACK =>
-			if wishbone_in.stb = '0' then
-			    read_ack <= '0';
-			    state <= IDLE;
-			end if;
+			read_ack <= '0';
+			state <= IDLE;
 		    end case;
 		else
 		    state <= IDLE;

@@ -26,6 +26,7 @@ filesets:
       - writeback.vhdl
       - insn_helpers.vhdl
       - core.vhdl
+      - icache.vhdl
     file_type : vhdlSource-2008
 
   soc:

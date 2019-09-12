@@ -31,6 +31,16 @@ package common is
 	end record;
 	constant Decode1ToDecode2Init : Decode1ToDecode2Type := (valid => '0', decode => decode_rom_init, others => (others => '0'));
 
+	type Fetch2ToIcacheType is record
+		req: std_ulogic;
+		addr: std_ulogic_vector(63 downto 0);
+	end record;
+
+	type IcacheToFetch2Type is record
+		ack: std_ulogic;
+		insn: std_ulogic_vector(31 downto 0);
+	end record;
+
 	type Decode2ToExecute1Type is record
 		valid: std_ulogic;
 		insn_type: insn_type_t;
