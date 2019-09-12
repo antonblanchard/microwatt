@@ -245,13 +245,12 @@ begin
 		v := r;
 
 		v.valid := f_in.valid;
+		v.nia  := f_in.nia;
+		v.insn := f_in.insn;
 
 		ppc_insn := PPC_ILLEGAL;
 
 		if f_in.valid = '1' then
-			v.nia  := f_in.nia;
-			v.insn := f_in.insn;
-
 			report "Decode insn " & to_hstring(f_in.insn) & " at " & to_hstring(f_in.nia);
 
 			if std_match(f_in.insn, "011111---------------0100001010-") then
