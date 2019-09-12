@@ -14,7 +14,7 @@ architecture bypass of clock_generator is
 
 begin
 
-  pll_locked_out <= pll_rst_in;
+  pll_locked_out <= not pll_rst_in;
   pll_clk_out <= ext_clk;
 
 end architecture bypass;
