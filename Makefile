@@ -2,7 +2,7 @@ GHDL=ghdl
 GHDLFLAGS=--std=08
 CFLAGS=-O2 -Wall
 
-all = core_tb simple_ram_behavioural_tb soc_reset_tb
+all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb
 # XXX
 # loadstore_tb fetch_tb
 
@@ -27,6 +27,7 @@ glibc_random_helpers.o:
 glibc_random.o: glibc_random_helpers.o
 helpers.o:
 icache.o: common.o wishbone_types.o
+icache_tb.o: common.o wishbone_types.o icache.o simple_ram_behavioural.o
 insn_helpers.o:
 loadstore1.o: common.o
 loadstore2.o: common.o helpers.o wishbone_types.o
@@ -53,6 +54,9 @@ core_tb: core_tb.o simple_ram_behavioural_helpers_c.o sim_console_c.o
 
 fetch_tb: fetch_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
+
+icache_tb: icache_tb.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
 
 loadstore_tb: loadstore_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
