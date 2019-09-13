@@ -2,7 +2,7 @@ GHDL=ghdl
 GHDLFLAGS=--std=08
 CFLAGS=-O2 -Wall
 
-all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb
+all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb multiply_tb
 # XXX
 # loadstore_tb fetch_tb
 
@@ -59,6 +59,9 @@ icache_tb: icache_tb.o
 	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
 
 loadstore_tb: loadstore_tb.o
+	$(GHDL) -e $(GHDLFLAGS) $@
+
+multiply_tb: multiply_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 simple_ram_tb: simple_ram_tb.o
