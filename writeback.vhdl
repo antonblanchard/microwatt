@@ -52,12 +52,12 @@ begin
 		x := "" & e_in.valid;
 		y := "" & l_in.valid;
 		z := "" & m_in.valid;
-		assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1;
+		assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1 severity failure;
 
 		x := "" & e_in.write_enable;
 		y := "" & l_in.write_enable;
 		z := "" & m_in.write_reg_enable;
-		assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1;
+		assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1 severity failure;
 
 		assert not(e_in.write_cr_enable = '1' and m_in.write_cr_enable = '1');
 
