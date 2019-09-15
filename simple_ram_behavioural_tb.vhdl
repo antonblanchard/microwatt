@@ -9,225 +9,233 @@ entity simple_ram_behavioural_tb is
 end simple_ram_behavioural_tb;
 
 architecture behave of simple_ram_behavioural_tb is
-	signal clk          : std_ulogic;
-	signal rst          : std_ulogic := '1';
+    signal clk          : std_ulogic;
+    signal rst          : std_ulogic := '1';
 
-	constant clk_period : time := 10 ns;
+    constant clk_period : time := 10 ns;
 
-	signal w_in         : wishbone_slave_out;
-	signal w_out        : wishbone_master_out;
+    signal w_in         : wishbone_slave_out;
+    signal w_out        : wishbone_master_out;
 begin
-	simple_ram_0: entity work.mw_soc_memory
-		generic map ( RAM_INIT_FILE => "simple_ram_behavioural_tb.bin", MEMORY_SIZE => 16 )
-		port map (clk => clk, rst => rst, wishbone_out => w_in, wishbone_in => w_out);
+    simple_ram_0: entity work.mw_soc_memory
+        generic map (
+            RAM_INIT_FILE => "simple_ram_behavioural_tb.bin",
+            MEMORY_SIZE => 16
+            )
+        port map (
+            clk => clk,
+            rst => rst,
+            wishbone_out => w_in,
+            wishbone_in => w_out
+            );
 
-	clock: process
-	begin
-		clk <= '1';
-		wait for clk_period / 2;
-		clk <= '0';
-		wait for clk_period / 2;
-	end process clock;
+    clock: process
+    begin
+        clk <= '1';
+        wait for clk_period / 2;
+        clk <= '0';
+        wait for clk_period / 2;
+    end process clock;
 
-	stim: process
-	begin
-		w_out.adr <= (others => '0');
-		w_out.dat <= (others => '0');
-		w_out.cyc <= '0';
-		w_out.stb <= '0';
-		w_out.sel <= (others => '0');
-		w_out.we  <= '0';
+    stim: process
+    begin
+        w_out.adr <= (others => '0');
+        w_out.dat <= (others => '0');
+        w_out.cyc <= '0';
+        w_out.stb <= '0';
+        w_out.sel <= (others => '0');
+        w_out.we  <= '0';
 
-		wait for clk_period;
-		rst <= '0';
+        wait for clk_period;
+        rst <= '0';
 
-		wait for clk_period;
+        wait for clk_period;
 
-		w_out.cyc <= '1';
+        w_out.cyc <= '1';
 
-		-- test various read lengths and alignments
-		w_out.stb <= '1';
-		w_out.sel <= "00000001";
-		w_out.adr <= x"0000000000000000";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(7 downto 0) = x"00" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        -- test various read lengths and alignments
+        w_out.stb <= '1';
+        w_out.sel <= "00000001";
+        w_out.adr <= x"0000000000000000";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(7 downto 0) = x"00" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "00000001";
-		w_out.adr <= x"0000000000000001";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(7 downto 0) = x"01" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "00000001";
+        w_out.adr <= x"0000000000000001";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(7 downto 0) = x"01" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "00000001";
-		w_out.adr <= x"0000000000000007";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(7 downto 0) = x"07" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "00000001";
+        w_out.adr <= x"0000000000000007";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(7 downto 0) = x"07" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "00000011";
-		w_out.adr <= x"0000000000000000";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(15 downto 0) = x"0100" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "00000011";
+        w_out.adr <= x"0000000000000000";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(15 downto 0) = x"0100" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "00000011";
-		w_out.adr <= x"0000000000000001";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(15 downto 0) = x"0201" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "00000011";
+        w_out.adr <= x"0000000000000001";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(15 downto 0) = x"0201" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "00000011";
-		w_out.adr <= x"0000000000000007";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(15 downto 0) = x"0807" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "00000011";
+        w_out.adr <= x"0000000000000007";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(15 downto 0) = x"0807" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "00001111";
-		w_out.adr <= x"0000000000000000";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(31 downto 0) = x"03020100" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "00001111";
+        w_out.adr <= x"0000000000000000";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(31 downto 0) = x"03020100" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "00001111";
-		w_out.adr <= x"0000000000000001";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(31 downto 0) = x"04030201" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "00001111";
+        w_out.adr <= x"0000000000000001";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(31 downto 0) = x"04030201" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "00001111";
-		w_out.adr <= x"0000000000000007";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(31 downto 0) = x"0A090807" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "00001111";
+        w_out.adr <= x"0000000000000007";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(31 downto 0) = x"0A090807" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "11111111";
-		w_out.adr <= x"0000000000000000";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(63 downto 0) = x"0706050403020100" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "11111111";
+        w_out.adr <= x"0000000000000000";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(63 downto 0) = x"0706050403020100" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "11111111";
-		w_out.adr <= x"0000000000000001";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(63 downto 0) = x"0807060504030201" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "11111111";
+        w_out.adr <= x"0000000000000001";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(63 downto 0) = x"0807060504030201" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "11111111";
-		w_out.adr <= x"0000000000000007";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(63 downto 0) = x"0E0D0C0B0A090807" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "11111111";
+        w_out.adr <= x"0000000000000007";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(63 downto 0) = x"0E0D0C0B0A090807" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		-- test various write lengths and alignments
-		w_out.stb <= '1';
-		w_out.sel <= "00000001";
-		w_out.adr <= x"0000000000000000";
-		w_out.we <= '1';
-		w_out.dat(7 downto 0) <= x"0F";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        -- test various write lengths and alignments
+        w_out.stb <= '1';
+        w_out.sel <= "00000001";
+        w_out.adr <= x"0000000000000000";
+        w_out.we <= '1';
+        w_out.dat(7 downto 0) <= x"0F";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "00000001";
-		w_out.adr <= x"0000000000000000";
-		w_out.we <= '0';
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat(7 downto 0) = x"0F" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "00000001";
+        w_out.adr <= x"0000000000000000";
+        w_out.we <= '0';
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat(7 downto 0) = x"0F" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "11111111";
-		w_out.adr <= x"0000000000000007";
-		w_out.we <= '1';
-		w_out.dat <= x"BADC0FFEBADC0FFE";
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "11111111";
+        w_out.adr <= x"0000000000000007";
+        w_out.we <= '1';
+        w_out.dat <= x"BADC0FFEBADC0FFE";
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		w_out.stb <= '1';
-		w_out.sel <= "11111111";
-		w_out.adr <= x"0000000000000007";
-		w_out.we <= '0';
-		assert w_in.ack = '0';
-		wait for clk_period;
-		assert w_in.ack = '1';
-		assert w_in.dat = x"BADC0FFEBADC0FFE" report to_hstring(w_in.dat);
-		w_out.stb <= '0';
-		wait for clk_period;
-		assert w_in.ack = '0';
+        w_out.stb <= '1';
+        w_out.sel <= "11111111";
+        w_out.adr <= x"0000000000000007";
+        w_out.we <= '0';
+        assert w_in.ack = '0';
+        wait for clk_period;
+        assert w_in.ack = '1';
+        assert w_in.dat = x"BADC0FFEBADC0FFE" report to_hstring(w_in.dat);
+        w_out.stb <= '0';
+        wait for clk_period;
+        assert w_in.ack = '0';
 
-		assert false report "end of test" severity failure;
-		wait;
-	end process;
+        assert false report "end of test" severity failure;
+        wait;
+    end process;
 end behave;
