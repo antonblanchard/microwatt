@@ -217,7 +217,7 @@ architecture behaviour of decode1 is
 		PPC_SYNC       =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		--PPC_TD
 		PPC_TDI        =>       (ALU,    OP_TDI,       RA,         CONST_SI,    NONE, NONE, TOO,  NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		--PPC_TW
+		PPC_TW         =>       (ALU,    OP_TW,        RA,         RB,          NONE, NONE, TOO,  NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		--PPC_TWI
 		PPC_XOR        =>       (ALU,    OP_XOR,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_XORI       =>       (ALU,    OP_XOR,       RS,         CONST_UI,    NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
