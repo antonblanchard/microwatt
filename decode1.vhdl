@@ -157,6 +157,7 @@ architecture behaviour of decode1 is
 		PPC_MULLW      =>       (MUL,    OP_MUL_L64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'),
 		PPC_NAND       =>       (ALU,    OP_NAND,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_NEG        =>       (ALU,    OP_NEG,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		PPC_NOP        =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		PPC_NOR        =>       (ALU,    OP_NOR,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_OR         =>       (ALU,    OP_OR,        RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_ORC        =>       (ALU,    OP_ORC,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
@@ -644,6 +645,10 @@ begin
 			elsif std_match(f_in.insn, "011111---------------0110011100-") then
 				report "PPC_orc";
 				ppc_insn := PPC_ORC;
+				-- Has to be before ori
+			elsif std_match(f_in.insn, "01100000000000000000000000000000") then
+				report "PPC_nop";
+				ppc_insn := PPC_NOP;
 			elsif std_match(f_in.insn, "011000--------------------------") then
 				report "PPC_ori";
 				ppc_insn := PPC_ORI;
