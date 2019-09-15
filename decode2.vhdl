@@ -188,6 +188,8 @@ begin
 	decode2_0: process(clk)
 	begin
 		if rising_edge(clk) then
+			assert r_int.outstanding <= 1 report "Outstanding bad " & integer'image(r_int.outstanding) severity failure;
+
 			if rin.e.valid = '1' or rin.l.valid = '1' or rin.m.valid = '1' then
 				report "execute " & to_hstring(rin.e.nia);
 			end if;
@@ -384,8 +386,6 @@ begin
 		if v.e.valid = '1' or v.l.valid = '1' or v.m.valid = '1' then
 			v_int.outstanding := v_int.outstanding + 1;
 		end if;
-
-		assert r_int.outstanding <= 1 report "Outstanding bad " & integer'image(r_int.outstanding) severity failure;
 
 		if rst = '1' then
 			v_int.state := IDLE;
