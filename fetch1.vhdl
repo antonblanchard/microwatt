@@ -7,7 +7,7 @@ use work.common.all;
 
 entity fetch1 is
 	generic(
-		RESET_ADDRESS : std_logic_vector(63 downto 0)
+		RESET_ADDRESS : std_logic_vector(63 downto 0) := (others => '0')
 	);
 	port(
 		clk           : in std_ulogic;
