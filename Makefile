@@ -19,7 +19,7 @@ crhelpers.o: common.o
 decode1.o: common.o decode_types.o
 decode2.o: decode_types.o common.o helpers.o insn_helpers.o
 decode_types.o:
-execute1.o: decode_types.o common.o helpers.o crhelpers.o ppc_fx_insns.o sim_console.o
+execute1.o: decode_types.o common.o helpers.o crhelpers.o ppc_fx_insns.o
 execute2.o: common.o crhelpers.o ppc_fx_insns.o
 fetch1.o: common.o
 fetch2.o: common.o wishbone_types.o

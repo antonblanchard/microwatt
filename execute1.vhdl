@@ -8,7 +8,6 @@ use work.common.all;
 use work.helpers.all;
 use work.crhelpers.all;
 use work.ppc_fx_insns.all;
-use work.sim_console.all;
 
 entity execute1 is
 	generic (
