@@ -102,10 +102,6 @@ begin
 						m_tmp.we <= '1';
 
 						data := l_in.data;
-						if l_in.byte_reverse = '1' then
-							data := byte_reverse(data, to_integer(unsigned(l_in.length)));
-						end if;
-
 						m_tmp.dat <= std_logic_vector(shift_left(unsigned(data), wishbone_data_shift(l_in.addr)));
 
 						assert l_in.sign_extend = '0' report "sign extension doesn't make sense for stores" severity failure;
