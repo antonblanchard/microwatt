@@ -4,6 +4,7 @@ use ieee.numeric_std.all;
 
 library work;
 use work.common.all;
+use work.helpers.all;
 
 -- 2 cycle LSU
 -- We calculate the address in the first cycle
@@ -46,6 +47,11 @@ begin
 		v.sign_extend := l_in.sign_extend;
 		v.update := l_in.update;
 		v.update_reg := l_in.update_reg;
+
+		-- byte reverse stores in the first cycle
+		if v.load = '0' and l_in.byte_reverse = '1' then
+			v.data := byte_reverse(l_in.data, to_integer(unsigned(l_in.length)));
+		end if;
 
 		v.addr := lsu_sum;
 
