@@ -62,6 +62,7 @@ begin
 	loadstore2_0: process(clk)
 		variable tmp : std_ulogic_vector(63 downto 0);
 		variable data : std_ulogic_vector(63 downto 0);
+		variable sign_extend_byte_reverse : std_ulogic_vector(1 downto 0);
 	begin
 		if rising_edge(clk) then
 			tmp := (others => '0');
@@ -127,13 +128,15 @@ begin
 						assert false report "invalid length" severity failure;
 					end case;
 
-					if l_saved.sign_extend = '1' then
-						data := sign_extend(data, to_integer(unsigned(l_saved.length)));
-					end if;
+					sign_extend_byte_reverse := l_saved.sign_extend & l_saved.byte_reverse;
 
-					if l_saved.byte_reverse = '1' then
+					case sign_extend_byte_reverse is
+					when "10" =>
+					    data := sign_extend(data, to_integer(unsigned(l_saved.length)));
+					when "01" =>
 						data := byte_reverse(data, to_integer(unsigned(l_saved.length)));
-					end if;
+					when others =>
+					end case;
 
 					w_tmp.write_data <= data;
 
