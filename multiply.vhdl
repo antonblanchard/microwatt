@@ -85,7 +85,7 @@ begin
 		m_out.write_reg_data <= d2;
 		m_out.write_reg_nr <= v.multiply_pipeline(PIPELINE_DEPTH-1).write_reg;
 
-		if v.multiply_pipeline(PIPELINE_DEPTH-1).valid then
+		if v.multiply_pipeline(PIPELINE_DEPTH-1).valid = '1' then
 			m_out.valid <= '1';
 			m_out.write_reg_enable <= '1';
 
