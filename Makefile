@@ -103,3 +103,6 @@ test_micropython_long: core_tb
 clean:
 	rm -f *.o work-*cf unisim-*cf $(all)
 	rm -f sim-unisim/*.o sim-unisim/unisim-*cf
+
+distclean: clean
+	rm -f *~ fpga/~
