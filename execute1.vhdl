@@ -332,38 +332,6 @@ begin
 					-- Keep our test cases happy for now, ignore trap instructions
 					report "OP_TDI FIXME";
 
-				when OP_DIVDU =>
-					if SIM = true then
-						result := ppc_divdu(e_in.read_data1, e_in.read_data2);
-						result_en := 1;
-					else
-						terminate_out <= '1';
-						report "illegal";
-					end if;
-				when OP_DIVD =>
-					if SIM = true then
-						result := ppc_divd(e_in.read_data1, e_in.read_data2);
-						result_en := 1;
-					else
-						terminate_out <= '1';
-						report "illegal";
-					end if;
-				when OP_DIVWU =>
-					if SIM = true then
-						result := ppc_divwu(e_in.read_data1, e_in.read_data2);
-						result_en := 1;
-					else
-						terminate_out <= '1';
-						report "illegal";
-					end if;
-				when OP_DIVW =>
-					if SIM = true then
-						result := ppc_divw(e_in.read_data1, e_in.read_data2);
-						result_en := 1;
-					else
-						terminate_out <= '1';
-						report "illegal";
-					end if;
 				when others =>
 					terminate_out <= '1';
 					report "illegal";

@@ -79,14 +79,7 @@ architecture behaviour of decode1 is
 		PPC_DCBT       =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		PPC_DCBTST     =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		--PPC_DCBZ
-		PPC_DIVD       =>       (ALU,    OP_DIVD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		--PPC_DIVDE
-		--PPC_DIVDEU
-		PPC_DIVDU      =>       (ALU,    OP_DIVDU,     RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_DIVW       =>       (ALU,    OP_DIVW,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		--PPC_DIVWE
-		--PPC_DIVWEU
-		PPC_DIVWU      =>       (ALU,    OP_DIVWU,     RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		PPC_DIV        =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_EQV        =>       (ALU,    OP_EQV,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_EXTSB      =>       (ALU,    OP_EXTSB,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_EXTSH      =>       (ALU,    OP_EXTSH,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
@@ -141,10 +134,7 @@ architecture behaviour of decode1 is
 		PPC_MTCTR      =>       (ALU,    OP_MTCTR,     RS,         NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		PPC_MTLR       =>       (ALU,    OP_MTLR,      RS,         NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		--PPC_MFSPR
-		--PPC_MODSD
-		--PPC_MODSW
-		--PPC_MODUD
-		--PPC_MODUW
+		PPC_MOD        =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_MTCRF      =>       (ALU,    OP_MTCRF,     RS,         NONE,        NONE, NONE, FXM,  NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		PPC_MTOCRF     =>       (ALU,    OP_MTOCRF,    RS,         NONE,        NONE, NONE, FXM,  NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		--PPC_MTSPR
@@ -404,30 +394,9 @@ begin
 			elsif std_match(f_in.insn, "011111---------------1111110110-") then
 				report "PPC_dcbz";
 				ppc_insn := PPC_DCBZ;
-			elsif std_match(f_in.insn, "011111---------------0111101001-") then
-				report "PPC_divd";
-				ppc_insn := PPC_DIVD;
-			elsif std_match(f_in.insn, "011111---------------0110101001-") then
-				report "PPC_divde";
-				ppc_insn := PPC_DIVDE;
-			elsif std_match(f_in.insn, "011111---------------0110001001-") then
-				report "PPC_divdeu";
-				ppc_insn := PPC_DIVDEU;
-			elsif std_match(f_in.insn, "011111---------------0111001001-") then
-				report "PPC_divdu";
-				ppc_insn := PPC_DIVDU;
-			elsif std_match(f_in.insn, "011111---------------0111101011-") then
-				report "PPC_divw";
-				ppc_insn := PPC_DIVW;
-			elsif std_match(f_in.insn, "011111---------------0110101011-") then
-				report "PPC_divwe";
-				ppc_insn := PPC_DIVWE;
-			elsif std_match(f_in.insn, "011111---------------0110001011-") then
-				report "PPC_divweu";
-				ppc_insn := PPC_DIVWEU;
-			elsif std_match(f_in.insn, "011111---------------0111001011-") then
-				report "PPC_divwu";
-				ppc_insn := PPC_DIVWU;
+			elsif std_match(f_in.insn, "011111----------------11--010-1-") then
+				report "PPC_div";
+				ppc_insn := PPC_DIV;
 			elsif std_match(f_in.insn, "011111---------------0100011100-") then
 				report "PPC_eqv";
 				ppc_insn := PPC_EQV;
@@ -588,18 +557,9 @@ begin
 			elsif std_match(f_in.insn, "011111---------------0101010011-") then
 				report "PPC_mfspr";
 				ppc_insn := PPC_MFSPR;
-			elsif std_match(f_in.insn, "011111---------------1100001001-") then
-				report "PPC_modsd";
-				ppc_insn := PPC_MODSD;
-			elsif std_match(f_in.insn, "011111---------------1100001011-") then
-				report "PPC_modsw";
-				ppc_insn := PPC_MODSW;
-			elsif std_match(f_in.insn, "011111---------------0100001001-") then
-				report "PPC_modud";
-				ppc_insn := PPC_MODUD;
-			elsif std_match(f_in.insn, "011111---------------0100001011-") then
-				report "PPC_moduw";
-				ppc_insn := PPC_MODUW;
+			elsif std_match(f_in.insn, "011111----------------1000010-1-") then
+				report "PPC_mod";
+				ppc_insn := PPC_MOD;
 			elsif std_match(f_in.insn, "011111-----0---------0010010000-") then
 				report "PPC_mtcrf";
 				ppc_insn := PPC_MTCRF;

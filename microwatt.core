@@ -23,6 +23,7 @@ filesets:
       - loadstore1.vhdl
       - loadstore2.vhdl
       - multiply.vhdl
+      - divider.vhdl
       - writeback.vhdl
       - insn_helpers.vhdl
       - core.vhdl
