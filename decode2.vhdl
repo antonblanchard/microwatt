@@ -22,6 +22,7 @@ entity decode2 is
 
 		e_out : out Decode2ToExecute1Type;
 		m_out : out Decode2ToMultiplyType;
+                d_out : out Decode2ToDividerType;
 		l_out : out Decode2ToLoadstore1Type;
 
 		r_in  : in RegisterFileToDecode2Type;
@@ -43,6 +44,7 @@ architecture behaviour of decode2 is
 	type reg_type is record
 		e : Decode2ToExecute1Type;
 		m : Decode2ToMultiplyType;
+                d : Decode2ToDividerType;
 		l : Decode2ToLoadstore1Type;
 	end record;
 
@@ -190,7 +192,7 @@ begin
 		if rising_edge(clk) then
 			assert r_int.outstanding <= 1 report "Outstanding bad " & integer'image(r_int.outstanding) severity failure;
 
-			if rin.e.valid = '1' or rin.l.valid = '1' or rin.m.valid = '1' then
+			if rin.e.valid = '1' or rin.l.valid = '1' or rin.m.valid = '1' or rin.d.valid = '1' then
 				report "execute " & to_hstring(rin.e.nia);
 			end if;
 			r <= rin;
@@ -217,9 +219,13 @@ begin
 		variable v_int : reg_internal_type;
 		variable mul_a : std_ulogic_vector(63 downto 0);
 		variable mul_b : std_ulogic_vector(63 downto 0);
+		variable dividend : std_ulogic_vector(63 downto 0);
+		variable divisor  : std_ulogic_vector(63 downto 0);
+                variable absdend  : std_ulogic_vector(31 downto 0);
 		variable decoded_reg_a : decode_input_reg_t;
 		variable decoded_reg_b : decode_input_reg_t;
 		variable decoded_reg_c : decode_input_reg_t;
+                variable signed_division: std_ulogic;
 		variable is_valid : std_ulogic;
 	begin
 		v := r;
@@ -228,6 +234,7 @@ begin
 		v.e := Decode2ToExecute1Init;
 		v.l := Decode2ToLoadStore1Init;
 		v.m := Decode2ToMultiplyInit;
+                v.d := Decode2ToDividerInit;
 
 		mul_a := (others => '0');
 		mul_b := (others => '0');
@@ -289,6 +296,73 @@ begin
 				v.m.data2 := '0' & mul_b;
 			end if;
 		end if;
+
+                -- divide unit
+                -- PPC divide and modulus instruction words have these bits in
+                -- the bottom 11 bits: o1dns 010t1 r
+                -- where o = OE for div instrs, signedness for mod instrs
+                --       d = 1 for div*, 0 for mod*
+                --       n = 1 for normal, 0 for extended (dividend << 32/64)
+                --       s = 1 for signed, 0 for unsigned (for div*)
+                --       t = 1 for 32-bit, 0 for 64-bit
+                --       r = RC bit (record condition code)
+                -- For signed division/modulus, we take absolute values and
+                -- tell the divider what the sign of the result should be,
+                -- which is the dividend sign for modulus, and the XOR of
+                -- the dividend and divisor signs for division.
+                dividend := decoded_reg_a.data;
+                divisor := decoded_reg_b.data;
+		v.d.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
+                v.d.is_modulus := not d_in.insn(8);
+                if d_in.insn(8) = '1' then
+                    signed_division := d_in.insn(6);
+                else
+                    signed_division := d_in.insn(10);
+                end if;
+                if d_in.insn(2) = '0' then
+                    -- 64-bit forms
+                        v.d.is_32bit := '0';
+                        if d_in.insn(8) = '1' and d_in.insn(7) = '0' then
+                                v.d.is_extended := '1';
+                        end if;
+                        if signed_division = '1' and dividend(63) = '1' then
+                                v.d.neg_result := '1';
+                                v.d.dividend := std_ulogic_vector(- signed(dividend));
+                        else
+                                v.d.dividend := dividend;
+                        end if;
+                        if signed_division = '1' and divisor(63) = '1' then
+                                if d_in.insn(8) = '1' then
+                                        v.d.neg_result := not v.d.neg_result;
+                                end if;
+                                v.d.divisor := std_ulogic_vector(- signed(divisor));
+                        else
+                                v.d.divisor := divisor;
+                        end if;
+                else
+                        -- 32-bit forms
+                        v.d.is_32bit := '1';
+                        if signed_division = '1' and dividend(31) = '1' then
+                                v.d.neg_result := '1';
+                                absdend := std_ulogic_vector(- signed(dividend(31 downto 0)));
+                        else
+                                absdend := dividend(31 downto 0);
+                        end if;
+                        if d_in.insn(8) = '1' and d_in.insn(7) = '0' then   -- extended forms
+                                v.d.dividend := absdend & x"00000000";
+                        else
+                                v.d.dividend := x"00000000" & absdend;
+                        end if;
+                        if signed_division = '1' and divisor(31) = '1' then
+                                if d_in.insn(8) = '1' then
+                                        v.d.neg_result := not v.d.neg_result;
+                                end if;
+                                v.d.divisor := x"00000000" & std_ulogic_vector(- signed(divisor(31 downto 0)));
+                        else
+                                v.d.divisor := x"00000000" & divisor(31 downto 0);
+                        end if;
+                end if;
+                v.d.rc := decode_rc(d_in.decode.rc, d_in.insn);
 
 		-- load/store unit
 		v.l.update_reg := decoded_reg_a.reg;
@@ -363,6 +437,7 @@ begin
 
 		v.e.valid := '0';
 		v.m.valid := '0';
+                v.d.valid := '0';
 		v.l.valid := '0';
 		case d_in.decode.unit is
 		when ALU =>
@@ -371,6 +446,8 @@ begin
 			v.l.valid := is_valid;
 		when MUL =>
 			v.m.valid := is_valid;
+                when DIV =>
+                        v.d.valid := is_valid;
 		when NONE =>
 			v.e.valid := is_valid;
 			v.e.insn_type := OP_ILLEGAL;
@@ -379,11 +456,12 @@ begin
 		if flush_in = '1' then
 			v.e.valid := '0';
 			v.m.valid := '0';
+                        v.d.valid := '0';
 			v.l.valid := '0';
 		end if;
 
 		-- track outstanding instructions
-		if v.e.valid = '1' or v.l.valid = '1' or v.m.valid = '1' then
+		if v.e.valid = '1' or v.l.valid = '1' or v.m.valid = '1' or v.d.valid = '1' then
 			v_int.outstanding := v_int.outstanding + 1;
 		end if;
 
@@ -393,6 +471,7 @@ begin
 			v.e := Decode2ToExecute1Init;
 			v.l := Decode2ToLoadStore1Init;
 			v.m := Decode2ToMultiplyInit;
+                        v.d := Decode2ToDividerInit;
 		end if;
 
 		-- Update registers
@@ -403,5 +482,6 @@ begin
 		e_out <= r.e;
 		l_out <= r.l;
 		m_out <= r.m;
+                d_out <= r.d;
 	end process;
 end architecture behaviour;

@@ -63,6 +63,10 @@ architecture behave of core is
     signal decode2_to_multiply: Decode2ToMultiplyType;
     signal multiply_to_writeback: MultiplyToWritebackType;
 
+    -- divider signals
+    signal decode2_to_divider: Decode2ToDividerType;
+    signal divider_to_writeback: DividerToWritebackType;
+
     -- local signals
     signal fetch1_stall_in : std_ulogic;
     signal fetch2_stall_in : std_ulogic;
@@ -146,6 +150,7 @@ begin
             e_out => decode2_to_execute1,
             l_out => decode2_to_loadstore1,
             m_out => decode2_to_multiply,
+            d_out => decode2_to_divider,
             r_in => register_file_to_decode2,
             r_out => decode2_to_register_file,
             c_in => cr_file_to_decode2,
@@ -211,12 +216,21 @@ begin
             m_out => multiply_to_writeback
             );
 
+    divider_0: entity work.divider
+        port map (
+            clk => clk,
+            rst => rst,
+            d_in => decode2_to_divider,
+            d_out => divider_to_writeback
+            );
+
     writeback_0: entity work.writeback
         port map (
             clk => clk,
             e_in => execute2_to_writeback,
             l_in => loadstore2_to_writeback,
             m_in => multiply_to_writeback,
+            d_in => divider_to_writeback,
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             complete_out => complete
