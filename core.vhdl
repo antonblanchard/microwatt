@@ -80,6 +80,7 @@ architecture behave of core is
     signal complete: std_ulogic;
     signal terminate: std_ulogic;
     signal core_rst: std_ulogic;
+    signal icache_rst: std_ulogic;
 
     -- Debug actions
     signal dbg_core_stop: std_ulogic;
@@ -134,12 +135,14 @@ begin
             )
         port map(
             clk => clk,
-            rst => rst or dbg_icache_rst,
+            rst => icache_rst,
             i_in => fetch2_to_icache,
             i_out => icache_to_fetch2,
             wishbone_out => wishbone_insn_out,
             wishbone_in => wishbone_insn_in
             );
+
+	icache_rst <= rst or dbg_icache_rst;
 
     decode1_0: entity work.decode1
         port map (
