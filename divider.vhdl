@@ -79,18 +79,24 @@ begin
                 count <= "0000000";
                 running <= '1';
             elsif running = '1' then
+                if count = "0111111" then
+                    running <= '0';
+                end if;
                 if dend(127) = '1' or unsigned(dend(126 downto 63)) >= div then
                     dend <= std_ulogic_vector(unsigned(dend(126 downto 63)) - div) &
                             dend(62 downto 0) & '0';
                     quot <= quot(62 downto 0) & '1';
+                    count <= count + 1;
+                elsif dend(127 downto 56) = x"000000000000000000" and count(5 downto 3) /= "111" then
+                    -- consume 8 bits of zeroes in one cycle
+                    dend <= dend(119 downto 0) & x"00";
+                    quot <= quot(55 downto 0) & x"00";
+                    count <= count + 8;
                 else
                     dend <= dend(126 downto 0) & '0';
                     quot <= quot(62 downto 0) & '0';
+                    count <= count + 1;
                 end if;
-                if count = "0111111" then
-                    running <= '0';
-                end if;
-                count <= count + 1;
             else
                 count <= "0000000";
             end if;
