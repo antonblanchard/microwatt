@@ -271,6 +271,7 @@ begin
 		loop_0: for i in 0 to 31 loop
 		    report "REG " & to_hstring(registers(i));
 		end loop loop_0;
+		assert false report "end of test" severity failure;
 	    end if;
 	end process;
     end generate;
