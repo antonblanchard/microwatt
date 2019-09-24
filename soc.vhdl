@@ -12,8 +12,9 @@ use work.wishbone_types.all;
 
 -- Memory map:
 --
--- 0x00000000: Block RAM
+-- 0x00000000: Block RAM (MEMORY_SIZE) or DRAM depending on syscon
 -- 0x40000000: DRAM (when present)
+-- 0xc0000000: SYSCON
 -- 0xc0002000: UART0
 -- 0xc0004000: XICS ICP
 -- 0xf0000000: Block RAM (aliased & repeated)
@@ -24,9 +25,11 @@ entity soc is
 	MEMORY_SIZE   : positive;
 	RAM_INIT_FILE : string;
 	RESET_LOW     : boolean;
+	CLK_FREQ      : positive;
 	SIM           : boolean;
 	DISABLE_FLATTEN_CORE : boolean := false;
-	HAS_DRAM      : boolean  := false
+	HAS_DRAM      : boolean  := false;
+	DRAM_SIZE     : integer := 0
 	);
     port(
 	rst          : in  std_ulogic;
@@ -66,6 +69,12 @@ architecture behaviour of soc is
     -- Wishbone master (output of arbiter):
     signal wb_master_in       : wishbone_slave_out;
     signal wb_master_out      : wishbone_master_out;
+
+    -- Syscon signals
+    signal dram_at_0     : std_ulogic;
+    signal core_reset    : std_ulogic;
+    signal wb_syscon_in  : wishbone_master_out;
+    signal wb_syscon_out : wishbone_slave_out;
 
     -- UART0 signals:
     signal wb_uart0_in   : wishbone_master_out;
@@ -110,7 +119,7 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    rst => rst,
+	    rst => rst or core_reset,
 	    alt_reset => alt_reset,
 	    wishbone_insn_in => wishbone_icore_in,
 	    wishbone_insn_out => wishbone_icore_out,
@@ -145,9 +154,10 @@ begin
 	    );
 
     -- Wishbone slaves address decoder & mux
-    slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out, wb_dram_out)
+    slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out, wb_dram_out, wb_syscon_out)
 	-- Selected slave
-	type slave_type is (SLAVE_UART,
+	type slave_type is (SLAVE_SYSCON,
+			    SLAVE_UART,
 			    SLAVE_BRAM,
 			    SLAVE_DRAM,
 			    SLAVE_DRAM_INIT,
@@ -161,13 +171,16 @@ begin
 	-- Simple address decoder. Ignore top bits to save silicon for now
 	slave := SLAVE_NONE;
 	if    std_match(wb_master_out.adr, x"0-------") then
-	    slave := SLAVE_BRAM;
+	    slave := SLAVE_DRAM when HAS_DRAM and dram_at_0 = '1' else
+		     SLAVE_BRAM;
 	elsif std_match(wb_master_out.adr, x"FFFF----") then
 	    slave := SLAVE_DRAM_INIT;
 	elsif std_match(wb_master_out.adr, x"F-------") then
 	    slave := SLAVE_BRAM;
 	elsif std_match(wb_master_out.adr, x"4-------") and HAS_DRAM then
 	    slave := SLAVE_DRAM;
+	elsif std_match(wb_master_out.adr, x"C0000---") then
+	    slave := SLAVE_SYSCON;
 	elsif std_match(wb_master_out.adr, x"C0002---") then
 	    slave := SLAVE_UART;
 	elsif std_match(wb_master_out.adr, x"C01-----") then
@@ -192,6 +205,8 @@ begin
 	wb_dram_in.cyc <= '0';
 	wb_dram_csr <= '0';
 	wb_dram_init <= '0';
+	wb_syscon_in <= wb_master_out;
+	wb_syscon_in.cyc <= '0';
 	case slave is
 	when SLAVE_BRAM =>
 	    wb_bram_in.cyc <= wb_master_out.cyc;
@@ -207,6 +222,9 @@ begin
 	    wb_dram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_dram_out;
 	    wb_dram_csr <= '1';
+	when SLAVE_SYSCON =>
+	    wb_syscon_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_syscon_out;
 	when SLAVE_UART =>
 	    wb_uart0_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_uart0_out;
@@ -219,6 +237,25 @@ begin
 	    wb_master_in.stall <= '0';
 	end case;
     end process slave_intercon;
+
+    -- Syscon slave
+    syscon0: entity work.syscon
+	generic map(
+	    HAS_UART => true,
+	    HAS_DRAM => HAS_DRAM,
+	    BRAM_SIZE => MEMORY_SIZE,
+	    DRAM_SIZE => DRAM_SIZE,
+	    CLK_FREQ => CLK_FREQ
+	)
+	port map(
+	    clk => system_clk,
+	    rst => rst,
+	    wishbone_in => wb_syscon_in,
+	    wishbone_out => wb_syscon_out,
+	    dram_at_0 => dram_at_0,
+	    core_reset => core_reset,
+	    soc_reset => open -- XXX TODO
+	    );
 
     -- Simulated memory and UART
 

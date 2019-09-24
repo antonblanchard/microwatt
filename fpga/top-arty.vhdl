@@ -92,7 +92,9 @@ begin
 	    RAM_INIT_FILE => RAM_INIT_FILE,
 	    RESET_LOW     => RESET_LOW,
 	    SIM           => false,
+	    CLK_FREQ      => CLK_FREQUENCY,
 	    HAS_DRAM      => USE_LITEDRAM,
+	    DRAM_SIZE     => 256 * 1024 * 1024,
 	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
 	    )
 	port map (

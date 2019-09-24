@@ -156,7 +156,8 @@ void main(void)
 	printf("      INFO: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x08));
 	printf("  BRAMINFO: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x10));
 	printf("  DRAMINFO: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x18));
-	printf("      CTRL: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x20));
+	printf("   CLKINFO: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x20));
+	printf("      CTRL: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x28));
 	sdrinit();
 	printf("Booting from BRAM...\n");
 }
