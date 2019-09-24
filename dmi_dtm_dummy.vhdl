@@ -22,6 +22,7 @@ entity dmi_dtm is
 end entity dmi_dtm;
 
 architecture behaviour of dmi_dtm is
+begin
     dmi_addr <= (others => '0');
     dmi_dout <= (others => '0');
     dmi_req  <= '0';
