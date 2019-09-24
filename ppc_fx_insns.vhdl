@@ -89,7 +89,6 @@ package ppc_fx_insns is
 	function ppc_divd (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 	function ppc_divwu (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 
-	function ppc_b (nia: std_ulogic_vector(63 downto 0); bd: std_ulogic_vector(23 downto 0)) return std_ulogic_vector;
 	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return integer;
 	function ppc_bcctr_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0)) return integer;
 end package ppc_fx_insns;
@@ -777,11 +776,6 @@ package body ppc_fx_insns is
 		end if;
 
 		return std_ulogic_vector(resize(tmp, ra'length));
-	end;
-
-	function ppc_b (nia: std_ulogic_vector(63 downto 0); bd: std_ulogic_vector(23 downto 0)) return std_ulogic_vector is
-	begin
-		return std_ulogic_vector(signed(nia) + signed(bd & "00"));
 	end;
 
 	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return integer is

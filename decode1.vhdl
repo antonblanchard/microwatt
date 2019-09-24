@@ -46,11 +46,8 @@ architecture behaviour of decode1 is
 		PPC_ANDIS_RC   =>       (ALU,    OP_AND,       RS,         CONST_UI_HI, NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '1'),
 		PPC_ATTN       =>       (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_B          =>       (ALU,    OP_B,         NONE,       CONST_LI,    NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '1'),
-		--PPC_BA
 		PPC_BC         =>       (ALU,    OP_BC,        NONE,       CONST_BD,    NONE, NONE, BO,   BI,   NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '1'),
-		--PPC_BCA
 		PPC_BCCTR      =>       (ALU,    OP_BCCTR,     NONE,       NONE,        NONE, NONE, BO,   BI,   BH,   '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '1'),
-		--PPC_BCLA
 		PPC_BCLR       =>       (ALU,    OP_BCLR,      NONE,       NONE,        NONE, NONE, BO,   BI,   BH,   '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '1'),
 		--PPC_BCTAR
 		--PPC_BPERM
@@ -293,24 +290,15 @@ begin
 			elsif std_match(f_in.insn, "000000---------------0100000000-") then
 				report "PPC_attn";
 				ppc_insn := PPC_ATTN;
-			elsif std_match(f_in.insn, "010010------------------------0-") then
+			elsif std_match(f_in.insn, "010010--------------------------") then
 				report "PPC_b";
 				ppc_insn := PPC_B;
-			elsif std_match(f_in.insn, "010010------------------------1-") then
-				report "PPC_ba";
-				ppc_insn := PPC_BA;
-			elsif std_match(f_in.insn, "010000------------------------0-") then
+			elsif std_match(f_in.insn, "010000--------------------------") then
 				report "PPC_bc";
 				ppc_insn := PPC_BC;
-			elsif std_match(f_in.insn, "010000------------------------10") then
-				report "PPC_bca";
-				ppc_insn := PPC_BCA;
 			elsif std_match(f_in.insn, "010011---------------1000010000-") then
 				report "PPC_bcctr";
 				ppc_insn := PPC_BCCTR;
-			elsif std_match(f_in.insn, "010000------------------------11") then
-				report "PPC_bcla";
-				ppc_insn := PPC_BCLA;
 			elsif std_match(f_in.insn, "010011---------------0000010000-") then
 				report "PPC_bclr";
 				ppc_insn := PPC_BCLR;

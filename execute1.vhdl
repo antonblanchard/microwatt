@@ -100,14 +100,22 @@ begin
 					result_en := 1;
 				when OP_B =>
 					f_out.redirect <= '1';
-					f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
+					if (e_in.aa) then
+					    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.read_data2));
+					else
+					    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
+					end if;
 				when OP_BC =>
 					if e_in.const1(4-2) = '0' then
 						ctrl_tmp.ctr <= std_ulogic_vector(unsigned(ctrl.ctr) - 1);
 					end if;
 					if ppc_bc_taken(e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.cr, ctrl.ctr) = 1 then
 						f_out.redirect <= '1';
-						f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
+						if (e_in.aa) then
+						    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.read_data2));
+						else
+						    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
+						end if;
 					end if;
 				when OP_BCLR =>
 					if e_in.const1(4-2) = '0' then

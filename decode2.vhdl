@@ -262,6 +262,7 @@ begin
 		v.e.cr := c_in.read_cr_data;
 		v.e.input_carry := d_in.decode.input_carry;
 		v.e.output_carry := d_in.decode.output_carry;
+		v.e.aa := insn_aa(d_in.insn);
 		if d_in.decode.lr = '1' then
 			v.e.lr := insn_lk(d_in.insn);
 		end if;

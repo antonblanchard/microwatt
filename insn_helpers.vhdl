@@ -14,6 +14,7 @@ package insn_helpers is
     function insn_me32 (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_li (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_lk (insn_in : std_ulogic_vector) return std_ulogic;
+    function insn_aa (insn_in : std_ulogic_vector) return std_ulogic;
     function insn_rc (insn_in : std_ulogic_vector) return std_ulogic;
     function insn_bd (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_bf (insn_in : std_ulogic_vector) return std_ulogic_vector;
@@ -89,6 +90,11 @@ package body insn_helpers is
     function insn_lk (insn_in : std_ulogic_vector) return std_ulogic is
     begin
         return insn_in(0);
+    end;
+
+    function insn_aa (insn_in : std_ulogic_vector) return std_ulogic is
+    begin
+        return insn_in(1);
     end;
 
     function insn_rc (insn_in : std_ulogic_vector) return std_ulogic is
