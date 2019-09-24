@@ -88,7 +88,7 @@ begin
 				when OP_ADD =>
 					result := ppc_add(e_in.read_data1, e_in.read_data2);
 					result_en := 1;
-				when OP_ADDC =>
+				when OP_ADDE =>
 					result_with_carry := ppc_adde(e_in.read_data1, e_in.read_data2, ctrl.carry and e_in.input_carry);
 					result := result_with_carry(63 downto 0);
 					ctrl_tmp.carry <= result_with_carry(64) and e_in.output_carry;
@@ -309,7 +309,7 @@ begin
 				when OP_SUBF =>
 					result := ppc_subf(e_in.read_data1, e_in.read_data2);
 					result_en := 1;
-				when OP_SUBFC =>
+				when OP_SUBFE =>
 					result_with_carry := ppc_subfe(e_in.read_data1, e_in.read_data2, ctrl.carry or not(e_in.input_carry));
 					result := result_with_carry(63 downto 0);
 					ctrl_tmp.carry <= result_with_carry(64) and e_in.output_carry;
