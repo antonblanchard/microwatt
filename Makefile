@@ -14,7 +14,7 @@ all: $(all)
 
 common.o: decode_types.o
 sim_jtag.o: sim_jtag_socket.o
-core_tb.o: common.o core.o soc.o sim_jtag.o
+core_tb.o: common.o wishbone_types.o core.o soc.o sim_jtag.o
 core.o: common.o wishbone_types.o fetch1.o fetch2.o icache.o decode1.o decode2.o register_file.o cr_file.o execute1.o execute2.o loadstore1.o loadstore2.o multiply.o writeback.o core_debug.o divider.o
 core_debug.o:
 cr_file.o: common.o
@@ -32,12 +32,12 @@ helpers.o:
 icache.o: common.o wishbone_types.o
 icache_tb.o: common.o wishbone_types.o icache.o simple_ram_behavioural.o
 insn_helpers.o:
-loadstore1.o: common.o
+loadstore1.o: common.o helpers.o
 loadstore2.o: common.o helpers.o wishbone_types.o
-multiply_tb.o: common.o glibc_random.o ppc_fx_insns.o multiply.o
+multiply_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o multiply.o
 multiply.o: common.o decode_types.o ppc_fx_insns.o crhelpers.o
-divider_tb.o: common.o glibc_random.o ppc_fx_insns.o divider.o
-divider.o: common.o decode_types.o ppc_fx_insns.o crhelpers.o
+divider_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o divider.o
+divider.o: common.o decode_types.o crhelpers.o
 ppc_fx_insns.o: helpers.o
 register_file.o: common.o
 sim_console.o:
