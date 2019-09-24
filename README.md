@@ -91,7 +91,6 @@ make -j$(nproc) check
 
 This is functional, but very simple. We still have quite a lot to do:
 
-- Need to implement a simple non pipelined divide
 - There are a few instructions still to be implemented
 - Need to add caches and bypassing (in progress)
 - Need to add supervisor state (in progress)
