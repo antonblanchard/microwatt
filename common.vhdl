@@ -76,6 +76,19 @@ package common is
 	end record;
 	constant Decode2ToMultiplyInit : Decode2ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0', others => (others => '0'));
 
+        type Decode2ToDividerType is record
+                valid: std_ulogic;
+		write_reg: std_ulogic_vector(4 downto 0);
+                dividend: std_ulogic_vector(63 downto 0);
+                divisor: std_ulogic_vector(63 downto 0);
+                neg_result: std_ulogic;
+                is_32bit: std_ulogic;
+                is_extended: std_ulogic;
+                is_modulus: std_ulogic;
+                rc: std_ulogic;
+        end record;
+        constant Decode2ToDividerInit: Decode2ToDividerType := (valid => '0', neg_result => '0', is_32bit => '0', is_extended => '0', is_modulus => '0', rc => '0', others => (others => '0'));
+
 	type Decode2ToRegisterFileType is record
 		read1_enable : std_ulogic;
 		read1_reg : std_ulogic_vector(4 downto 0);
@@ -175,6 +188,18 @@ package common is
 		write_cr_data: std_ulogic_vector(31 downto 0);
 	end record;
 	constant MultiplyToWritebackInit : MultiplyToWritebackType := (valid => '0', write_reg_enable => '0', write_cr_enable => '0', others => (others => '0'));
+
+	type DividerToWritebackType is record
+		valid: std_ulogic;
+
+		write_reg_enable : std_ulogic;
+		write_reg_nr: std_ulogic_vector(4 downto 0);
+		write_reg_data: std_ulogic_vector(63 downto 0);
+		write_cr_enable: std_ulogic;
+		write_cr_mask: std_ulogic_vector(7 downto 0);
+		write_cr_data: std_ulogic_vector(31 downto 0);
+	end record;
+	constant DividerToWritebackInit : DividerToWritebackType := (valid => '0', write_reg_enable => '0', write_cr_enable => '0', others => (others => '0'));
 
 	type WritebackToRegisterFileType is record
 		write_reg : std_ulogic_vector(4 downto 0);
