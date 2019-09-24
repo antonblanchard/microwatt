@@ -49,18 +49,17 @@ begin
 
 	if stall_in = '0' then
 	    v.nia := r_int.nia_next;
-	    v_int.nia_next := std_logic_vector(unsigned(r_int.nia_next) + 4);
 	end if;
 
 	if e_in.redirect = '1' then
 	    v.nia := e_in.redirect_nia;
-	    v_int.nia_next := std_logic_vector(unsigned(e_in.redirect_nia) + 4);
 	end if;
 
 	if rst = '1' then
 	    v.nia := RESET_ADDRESS;
-	    v_int.nia_next := std_logic_vector(unsigned(RESET_ADDRESS) + 4);
 	end if;
+
+	v_int.nia_next := std_logic_vector(unsigned(v.nia) + 4);
 
 	-- Update registers
 	rin <= v;
