@@ -16,6 +16,8 @@ entity decode2 is
 		complete_in : in std_ulogic;
 		stall_out : out std_ulogic;
 
+		stopped_out : out std_ulogic;
+
 		flush_in: in std_ulogic;
 
 		d_in  : in Decode1ToDecode2Type;
@@ -330,9 +332,16 @@ begin
 		-- through the pipeline.
 		stall_out <= '0';
 		is_valid := d_in.valid;
+
+		-- Handle debugger stop
+		stopped_out <= '0';
+		if d_in.stop_mark = '1' and v_int.outstanding = 0 then
+		    stopped_out <= '1';
+		end if;
+
 		case v_int.state is
 		when IDLE =>
-			if (flush_in = '0') and (d_in.valid = '1') and (d_in.decode.sgl_pipe = '1') then
+			if (flush_in = '0') and (is_valid = '1') and (d_in.decode.sgl_pipe = '1') then
 				if v_int.outstanding /= 0 then
 					v_int.state := WAIT_FOR_PREV_TO_COMPLETE;
 					stall_out <= '1';

@@ -248,6 +248,7 @@ begin
 		v.valid := f_in.valid;
 		v.nia  := f_in.nia;
 		v.insn := f_in.insn;
+		v.stop_mark := f_in.stop_mark;
 
 		ppc_insn := PPC_ILLEGAL;
 

@@ -13,23 +13,26 @@ package common is
 	end record;
 
 	type Fetch1ToFetch2Type is record
-		nia: std_ulogic_vector(63 downto 0);
+	    nia: std_ulogic_vector(63 downto 0);
+	    pipe_stop : std_ulogic;
 	end record;
 
 	type Fetch2ToDecode1Type is record
 		valid: std_ulogic;
+		stop_mark : std_ulogic;
 		nia: std_ulogic_vector(63 downto 0);
 		insn: std_ulogic_vector(31 downto 0);
 	end record;
-	constant Fetch2ToDecode1Init : Fetch2ToDecode1Type := (valid => '0', others => (others => '0'));
+	constant Fetch2ToDecode1Init : Fetch2ToDecode1Type := (valid => '0', stop_mark => '0', others => (others => '0'));
 
 	type Decode1ToDecode2Type is record
 		valid: std_ulogic;
+		stop_mark : std_ulogic;
 		nia: std_ulogic_vector(63 downto 0);
 		insn: std_ulogic_vector(31 downto 0);
 		decode: decode_rom_t;
 	end record;
-	constant Decode1ToDecode2Init : Decode1ToDecode2Type := (valid => '0', decode => decode_rom_init, others => (others => '0'));
+	constant Decode1ToDecode2Init : Decode1ToDecode2Type := (valid => '0', stop_mark => '0', decode => decode_rom_init, others => (others => '0'));
 
 	type Fetch2ToIcacheType is record
 		req: std_ulogic;

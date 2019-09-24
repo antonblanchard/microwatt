@@ -1,8 +1,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 use ieee.math_real.all;
-
 use std.textio.all;
+use std.env.stop;
 
 library work;
 use work.common.all;
@@ -24,7 +25,10 @@ entity soc is
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
-	uart0_rxd    : in  std_ulogic
+	uart0_rxd    : in  std_ulogic;
+
+	-- Misc (to use for things like LEDs)
+	core_terminated : out std_ulogic
 	);
 end entity soc;
 
@@ -35,6 +39,8 @@ architecture behaviour of soc is
     signal wishbone_dcore_out : wishbone_master_out;
     signal wishbone_icore_in : wishbone_slave_out;
     signal wishbone_icore_out : wishbone_master_out;
+    signal wishbone_debug_in : wishbone_slave_out;
+    signal wishbone_debug_out : wishbone_master_out;
 
     -- Wishbone master (output of arbiter):
     signal wb_master_in : wishbone_slave_out;
@@ -50,10 +56,21 @@ architecture behaviour of soc is
     signal wb_bram_out    : wishbone_slave_out;
     constant mem_adr_bits : positive := positive(ceil(log2(real(MEMORY_SIZE))));
 
-    -- Debug signals (used in SIM only)
-    signal registers     : regfile;
-    signal terminate     : std_ulogic;
+    -- DMI debug bus signals
+    signal dmi_addr	: std_ulogic_vector(7 downto 0);
+    signal dmi_din	: std_ulogic_vector(63 downto 0);
+    signal dmi_dout	: std_ulogic_vector(63 downto 0);
+    signal dmi_req	: std_ulogic;
+    signal dmi_wr	: std_ulogic;
+    signal dmi_ack	: std_ulogic;
 
+    -- Per slave DMI signals
+    signal dmi_wb_dout  : std_ulogic_vector(63 downto 0);
+    signal dmi_wb_req   : std_ulogic;
+    signal dmi_wb_ack   : std_ulogic;
+    signal dmi_core_dout  : std_ulogic_vector(63 downto 0);
+    signal dmi_core_req   : std_ulogic;
+    signal dmi_core_ack   : std_ulogic;
 begin
 
     -- Processor core
@@ -68,21 +85,22 @@ begin
 	    wishbone_insn_out => wishbone_icore_out,
 	    wishbone_data_in => wishbone_dcore_in,
 	    wishbone_data_out => wishbone_dcore_out,
-	    registers => registers,
-	    terminate_out => terminate
+	    dmi_addr => dmi_addr(3 downto 0),
+	    dmi_dout => dmi_core_dout,
+	    dmi_din => dmi_dout,
+	    dmi_wr => dmi_wr,
+	    dmi_ack => dmi_core_ack,
+	    dmi_req => dmi_core_req
 	    );
 
     -- Wishbone bus master arbiter & mux
     wishbone_arbiter_0: entity work.wishbone_arbiter
 	port map(
-	    clk => system_clk,
-	    rst => rst,
-	    wb1_in => wishbone_dcore_out,
-	    wb1_out => wishbone_dcore_in,
-	    wb2_in => wishbone_icore_out,
-	    wb2_out => wishbone_icore_in,
-	    wb_out => wb_master_out,
-	    wb_in => wb_master_in
+	    clk => system_clk, rst => rst,
+	    wb1_in => wishbone_dcore_out, wb1_out => wishbone_dcore_in,
+	    wb2_in => wishbone_icore_out, wb2_out => wishbone_icore_in,
+	    wb3_in => wishbone_debug_out, wb3_out => wishbone_debug_in,
+	    wb_out => wb_master_out, wb_in => wb_master_in
 	    );
 
     -- Wishbone slaves address decoder & mux
@@ -122,20 +140,6 @@ begin
     end process slave_intercon;
 
     -- Simulated memory and UART
-    sim_terminate_test: if SIM generate
-
-	-- Dump registers if core terminates
-	dump_registers: process(all)
-	begin
-	    if terminate = '1' then
-		loop_0: for i in 0 to 31 loop
-		    report "REG " & to_hstring(registers(i));
-		end loop loop_0;
-		assert false report "end of test" severity failure;
-	    end if;
-	end process;
-
-    end generate;
 
     -- UART0 wishbone slave
     -- XXX FIXME: Need a proper wb64->wb8 adapter that
@@ -173,5 +177,82 @@ begin
 	    wishbone_in => wb_bram_in,
 	    wishbone_out => wb_bram_out
 	    );
+
+    -- DMI(debug bus) <-> JTAG bridge
+    dtm: entity work.dmi_dtm
+	generic map(
+	    ABITS => 8,
+	    DBITS => 64
+	    )
+	port map(
+	    sys_clk	=> system_clk,
+	    sys_reset	=> rst,
+	    dmi_addr	=> dmi_addr,
+	    dmi_din	=> dmi_din,
+	    dmi_dout	=> dmi_dout,
+	    dmi_req	=> dmi_req,
+	    dmi_wr	=> dmi_wr,
+	    dmi_ack	=> dmi_ack
+	    );
+
+    -- DMI interconnect
+    dmi_intercon: process(dmi_addr, dmi_req,
+			  dmi_wb_ack, dmi_wb_dout,
+			  dmi_core_ack, dmi_core_dout)
+
+	-- DMI address map (each address is a full 64-bit register)
+	--
+	-- Offset:   Size:    Slave:
+	--  0         4       Wishbone
+	-- 10        16       Core
+
+	type slave_type is (SLAVE_WB,
+			    SLAVE_CORE,
+			    SLAVE_NONE);
+	variable slave : slave_type;
+    begin
+	-- Simple address decoder
+	slave := SLAVE_NONE;
+	if std_match(dmi_addr, "000000--") then
+	    slave := SLAVE_WB;
+	elsif std_match(dmi_addr, "0001----") then
+	    slave := SLAVE_CORE;
+	end if;
+
+	-- DMI muxing
+	dmi_wb_req <= '0';
+	dmi_core_req <= '0';
+	case slave is
+	when SLAVE_WB =>
+	    dmi_wb_req <= dmi_req;
+	    dmi_ack <= dmi_wb_ack;
+	    dmi_din <= dmi_wb_dout;
+	when SLAVE_CORE =>
+	    dmi_core_req <= dmi_req;
+	    dmi_ack <= dmi_core_ack;
+	    dmi_din <= dmi_core_dout;
+	when others =>
+	    dmi_ack <= dmi_req;
+	    dmi_din <= (others => '1');
+	end case;
+
+	-- SIM magic exit
+	if SIM and dmi_req = '1' and dmi_addr = "11111111" and dmi_wr = '1' then
+	    stop;
+	end if;
+    end process;
+
+    -- Wishbone debug master (TODO: Add a DMI address decoder)
+    wishbone_debug: entity work.wishbone_debug_master
+	port map(clk => system_clk, rst => rst,
+		 dmi_addr => dmi_addr(1 downto 0),
+		 dmi_dout => dmi_wb_dout,
+		 dmi_din => dmi_dout,
+		 dmi_wr => dmi_wr,
+		 dmi_ack => dmi_wb_ack,
+		 dmi_req => dmi_wb_req,
+		 wb_in => wishbone_debug_in,
+		 wb_out => wishbone_debug_out);
+
 
 end architecture behaviour;

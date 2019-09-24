@@ -15,6 +15,7 @@ entity fetch2 is
 		stall_out    : out std_ulogic;
 
 		flush_in     : in std_ulogic;
+		stop_in      : in std_ulogic;
 
 		i_in         : in IcacheToFetch2Type;
 		i_out        : out Fetch2ToIcacheType;
@@ -49,12 +50,12 @@ begin
 		v.valid := i_in.ack;
 		v.nia := f_in.nia;
 		v.insn := i_in.insn;
-		stall_out <= not i_in.ack;
+		stall_out <= stop_in or not i_in.ack;
 
-
-		if flush_in = '1' then
+		if flush_in = '1' or stop_in = '1' then
 			v.valid := '0';
 		end if;
+		v.stop_mark := stop_in;
 
 		-- Update registers
 		rin <= v;
