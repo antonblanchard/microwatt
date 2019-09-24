@@ -52,9 +52,11 @@ begin
 	execute1_1: process(all)
 		variable v : reg_type;
 		variable result : std_ulogic_vector(63 downto 0);
+		variable newcrf : std_ulogic_vector(3 downto 0);
 		variable result_with_carry : std_ulogic_vector(64 downto 0);
 		variable result_en : integer;
 		variable crnum : integer;
+		variable scrnum : integer;
 		variable lo, hi : integer;
 	begin
 		result := (others => '0');
@@ -183,6 +185,23 @@ begin
 						result := e_in.read_data2;
 					end if;
 					result_en := 1;
+				when OP_MCRF =>
+					v.e.write_cr_enable := '1';
+					crnum := to_integer(unsigned(e_in.const1(2 downto 0)));
+					scrnum := to_integer(unsigned(e_in.const2(2 downto 0)));
+					v.e.write_cr_mask := num_to_fxm(crnum);
+					for i in 0 to 7 loop
+					    lo := (7-i)*4;
+					    hi := lo + 3;
+					    if i = scrnum then
+						newcrf := e_in.cr(hi downto lo);
+					    end if;
+					end loop;
+					for i in 0 to 7 loop
+						lo := i*4;
+						hi := lo + 3;
+						v.e.write_cr_data(hi downto lo) := newcrf;
+					end loop;
 				when OP_MFCTR =>
 					result := ctrl.ctr;
 					result_en := 1;

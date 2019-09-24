@@ -159,6 +159,8 @@ architecture behaviour of decode2 is
 			return "0" & insn_bi(insn_in);
 		when L =>
 			return "00000" & insn_l(insn_in);
+		when BFA =>
+			return "000" & insn_bfa(insn_in);
 		when NONE =>
 			return "000000";
 		end case;

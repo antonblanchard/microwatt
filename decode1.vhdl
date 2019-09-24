@@ -120,7 +120,7 @@ architecture behaviour of decode1 is
 		--PPC_MADDHD
 		--PPC_MADDHDU
 		--PPC_MADDLD
-		--PPC_MCRF
+		PPC_MCRF       =>       (ALU,    OP_MCRF,      NONE,       NONE,        NONE, NONE, BF,   BFA,  NONE, '1', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		--PPC_MCRXR
 		--PPC_MCRXRX
 		PPC_MFCR       =>       (ALU,    OP_MFCR,      NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),

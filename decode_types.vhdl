@@ -64,7 +64,7 @@ package decode_types is
 	type input_reg_c_t is (NONE, RS);
 	type output_reg_a_t is (NONE, RT, RA);
 	type constant_a_t is (NONE, SH, SH32, FXM, BO, BF, TOO, BC);
-	type constant_b_t is (NONE, MB, ME, MB32, BI, L);
+	type constant_b_t is (NONE, MB, ME, MB32, BI, L, BFA);
 	type constant_c_t is (NONE, ME32, BH);
 	type rc_t is (NONE, ONE, RC);
 
