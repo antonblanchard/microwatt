@@ -5,6 +5,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include <generated/git.h>
+
+#include "microwatt_soc.h"
+#include "io.h"
 #include "sdram.h"
 
 /*
@@ -15,42 +19,6 @@ static uint64_t potato_uart_base;
 
 #define PROC_FREQ 100000000
 #define UART_FREQ 115200
-#define UART_BASE 0xc0002000
-#define SYSCON_BASE 0xc0000000
-
-#define POTATO_CONSOLE_TX		0x00
-#define POTATO_CONSOLE_RX		0x08
-#define POTATO_CONSOLE_STATUS		0x10
-#define   POTATO_CONSOLE_STATUS_RX_EMPTY		0x01
-#define   POTATO_CONSOLE_STATUS_TX_EMPTY		0x02
-#define   POTATO_CONSOLE_STATUS_RX_FULL			0x04
-#define   POTATO_CONSOLE_STATUS_TX_FULL			0x08
-#define POTATO_CONSOLE_CLOCK_DIV	0x18
-#define POTATO_CONSOLE_IRQ_EN		0x20
-
-static inline uint8_t readb(unsigned long addr)
-{
-	__asm__ volatile("sync" : : : "memory");
-	return *((volatile uint8_t *)addr);
-}
-
-static inline uint64_t readq(unsigned long addr)
-{
-	__asm__ volatile("sync" : : : "memory");
-	return *((volatile uint64_t *)addr);
-}
-
-static inline void writeb(uint8_t val, unsigned long addr)
-{
-	__asm__ volatile("sync" : : : "memory");
-	*((volatile uint8_t *)addr) = val;
-}
-
-static inline void writeq(uint64_t val, unsigned long addr)
-{
-	__asm__ volatile("sync" : : : "memory");
-	*((volatile uint64_t *)addr) = val;
-}
 
 static uint8_t potato_uart_reg_read(int offset)
 {
@@ -145,19 +113,44 @@ void flush_l2_cache(void) { }
 
 void main(void)
 {
+	unsigned long long ftr, val;
 	int i;
 
-	// Let things settle ... not sure why but UART not happy otherwise
+	/*
+	 * Let things settle ... not sure why but the UART is
+	 * not happy otherwise. The PLL might need to settle ?
+	 */
 	potato_uart_init();
 	for (i = 0; i < 10000; i++)
 		potato_uart_reg_read(POTATO_CONSOLE_STATUS);
-	printf("Welcome to Microwatt !\n");
-	printf("       SIG: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x00));
-	printf("      INFO: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x08));
-	printf("  BRAMINFO: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x10));
-	printf("  DRAMINFO: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x18));
-	printf("   CLKINFO: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x20));
-	printf("      CTRL: %016llx\n", (unsigned long long)readq(SYSCON_BASE + 0x28));
-	sdrinit();
+	printf("\n\nWelcome to Microwatt !\n\n");
+
+	/* TODO: Add core version information somewhere in syscon, possibly
+	 *       extracted from git
+	 */
+	printf(" Soc signature: %016llx\n",
+	       (unsigned long long)readq(SYSCON_BASE + SYS_REG_SIGNATURE));
+	printf("  Soc features: ");
+	ftr = readq(SYSCON_BASE + SYS_REG_INFO);
+	if (ftr & SYS_REG_INFO_HAS_UART)
+		printf("UART ");
+	if (ftr & SYS_REG_INFO_HAS_DRAM)
+		printf("DRAM ");
+	printf("\n");
+	val = readq(SYSCON_BASE + SYS_REG_BRAMINFO);
+	printf("          BRAM: %lld KB\n", val / 1024);
+	if (ftr & SYS_REG_INFO_HAS_DRAM) {
+		val = readq(SYSCON_BASE + SYS_REG_DRAMINFO);
+		printf("          DRAM: %lld MB\n", val / (1024 * 1024));
+	}
+	val = readq(SYSCON_BASE + SYS_REG_CLKINFO);
+	printf("           CLK: %lld MHz\n", val / 1000000);
+
+	printf("\n");
+	if (ftr & SYS_REG_INFO_HAS_DRAM) {
+		printf("LiteDRAM built from Migen %s and LiteX %s\n",
+		       MIGEN_GIT_SHA1, LITEX_GIT_SHA1);
+		sdrinit();
+	}
 	printf("Booting from BRAM...\n");
 }
