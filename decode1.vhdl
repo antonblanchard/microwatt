@@ -30,16 +30,16 @@ architecture behaviour of decode1 is
 		--                                      op                                          1     2     3     in   out  in   out  len        ext             32  sgn             pipe
 		PPC_ILLEGAL    =>       (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_ADD        =>       (ALU,    OP_ADD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_ADDC       =>       (ALU,    OP_ADDC,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_ADDE       =>       (ALU,    OP_ADDC,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		PPC_ADDC       =>       (ALU,    OP_ADDE,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		PPC_ADDE       =>       (ALU,    OP_ADDE,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		--PPC_ADDEX
 		PPC_ADDI       =>       (ALU,    OP_ADD,       RA_OR_ZERO, CONST_SI,    NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_ADDIC      =>       (ALU,    OP_ADDC,      RA,         CONST_SI,    NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_ADDIC_RC   =>       (ALU,    OP_ADDC,      RA,         CONST_SI,    NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '1'),
+		PPC_ADDIC      =>       (ALU,    OP_ADDE,      RA,         CONST_SI,    NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
+		PPC_ADDIC_RC   =>       (ALU,    OP_ADDE,      RA,         CONST_SI,    NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '1'),
 		PPC_ADDIS      =>       (ALU,    OP_ADD,       RA_OR_ZERO, CONST_SI_HI, NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		--PPC_ADDME
 		--PPC_ADDPCIS
-		PPC_ADDZE      =>       (ALU,    OP_ADDC,      RA,         NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		PPC_ADDZE      =>       (ALU,    OP_ADDE,      RA,         NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_AND        =>       (ALU,    OP_AND,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_ANDC       =>       (ALU,    OP_ANDC,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_ANDI_RC    =>       (ALU,    OP_AND,       RS,         CONST_UI,    NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '1'),
@@ -210,11 +210,11 @@ architecture behaviour of decode1 is
 		PPC_STWUX      =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'),
 		PPC_STWX       =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		PPC_SUBF       =>       (ALU,    OP_SUBF,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SUBFC      =>       (ALU,    OP_SUBFC,     RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SUBFE      =>       (ALU,    OP_SUBFC,     RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SUBFIC     =>       (ALU,    OP_SUBFC,     RA,         CONST_SI,    NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
+		PPC_SUBFC      =>       (ALU,    OP_SUBFE,     RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		PPC_SUBFE      =>       (ALU,    OP_SUBFE,     RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		PPC_SUBFIC     =>       (ALU,    OP_SUBFE,     RA,         CONST_SI,    NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		--PPC_SUBFME
-		PPC_SUBFZE     =>       (ALU,    OP_SUBFC,     RA,         NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		PPC_SUBFZE     =>       (ALU,    OP_SUBFE,     RA,         NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_SYNC       =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		--PPC_TD
 		PPC_TDI        =>       (ALU,    OP_TDI,       RA,         CONST_SI,    NONE, NONE, TOO,  NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
