@@ -26,6 +26,10 @@ architecture behave of loadstore2 is
     signal l_saved : Loadstore1ToLoadstore2Type;
     signal w_tmp   : Loadstore2ToWritebackType;
     signal m_tmp   : wishbone_master_out;
+    signal read_data : std_ulogic_vector(63 downto 0);
+    signal read_data_shift : std_ulogic_vector(2 downto 0);
+    signal sign_extend_byte_reverse: std_ulogic_vector(1 downto 0);
+    signal dlength : std_ulogic_vector(3 downto 0);
 
     type state_t is (IDLE, WAITING_FOR_READ_ACK, WAITING_FOR_WRITE_ACK);
     signal state   : state_t := IDLE;
@@ -56,21 +60,53 @@ architecture behave of loadstore2 is
         return std_ulogic_vector(shift_left(unsigned(length_to_sel(size)), to_integer(unsigned(address(2 downto 0)))));
     end function wishbone_data_sel;
 begin
+
+    loadstore2_1: process(all)
+        variable tmp     : std_ulogic_vector(63 downto 0);
+        variable data    : std_ulogic_vector(63 downto 0);
+    begin
+        tmp := std_logic_vector(shift_right(unsigned(read_data), to_integer(unsigned(read_data_shift)) * 8));
+        data := (others => '0');
+        case to_integer(unsigned(dlength)) is
+            when 0 =>
+            when 1 =>
+                data(7 downto 0) := tmp(7 downto 0);
+            when 2 =>
+                data(15 downto 0) := tmp(15 downto 0);
+            when 4 =>
+                data(31 downto 0) := tmp(31 downto 0);
+            when 8 =>
+                data(63 downto 0) := tmp(63 downto 0);
+            when others =>
+                assert false report "invalid length" severity failure;
+                data(63 downto 0) := tmp(63 downto 0);
+        end case;
+
+        case sign_extend_byte_reverse is
+            when "10" =>
+                w_tmp.write_data <= sign_extend(data, to_integer(unsigned(l_saved.length)));
+            when "01" =>
+                w_tmp.write_data <= byte_reverse(data, to_integer(unsigned(l_saved.length)));
+            when others =>
+                w_tmp.write_data <= data;
+        end case;
+    end process;
+
     w_out <= w_tmp;
     m_out <= m_tmp;
 
     loadstore2_0: process(clk)
-        variable tmp : std_ulogic_vector(63 downto 0);
-        variable data : std_ulogic_vector(63 downto 0);
-        variable sign_extend_byte_reverse : std_ulogic_vector(1 downto 0);
     begin
         if rising_edge(clk) then
-            tmp := (others => '0');
-            data := (others => '0');
 
-            w_tmp <= Loadstore2ToWritebackInit;
+            w_tmp.valid <= '0';
+            w_tmp.write_enable <= '0';
+            w_tmp.write_reg <= (others => '0');
 
             l_saved <= l_saved;
+            read_data_shift <= "000";
+            sign_extend_byte_reverse <= "00";
+            dlength <= "1000";
 
             case_0: case state is
                 when IDLE =>
@@ -95,15 +131,14 @@ begin
                             if l_in.update = '1' then
                                 w_tmp.write_enable <= '1';
                                 w_tmp.write_reg <= l_in.update_reg;
-                                w_tmp.write_data <= l_in.addr;
+                                read_data <= l_in.addr;
                             end if;
 
                             state <= WAITING_FOR_READ_ACK;
                         else
                             m_tmp.we <= '1';
 
-                            data := l_in.data;
-                            m_tmp.dat <= std_logic_vector(shift_left(unsigned(data), wishbone_data_shift(l_in.addr)));
+                            m_tmp.dat <= std_logic_vector(shift_left(unsigned(l_in.data), wishbone_data_shift(l_in.addr)));
 
                             assert l_in.sign_extend = '0' report "sign extension doesn't make sense for stores" severity failure;
 
@@ -113,32 +148,10 @@ begin
 
                 when WAITING_FOR_READ_ACK =>
                     if m_in.ack = '1' then
-                        tmp := std_logic_vector(shift_right(unsigned(m_in.dat), wishbone_data_shift(l_saved.addr)));
-                        case to_integer(unsigned(l_saved.length)) is
-                            when 0 =>
-                            when 1 =>
-                                data(7 downto 0) := tmp(7 downto 0);
-                            when 2 =>
-                                data(15 downto 0) := tmp(15 downto 0);
-                            when 4 =>
-                                data(31 downto 0) := tmp(31 downto 0);
-                            when 8 =>
-                                data(63 downto 0) := tmp(63 downto 0);
-                            when others =>
-                                assert false report "invalid length" severity failure;
-                        end case;
-
-                        sign_extend_byte_reverse := l_saved.sign_extend & l_saved.byte_reverse;
-
-                        case sign_extend_byte_reverse is
-                            when "10" =>
-                                data := sign_extend(data, to_integer(unsigned(l_saved.length)));
-                            when "01" =>
-                                data := byte_reverse(data, to_integer(unsigned(l_saved.length)));
-                            when others =>
-                        end case;
-
-                        w_tmp.write_data <= data;
+                        read_data <= m_in.dat;
+                        read_data_shift <= l_saved.addr(2 downto 0);
+                        dlength <= l_saved.length;
+                        sign_extend_byte_reverse <= l_saved.sign_extend & l_saved.byte_reverse;
 
                         -- write data to register file
                         w_tmp.valid <= '1';
@@ -155,7 +168,7 @@ begin
                         if l_saved.update = '1' then
                             w_tmp.write_enable <= '1';
                             w_tmp.write_reg <= l_saved.update_reg;
-                            w_tmp.write_data <= l_saved.addr;
+                            read_data <= l_saved.addr;
                         end if;
 
                         m_tmp <= wishbone_master_out_init;
