@@ -244,16 +244,16 @@ architecture rtl of dcache is
     end;
 
     -- Returns whether this is the last row of a line
-    function is_last_row(addr: std_ulogic_vector(63 downto 0)) return boolean is
+    function is_last_row(addr: wishbone_addr_type) return boolean is
 	constant ones : std_ulogic_vector(ROW_LINEBITS-1 downto 0) := (others => '1');
     begin
 	return addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS) = ones;
     end;
 
     -- Return the address of the next row in the current cache line
-    function next_row_addr(addr: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
+    function next_row_addr(addr: wishbone_addr_type) return std_ulogic_vector is
 	variable row_idx : std_ulogic_vector(ROW_LINEBITS-1 downto 0);
-	variable result  : std_ulogic_vector(63 downto 0);
+	variable result  : wishbone_addr_type;
     begin
 	-- Is there no simpler way in VHDL to generate that 3 bits adder ?
 	row_idx := addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS);
@@ -573,6 +573,7 @@ begin
 		wr_data => wr_data
 		);
 	process(all)
+	    variable tmp_adr : std_ulogic_vector(63 downto 0);
 	begin
 	    -- Cache hit reads
 	    do_read <= '1';
@@ -595,7 +596,8 @@ begin
 		-- Otherwise, we might be doing a reload
 		wr_data <= wishbone_in.dat;
 		wr_sel  <= (others => '1');
-		wr_addr <= std_ulogic_vector(to_unsigned(get_row(r1.wb.adr), ROW_BITS));
+		tmp_adr := (r1.wb.adr'left downto 0 => r1.wb.adr, others => '0');
+		wr_addr <= std_ulogic_vector(to_unsigned(get_row(tmp_adr), ROW_BITS));
 	    end if;
 
 	    -- The two actual write cases here
@@ -733,7 +735,7 @@ begin
 			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line
 			--
-			r1.wb.adr <= d_in.addr(63 downto LINE_OFF_BITS) &
+			r1.wb.adr <= d_in.addr(r1.wb.adr'left downto LINE_OFF_BITS) &
 				     (LINE_OFF_BITS-1 downto 0 => '0');
 			r1.wb.sel <= (others => '1');
 			r1.wb.we  <= '0';
@@ -743,7 +745,7 @@ begin
 
 		    when OP_LOAD_NC =>
                         r1.wb.sel <= bus_sel;
-                        r1.wb.adr <= d_in.addr(63 downto 3) & "000";
+                        r1.wb.adr <= d_in.addr(r1.wb.adr'left downto 3) & "000";
                         r1.wb.cyc <= '1';
                         r1.wb.stb <= '1';
 			r1.wb.we <= '0';
@@ -755,7 +757,7 @@ begin
 			    r1.update_valid <= '1';
 			end if;
                         r1.wb.sel <= bus_sel;
-                        r1.wb.adr <= d_in.addr(63 downto 3) & "000";
+                        r1.wb.adr <= d_in.addr(r1.wb.adr'left downto 3) & "000";
 			r1.wb.dat <= store_data;
                         r1.wb.cyc <= '1';
                         r1.wb.stb <= '1';

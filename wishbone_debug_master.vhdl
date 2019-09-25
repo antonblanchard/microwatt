@@ -117,7 +117,7 @@ begin
     dmi_ack <= dmi_req when (dmi_addr /= DBG_WB_DATA or state = DMI_WAIT) else '0';
 
 	-- Some WB signals are direct wires from registers or DMI
-    wb_out.adr <= reg_addr;
+    wb_out.adr <= reg_addr(wb_out.adr'left downto 0);
     wb_out.dat <= dmi_din;
     wb_out.sel <= reg_ctrl(7 downto 0);
     wb_out.we  <= dmi_wr;
