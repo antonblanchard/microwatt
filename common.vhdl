@@ -16,6 +16,16 @@ package common is
 	    nia: std_ulogic_vector(63 downto 0);
 	end record;
 
+	type Fetch2ToIcacheType is record
+		req: std_ulogic;
+		addr: std_ulogic_vector(63 downto 0);
+	end record;
+
+	type IcacheToFetch2Type is record
+		ack: std_ulogic;
+		insn: std_ulogic_vector(31 downto 0);
+	end record;
+
 	type Fetch2ToDecode1Type is record
 		valid: std_ulogic;
 		stop_mark : std_ulogic;
@@ -32,16 +42,6 @@ package common is
 		decode: decode_rom_t;
 	end record;
 	constant Decode1ToDecode2Init : Decode1ToDecode2Type := (valid => '0', stop_mark => '0', decode => decode_rom_init, others => (others => '0'));
-
-	type Fetch2ToIcacheType is record
-		req: std_ulogic;
-		addr: std_ulogic_vector(63 downto 0);
-	end record;
-
-	type IcacheToFetch2Type is record
-		ack: std_ulogic;
-		insn: std_ulogic_vector(31 downto 0);
-	end record;
 
 	type Decode2ToExecute1Type is record
 		valid: std_ulogic;
