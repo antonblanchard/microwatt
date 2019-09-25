@@ -14,7 +14,6 @@ package common is
 
 	type Fetch1ToFetch2Type is record
 	    nia: std_ulogic_vector(63 downto 0);
-	    pipe_stop : std_ulogic;
 	end record;
 
 	type Fetch2ToDecode1Type is record
