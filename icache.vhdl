@@ -140,33 +140,33 @@ begin
             r.w.we  <= '0';
 
             case r.state is
-                when IDLE =>
-                    if read_miss = true then
-                        r.state <= WAIT_ACK;
-                        r.store_word <= 0;
-                        r.store_index <= read_index;
+	    when IDLE =>
+		if read_miss = true then
+		    r.state <= WAIT_ACK;
+		    r.store_word <= 0;
+		    r.store_index <= read_index;
 
-                        tags(read_index) <= read_tag;
-                        tags_valid(read_index) <= '0';
+		    tags(read_index) <= read_tag;
+		    tags_valid(read_index) <= '0';
 
-                        r.w.adr <= i_in.addr(63 downto OFFSET_BITS) & (OFFSET_BITS-1 downto 0 => '0');
-                        r.w.cyc <= '1';
-                        r.w.stb <= '1';
-                    end if;
-                when WAIT_ACK =>
-                    if wishbone_in.ack = '1' then
-                        cachelines(r.store_index)((r.store_word+1)*64-1 downto ((r.store_word)*64)) <= wishbone_in.dat;
-                        r.store_word <= r.store_word + 1;
+		    r.w.adr <= i_in.addr(63 downto OFFSET_BITS) & (OFFSET_BITS-1 downto 0 => '0');
+		    r.w.cyc <= '1';
+		    r.w.stb <= '1';
+		end if;
+	    when WAIT_ACK =>
+		if wishbone_in.ack = '1' then
+		    cachelines(r.store_index)((r.store_word+1)*64-1 downto ((r.store_word)*64)) <= wishbone_in.dat;
+		    r.store_word <= r.store_word + 1;
 
-                        if r.store_word = (LINE_SIZE_DW-1) then
-                            r.state <= IDLE;
-                            tags_valid(r.store_index) <= '1';
-                            r.w.cyc <= '0';
-                            r.w.stb <= '0';
-                        else
-                            r.w.adr(OFFSET_BITS-1 downto 3) <= std_ulogic_vector(to_unsigned(r.store_word+1, OFFSET_BITS-3));
-                        end if;
-                    end if;
+		    if r.store_word = (LINE_SIZE_DW-1) then
+			r.state <= IDLE;
+			tags_valid(r.store_index) <= '1';
+			r.w.cyc <= '0';
+			r.w.stb <= '0';
+		    else
+			r.w.adr(OFFSET_BITS-1 downto 3) <= std_ulogic_vector(to_unsigned(r.store_word+1, OFFSET_BITS-3));
+		    end if;
+		end if;
             end case;
         end if;
     end process;
