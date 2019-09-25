@@ -108,20 +108,21 @@ begin
         d_out <= DividerToWritebackInit;
         d_out.write_reg_nr <= write_reg;
 
+        if is_modulus = '1' then
+            result <= dend(127 downto 64);
+        else
+            result <= quot;
+        end if;
+        if neg_result = '1' then
+            sresult <= std_ulogic_vector(- signed(result));
+        else
+            sresult <= result;
+        end if;
+        d_out.write_reg_data <= sresult;
+
         if count(6) = '1' then
             d_out.valid <= '1';
             d_out.write_reg_enable <= '1';
-            if is_modulus = '1' then
-                result <= dend(127 downto 64);
-            else
-                result <= quot;
-            end if;
-            if neg_result = '1' then
-                sresult <= std_ulogic_vector(- signed(result));
-            else
-                sresult <= result;
-            end if;
-            d_out.write_reg_data <= sresult;
             if rc = '1' then
                 d_out.write_cr_enable <= '1';
                 d_out.write_cr_mask <= num_to_fxm(0);
