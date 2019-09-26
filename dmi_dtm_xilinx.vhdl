@@ -222,7 +222,6 @@ begin
     begin
 	if jtag_reset = '1' then
 	    shiftr <= (others => '0');
-	    request <= (others => '0');
 	    jtag_req <= '0';
 	elsif rising_edge(jtag_clk) then
 
