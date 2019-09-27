@@ -12,7 +12,7 @@ architecture behave of icache_tb is
     signal clk          : std_ulogic;
     signal rst          : std_ulogic;
 
-    signal i_out        : Fetch2ToIcacheType;
+    signal i_out        : Fetch1ToIcacheType;
     signal i_in         : IcacheToFetch2Type;
 
     signal wb_bram_in   : wishbone_master_out;
@@ -30,6 +30,7 @@ begin
             rst => rst,
             i_in => i_out,
             i_out => i_in,
+	    flush_in => '0',
             wishbone_out => wb_bram_in,
             wishbone_in => wb_bram_out
             );
@@ -66,16 +67,16 @@ begin
     stim: process
     begin
         i_out.req <= '0';
-        i_out.addr <= (others => '0');
+        i_out.nia <= (others => '0');
 
         wait for 4*clk_period;
 
         i_out.req <= '1';
-        i_out.addr <= x"0000000000000004";
+        i_out.nia <= x"0000000000000004";
 
         wait for 30*clk_period;
 
-        assert i_in.ack = '1';
+        assert i_in.valid = '1';
         assert i_in.insn = x"00000001";
 
         i_out.req <= '0';
@@ -84,31 +85,31 @@ begin
 
         -- hit
         i_out.req <= '1';
-        i_out.addr <= x"0000000000000008";
-        wait for clk_period/2;
-        assert i_in.ack = '1';
+        i_out.nia <= x"0000000000000008";
+        wait for clk_period;
+        assert i_in.valid = '1';
         assert i_in.insn = x"00000002";
-        wait for clk_period/2;
+        wait for clk_period;
 
         -- another miss
         i_out.req <= '1';
-        i_out.addr <= x"0000000000000040";
+        i_out.nia <= x"0000000000000040";
 
         wait for 30*clk_period;
 
-        assert i_in.ack = '1';
+        assert i_in.valid = '1';
         assert i_in.insn = x"00000010";
 
         -- test something that aliases
         i_out.req <= '1';
-        i_out.addr <= x"0000000000000100";
-        wait for clk_period/2;
-        assert i_in.ack = '0';
-        wait for clk_period/2;
+        i_out.nia <= x"0000000000000100";
+        wait for clk_period;
+        assert i_in.valid = '0';
+        wait for clk_period;
 
         wait for 30*clk_period;
 
-        assert i_in.ack = '1';
+        assert i_in.valid = '1';
         assert i_in.insn = x"00000040";
 
         i_out.req <= '0';

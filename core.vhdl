@@ -33,11 +33,10 @@ end core;
 
 architecture behave of core is
     -- fetch signals
-    signal fetch1_to_fetch2: Fetch1ToFetch2Type;
     signal fetch2_to_decode1: Fetch2ToDecode1Type;
 
     -- icache signals
-    signal fetch2_to_icache : Fetch2ToIcacheType;
+    signal fetch1_to_icache : Fetch1ToIcacheType;
     signal icache_to_fetch2 : IcacheToFetch2Type;
 
     -- decode signals
@@ -74,8 +73,8 @@ architecture behave of core is
 
     -- local signals
     signal fetch1_stall_in : std_ulogic;
+    signal icache_stall_out : std_ulogic;
     signal fetch2_stall_in : std_ulogic;
-    signal fetch2_stall_out : std_ulogic;
     signal decode1_stall_in : std_ulogic;
     signal decode2_stall_out : std_ulogic;
 
@@ -107,27 +106,12 @@ begin
             rst => core_rst,
             stall_in => fetch1_stall_in,
             flush_in => flush,
-            e_in => execute1_to_fetch1,
-            f_out => fetch1_to_fetch2
-            );
-
-    fetch1_stall_in <= fetch2_stall_out or decode2_stall_out;
-
-    fetch2_0: entity work.fetch2
-        port map (
-            clk => clk,
-            rst => core_rst,
-            stall_in => fetch2_stall_in,
-            stall_out => fetch2_stall_out,
-            flush_in => flush,
-            i_in => icache_to_fetch2,
-            i_out => fetch2_to_icache,
 	    stop_in => dbg_core_stop,
-            f_in => fetch1_to_fetch2,
-            f_out => fetch2_to_decode1
+            e_in => execute1_to_fetch1,
+            i_out => fetch1_to_icache
             );
 
-    fetch2_stall_in <= decode2_stall_out;
+    fetch1_stall_in <= icache_stall_out or decode2_stall_out;
 
     icache_0: entity work.icache
         generic map(
@@ -137,13 +121,27 @@ begin
         port map(
             clk => clk,
             rst => icache_rst,
-            i_in => fetch2_to_icache,
+            i_in => fetch1_to_icache,
             i_out => icache_to_fetch2,
+            flush_in => flush,
+	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
             wishbone_in => wishbone_insn_in
             );
 
-	icache_rst <= rst or dbg_icache_rst;
+    icache_rst <= rst or dbg_icache_rst;
+
+    fetch2_0: entity work.fetch2
+        port map (
+            clk => clk,
+            rst => core_rst,
+            stall_in => fetch2_stall_in,
+            flush_in => flush,
+            i_in => icache_to_fetch2,
+            f_out => fetch2_to_decode1
+            );
+
+    fetch2_stall_in <= decode2_stall_out;
 
     decode1_0: entity work.decode1
         port map (
@@ -274,7 +272,7 @@ begin
 	    icache_rst => dbg_icache_rst,
 	    terminate => terminate,
 	    core_stopped => dbg_core_is_stopped,
-	    nia => fetch1_to_fetch2.nia,
+	    nia => fetch1_to_icache.nia,
 	    terminated_out => terminated_out
 	    );
 

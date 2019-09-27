@@ -91,15 +91,15 @@ begin
     reg_write: process(clk)
     begin
 	if rising_edge(clk) then
+	    -- Reset the 1-cycle "do" signals
+	    do_step <= '0';
+	    do_reset <= '0';
+	    do_icreset <= '0';
+
 	    if (rst) then
 		stopping <= '0';
 		terminated <= '0';
 	    else
-		-- Reset the 1-cycle "do" signals
-		do_step <= '0';
-		do_reset <= '0';
-		do_icreset <= '0';
-
 		-- Edge detect on dmi_req for 1-shot pulses
 		dmi_req_1 <= dmi_req;
 		if dmi_req = '1' and dmi_req_1 = '0' then
