@@ -81,13 +81,13 @@ package common is
 		write_reg: std_ulogic_vector(4 downto 0);
                 dividend: std_ulogic_vector(63 downto 0);
                 divisor: std_ulogic_vector(63 downto 0);
-                neg_result: std_ulogic;
+                is_signed: std_ulogic;
                 is_32bit: std_ulogic;
                 is_extended: std_ulogic;
                 is_modulus: std_ulogic;
                 rc: std_ulogic;
         end record;
-        constant Decode2ToDividerInit: Decode2ToDividerType := (valid => '0', neg_result => '0', is_32bit => '0', is_extended => '0', is_modulus => '0', rc => '0', others => (others => '0'));
+        constant Decode2ToDividerInit: Decode2ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0', is_extended => '0', is_modulus => '0', rc => '0', others => (others => '0'));
 
 	type Decode2ToRegisterFileType is record
 		read1_enable : std_ulogic;

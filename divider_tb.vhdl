@@ -44,7 +44,7 @@ begin
         d1.write_reg <= "10001";
         d1.dividend <= x"0000000010001000";
         d1.divisor  <= x"0000000000001111";
-        d1.neg_result <= '0';
+        d1.is_signed <= '0';
         d1.is_32bit <= '0';
         d1.is_extended <= '0';
         d1.is_modulus <= '0';
@@ -55,7 +55,7 @@ begin
 
         d1.valid <= '0';
 
-        for j in 0 to 64 loop
+        for j in 0 to 65 loop
             wait for clk_period;
             if d2.valid = '1' then
                 exit;
@@ -79,7 +79,7 @@ begin
 
         d1.valid <= '0';
 
-        for j in 0 to 64 loop
+        for j in 0 to 65 loop
             wait for clk_period;
             if d2.valid = '1' then
                 exit;
@@ -105,27 +105,15 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    if ra(63) = '1' then
-                        d1.dividend <= std_ulogic_vector(- signed(ra));
-                    else
-                        d1.dividend <= ra;
-                    end if;
-                    if rb(63) = '1' then
-                        d1.divisor <= std_ulogic_vector(- signed(rb));
-                    else
-                        d1.divisor <= rb;
-                    end if;
-                    if ra(63) = rb(63) then
-                        d1.neg_result <= '0';
-                    else
-                        d1.neg_result <= '1';
-                    end if;
+                    d1.dividend <= ra;
+                    d1.divisor <= rb;
+                    d1.is_signed <= '1';
                     d1.valid <= '1';
 
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -154,13 +142,13 @@ begin
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
-                    d1.neg_result <= '0';
+                    d1.is_signed <= '0';
                     d1.valid <= '1';
 
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -187,28 +175,16 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    if ra(63) = '1' then
-                        d1.dividend <= std_ulogic_vector(- signed(ra));
-                    else
-                        d1.dividend <= ra;
-                    end if;
-                    if rb(63) = '1' then
-                        d1.divisor <= std_ulogic_vector(- signed(rb));
-                    else
-                        d1.divisor <= rb;
-                    end if;
-                    if ra(63) = rb(63) then
-                        d1.neg_result <= '0';
-                    else
-                        d1.neg_result <= '1';
-                    end if;
+                    d1.dividend <= ra;
+                    d1.divisor <= rb;
+                    d1.is_signed <= '1';
                     d1.is_extended <= '1';
                     d1.valid <= '1';
 
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -216,14 +192,17 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
-                    if unsigned(d1.divisor) > unsigned(d1.dividend) then
+                    if rb /= x"0000000000000000" then
                         d128 := ra & x"0000000000000000";
                         q128 := std_ulogic_vector(signed(d128) / signed(rb));
-                        behave_rt := q128(63 downto 0);
-                        assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
-                            report "bad divde expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
-                        assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for divde";
+                        if q128(127 downto 63) = x"0000000000000000" & '0' or
+                            q128(127 downto 63) = x"ffffffffffffffff" & '1' then
+                            behave_rt := q128(63 downto 0);
+                            assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
+                                report "bad divde expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
+                            assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                                report "bad CR setting for divde";
+                        end if;
                     end if;
                 end loop;
             end loop;
@@ -239,14 +218,14 @@ begin
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
-                    d1.neg_result <= '0';
+                    d1.is_signed <= '0';
                     d1.is_extended <= '1';
                     d1.valid <= '1';
 
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -254,7 +233,7 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
-                    if unsigned(d1.divisor) > unsigned(d1.dividend) then
+                    if unsigned(rb) > unsigned(ra) then
                         d128 := ra & x"0000000000000000";
                         q128 := std_ulogic_vector(unsigned(d128) / unsigned(rb));
                         behave_rt := q128(63 downto 0);
@@ -275,21 +254,9 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    if ra(63) = '1' then
-                        d1.dividend <= std_ulogic_vector(- signed(ra));
-                    else
-                        d1.dividend <= ra;
-                    end if;
-                    if rb(63) = '1' then
-                        d1.divisor <= std_ulogic_vector(- signed(rb));
-                    else
-                        d1.divisor <= rb;
-                    end if;
-                    if ra(63) = rb(63) then
-                        d1.neg_result <= '0';
-                    else
-                        d1.neg_result <= '1';
-                    end if;
+                    d1.dividend <= ra;
+                    d1.divisor <= rb;
+                    d1.is_signed <= '1';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.valid <= '1';
@@ -297,7 +264,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -326,7 +293,7 @@ begin
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
-                    d1.neg_result <= '0';
+                    d1.is_signed <= '0';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.valid <= '1';
@@ -334,7 +301,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -361,21 +328,9 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 32)) & x"00000000";
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    if ra(63) = '1' then
-                        d1.dividend <= std_ulogic_vector(- signed(ra));
-                    else
-                        d1.dividend <= ra;
-                    end if;
-                    if rb(63) = '1' then
-                        d1.divisor <= std_ulogic_vector(- signed(rb));
-                    else
-                        d1.divisor <= rb;
-                    end if;
-                    if ra(63) = rb(63) then
-                        d1.neg_result <= '0';
-                    else
-                        d1.neg_result <= '1';
-                    end if;
+                    d1.dividend <= ra;
+                    d1.divisor <= rb;
+                    d1.is_signed <= '1';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.valid <= '1';
@@ -383,7 +338,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -391,12 +346,15 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
-                    if unsigned(d1.divisor(31 downto 0)) > unsigned(d1.dividend(63 downto 32)) then
+                    if rb /= x"0000000000000000" then
                         behave_rt := std_ulogic_vector(signed(ra) / signed(rb));
-                        assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
-                            report "bad divwe expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
-                        assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for divwe";
+                        if behave_rt(63 downto 31) = x"00000000" & '0' or
+                            behave_rt(63 downto 31) = x"ffffffff" & '1' then
+                            assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
+                                report "bad divwe expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
+                            assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                                report "bad CR setting for divwe";
+                        end if;
                     end if;
                 end loop;
             end loop;
@@ -412,7 +370,7 @@ begin
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
-                    d1.neg_result <= '0';
+                    d1.is_signed <= '0';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.valid <= '1';
@@ -420,7 +378,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -428,7 +386,7 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
-                    if unsigned(d1.divisor(31 downto 0)) > unsigned(d1.dividend(63 downto 32)) then
+                    if unsigned(rb(31 downto 0)) > unsigned(ra(63 downto 32)) then
                         behave_rt := std_ulogic_vector(unsigned(ra) / unsigned(rb));
                         assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
                             report "bad divweu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
@@ -447,17 +405,9 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    if ra(63) = '1' then
-                        d1.dividend <= std_ulogic_vector(- signed(ra));
-                    else
-                        d1.dividend <= ra;
-                    end if;
-                    if rb(63) = '1' then
-                        d1.divisor <= std_ulogic_vector(- signed(rb));
-                    else
-                        d1.divisor <= rb;
-                    end if;
-                    d1.neg_result <= ra(63);
+                    d1.dividend <= ra;
+                    d1.divisor <= rb;
+                    d1.is_signed <= '1';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '0';
                     d1.is_modulus <= '1';
@@ -466,7 +416,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -495,7 +445,7 @@ begin
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
-                    d1.neg_result <= '0';
+                    d1.is_signed <= '0';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '0';
                     d1.is_modulus <= '1';
@@ -504,7 +454,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -531,17 +481,9 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    if ra(63) = '1' then
-                        d1.dividend <= std_ulogic_vector(- signed(ra));
-                    else
-                        d1.dividend <= ra;
-                    end if;
-                    if rb(63) = '1' then
-                        d1.divisor <= std_ulogic_vector(- signed(rb));
-                    else
-                        d1.divisor <= rb;
-                    end if;
-                    d1.neg_result <= ra(63);
+                    d1.dividend <= ra;
+                    d1.divisor <= rb;
+                    d1.is_signed <= '1';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.is_modulus <= '1';
@@ -550,7 +492,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -579,7 +521,7 @@ begin
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
-                    d1.neg_result <= '0';
+                    d1.is_signed <= '0';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.is_modulus <= '1';
@@ -588,7 +530,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 64 loop
+                    for j in 0 to 65 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
