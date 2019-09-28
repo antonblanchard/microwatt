@@ -24,10 +24,12 @@ architecture behaviour of divider is
     signal sresult    : std_ulogic_vector(63 downto 0);
     signal qbit       : std_ulogic;
     signal running    : std_ulogic;
+    signal signcheck  : std_ulogic;
     signal count      : unsigned(6 downto 0);
     signal neg_result : std_ulogic;
     signal is_modulus : std_ulogic;
     signal is_32bit   : std_ulogic;
+    signal extended   : std_ulogic;
     signal rc         : std_ulogic;
     signal write_reg  : std_ulogic_vector(4 downto 0);
 
@@ -64,7 +66,7 @@ begin
                 running <= '0';
                 count <= "0000000";
             elsif d_in.valid = '1' then
-                if d_in.is_extended = '1' then
+                if d_in.is_extended = '1' and not (d_in.is_signed = '1' and d_in.dividend(63) = '1') then
                     dend <= d_in.dividend & x"0000000000000000";
                 else
                     dend <= x"0000000000000000" & d_in.dividend;
@@ -72,12 +74,27 @@ begin
                 div <= unsigned(d_in.divisor);
                 quot <= (others => '0');
                 write_reg <= d_in.write_reg;
-                neg_result <= d_in.neg_result;
+                neg_result <= '0';
                 is_modulus <= d_in.is_modulus;
+                extended <= d_in.is_extended;
                 is_32bit <= d_in.is_32bit;
                 rc <= d_in.rc;
                 count <= "0000000";
                 running <= '1';
+                signcheck <= d_in.is_signed and (d_in.dividend(63) or d_in.divisor(63));
+            elsif signcheck = '1' then
+                signcheck <= '0';
+                neg_result <= dend(63) xor (div(63) and not is_modulus);
+                if dend(63) = '1' then
+                    if extended = '1' then
+                        dend <= std_ulogic_vector(- signed(dend(63 downto 0))) & x"0000000000000000";
+                    else
+                        dend <= x"0000000000000000" & std_ulogic_vector(- signed(dend(63 downto 0)));
+                    end if;
+                end if;
+                if div(63) = '1' then
+                    div <= unsigned(- signed(div));
+                end if;
             elsif running = '1' then
                 if count = "0111111" then
                     running <= '0';
@@ -108,20 +125,21 @@ begin
         d_out <= DividerToWritebackInit;
         d_out.write_reg_nr <= write_reg;
 
+        if is_modulus = '1' then
+            result <= dend(127 downto 64);
+        else
+            result <= quot;
+        end if;
+        if neg_result = '1' then
+            sresult <= std_ulogic_vector(- signed(result));
+        else
+            sresult <= result;
+        end if;
+        d_out.write_reg_data <= sresult;
+
         if count(6) = '1' then
             d_out.valid <= '1';
             d_out.write_reg_enable <= '1';
-            if is_modulus = '1' then
-                result <= dend(127 downto 64);
-            else
-                result <= quot;
-            end if;
-            if neg_result = '1' then
-                sresult <= std_ulogic_vector(- signed(result));
-            else
-                sresult <= result;
-            end if;
-            d_out.write_reg_data <= sresult;
             if rc = '1' then
                 d_out.write_cr_enable <= '1';
                 d_out.write_cr_mask <= num_to_fxm(0);

@@ -221,9 +221,6 @@ begin
 		variable v_int : reg_internal_type;
 		variable mul_a : std_ulogic_vector(63 downto 0);
 		variable mul_b : std_ulogic_vector(63 downto 0);
-		variable dividend : std_ulogic_vector(63 downto 0);
-		variable divisor  : std_ulogic_vector(63 downto 0);
-                variable absdend  : std_ulogic_vector(31 downto 0);
 		variable decoded_reg_a : decode_input_reg_t;
 		variable decoded_reg_b : decode_input_reg_t;
 		variable decoded_reg_c : decode_input_reg_t;
@@ -308,60 +305,36 @@ begin
                 --       s = 1 for signed, 0 for unsigned (for div*)
                 --       t = 1 for 32-bit, 0 for 64-bit
                 --       r = RC bit (record condition code)
-                -- For signed division/modulus, we take absolute values and
-                -- tell the divider what the sign of the result should be,
-                -- which is the dividend sign for modulus, and the XOR of
-                -- the dividend and divisor signs for division.
-                dividend := decoded_reg_a.data;
-                divisor := decoded_reg_b.data;
 		v.d.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
                 v.d.is_modulus := not d_in.insn(8);
+                v.d.is_32bit := not d_in.insn(2);
                 if d_in.insn(8) = '1' then
-                    signed_division := d_in.insn(6);
+                        signed_division := d_in.insn(6);
                 else
-                    signed_division := d_in.insn(10);
+                        signed_division := d_in.insn(10);
                 end if;
+                v.d.is_signed := signed_division;
                 if d_in.insn(2) = '0' then
-                    -- 64-bit forms
-                        v.d.is_32bit := '0';
+                        -- 64-bit forms
                         if d_in.insn(8) = '1' and d_in.insn(7) = '0' then
                                 v.d.is_extended := '1';
                         end if;
-                        if signed_division = '1' and dividend(63) = '1' then
-                                v.d.neg_result := '1';
-                                v.d.dividend := std_ulogic_vector(- signed(dividend));
-                        else
-                                v.d.dividend := dividend;
-                        end if;
-                        if signed_division = '1' and divisor(63) = '1' then
-                                if d_in.insn(8) = '1' then
-                                        v.d.neg_result := not v.d.neg_result;
-                                end if;
-                                v.d.divisor := std_ulogic_vector(- signed(divisor));
-                        else
-                                v.d.divisor := divisor;
-                        end if;
+                        v.d.dividend := decoded_reg_a.data;
+                        v.d.divisor := decoded_reg_b.data;
                 else
                         -- 32-bit forms
-                        v.d.is_32bit := '1';
-                        if signed_division = '1' and dividend(31) = '1' then
-                                v.d.neg_result := '1';
-                                absdend := std_ulogic_vector(- signed(dividend(31 downto 0)));
-                        else
-                                absdend := dividend(31 downto 0);
-                        end if;
                         if d_in.insn(8) = '1' and d_in.insn(7) = '0' then   -- extended forms
-                                v.d.dividend := absdend & x"00000000";
+                                v.d.dividend := decoded_reg_a.data(31 downto 0) & x"00000000";
+                        elsif signed_division = '1' and decoded_reg_a.data(31) = '1' then
+                                -- sign extend to 64 bits
+                                v.d.dividend := x"ffffffff" & decoded_reg_a.data(31 downto 0);
                         else
-                                v.d.dividend := x"00000000" & absdend;
+                                v.d.dividend := x"00000000" & decoded_reg_a.data(31 downto 0);
                         end if;
-                        if signed_division = '1' and divisor(31) = '1' then
-                                if d_in.insn(8) = '1' then
-                                        v.d.neg_result := not v.d.neg_result;
-                                end if;
-                                v.d.divisor := x"00000000" & std_ulogic_vector(- signed(divisor(31 downto 0)));
+                        if signed_division = '1' and decoded_reg_b.data(31) = '1' then
+                                v.d.divisor := x"ffffffff" & decoded_reg_b.data(31 downto 0);
                         else
-                                v.d.divisor := x"00000000" & divisor(31 downto 0);
+                                v.d.divisor := x"00000000" & decoded_reg_b.data(31 downto 0);
                         end if;
                 end if;
                 v.d.rc := decode_rc(d_in.decode.rc, d_in.insn);
