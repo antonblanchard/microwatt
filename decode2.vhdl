@@ -264,13 +264,13 @@ begin
 		v.e.cr := c_in.read_cr_data;
 		v.e.input_carry := d_in.decode.input_carry;
 		v.e.output_carry := d_in.decode.output_carry;
-		v.e.aa := insn_aa(d_in.insn);
 		if d_in.decode.lr = '1' then
 			v.e.lr := insn_lk(d_in.insn);
 		end if;
 		v.e.const1 := decode_const_a(d_in.decode.const_a, d_in.insn);
 		v.e.const2 := decode_const_b(d_in.decode.const_b, d_in.insn);
 		v.e.const3 := decode_const_c(d_in.decode.const_c, d_in.insn);
+                v.e.insn := d_in.insn;
 
 		-- multiply unit
 		v.m.insn_type := d_in.decode.insn_type;

@@ -125,12 +125,8 @@ architecture behaviour of decode1 is
 		--PPC_MCRXRX
 		PPC_MFCR       =>       (ALU,    OP_MFCR,      NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		PPC_MFOCRF     =>       (ALU,    OP_MFOCRF,    NONE,       NONE,        NONE, RT,   FXM,  NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MFCTR      =>       (ALU,    OP_MFCTR,     NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MFLR       =>       (ALU,    OP_MFLR,      NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MFTB       =>       (ALU,    OP_MFTB,      NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MTCTR      =>       (ALU,    OP_MTCTR,     RS,         NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MTLR       =>       (ALU,    OP_MTLR,      RS,         NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		--PPC_MFSPR
+		PPC_MFSPR      =>       (ALU,    OP_MFSPR,     NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
+		PPC_MTSPR      =>       (ALU,    OP_MTSPR,     RS,         NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		PPC_MOD        =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		PPC_MTCRF      =>       (ALU,    OP_MTCRF,     RS,         NONE,        NONE, NONE, FXM,  NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		PPC_MTOCRF     =>       (ALU,    OP_MTOCRF,    RS,         NONE,        NONE, NONE, FXM,  NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
@@ -527,22 +523,6 @@ begin
 			elsif std_match(f_in.insn, "011111-----1---------0000010011-") then
 				report "PPC_mfocrf";
 				ppc_insn := PPC_MFOCRF;
-			-- Specific MF/MT SPR encodings first
-			elsif std_match(f_in.insn, "011111-----01001000000101010011-") then
-				report "PPC_mfctr";
-				ppc_insn := PPC_MFCTR;
-			elsif std_match(f_in.insn, "011111-----01000000000101010011-") then
-				report "PPC_mflr";
-				ppc_insn := PPC_MFLR;
-			elsif std_match(f_in.insn, "011111-----01100010000101010011-") then
-				report "PPC_mftb";
-				ppc_insn := PPC_MFTB;
-			elsif std_match(f_in.insn, "011111-----01001000000111010011-") then
-				report "PPC_mtctr";
-				ppc_insn := PPC_MTCTR;
-			elsif std_match(f_in.insn, "011111-----01000000000111010011-") then
-				report "PPC_mtlr";
-				ppc_insn := PPC_MTLR;
 			elsif std_match(f_in.insn, "011111---------------0101010011-") then
 				report "PPC_mfspr";
 				ppc_insn := PPC_MFSPR;

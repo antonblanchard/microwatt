@@ -7,6 +7,7 @@ use work.decode_types.all;
 use work.common.all;
 use work.helpers.all;
 use work.crhelpers.all;
+use work.insn_helpers.all;
 use work.ppc_fx_insns.all;
 
 entity execute1 is
@@ -102,7 +103,7 @@ begin
 					result_en := 1;
 				when OP_B =>
 					f_out.redirect <= '1';
-					if (e_in.aa) then
+					if (insn_aa(e_in.insn)) then
 					    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.read_data2));
 					else
 					    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
@@ -113,7 +114,7 @@ begin
 					end if;
 					if ppc_bc_taken(e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.cr, ctrl.ctr) = 1 then
 						f_out.redirect <= '1';
-						if (e_in.aa) then
+						if (insn_aa(e_in.insn)) then
 						    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.read_data2));
 						else
 						    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
@@ -202,19 +203,17 @@ begin
 						hi := lo + 3;
 						v.e.write_cr_data(hi downto lo) := newcrf;
 					end loop;
-				when OP_MFCTR =>
-					result := ctrl.ctr;
-					result_en := 1;
-				when OP_MFLR =>
-					result := ctrl.lr;
-					result_en := 1;
-				when OP_MFTB =>
-					result := ctrl.tb;
-					result_en := 1;
-				when OP_MTCTR =>
-					ctrl_tmp.ctr <= e_in.read_data1;
-				when OP_MTLR =>
-					ctrl_tmp.lr <= e_in.read_data1;
+                                when OP_MFSPR =>
+                                        if std_match(e_in.insn(20 downto 11), "0100100000") then
+                                                result := ctrl.ctr;
+                                                result_en := 1;
+                                        elsif std_match(e_in.insn(20 downto 11), "0100000000") then
+                                                result := ctrl.lr;
+                                                result_en := 1;
+                                        elsif std_match(e_in.insn(20 downto 11), "0110001000") then
+                                                result := ctrl.tb;
+                                                result_en := 1;
+                                        end if;
 				when OP_MFCR =>
 					result := x"00000000" & e_in.cr;
 					result_en := 1;
@@ -239,6 +238,12 @@ begin
 					crnum := fxm_to_num(e_in.const1(7 downto 0));
 					v.e.write_cr_mask := num_to_fxm(crnum);
 					v.e.write_cr_data := e_in.read_data1(31 downto 0);
+				when OP_MTSPR =>
+                                        if std_match(e_in.insn(20 downto 11), "0100100000") then
+                                                ctrl_tmp.ctr <= e_in.read_data1;
+                                        elsif std_match(e_in.insn(20 downto 11), "0100000000") then
+                                                ctrl_tmp.lr <= e_in.read_data1;
+                                        end if;
 				when OP_NAND =>
 					result := ppc_nand(e_in.read_data1, e_in.read_data2);
 					result_en := 1;
