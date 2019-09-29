@@ -120,18 +120,18 @@ begin
 						    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
 						end if;
 					end if;
-				when OP_BCLR =>
-					if e_in.const1(4-2) = '0' then
+				when OP_BCREG =>
+                                        -- bits 10 and 6 distinguish between bclr, bcctr and bctar
+					if e_in.const1(4-2) = '0' and e_in.insn(10) = '0' then
 						ctrl_tmp.ctr <= std_ulogic_vector(unsigned(ctrl.ctr) - 1);
 					end if;
 					if ppc_bc_taken(e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.cr, ctrl.ctr) = 1 then
 						f_out.redirect <= '1';
-						f_out.redirect_nia <= ctrl.lr(63 downto 2) & "00";
-					end if;
-				when OP_BCCTR =>
-					if ppc_bcctr_taken(e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.cr) = 1 then
-						f_out.redirect <= '1';
-						f_out.redirect_nia <= ctrl.ctr(63 downto 2) & "00";
+                                                if e_in.insn(10) = '0' then
+                                                        f_out.redirect_nia <= ctrl.lr(63 downto 2) & "00";
+                                                else
+                                                        f_out.redirect_nia <= ctrl.ctr(63 downto 2) & "00";
+                                                end if;
 					end if;
 				when OP_CMPB =>
 					result := ppc_cmpb(e_in.read_data1, e_in.read_data2);

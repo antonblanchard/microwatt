@@ -24,6 +24,8 @@ architecture behaviour of decode1 is
 
         subtype major_opcode_t is unsigned(5 downto 0);
         type major_rom_array_t is array(0 to 63) of decode_rom_t;
+        type minor_valid_array_t is array(0 to 1023) of std_ulogic;
+        type op_19_subop_array_t is array(0 to 7) of decode_rom_t;
         type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
 
 	type decode_rom_array_t is array(ppc_insn_t) of decode_rom_t;
@@ -72,25 +74,42 @@ architecture behaviour of decode1 is
 		others   => illegal_inst
         );
 
-	constant decode_op_19_array : decode_rom_array_t := (
-		--                       unit     internal     in1         in2          in3   out   const const const CR   CR   cry  cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
-		--                                      op                                          1     2     3     in   out  in   out  len        ext             32  sgn             pipe
-		PPC_ILLEGAL    =>       (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		--PPC_ADDPCIS
-		PPC_BCCTR      =>       (ALU,    OP_BCCTR,     NONE,       NONE,        NONE, NONE, BO,   BI,   BH,   '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '1'),
-		PPC_BCLR       =>       (ALU,    OP_BCLR,      NONE,       NONE,        NONE, NONE, BO,   BI,   BH,   '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '1'),
-		--PPC_BCTAR
-		--PPC_CRAND
-		--PPC_CRANDC
-		--PPC_CREQV
-		--PPC_CRNAND
-		--PPC_CRNOR
-		--PPC_CROR
-		--PPC_CRORC
-		--PPC_CRXOR
-		PPC_ISYNC      =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MCRF       =>       (ALU,    OP_MCRF,      NONE,       NONE,        NONE, NONE, BF,   BFA,  NONE, '1', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		others   => decode_rom_init
+        -- indexed by bits 10..1 of instruction word
+        constant decode_op_19_valid : minor_valid_array_t := (
+                -- addpcis, 5 upper bits are part of constant
+                2#0000000010# => '1', 2#0000100010# => '1', 2#0001000010# => '1', 2#0001100010# => '1', 2#0010000010# => '1', 2#0010100010# => '1', 2#0011000010# => '1', 2#0011100010# => '1',
+                2#0100000010# => '1', 2#0100100010# => '1', 2#0101000010# => '1', 2#0101100010# => '1', 2#0110000010# => '1', 2#0110100010# => '1', 2#0111000010# => '1', 2#0111100010# => '1',
+                2#1000000010# => '1', 2#1000100010# => '1', 2#1001000010# => '1', 2#1001100010# => '1', 2#1010000010# => '1', 2#1010100010# => '1', 2#1011000010# => '1', 2#1011100010# => '1',
+                2#1100000010# => '1', 2#1100100010# => '1', 2#1101000010# => '1', 2#1101100010# => '1', 2#1110000010# => '1', 2#1110100010# => '1', 2#1111000010# => '1', 2#1111100010# => '1',
+                2#1000010000# => '1', -- bcctr
+                2#0000010000# => '1', -- bclr
+                2#1000110000# => '0', -- bctar
+                2#0100000001# => '0', -- crand
+                2#0010000001# => '0', -- crandc
+                2#0100100001# => '0', -- creqv
+                2#0011100001# => '0', -- crnand
+                2#0000100001# => '0', -- crnor
+                2#0111000001# => '0', -- cror
+                2#0011000001# => '0', -- crorc
+                2#0110100001# => '0', -- crxor
+                2#0010010110# => '1', -- isync
+                2#0000000000# => '1', -- mcrf
+                others => '0'
+        );
+
+        -- indexed by bits 5, 3, 2 of instruction word
+	constant decode_op_19_array : op_19_subop_array_t := (
+		--                unit     internal     in1         in2          in3   out   const const const CR   CR   cry  cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
+		--                               op                                          1     2     3     in   out  in   out  len        ext             32  sgn             pipe
+                -- mcrf; cr logical ops not implemented yet
+		2#000#    =>       (ALU,    OP_MCRF,      NONE,       NONE,        NONE, NONE, BF,   BFA,  NONE, '1', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
+		-- addpcis not implemented yet
+		2#001#    =>       (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+                -- bclr, bcctr, bctar
+		2#100#    =>       (ALU,    OP_BCREG,     NONE,       NONE,        NONE, NONE, BO,   BI,   BH,   '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '1'),
+                -- isync
+		2#111#    =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
+		others   => illegal_inst
         );
 
 	constant decode_op_30_array : decode_rom_array_t := (
@@ -260,6 +279,7 @@ begin
 		variable v : Decode1ToDecode2Type;
 		variable ppc_insn: ppc_insn_t;
                 variable majorop : major_opcode_t;
+                variable op_19_bits: std_ulogic_vector(2 downto 0);
 	begin
 		v := r;
 
@@ -615,53 +635,14 @@ begin
 			v.decode := decode_op_31_array(ppc_insn);
 
                 elsif majorop = "010011" then
-			if    std_match(f_in.insn, "--------------------------00010-") then
-				report "PPC_addpcis";
-				ppc_insn := PPC_ADDPCIS;
-			elsif std_match(f_in.insn, "---------------------1000010000-") then
-				report "PPC_bcctr";
-				ppc_insn := PPC_BCCTR;
-			elsif std_match(f_in.insn, "---------------------0000010000-") then
-				report "PPC_bclr";
-				ppc_insn := PPC_BCLR;
-			elsif std_match(f_in.insn, "---------------------1000110000-") then
-				report "PPC_bctar";
-				ppc_insn := PPC_BCTAR;
-			elsif std_match(f_in.insn, "---------------------0100000001-") then
-				report "PPC_crand";
-				ppc_insn := PPC_CRAND;
-			elsif std_match(f_in.insn, "---------------------0010000001-") then
-				report "PPC_crandc";
-				ppc_insn := PPC_CRANDC;
-			elsif std_match(f_in.insn, "---------------------0100100001-") then
-				report "PPC_creqv";
-				ppc_insn := PPC_CREQV;
-			elsif std_match(f_in.insn, "---------------------0011100001-") then
-				report "PPC_crnand";
-				ppc_insn := PPC_CRNAND;
-			elsif std_match(f_in.insn, "---------------------0000100001-") then
-				report "PPC_crnor";
-				ppc_insn := PPC_CRNOR;
-			elsif std_match(f_in.insn, "---------------------0111000001-") then
-				report "PPC_cror";
-				ppc_insn := PPC_CROR;
-			elsif std_match(f_in.insn, "---------------------0110100001-") then
-				report "PPC_crorc";
-				ppc_insn := PPC_CRORC;
-			elsif std_match(f_in.insn, "---------------------0011000001-") then
-				report "PPC_crxor";
-				ppc_insn := PPC_CRXOR;
-			elsif std_match(f_in.insn, "---------------------0010010110-") then
-				report "PPC_isync";
-				ppc_insn := PPC_ISYNC;
-			elsif std_match(f_in.insn, "---------------------0000000000-") then
-				report "PPC_mcrf";
-				ppc_insn := PPC_MCRF;
-			else
-				report "PPC_illegal";
-				ppc_insn := PPC_ILLEGAL;
-			end if;
-			v.decode := decode_op_19_array(ppc_insn);
+                        if decode_op_19_valid(to_integer(unsigned(f_in.insn(10 downto 1)))) = '0' then
+                                report "op 19 illegal subcode";
+                                v.decode := illegal_inst;
+                        else
+                                op_19_bits := f_in.insn(5) & f_in.insn(3) & f_in.insn(2);
+                                v.decode := decode_op_19_array(to_integer(unsigned(op_19_bits)));
+                                report "op 19 sub " & to_hstring(op_19_bits);
+                        end if;
 
                 elsif majorop = "011110" then
                         if    std_match(f_in.insn, "---------------------------1000-") then
