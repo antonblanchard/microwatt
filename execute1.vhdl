@@ -274,11 +274,12 @@ begin
 				when OP_PRTYW =>
 					result := ppc_prtyw(e_in.read_data1);
 					result_en := 1;
-				when OP_RLDCL =>
-					result := ppc_rldcl(e_in.read_data1, e_in.read_data2, e_in.const2(5 downto 0));
-					result_en := 1;
-				when OP_RLDCR =>
-					result := ppc_rldcr(e_in.read_data1, e_in.read_data2, e_in.const2(5 downto 0));
+				when OP_RLDCX =>
+                                        if e_in.insn(1) = '0' then
+                                                result := ppc_rldcl(e_in.read_data1, e_in.read_data2, e_in.const2(5 downto 0));
+                                        else
+                                                result := ppc_rldcr(e_in.read_data1, e_in.read_data2, e_in.const2(5 downto 0));
+                                        end if;
 					result_en := 1;
 				when OP_RLDICL =>
 					result := ppc_rldicl(e_in.read_data1, e_in.const1(5 downto 0), e_in.const2(5 downto 0));

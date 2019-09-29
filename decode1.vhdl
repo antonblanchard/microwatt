@@ -26,6 +26,7 @@ architecture behaviour of decode1 is
         type major_rom_array_t is array(0 to 63) of decode_rom_t;
         type minor_valid_array_t is array(0 to 1023) of std_ulogic;
         type op_19_subop_array_t is array(0 to 7) of decode_rom_t;
+        type op_30_subop_array_t is array(0 to 7) of decode_rom_t;
         type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
 
 	type decode_rom_array_t is array(ppc_insn_t) of decode_rom_t;
@@ -112,17 +113,16 @@ architecture behaviour of decode1 is
 		others   => illegal_inst
         );
 
-	constant decode_op_30_array : decode_rom_array_t := (
-		--                       unit     internal     in1         in2          in3   out   const const const CR   CR   cry  cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
-		--                                      op                                          1     2     3     in   out  in   out  len        ext             32  sgn             pipe
-		PPC_ILLEGAL    =>       (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_RLDCL      =>       (ALU,    OP_RLDCL,     RS,         RB,          NONE, RA,   NONE, MB,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_RLDCR      =>       (ALU,    OP_RLDCR,     RS,         RB,          NONE, RA,   NONE, MB,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_RLDIC      =>       (ALU,    OP_RLDIC,     RS,         NONE,        NONE, RA,   SH,   MB,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_RLDICL     =>       (ALU,    OP_RLDICL,    RS,         NONE,        NONE, RA,   SH,   MB,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_RLDICR     =>       (ALU,    OP_RLDICR,    RS,         NONE,        NONE, RA,   SH,   ME,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_RLDIMI     =>       (ALU,    OP_RLDIMI,    RA,         RS,          NONE, RA,   SH,   MB,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		others   => decode_rom_init
+	constant decode_op_30_array : op_30_subop_array_t := (
+		--                unit     internal     in1         in2          in3   out   const const const CR   CR   cry  cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
+		--                               op                                          1     2     3     in   out  in   out  len        ext             32  sgn             pipe
+		2#010#   =>       (ALU,    OP_RLDIC,     RS,         NONE,        NONE, RA,   SH,   MB,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		2#000#   =>       (ALU,    OP_RLDICL,    RS,         NONE,        NONE, RA,   SH,   MB,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		2#001#   =>       (ALU,    OP_RLDICR,    RS,         NONE,        NONE, RA,   SH,   ME,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		2#011#   =>       (ALU,    OP_RLDIMI,    RA,         RS,          NONE, RA,   SH,   MB,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+                -- rldcl, rldcr
+		2#100#   =>       (ALU,    OP_RLDCX,     RS,         RB,          NONE, RA,   NONE, MB,   NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		others   => illegal_inst
         );
 
 	-- Note: reformat with column -t -o ' '
@@ -280,6 +280,7 @@ begin
 		variable ppc_insn: ppc_insn_t;
                 variable majorop : major_opcode_t;
                 variable op_19_bits: std_ulogic_vector(2 downto 0);
+                variable op_30_bits: std_ulogic_vector(2 downto 0);
 	begin
 		v := r;
 
@@ -645,29 +646,7 @@ begin
                         end if;
 
                 elsif majorop = "011110" then
-                        if    std_match(f_in.insn, "---------------------------1000-") then
-				report "PPC_rldcl";
-				ppc_insn := PPC_RLDCL;
-			elsif std_match(f_in.insn, "---------------------------1001-") then
-				report "PPC_rldcr";
-				ppc_insn := PPC_RLDCR;
-			elsif std_match(f_in.insn, "---------------------------010--") then
-				report "PPC_rldic";
-				ppc_insn := PPC_RLDIC;
-			elsif std_match(f_in.insn, "---------------------------000--") then
-				report "PPC_rldicl";
-				ppc_insn := PPC_RLDICL;
-			elsif std_match(f_in.insn, "---------------------------001--") then
-				report "PPC_rldicr";
-				ppc_insn := PPC_RLDICR;
-			elsif std_match(f_in.insn, "---------------------------011--") then
-				report "PPC_rldimi";
-				ppc_insn := PPC_RLDIMI;
-			else
-				report "PPC_illegal";
-				ppc_insn := PPC_ILLEGAL;
-			end if;
-			v.decode := decode_op_30_array(ppc_insn);
+                        v.decode := decode_op_30_array(to_integer(unsigned(f_in.insn(4 downto 2))));
 
                 elsif majorop = "111010" then
                         v.decode := decode_op_58_array(to_integer(unsigned(f_in.insn(1 downto 0))));
