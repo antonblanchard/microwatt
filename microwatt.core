@@ -187,7 +187,7 @@ parameters:
     datatype    : int
     description : Generated system clock frequency in HZ (for top-generic based boards)
     paramtype   : generic
-    default     : 50000000
+    default     : 100000000
 
   disable_flatten_core:
     datatype    : bool
