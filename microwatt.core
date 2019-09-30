@@ -26,7 +26,6 @@ filesets:
       - divider.vhdl
       - writeback.vhdl
       - insn_helpers.vhdl
-      - wishbone_debug_master.vhdl
       - core.vhdl
       - icache.vhdl
       - core_debug.vhdl
