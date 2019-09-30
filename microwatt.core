@@ -81,7 +81,11 @@ targets:
   nexys_a7:
     default_tool: vivado
     filesets: [core, nexys_a7, soc, fpga, debug_xilinx]
-    parameters : [memory_size, ram_init_file]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - clk_input
+      - clk_frequency
     tools:
       vivado: {part : xc7a100tcsg324-1}
     toplevel : toplevel
@@ -89,7 +93,11 @@ targets:
   nexys_video:
     default_tool: vivado
     filesets: [core, nexys_video, soc, fpga, debug_xilinx]
-    parameters : [memory_size, ram_init_file]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - clk_input
+      - clk_frequency
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -97,7 +105,11 @@ targets:
   arty_a7-35:
     default_tool: vivado
     filesets: [core, arty_a7, soc, fpga, debug_xilinx]
-    parameters : [memory_size, ram_init_file]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - clk_input
+      - clk_frequency
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
@@ -105,7 +117,11 @@ targets:
   arty_a7-100:
     default_tool: vivado
     filesets: [core, arty_a7, soc, fpga, debug_xilinx]
-    parameters : [memory_size, ram_init_file]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - clk_input
+      - clk_frequency
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -113,7 +129,11 @@ targets:
   cmod_a7-35:
     default_tool: vivado
     filesets: [core, cmod_a7-35, soc, fpga, debug_xilinx]
-    parameters : [memory_size, ram_init_file, reset_low=false]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - reset_low=false
+      - clk_input=12000000
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel
@@ -139,3 +159,15 @@ parameters:
     datatype    : bool
     description : External reset button polarity
     paramtype   : generic
+
+  clk_input:
+    datatype    : int
+    description : Clock input frequency in HZ (for top-generic based boards)
+    paramtype   : generic
+    default     : 100000000
+
+  clk_frequency:
+    datatype    : int
+    description : Generated system clock frequency in HZ (for top-generic based boards)
+    paramtype   : generic
+    default     : 50000000
