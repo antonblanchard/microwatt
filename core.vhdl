@@ -115,7 +115,7 @@ begin
 
     icache_0: entity work.icache
         generic map(
-            LINE_SIZE_DW => 8,
+            LINE_SIZE => 64,
             NUM_LINES => 16
             )
         port map(

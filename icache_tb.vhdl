@@ -22,7 +22,7 @@ architecture behave of icache_tb is
 begin
     icache0: entity work.icache
         generic map(
-            LINE_SIZE_DW => 8,
+            LINE_SIZE => 64,
             NUM_LINES => 4
             )
         port map(
