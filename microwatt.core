@@ -26,7 +26,6 @@ filesets:
       - divider.vhdl
       - writeback.vhdl
       - insn_helpers.vhdl
-      - wishbone_debug_master.vhdl
       - core.vhdl
       - icache.vhdl
       - core_debug.vhdl
@@ -68,14 +67,9 @@ filesets:
       - fpga/nexys-video.xdc : {file_type : xdc}
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
 
-  arty_a7-35:
+  arty_a7:
     files:
-      - fpga/arty_a7-35.xdc : {file_type : xdc}
-      - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
-
-  arty_a7-100:
-    files:
-      - fpga/arty_a7-35.xdc : {file_type : xdc}
+      - fpga/arty_a7.xdc : {file_type : xdc}
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
 
   cmod_a7-35:
@@ -102,7 +96,7 @@ targets:
 
   arty_a7-35:
     default_tool: vivado
-    filesets: [core, arty_a7-35, soc, fpga, debug_xilinx]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx]
     parameters : [memory_size, ram_init_file]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -110,7 +104,7 @@ targets:
 
   arty_a7-100:
     default_tool: vivado
-    filesets: [core, arty_a7-100, soc, fpga, debug_xilinx]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx]
     parameters : [memory_size, ram_init_file]
     tools:
       vivado: {part : xc7a100ticsg324-1L}

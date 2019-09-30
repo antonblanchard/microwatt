@@ -70,7 +70,6 @@ begin
 		ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
 
 		terminate_out <= '0';
-		flush_out <= '0';
 		f_out <= Execute1ToFetch1TypeInit;
 
 		if e_in.valid = '1' then
@@ -100,7 +99,6 @@ begin
 					result := ppc_andc(e_in.read_data1, e_in.read_data2);
 					result_en := 1;
 				when OP_B =>
-					flush_out <= '1';
 					f_out.redirect <= '1';
 					f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
 				when OP_BC =>
@@ -108,7 +106,6 @@ begin
 						ctrl_tmp.ctr <= std_ulogic_vector(unsigned(ctrl.ctr) - 1);
 					end if;
 					if ppc_bc_taken(e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.cr, ctrl.ctr) = 1 then
-						flush_out <= '1';
 						f_out.redirect <= '1';
 						f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
 					end if;
@@ -117,13 +114,11 @@ begin
 						ctrl_tmp.ctr <= std_ulogic_vector(unsigned(ctrl.ctr) - 1);
 					end if;
 					if ppc_bc_taken(e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.cr, ctrl.ctr) = 1 then
-						flush_out <= '1';
 						f_out.redirect <= '1';
 						f_out.redirect_nia <= ctrl.lr(63 downto 2) & "00";
 					end if;
 				when OP_BCCTR =>
 					if ppc_bcctr_taken(e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.cr) = 1 then
-						flush_out <= '1';
 						f_out.redirect <= '1';
 						f_out.redirect_nia <= ctrl.ctr(63 downto 2) & "00";
 					end if;
@@ -354,5 +349,6 @@ begin
 		-- update outputs
 		--f_out <= r.f;
 		e_out <= r.e;
+		flush_out <= f_out.redirect;
 	end process;
 end architecture behaviour;

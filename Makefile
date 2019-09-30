@@ -16,7 +16,7 @@ common.o: decode_types.o
 sim_jtag.o: sim_jtag_socket.o
 core_tb.o: common.o wishbone_types.o core.o soc.o sim_jtag.o
 core.o: common.o wishbone_types.o fetch1.o fetch2.o icache.o decode1.o decode2.o register_file.o cr_file.o execute1.o execute2.o loadstore1.o loadstore2.o multiply.o writeback.o core_debug.o divider.o
-core_debug.o:
+core_debug.o: common.o
 cr_file.o: common.o
 crhelpers.o: common.o
 decode1.o: common.o decode_types.o
@@ -50,7 +50,7 @@ wishbone_arbiter.o: wishbone_types.o
 wishbone_types.o:
 writeback.o: common.o
 dmi_dtm_tb.o: dmi_dtm_xilinx.o wishbone_debug_master.o
-dmi_dtm_xilinx.o: sim-unisim/unisim_vcomponents.o
+dmi_dtm_xilinx.o: wishbone_types.o sim-unisim/unisim_vcomponents.o
 wishbone_debug_master.o: wishbone_types.o
 
 UNISIM_BITS = sim-unisim/unisim_vcomponents.vhdl sim-unisim/BSCANE2.vhdl sim-unisim/BUFG.vhdl
