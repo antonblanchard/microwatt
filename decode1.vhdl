@@ -27,9 +27,8 @@ architecture behaviour of decode1 is
         type minor_valid_array_t is array(0 to 1023) of std_ulogic;
         type op_19_subop_array_t is array(0 to 7) of decode_rom_t;
         type op_30_subop_array_t is array(0 to 7) of decode_rom_t;
+        type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
         type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
-
-	type decode_rom_array_t is array(ppc_insn_t) of decode_rom_t;
 
         constant illegal_inst : decode_rom_t :=
                             (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1');
@@ -126,121 +125,165 @@ architecture behaviour of decode1 is
         );
 
 	-- Note: reformat with column -t -o ' '
-	constant decode_op_31_array : decode_rom_array_t := (
+	constant decode_op_31_array : op_31_subop_array_t := (
 		--                       unit     internal     in1         in2          in3   out   const const const CR   CR   cry  cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
 		--                                      op                                          1     2     3     in   out  in   out  len        ext             32  sgn             pipe
-		PPC_ILLEGAL    =>       (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_ADD        =>       (ALU,    OP_ADD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_ADDC       =>       (ALU,    OP_ADDE,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_ADDE       =>       (ALU,    OP_ADDE,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		--PPC_ADDEX
-		--PPC_ADDME
-		PPC_ADDZE      =>       (ALU,    OP_ADDE,      RA,         NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_AND        =>       (ALU,    OP_AND,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_ANDC       =>       (ALU,    OP_ANDC,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		--PPC_BPERM
-		PPC_CMP        =>       (ALU,    OP_CMP,       RA,         RB,          NONE, NONE, BF,   L,    NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_CMPB       =>       (ALU,    OP_CMPB,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		--PPC_CMPEQB
-		PPC_CMPL       =>       (ALU,    OP_CMPL,      RA,         RB,          NONE, NONE, BF,   L,    NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		--PPC_CMPRB
-		PPC_CNTLZD     =>       (ALU,    OP_CNTLZD,    RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_CNTLZW     =>       (ALU,    OP_CNTLZW,    RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_CNTTZD     =>       (ALU,    OP_CNTTZD,    RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_CNTTZW     =>       (ALU,    OP_CNTTZW,    RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		--PPC_DARN
-		PPC_DCBF       =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_DCBST      =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_DCBT       =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_DCBTST     =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		--PPC_DCBZ
-		PPC_DIV        =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_EQV        =>       (ALU,    OP_EQV,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_EXTSB      =>       (ALU,    OP_EXTSB,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_EXTSH      =>       (ALU,    OP_EXTSH,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_EXTSW      =>       (ALU,    OP_EXTSW,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		--PPC_EXTSWSLI
-		--PPC_ICBI
-		PPC_ICBT       =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_ISEL       =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_LBARX      =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'),
-		PPC_LBZUX      =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'),
-		PPC_LBZX       =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_LDARX      =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'),
-		PPC_LDBRX      =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is8B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_LDUX       =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'),
-		PPC_LDX        =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_LHARX      =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'),
-		PPC_LHAUX      =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '1', '1', '0', '0', '0', NONE, '0', '1'),
-		PPC_LHAX       =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_LHBRX      =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_LHZUX      =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'),
-		PPC_LHZX       =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_LWARX      =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'),
-		PPC_LWAUX      =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '1', '1', '0', '0', '0', NONE, '0', '1'),
-		PPC_LWAX       =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_LWBRX      =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_LWZUX      =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'),
-		PPC_LWZX       =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		--PPC_MCRXR
-		--PPC_MCRXRX
-		PPC_MFCR       =>       (ALU,    OP_MFCR,      NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MFOCRF     =>       (ALU,    OP_MFOCRF,    NONE,       NONE,        NONE, RT,   FXM,  NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MFSPR      =>       (ALU,    OP_MFSPR,     NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MOD        =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_MTCRF      =>       (ALU,    OP_MTCRF,     RS,         NONE,        NONE, NONE, FXM,  NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MTOCRF     =>       (ALU,    OP_MTOCRF,    RS,         NONE,        NONE, NONE, FXM,  NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MTSPR      =>       (ALU,    OP_MTSPR,     RS,         NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_MULHD      =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'),
-		PPC_MULHDU     =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_MULHW      =>       (MUL,    OP_MUL_H32,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'),
-		PPC_MULHWU     =>       (MUL,    OP_MUL_H32,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '1'),
-		PPC_MULLD      =>       (MUL,    OP_MUL_L64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'),
-		PPC_MULLW      =>       (MUL,    OP_MUL_L64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'),
-		PPC_NAND       =>       (ALU,    OP_NAND,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_NEG        =>       (ALU,    OP_NEG,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_NOR        =>       (ALU,    OP_NOR,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_OR         =>       (ALU,    OP_OR,        RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_ORC        =>       (ALU,    OP_ORC,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_POPCNTB    =>       (ALU,    OP_POPCNTB,   RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_POPCNTD    =>       (ALU,    OP_POPCNTD,   RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_POPCNTW    =>       (ALU,    OP_POPCNTW,   RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_PRTYD      =>       (ALU,    OP_PRTYD,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_PRTYW      =>       (ALU,    OP_PRTYW,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		--PPC_SETB
-		PPC_SLD        =>       (ALU,    OP_SLD,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SLW        =>       (ALU,    OP_SLW,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SRAD       =>       (ALU,    OP_SRAD,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SRADI      =>       (ALU,    OP_SRADI,     RS,         NONE,        NONE, RA,   SH,   NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SRAW       =>       (ALU,    OP_SRAW,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SRAWI      =>       (ALU,    OP_SRAWI,     RS,         NONE,        NONE, RA,   SH,   NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SRD        =>       (ALU,    OP_SRD,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SRW        =>       (ALU,    OP_SRW,       RS,         RB,          RS,   RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_STBCX      =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '1', '0', '0', RC,   '0', '1'),
-		PPC_STBUX      =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', RC,   '0', '1'),
-		PPC_STBX       =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_STDBRX     =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is8B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_STDCX      =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'),
-		PPC_STDUX      =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'),
-		PPC_STDX       =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_STHBRX     =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is2B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_STHCX      =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'),
-		PPC_STHUX      =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'),
-		PPC_STHX       =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_STWBRX     =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is4B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_STWCX      =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'),
-		PPC_STWUX      =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'),
-		PPC_STWX       =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_SUBF       =>       (ALU,    OP_SUBF,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SUBFC      =>       (ALU,    OP_SUBFE,     RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SUBFE      =>       (ALU,    OP_SUBFE,     RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		--PPC_SUBFME
-		PPC_SUBFZE     =>       (ALU,    OP_SUBFE,     RA,         NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		PPC_SYNC       =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		--PPC_TD
-		PPC_TW         =>       (ALU,    OP_TW,        RA,         RB,          NONE, NONE, TOO,  NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
-		PPC_XOR        =>       (ALU,    OP_XOR,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		others => decode_rom_init
+		2#0100001010#  =>       (ALU,    OP_ADD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- add
+		2#0000001010#  =>       (ALU,    OP_ADDE,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- addc
+		2#0010001010#  =>       (ALU,    OP_ADDE,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- adde
+		-- 2#--10101010# addex
+		-- 2#0011101010# addme
+		2#0011001010#  =>       (ALU,    OP_ADDE,      RA,         NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- addze
+		2#0000011100#  =>       (ALU,    OP_AND,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- and
+		2#0000111100#  =>       (ALU,    OP_ANDC,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- andc
+		-- 2#0011111100# bperm
+		2#0000000000#  =>       (ALU,    OP_CMP,       RA,         RB,          NONE, NONE, BF,   L,    NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- cmp
+		2#0111111100#  =>       (ALU,    OP_CMPB,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- cmpb
+		-- 2#0011100000# cmpeqb
+		2#0000100000#  =>       (ALU,    OP_CMPL,      RA,         RB,          NONE, NONE, BF,   L,    NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- cmpl
+		-- 2#0011000000# cmprb
+		2#0000111010#  =>       (ALU,    OP_CNTLZD,    RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- cntlzd
+		2#0000011010#  =>       (ALU,    OP_CNTLZW,    RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- cntlzw
+		2#1000111010#  =>       (ALU,    OP_CNTTZD,    RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- cnttzd
+		2#1000011010#  =>       (ALU,    OP_CNTTZW,    RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- cnttzw
+		-- 2#1011110011# darn
+		2#0001010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbf
+		2#0000110110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbst
+		2#0100010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbt
+		2#0011110110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbtst
+		-- 2#1111110110# dcbz
+		2#0110001001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divdeu
+		2#0110001011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divweu
+		2#0110101001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divde
+		2#0110101011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divwe
+		2#0111001001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divdu
+		2#0111001011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divwu
+		2#0111101001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divd
+		2#0111101011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divw
+		2#0100011100#  =>       (ALU,    OP_EQV,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- eqv
+		2#1110111010#  =>       (ALU,    OP_EXTSB,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- extsb
+		2#1110011010#  =>       (ALU,    OP_EXTSH,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- extsh
+		2#1111011010#  =>       (ALU,    OP_EXTSW,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- extsw
+		-- 2#110111101-# extswsli
+		-- 2#1111010110# icbi
+		2#0000010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- icbt
+		2#0000001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0000101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0001001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0001101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0010001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0010101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0011001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0011101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0100001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0100101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0101001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0101101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0110001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0110101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0111001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0111101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1000001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1000101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1001001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1001101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1010001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1010101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1011001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1011101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1100001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1100101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1101001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1101101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1110001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1110101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1111001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#1111101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   BC,   NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
+		2#0000110100#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- lbarx
+		2#0001110111#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lbzux
+		2#0001010111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lbzx
+		2#0001010100#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- ldarx
+		2#1000010100#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is8B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- ldbrx
+		2#0000110101#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- ldux
+		2#0000010101#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- ldx
+		2#0001110100#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- lharx
+		2#0101110111#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '1', '1', '0', '0', '0', NONE, '0', '1'), -- lhaux
+		2#0101010111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '1'), -- lhax
+		2#1100010110#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lhbrx
+		2#0100110111#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lhzux
+		2#0100010111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lhzx
+		2#0000010100#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- lwarx
+		2#0101110101#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '1', '1', '0', '0', '0', NONE, '0', '1'), -- lwaux
+		2#0101010101#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '1'), -- lwax
+		2#1000010110#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lwbrx
+		2#0000110111#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lwzux
+		2#0000010111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lwzx
+		-- 2#1000000000# mcrxr
+		-- 2#1001000000# mcrxrx
+		2#0000010011#  =>       (ALU,    OP_MFCR,      NONE,       NONE,        NONE, RT,   FXM,  NONE, NONE, '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mfcr/mfocrf
+		2#0101010011#  =>       (ALU,    OP_MFSPR,     NONE,       NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mfspr
+		2#0100001001#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- modud
+		2#0100001011#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- moduw
+		2#1100001001#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- modsd
+		2#1100001011#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- modsw
+		2#0010010000#  =>       (ALU,    OP_MTCRF,     RS,         NONE,        NONE, NONE, FXM,  NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mtcrf/mtocrf
+		2#0111010011#  =>       (ALU,    OP_MTSPR,     RS,         NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mtspr
+		2#0001001001#  =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- mulhd
+		2#0000001001#  =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- mulhdu
+		2#0001001011#  =>       (MUL,    OP_MUL_H32,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'), -- mulhw
+		2#0000001011#  =>       (MUL,    OP_MUL_H32,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '1'), -- mulhwu
+                -- next 4 have reserved bit set
+		2#1001001001#  =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- mulhd
+		2#1000001001#  =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- mulhdu
+		2#1001001011#  =>       (MUL,    OP_MUL_H32,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'), -- mulhw
+		2#1000001011#  =>       (MUL,    OP_MUL_H32,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '1'), -- mulhwu
+		2#0011101001#  =>       (MUL,    OP_MUL_L64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- mulld
+		2#0011101011#  =>       (MUL,    OP_MUL_L64,   RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'), -- mullw
+		2#0111011100#  =>       (ALU,    OP_NAND,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- nand
+		2#0001101000#  =>       (ALU,    OP_NEG,       RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- neg
+		2#0001111100#  =>       (ALU,    OP_NOR,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- nor
+		2#0110111100#  =>       (ALU,    OP_OR,        RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- or
+		2#0110011100#  =>       (ALU,    OP_ORC,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- orc
+		2#0001111010#  =>       (ALU,    OP_POPCNTB,   RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- popcntb
+		2#0111111010#  =>       (ALU,    OP_POPCNTD,   RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- popcntd
+		2#0101111010#  =>       (ALU,    OP_POPCNTW,   RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- popcntw
+		2#0010111010#  =>       (ALU,    OP_PRTYD,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- prtyd
+		2#0010011010#  =>       (ALU,    OP_PRTYW,     RS,         NONE,        NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- prtyw
+		-- 2#0010000000# setb
+		2#0000011011#  =>       (ALU,    OP_SLD,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- sld
+		2#0000011000#  =>       (ALU,    OP_SLW,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- slw
+		2#1100011010#  =>       (ALU,    OP_SRAD,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srad
+		2#1100111010#  =>       (ALU,    OP_SRADI,     RS,         NONE,        NONE, RA,   SH,   NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- sradi
+		2#1100111011#  =>       (ALU,    OP_SRADI,     RS,         NONE,        NONE, RA,   SH,   NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- sradi
+		2#1100011000#  =>       (ALU,    OP_SRAW,      RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- sraw
+		2#1100111000#  =>       (ALU,    OP_SRAWI,     RS,         NONE,        NONE, RA,   SH,   NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srawi
+		2#1000011011#  =>       (ALU,    OP_SRD,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srd
+		2#1000011000#  =>       (ALU,    OP_SRW,       RS,         RB,          RS,   RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srw
+		2#1010110110#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '1', '0', '0', RC,   '0', '1'), -- stbcx
+		2#0011110111#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', RC,   '0', '1'), -- stbux
+		2#0011010111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- stbx
+		2#1010010100#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is8B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- stdbrx
+		2#0011010110#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- stdcx
+		2#0010110101#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stdux
+		2#0010010101#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- stdx
+		2#1110010110#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is2B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- sthbrx
+		2#1011010110#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- sthcx
+		2#0110110111#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- sthux
+		2#0110010111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- sthx
+		2#1010010110#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is4B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- stwbrx
+		2#0010010110#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- stwcx
+		2#0010110111#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stwux
+		2#0010010111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, NONE, NONE, NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- stwx
+		2#0000101000#  =>       (ALU,    OP_SUBF,      RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- subf
+		2#0000001000#  =>       (ALU,    OP_SUBFE,     RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- subfc
+		2#0010001000#  =>       (ALU,    OP_SUBFE,     RA,         RB,          NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- subfe
+		-- 2#0011101000# subfme
+		2#0011001000#  =>       (ALU,    OP_SUBFE,     RA,         NONE,        NONE, RT,   NONE, NONE, NONE, '0', '0', '1', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- subfze
+		2#1001010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- sync
+		-- 2#0001000100# td
+		2#0000000100#  =>       (ALU,    OP_TW,        RA,         RB,          NONE, NONE, TOO,  NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- tw
+		2#0100111100#  =>       (ALU,    OP_XOR,       RS,         RB,          NONE, RA,   NONE, NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- xor
+		others => illegal_inst
 	);
 
         constant decode_op_58_array : minor_rom_array_2_t := (
@@ -277,7 +320,6 @@ begin
 
 	decode1_1: process(all)
 		variable v : Decode1ToDecode2Type;
-		variable ppc_insn: ppc_insn_t;
                 variable majorop : major_opcode_t;
                 variable op_19_bits: std_ulogic_vector(2 downto 0);
                 variable op_30_bits: std_ulogic_vector(2 downto 0);
@@ -289,8 +331,6 @@ begin
 		v.insn := f_in.insn;
 		v.stop_mark := f_in.stop_mark;
 
-		ppc_insn := PPC_ILLEGAL;
-
 		if f_in.valid = '1' then
 			report "Decode insn " & to_hstring(f_in.insn) & " at " & to_hstring(f_in.nia);
                 end if;
@@ -298,342 +338,7 @@ begin
                 majorop := unsigned(f_in.insn(31 downto 26));
                 if majorop = "011111" then
                         -- major opcode 31, lots of things
-			if std_match(f_in.insn, "---------------------0100001010-") then
-				report "PPC_add";
-				ppc_insn := PPC_ADD;
-			elsif std_match(f_in.insn, "---------------------0000001010-") then
-				report "PPC_addc";
-				ppc_insn := PPC_ADDC;
-			elsif std_match(f_in.insn, "---------------------0010001010-") then
-				report "PPC_adde";
-				ppc_insn := PPC_ADDE;
-			elsif std_match(f_in.insn, "---------------------0010101010-") then
-				report "PPC_addex";
-				ppc_insn := PPC_ADDEX;
-			elsif std_match(f_in.insn, "---------------------0011101010-") then
-				report "PPC_addme";
-				ppc_insn := PPC_ADDME;
-			elsif std_match(f_in.insn, "---------------------0011001010-") then
-				report "PPC_addze";
-				ppc_insn := PPC_ADDZE;
-			elsif std_match(f_in.insn, "---------------------0000011100-") then
-				report "PPC_and";
-				ppc_insn := PPC_AND;
-			elsif std_match(f_in.insn, "---------------------0000111100-") then
-				report "PPC_andc";
-				ppc_insn := PPC_ANDC;
-			elsif std_match(f_in.insn, "---------------------0011111100-") then
-				report "PPC_bperm";
-				ppc_insn := PPC_BPERM;
-			elsif std_match(f_in.insn, "---------------------0000000000-") then
-				report "PPC_cmp";
-				ppc_insn := PPC_CMP;
-			elsif std_match(f_in.insn, "---------------------0111111100-") then
-				report "PPC_cmpb";
-				ppc_insn := PPC_CMPB;
-			elsif std_match(f_in.insn, "---------------------0011100000-") then
-				report "PPC_cmpeqb";
-				ppc_insn := PPC_CMPEQB;
-			elsif std_match(f_in.insn, "---------------------0000100000-") then
-				report "PPC_cmpl";
-				ppc_insn := PPC_CMPL;
-			elsif std_match(f_in.insn, "---------------------0011000000-") then
-				report "PPC_cmprb";
-				ppc_insn := PPC_CMPRB;
-			elsif std_match(f_in.insn, "---------------------0000111010-") then
-				report "PPC_cntlzd";
-				ppc_insn := PPC_CNTLZD;
-			elsif std_match(f_in.insn, "---------------------0000011010-") then
-				report "PPC_cntlzw";
-				ppc_insn := PPC_CNTLZW;
-			elsif std_match(f_in.insn, "---------------------1000111010-") then
-				report "PPC_cnttzd";
-				ppc_insn := PPC_CNTTZD;
-			elsif std_match(f_in.insn, "---------------------1000011010-") then
-				report "PPC_cnttzw";
-				ppc_insn := PPC_CNTTZW;
-			elsif std_match(f_in.insn, "---------------------1011110011-") then
-				report "PPC_darn";
-				ppc_insn := PPC_DARN;
-			elsif std_match(f_in.insn, "---------------------0001010110-") then
-				report "PPC_dcbf";
-				ppc_insn := PPC_DCBF;
-			elsif std_match(f_in.insn, "---------------------0000110110-") then
-				report "PPC_dcbst";
-				ppc_insn := PPC_DCBST;
-			elsif std_match(f_in.insn, "---------------------0100010110-") then
-				report "PPC_dcbt";
-				ppc_insn := PPC_DCBT;
-			elsif std_match(f_in.insn, "---------------------0011110110-") then
-				report "PPC_dcbtst";
-				ppc_insn := PPC_DCBTST;
-			elsif std_match(f_in.insn, "---------------------1111110110-") then
-				report "PPC_dcbz";
-				ppc_insn := PPC_DCBZ;
-			elsif std_match(f_in.insn, "----------------------11--010-1-") then
-				report "PPC_div";
-				ppc_insn := PPC_DIV;
-			elsif std_match(f_in.insn, "---------------------0100011100-") then
-				report "PPC_eqv";
-				ppc_insn := PPC_EQV;
-			elsif std_match(f_in.insn, "---------------------1110111010-") then
-				report "PPC_extsb";
-				ppc_insn := PPC_EXTSB;
-			elsif std_match(f_in.insn, "---------------------1110011010-") then
-				report "PPC_extsh";
-				ppc_insn := PPC_EXTSH;
-			elsif std_match(f_in.insn, "---------------------1111011010-") then
-				report "PPC_extsw";
-				ppc_insn := PPC_EXTSW;
-			elsif std_match(f_in.insn, "---------------------110111101--") then
-				report "PPC_extswsli";
-				ppc_insn := PPC_EXTSWSLI;
-			elsif std_match(f_in.insn, "---------------------1111010110-") then
-				report "PPC_icbi";
-				ppc_insn := PPC_ICBI;
-			elsif std_match(f_in.insn, "---------------------0000010110-") then
-				report "PPC_icbt";
-				ppc_insn := PPC_ICBT;
-			elsif std_match(f_in.insn, "--------------------------01111-") then
-				report "PPC_isel";
-				ppc_insn := PPC_ISEL;
-			elsif std_match(f_in.insn, "---------------------0000110100-") then
-				report "PPC_lbarx";
-				ppc_insn := PPC_LBARX;
-			elsif std_match(f_in.insn, "---------------------0001110111-") then
-				report "PPC_lbzux";
-				ppc_insn := PPC_LBZUX;
-			elsif std_match(f_in.insn, "---------------------0001010111-") then
-				report "PPC_lbzx";
-				ppc_insn := PPC_LBZX;
-			elsif std_match(f_in.insn, "---------------------0001010100-") then
-				report "PPC_ldarx";
-				ppc_insn := PPC_LDARX;
-			elsif std_match(f_in.insn, "---------------------1000010100-") then
-				report "PPC_ldbrx";
-				ppc_insn := PPC_LDBRX;
-			elsif std_match(f_in.insn, "---------------------0000110101-") then
-				report "PPC_ldux";
-				ppc_insn := PPC_LDUX;
-			elsif std_match(f_in.insn, "---------------------0000010101-") then
-				report "PPC_ldx";
-				ppc_insn := PPC_LDX;
-			elsif std_match(f_in.insn, "---------------------0001110100-") then
-				report "PPC_lharx";
-				ppc_insn := PPC_LHARX;
-			elsif std_match(f_in.insn, "---------------------0101110111-") then
-				report "PPC_lhaux";
-				ppc_insn := PPC_LHAUX;
-			elsif std_match(f_in.insn, "---------------------0101010111-") then
-				report "PPC_lhax";
-				ppc_insn := PPC_LHAX;
-			elsif std_match(f_in.insn, "---------------------1100010110-") then
-				report "PPC_lhbrx";
-				ppc_insn := PPC_LHBRX;
-			elsif std_match(f_in.insn, "---------------------0100110111-") then
-				report "PPC_lhzux";
-				ppc_insn := PPC_LHZUX;
-			elsif std_match(f_in.insn, "---------------------0100010111-") then
-				report "PPC_lhzx";
-				ppc_insn := PPC_LHZX;
-			elsif std_match(f_in.insn, "---------------------0000010100-") then
-				report "PPC_lwarx";
-				ppc_insn := PPC_LWARX;
-			elsif std_match(f_in.insn, "---------------------0101110101-") then
-				report "PPC_lwaux";
-				ppc_insn := PPC_LWAUX;
-			elsif std_match(f_in.insn, "---------------------0101010101-") then
-				report "PPC_lwax";
-				ppc_insn := PPC_LWAX;
-			elsif std_match(f_in.insn, "---------------------1000010110-") then
-				report "PPC_lwbrx";
-				ppc_insn := PPC_LWBRX;
-			elsif std_match(f_in.insn, "---------------------0000110111-") then
-				report "PPC_lwzux";
-				ppc_insn := PPC_LWZUX;
-			elsif std_match(f_in.insn, "---------------------0000010111-") then
-				report "PPC_lwzx";
-				ppc_insn := PPC_LWZX;
-			elsif std_match(f_in.insn, "---------------------1000000000-") then
-				report "PPC_mcrxr";
-				ppc_insn := PPC_MCRXR;
-			elsif std_match(f_in.insn, "---------------------1001000000-") then
-				report "PPC_mcrxrx";
-				ppc_insn := PPC_MCRXRX;
-			elsif std_match(f_in.insn, "-----------0---------0000010011-") then
-				report "PPC_mfcr";
-				ppc_insn := PPC_MFCR;
-			elsif std_match(f_in.insn, "-----------1---------0000010011-") then
-				report "PPC_mfocrf";
-				ppc_insn := PPC_MFOCRF;
-			elsif std_match(f_in.insn, "---------------------0101010011-") then
-				report "PPC_mfspr";
-				ppc_insn := PPC_MFSPR;
-			elsif std_match(f_in.insn, "----------------------1000010-1-") then
-				report "PPC_mod";
-				ppc_insn := PPC_MOD;
-			elsif std_match(f_in.insn, "-----------0---------0010010000-") then
-				report "PPC_mtcrf";
-				ppc_insn := PPC_MTCRF;
-			elsif std_match(f_in.insn, "-----------1---------0010010000-") then
-				report "PPC_mtocrf";
-				ppc_insn := PPC_MTOCRF;
-			elsif std_match(f_in.insn, "---------------------0111010011-") then
-				report "PPC_mtspr";
-				ppc_insn := PPC_MTSPR;
-			elsif std_match(f_in.insn, "----------------------001001001-") then
-				report "PPC_mulhd";
-				ppc_insn := PPC_MULHD;
-			elsif std_match(f_in.insn, "----------------------000001001-") then
-				report "PPC_mulhdu";
-				ppc_insn := PPC_MULHDU;
-			elsif std_match(f_in.insn, "----------------------001001011-") then
-				report "PPC_mulhw";
-				ppc_insn := PPC_MULHW;
-			elsif std_match(f_in.insn, "----------------------000001011-") then
-				report "PPC_mulhwu";
-				ppc_insn := PPC_MULHWU;
-			elsif std_match(f_in.insn, "---------------------0011101001-") then
-				report "PPC_mulld";
-				ppc_insn := PPC_MULLD;
-			elsif std_match(f_in.insn, "---------------------0011101011-") then
-				report "PPC_mullw";
-				ppc_insn := PPC_MULLW;
-			elsif std_match(f_in.insn, "---------------------0111011100-") then
-				report "PPC_nand";
-				ppc_insn := PPC_NAND;
-			elsif std_match(f_in.insn, "---------------------0001101000-") then
-				report "PPC_neg";
-				ppc_insn := PPC_NEG;
-			elsif std_match(f_in.insn, "---------------------0001111100-") then
-				report "PPC_nor";
-				ppc_insn := PPC_NOR;
-			elsif std_match(f_in.insn, "---------------------0110111100-") then
-				report "PPC_or";
-				ppc_insn := PPC_OR;
-			elsif std_match(f_in.insn, "---------------------0110011100-") then
-				report "PPC_orc";
-				ppc_insn := PPC_ORC;
-				-- Has to be before ori
-			elsif std_match(f_in.insn, "---------------------0001111010-") then
-				report "PPC_popcntb";
-				ppc_insn := PPC_POPCNTB;
-			elsif std_match(f_in.insn, "---------------------0111111010-") then
-				report "PPC_popcntd";
-				ppc_insn := PPC_POPCNTD;
-			elsif std_match(f_in.insn, "---------------------0101111010-") then
-				report "PPC_popcntw";
-				ppc_insn := PPC_POPCNTW;
-			elsif std_match(f_in.insn, "---------------------0010111010-") then
-				report "PPC_prtyd";
-				ppc_insn := PPC_PRTYD;
-			elsif std_match(f_in.insn, "---------------------0010011010-") then
-				report "PPC_prtyw";
-				ppc_insn := PPC_PRTYW;
-			elsif std_match(f_in.insn, "---------------------0010000000-") then
-				report "PPC_setb";
-				ppc_insn := PPC_SETB;
-			elsif std_match(f_in.insn, "---------------------0000011011-") then
-				report "PPC_sld";
-				ppc_insn := PPC_SLD;
-			elsif std_match(f_in.insn, "---------------------0000011000-") then
-				report "PPC_slw";
-				ppc_insn := PPC_SLW;
-			elsif std_match(f_in.insn, "---------------------1100011010-") then
-				report "PPC_srad";
-				ppc_insn := PPC_SRAD;
-			elsif std_match(f_in.insn, "---------------------110011101--") then
-				report "PPC_sradi";
-				ppc_insn := PPC_SRADI;
-			elsif std_match(f_in.insn, "---------------------1100011000-") then
-				report "PPC_sraw";
-				ppc_insn := PPC_SRAW;
-			elsif std_match(f_in.insn, "---------------------1100111000-") then
-				report "PPC_srawi";
-				ppc_insn := PPC_SRAWI;
-			elsif std_match(f_in.insn, "---------------------1000011011-") then
-				report "PPC_srd";
-				ppc_insn := PPC_SRD;
-			elsif std_match(f_in.insn, "---------------------1000011000-") then
-				report "PPC_srw";
-				ppc_insn := PPC_SRW;
-			elsif std_match(f_in.insn, "---------------------1010110110-") then
-				report "PPC_stbcx";
-				ppc_insn := PPC_STBCX;
-			elsif std_match(f_in.insn, "---------------------0011110111-") then
-				report "PPC_stbux";
-				ppc_insn := PPC_STBUX;
-			elsif std_match(f_in.insn, "---------------------0011010111-") then
-				report "PPC_stbx";
-				ppc_insn := PPC_STBX;
-			elsif std_match(f_in.insn, "---------------------1010010100-") then
-				report "PPC_stdbrx";
-				ppc_insn := PPC_STDBRX;
-			elsif std_match(f_in.insn, "---------------------0011010110-") then
-				report "PPC_stdcx";
-				ppc_insn := PPC_STDCX;
-			elsif std_match(f_in.insn, "---------------------0010110101-") then
-				report "PPC_stdux";
-				ppc_insn := PPC_STDUX;
-			elsif std_match(f_in.insn, "---------------------0010010101-") then
-				report "PPC_stdx";
-				ppc_insn := PPC_STDX;
-			elsif std_match(f_in.insn, "---------------------1110010110-") then
-				report "PPC_sthbrx";
-				ppc_insn := PPC_STHBRX;
-			elsif std_match(f_in.insn, "---------------------1011010110-") then
-				report "PPC_sthcx";
-				ppc_insn := PPC_STHCX;
-			elsif std_match(f_in.insn, "---------------------0110110111-") then
-				report "PPC_sthux";
-				ppc_insn := PPC_STHUX;
-			elsif std_match(f_in.insn, "---------------------0110010111-") then
-				report "PPC_sthx";
-				ppc_insn := PPC_STHX;
-			elsif std_match(f_in.insn, "---------------------1010010110-") then
-				report "PPC_stwbrx";
-				ppc_insn := PPC_STWBRX;
-			elsif std_match(f_in.insn, "---------------------0010010110-") then
-				report "PPC_stwcx";
-				ppc_insn := PPC_STWCX;
-			elsif std_match(f_in.insn, "---------------------0010110111-") then
-				report "PPC_stwux";
-				ppc_insn := PPC_STWUX;
-			elsif std_match(f_in.insn, "---------------------0010010111-") then
-				report "PPC_stwx";
-				ppc_insn := PPC_STWX;
-			elsif std_match(f_in.insn, "---------------------0000101000-") then
-				report "PPC_subf";
-				ppc_insn := PPC_SUBF;
-			elsif std_match(f_in.insn, "---------------------0000001000-") then
-				report "PPC_subfc";
-				ppc_insn := PPC_SUBFC;
-			elsif std_match(f_in.insn, "---------------------0010001000-") then
-				report "PPC_subfe";
-				ppc_insn := PPC_SUBFE;
-			elsif std_match(f_in.insn, "---------------------0011101000-") then
-				report "PPC_subfme";
-				ppc_insn := PPC_SUBFME;
-			elsif std_match(f_in.insn, "---------------------0011001000-") then
-				report "PPC_subfze";
-				ppc_insn := PPC_SUBFZE;
-			elsif std_match(f_in.insn, "---------------------1001010110-") then
-				report "PPC_sync";
-				ppc_insn := PPC_SYNC;
-			elsif std_match(f_in.insn, "---------------------0001000100-") then
-				report "PPC_td";
-				ppc_insn := PPC_TD;
-			elsif std_match(f_in.insn, "---------------------0000000100-") then
-				report "PPC_tw";
-				ppc_insn := PPC_TW;
-			elsif std_match(f_in.insn, "---------------------0100111100-") then
-				report "PPC_xor";
-				ppc_insn := PPC_XOR;
-			else
-				report "PPC_illegal";
-				ppc_insn := PPC_ILLEGAL;
-			end if;
-			v.decode := decode_op_31_array(ppc_insn);
+                        v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
 
                 elsif majorop = "010011" then
                         if decode_op_19_valid(to_integer(unsigned(f_in.insn(10 downto 1)))) = '0' then

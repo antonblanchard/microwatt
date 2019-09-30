@@ -215,28 +215,32 @@ begin
                                                 result_en := 1;
                                         end if;
 				when OP_MFCR =>
-					result := x"00000000" & e_in.cr;
-					result_en := 1;
-				when OP_MFOCRF =>
-					crnum := fxm_to_num(e_in.const1(7 downto 0));
-					result := (others => '0');
-					for i in 0 to 7 loop
-						lo := (7-i)*4;
-						hi := lo + 3;
-						if crnum = i then
-							result(hi downto lo) := e_in.cr(hi downto lo);
-						end if;
-					end loop;
+                                        if e_in.insn(20) = '0' then
+                                                -- mfcr
+                                                result := x"00000000" & e_in.cr;
+                                        else
+                                                -- mfocrf
+                                                crnum := fxm_to_num(e_in.const1(7 downto 0));
+                                                result := (others => '0');
+                                                for i in 0 to 7 loop
+                                                        lo := (7-i)*4;
+                                                        hi := lo + 3;
+                                                        if crnum = i then
+                                                                result(hi downto lo) := e_in.cr(hi downto lo);
+                                                        end if;
+                                                end loop;
+                                        end if;
 					result_en := 1;
 				when OP_MTCRF =>
 					v.e.write_cr_enable := '1';
-					v.e.write_cr_mask := e_in.const1(7 downto 0);
-					v.e.write_cr_data := e_in.read_data1(31 downto 0);
-				when OP_MTOCRF =>
-					v.e.write_cr_enable := '1';
-					-- We require one hot priority encoding here
-					crnum := fxm_to_num(e_in.const1(7 downto 0));
-					v.e.write_cr_mask := num_to_fxm(crnum);
+                                        if e_in.insn(20) = '0' then
+                                                -- mtcrf
+                                                v.e.write_cr_mask := e_in.const1(7 downto 0);
+                                        else
+                                                -- mtocrf: We require one hot priority encoding here
+                                                crnum := fxm_to_num(e_in.const1(7 downto 0));
+                                                v.e.write_cr_mask := num_to_fxm(crnum);
+                                        end if;
 					v.e.write_cr_data := e_in.read_data1(31 downto 0);
 				when OP_MTSPR =>
                                         if std_match(e_in.insn(20 downto 11), "0100100000") then
