@@ -26,49 +26,41 @@ entity fetch1 is
 end entity fetch1;
 
 architecture behaviour of fetch1 is
-    type reg_internal_type is record
-	nia_next : std_ulogic_vector(63 downto 0);
-    end record;
-    signal r_int, rin_int : reg_internal_type;
-    signal r, rin : Fetch1ToFetch2Type;
+    signal r, r_next : Fetch1ToFetch2Type;
 begin
+
     regs : process(clk)
     begin
 	if rising_edge(clk) then
-	    r <= rin;
-	    r_int <= rin_int;
+	    if rst = '1' or e_in.redirect = '1' or stall_in = '0' then
+		r <= r_next;
+	    end if;
 	end if;
     end process;
 
     comb : process(all)
-	variable v     : Fetch1ToFetch2Type;
-	variable v_int : reg_internal_type;
+	variable v : Fetch1ToFetch2Type;
     begin
 	v := r;
-	v_int := r_int;
-
-	if stall_in = '0' then
-	    v.nia := r_int.nia_next;
-	end if;
-
-	if e_in.redirect = '1' then
-	    v.nia := e_in.redirect_nia;
-	end if;
 
 	if rst = '1' then
-	    v.nia := RESET_ADDRESS;
+	    v.nia :=  RESET_ADDRESS;
+	elsif e_in.redirect = '1' then
+	    v.nia := e_in.redirect_nia;
+	else
+	    v.nia := std_logic_vector(unsigned(v.nia) + 4);
 	end if;
 
-	v_int.nia_next := std_logic_vector(unsigned(v.nia) + 4);
+	r_next <= v;
 
-	-- Update registers
-	rin <= v;
-	rin_int <= v_int;
-
-	-- Update outputs
+	-- Update outputs to the icache
 	f_out <= r;
 
-	report "fetch1 R:" & std_ulogic'image(e_in.redirect) & " v.nia:" & to_hstring(v.nia) & " f_out.nia:" & to_hstring(f_out.nia);
+	report "fetch1 rst:" & std_ulogic'image(rst) &
+	    " R:" & std_ulogic'image(e_in.redirect) &
+	    " S:" & std_ulogic'image(stall_in) &
+	    " nia_next:" & to_hstring(r_next.nia) &
+	    " nia:" & to_hstring(r.nia);
 
     end process;
 
