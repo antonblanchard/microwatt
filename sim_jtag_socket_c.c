@@ -105,7 +105,7 @@ static void open_socket(void)
 		fprintf(stderr, "Failed to listen to debug socket !\r\n");
 		goto fail;
 	}
-	fprintf(stderr, "Debug socket ready\r\n");
+	fprintf(stdout, "Debug socket ready\r\n");
 	return;
 fail:
 	if (fd >= 0)
@@ -121,7 +121,7 @@ static void check_connection(void)
 	cfd = accept(fd, (struct sockaddr *)&addr, &addr_len);
 	if (cfd < 0)
 		return;
-	fprintf(stderr, "Debug client connected !\r\n");
+	fprintf(stdout, "Debug client connected !\r\n");
 }
 
 void sim_jtag_read_msg(unsigned char *out_msg, unsigned char *out_size)
@@ -150,7 +150,7 @@ void sim_jtag_read_msg(unsigned char *out_msg, unsigned char *out_size)
 	if (rc < 0)
 		fprintf(stderr, "Debug read error, assuming client disconnected !\r\n");
 	if (rc == 0)
-		fprintf(stderr, "Debug client disconnected !\r\n");
+		fprintf(stdout, "Debug client disconnected !\r\n");
 	if (rc <= 0) {
 		close(cfd);
 		cfd = -1;
