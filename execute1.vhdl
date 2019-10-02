@@ -59,6 +59,11 @@ begin
 		variable crnum : integer;
 		variable scrnum : integer;
 		variable lo, hi : integer;
+                variable sh, mb, me : std_ulogic_vector(5 downto 0);
+                variable sh32, mb32, me32 : std_ulogic_vector(4 downto 0);
+                variable bo, bi : std_ulogic_vector(4 downto 0);
+                variable bf, bfa : std_ulogic_vector(2 downto 0);
+                variable l : std_ulogic;
 	begin
 		result := (others => '0');
 		result_with_carry := (others => '0');
@@ -109,10 +114,12 @@ begin
 					    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
 					end if;
 				when OP_BC =>
-					if e_in.const1(4-2) = '0' then
+                                        bo := insn_bo(e_in.insn);
+                                        bi := insn_bi(e_in.insn);
+					if bo(4-2) = '0' then
 						ctrl_tmp.ctr <= std_ulogic_vector(unsigned(ctrl.ctr) - 1);
 					end if;
-					if ppc_bc_taken(e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.cr, ctrl.ctr) = 1 then
+					if ppc_bc_taken(bo, bi, e_in.cr, ctrl.ctr) = 1 then
 						f_out.redirect <= '1';
 						if (insn_aa(e_in.insn)) then
 						    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.read_data2));
@@ -122,10 +129,12 @@ begin
 					end if;
 				when OP_BCREG =>
                                         -- bits 10 and 6 distinguish between bclr, bcctr and bctar
-					if e_in.const1(4-2) = '0' and e_in.insn(10) = '0' then
+                                        bo := insn_bo(e_in.insn);
+                                        bi := insn_bi(e_in.insn);
+					if bo(4-2) = '0' and e_in.insn(10) = '0' then
 						ctrl_tmp.ctr <= std_ulogic_vector(unsigned(ctrl.ctr) - 1);
 					end if;
-					if ppc_bc_taken(e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.cr, ctrl.ctr) = 1 then
+					if ppc_bc_taken(bo, bi, e_in.cr, ctrl.ctr) = 1 then
 						f_out.redirect <= '1';
                                                 if e_in.insn(10) = '0' then
                                                         f_out.redirect_nia <= ctrl.lr(63 downto 2) & "00";
@@ -137,22 +146,26 @@ begin
 					result := ppc_cmpb(e_in.read_data1, e_in.read_data2);
 					result_en := 1;
 				when OP_CMP =>
+                                        bf := insn_bf(e_in.insn);
+                                        l := insn_l(e_in.insn);
 					v.e.write_cr_enable := '1';
-					crnum := to_integer(unsigned(e_in.const1(2 downto 0)));
+					crnum := to_integer(unsigned(bf));
 					v.e.write_cr_mask := num_to_fxm(crnum);
 					for i in 0 to 7 loop
 						lo := i*4;
 						hi := lo + 3;
-						v.e.write_cr_data(hi downto lo) := ppc_cmp(e_in.const2(0), e_in.read_data1, e_in.read_data2);
+						v.e.write_cr_data(hi downto lo) := ppc_cmp(l, e_in.read_data1, e_in.read_data2);
 					end loop;
 				when OP_CMPL =>
+                                        bf := insn_bf(e_in.insn);
+                                        l := insn_l(e_in.insn);
 					v.e.write_cr_enable := '1';
-					crnum := to_integer(unsigned(e_in.const1(2 downto 0)));
+					crnum := to_integer(unsigned(bf));
 					v.e.write_cr_mask := num_to_fxm(crnum);
 					for i in 0 to 7 loop
 						lo := i*4;
 						hi := lo + 3;
-						v.e.write_cr_data(hi downto lo) := ppc_cmpl(e_in.const2(0), e_in.read_data1, e_in.read_data2);
+						v.e.write_cr_data(hi downto lo) := ppc_cmpl(l, e_in.read_data1, e_in.read_data2);
 					end loop;
 				when OP_CNTLZW =>
 					result := ppc_cntlzw(e_in.read_data1);
@@ -179,7 +192,7 @@ begin
 					result := ppc_eqv(e_in.read_data1, e_in.read_data2);
 					result_en := 1;
 				when OP_ISEL =>
-					crnum := to_integer(unsigned(e_in.const1));
+					crnum := to_integer(unsigned(insn_bc(e_in.insn)));
 					if e_in.cr(31-crnum) = '1' then
 						result := e_in.read_data1;
 					else
@@ -187,9 +200,11 @@ begin
 					end if;
 					result_en := 1;
 				when OP_MCRF =>
+                                        bf := insn_bf(e_in.insn);
+                                        bfa := insn_bfa(e_in.insn);
 					v.e.write_cr_enable := '1';
-					crnum := to_integer(unsigned(e_in.const1(2 downto 0)));
-					scrnum := to_integer(unsigned(e_in.const2(2 downto 0)));
+					crnum := to_integer(unsigned(bf));
+					scrnum := to_integer(unsigned(bfa));
 					v.e.write_cr_mask := num_to_fxm(crnum);
 					for i in 0 to 7 loop
 					    lo := (7-i)*4;
@@ -220,7 +235,7 @@ begin
                                                 result := x"00000000" & e_in.cr;
                                         else
                                                 -- mfocrf
-                                                crnum := fxm_to_num(e_in.const1(7 downto 0));
+                                                crnum := fxm_to_num(insn_fxm(e_in.insn));
                                                 result := (others => '0');
                                                 for i in 0 to 7 loop
                                                         lo := (7-i)*4;
@@ -235,10 +250,10 @@ begin
 					v.e.write_cr_enable := '1';
                                         if e_in.insn(20) = '0' then
                                                 -- mtcrf
-                                                v.e.write_cr_mask := e_in.const1(7 downto 0);
+                                                v.e.write_cr_mask := insn_fxm(e_in.insn);
                                         else
                                                 -- mtocrf: We require one hot priority encoding here
-                                                crnum := fxm_to_num(e_in.const1(7 downto 0));
+                                                crnum := fxm_to_num(insn_fxm(e_in.insn));
                                                 v.e.write_cr_mask := num_to_fxm(crnum);
                                         end if;
 					v.e.write_cr_data := e_in.read_data1(31 downto 0);
@@ -279,32 +294,50 @@ begin
 					result := ppc_prtyw(e_in.read_data1);
 					result_en := 1;
 				when OP_RLDCX =>
+                                        -- note rldcl mb field and rldcr me field are in the same place
+                                        mb := insn_mb(e_in.insn);
                                         if e_in.insn(1) = '0' then
-                                                result := ppc_rldcl(e_in.read_data1, e_in.read_data2, e_in.const2(5 downto 0));
+                                                result := ppc_rldcl(e_in.read_data1, e_in.read_data2, mb);
                                         else
-                                                result := ppc_rldcr(e_in.read_data1, e_in.read_data2, e_in.const2(5 downto 0));
+                                                result := ppc_rldcr(e_in.read_data1, e_in.read_data2, mb);
                                         end if;
 					result_en := 1;
 				when OP_RLDICL =>
-					result := ppc_rldicl(e_in.read_data1, e_in.const1(5 downto 0), e_in.const2(5 downto 0));
+                                        sh := insn_sh(e_in.insn);
+                                        mb := insn_mb(e_in.insn);
+					result := ppc_rldicl(e_in.read_data1, sh, mb);
 					result_en := 1;
 				when OP_RLDICR =>
-					result := ppc_rldicr(e_in.read_data1, e_in.const1(5 downto 0), e_in.const2(5 downto 0));
+                                        sh := insn_sh(e_in.insn);
+                                        me := insn_me(e_in.insn);
+					result := ppc_rldicr(e_in.read_data1, sh, me);
 					result_en := 1;
 				when OP_RLWNM =>
-					result := ppc_rlwnm(e_in.read_data1, e_in.read_data2, e_in.const2(4 downto 0), e_in.const3(4 downto 0));
+                                        mb32 := insn_mb32(e_in.insn);
+                                        me32 := insn_me32(e_in.insn);
+					result := ppc_rlwnm(e_in.read_data1, e_in.read_data2, mb32, me32);
 					result_en := 1;
 				when OP_RLWINM =>
-					result := ppc_rlwinm(e_in.read_data1, e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.const3(4 downto 0));
+                                        sh32 := insn_sh32(e_in.insn);
+                                        mb32 := insn_mb32(e_in.insn);
+                                        me32 := insn_me32(e_in.insn);
+					result := ppc_rlwinm(e_in.read_data1, sh32, mb32, me32);
 					result_en := 1;
 				when OP_RLDIC =>
-					result := ppc_rldic(e_in.read_data1, e_in.const1(5 downto 0), e_in.const2(5 downto 0));
+                                        sh := insn_sh(e_in.insn);
+                                        mb := insn_mb(e_in.insn);
+					result := ppc_rldic(e_in.read_data1, sh, mb);
 					result_en := 1;
 				when OP_RLDIMI =>
-					result := ppc_rldimi(e_in.read_data1, e_in.read_data2, e_in.const1(5 downto 0), e_in.const2(5 downto 0));
+                                        sh := insn_sh(e_in.insn);
+                                        mb := insn_mb(e_in.insn);
+					result := ppc_rldimi(e_in.read_data1, e_in.read_data2, sh, mb);
 					result_en := 1;
 				when OP_RLWIMI =>
-					result := ppc_rlwimi(e_in.read_data1, e_in.read_data2, e_in.const1(4 downto 0), e_in.const2(4 downto 0), e_in.const3(4 downto 0));
+                                        sh32 := insn_sh32(e_in.insn);
+                                        mb32 := insn_mb32(e_in.insn);
+                                        me32 := insn_me32(e_in.insn);
+					result := ppc_rlwimi(e_in.read_data1, e_in.read_data2, sh32, mb32, me32);
 					result_en := 1;
 				when OP_SLD =>
 					result := ppc_sld(e_in.read_data1, e_in.read_data2);
@@ -318,7 +351,8 @@ begin
 					ctrl_tmp.carry <= result_with_carry(64);
 					result_en := 1;
 				when OP_SRAWI =>
-					result_with_carry := ppc_srawi(e_in.read_data1, e_in.const1(5 downto 0));
+                                        sh := '0' & insn_sh32(e_in.insn);
+					result_with_carry := ppc_srawi(e_in.read_data1, sh);
 					result := result_with_carry(63 downto 0);
 					ctrl_tmp.carry <= result_with_carry(64);
 					result_en := 1;
@@ -328,7 +362,8 @@ begin
 					ctrl_tmp.carry <= result_with_carry(64);
 					result_en := 1;
 				when OP_SRADI =>
-					result_with_carry := ppc_sradi(e_in.read_data1, e_in.const1(5 downto 0));
+                                        sh := insn_sh(e_in.insn);
+					result_with_carry := ppc_sradi(e_in.read_data1, sh);
 					result := result_with_carry(63 downto 0);
 					ctrl_tmp.carry <= result_with_carry(64);
 					result_en := 1;

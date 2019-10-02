@@ -25,9 +25,6 @@ package decode_types is
 	type input_reg_b_t is (NONE, RB, RS, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD, CONST_DS);
 	type input_reg_c_t is (NONE, RS);
 	type output_reg_a_t is (NONE, RT, RA);
-	type constant_a_t is (NONE, SH, SH32, FXM, BO, BF, TOO, BC);
-	type constant_b_t is (NONE, MB, ME, MB32, BI, L, BFA);
-	type constant_c_t is (NONE, ME32, BH);
 	type rc_t is (NONE, ONE, RC);
 
 	constant SH_OFFSET : integer := 0;
@@ -59,10 +56,6 @@ package decode_types is
 		input_reg_c  : input_reg_c_t;
 		output_reg_a : output_reg_a_t;
 
-		const_a      : constant_a_t;
-		const_b      : constant_b_t;
-		const_c      : constant_c_t;
-
 		input_cr     : std_ulogic;
 		output_cr    : std_ulogic;
 
@@ -88,8 +81,7 @@ package decode_types is
 	constant decode_rom_init : decode_rom_t := (unit => NONE,
 		insn_type => OP_ILLEGAL, input_reg_a => NONE,
 		input_reg_b => NONE, input_reg_c => NONE,
-		output_reg_a => NONE, const_a => NONE, const_b => NONE,
-		const_c => NONE, input_cr => '0', output_cr => '0',
+		output_reg_a => NONE, input_cr => '0', output_cr => '0',
 		input_carry => '0', output_carry => '0',
 		length => NONE, byte_reverse => '0', sign_extend => '0',
 		update => '0', reserve => '0', mul_32bit => '0',

@@ -124,60 +124,6 @@ architecture behaviour of decode2 is
 		end case;
 	end;
 
-	function decode_const_a (t : constant_a_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
-	begin
-		case t is
-		when SH =>
-			return "00" & insn_sh(insn_in);
-		when SH32 =>
-			return "000" & insn_sh32(insn_in);
-		when FXM =>
-			return insn_fxm(insn_in);
-		when BO =>
-			return "000" & insn_bo(insn_in);
-		when BF =>
-			return "00000" & insn_bf(insn_in);
-		when TOO =>
-			return "000" & insn_to(insn_in);
-		when BC =>
-			return "000" & insn_bc(insn_in);
-		when NONE =>
-			return "00000000";
-		end case;
-	end;
-
-	function decode_const_b (t : constant_b_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
-	begin
-		case t is
-		when MB =>
-			return insn_mb(insn_in);
-		when ME =>
-			return insn_me(insn_in);
-		when MB32 =>
-			return "0" & insn_mb32(insn_in);
-		when BI =>
-			return "0" & insn_bi(insn_in);
-		when L =>
-			return "00000" & insn_l(insn_in);
-		when BFA =>
-			return "000" & insn_bfa(insn_in);
-		when NONE =>
-			return "000000";
-		end case;
-	end;
-
-	function decode_const_c (t : constant_c_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
-	begin
-		case t is
-		when ME32 =>
-			return insn_me32(insn_in);
-		when BH =>
-			return "000" & insn_bh(insn_in);
-		when NONE =>
-			return "00000";
-		end case;
-	end;
-
 	function decode_rc (t : rc_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic is
 	begin
 		case t is
@@ -267,9 +213,6 @@ begin
 		if d_in.decode.lr = '1' then
 			v.e.lr := insn_lk(d_in.insn);
 		end if;
-		v.e.const1 := decode_const_a(d_in.decode.const_a, d_in.insn);
-		v.e.const2 := decode_const_b(d_in.decode.const_b, d_in.insn);
-		v.e.const3 := decode_const_c(d_in.decode.const_c, d_in.insn);
                 v.e.insn := d_in.insn;
 
 		-- multiply unit
