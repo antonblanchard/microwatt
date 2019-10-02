@@ -29,6 +29,7 @@ filesets:
       - insn_helpers.vhdl
       - core.vhdl
       - icache.vhdl
+      - plru.vhdl
       - core_debug.vhdl
     file_type : vhdlSource-2008
 

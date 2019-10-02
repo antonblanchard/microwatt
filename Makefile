@@ -55,6 +55,8 @@ writeback.o: common.o
 dmi_dtm_tb.o: dmi_dtm_xilinx.o wishbone_debug_master.o
 dmi_dtm_xilinx.o: wishbone_types.o sim-unisim/unisim_vcomponents.o
 wishbone_debug_master.o: wishbone_types.o
+plru.o:
+plru_tb.o: plru.o
 
 UNISIM_BITS = sim-unisim/unisim_vcomponents.vhdl sim-unisim/BSCANE2.vhdl sim-unisim/BUFG.vhdl
 sim-unisim/unisim_vcomponents.o: $(UNISIM_BITS)
@@ -74,6 +76,9 @@ fetch_tb: fetch_tb.o
 
 icache_tb: icache_tb.o
 	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
+
+plru_tb: plru_tb.o
+	$(GHDL) -e $(GHDLFLAGS) $@
 
 loadstore_tb: loadstore_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
