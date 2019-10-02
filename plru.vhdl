@@ -34,7 +34,7 @@ begin
     begin
 	node := 0;
 	for i in 0 to BITS-1 loop
-	    report "GET: i:" & integer'image(i) & " node:" & integer'image(node) & " val:" & std_ulogic'image(tree(node));
+--	    report "GET: i:" & integer'image(i) & " node:" & integer'image(node) & " val:" & std_ulogic'image(tree(node));
 	    lru(BITS-1-i) <= tree(node);
 	    if i /= BITS-1 then
 		node := node * 2;
@@ -59,7 +59,7 @@ begin
 		for i in 0 to BITS-1 loop
 		    abit := acc(BITS-1-i);
 		    tree(node) <= not abit;
-		    report "UPD: i:" & integer'image(i) & " node:" & integer'image(node) & " val" & std_ulogic'image(not abit);
+--		    report "UPD: i:" & integer'image(i) & " node:" & integer'image(node) & " val" & std_ulogic'image(not abit);
 		    if i /= BITS-1 then
 			node := node * 2;
 			if abit = '1' then

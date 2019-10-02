@@ -1,3 +1,21 @@
+--
+-- Set associative icache
+--
+-- TODO (in no specific order):
+--
+--   * Add debug interface to inspect cache content
+--   * Add snoop/invalidate path
+--   * Add multi-hit error detection
+--   * Pipelined bus interface (wb or axi)
+--   * Maybe add parity ? There's a few bits free in each BRAM row on Xilinx
+--   * Add optimization: service hits on partially loaded lines
+--   * Add optimization: (maybe) interrupt reload on fluch/redirect
+--   * Check if playing with the geometry of the cache tags allow for more
+--     efficient use of distributed RAM and less logic/muxes. Currently we
+--     write TAG_BITS width which may not match full ram blocks and might
+--     cause muxes to be inferred for "partial writes".
+--   * Check if making the read size of PLRU a ROM helps utilization
+--
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -11,9 +29,11 @@ use work.wishbone_types.all;
 entity icache is
     generic (
         -- Line size in bytes
-        LINE_SIZE : natural := 64;
-        -- Number of lines
-        NUM_LINES : natural := 32
+        LINE_SIZE : positive := 64;
+        -- Number of lines in a set
+        NUM_LINES : positive := 32;
+        -- Number of ways
+        NUM_WAYS  : positive := 4
         );
     port (
         clk          : in std_ulogic;
@@ -80,6 +100,8 @@ architecture rtl of icache is
     constant INDEX_BITS    : natural := log2(NUM_LINES);
     -- TAG_BITS is the number of bits of the tag part of the address
     constant TAG_BITS      : natural := 64 - LINE_OFF_BITS - INDEX_BITS;
+    -- WAY_BITS is the number of bits to select a way
+    constant WAY_BITS     : natural := log2(NUM_WAYS);
 
     -- Example of layout for 32 lines of 64 bytes:
     --
@@ -96,30 +118,38 @@ architecture rtl of icache is
 
     subtype row_t is integer range 0 to BRAM_ROWS-1;
     subtype index_t is integer range 0 to NUM_LINES-1;
+    subtype way_t is integer range 0 to NUM_WAYS-1;
 
-    -- The cache data BRAM organized as described above
-    subtype cache_row_t is std_logic_vector(wishbone_data_bits-1 downto 0);
-    type cache_array is array(row_t) of cache_row_t;
+    -- The cache data BRAM organized as described above for each way
+    subtype cache_row_t is std_ulogic_vector(wishbone_data_bits-1 downto 0);
 
-    -- The cache tags LUTRAM has a row per cache line
+    -- The cache tags LUTRAM has a row per set. Vivado is a pain and will
+    -- not handle a clean (commented) definition of the cache tags as a 3d
+    -- memory. For now, work around it by putting all the tags
     subtype cache_tag_t is std_logic_vector(TAG_BITS-1 downto 0);
-    type cache_tags_array is array(index_t) of cache_tag_t;
+--    type cache_tags_set_t is array(way_t) of cache_tag_t;
+--    type cache_tags_array_t is array(index_t) of cache_tags_set_t;
+    constant TAG_RAM_WIDTH : natural := TAG_BITS * NUM_WAYS;
+    subtype cache_tags_set_t is std_logic_vector(TAG_RAM_WIDTH-1 downto 0);
+    type cache_tags_array_t is array(index_t) of cache_tags_set_t;
+
+    -- The cache valid bits
+    subtype cache_way_valids_t is std_ulogic_vector(NUM_WAYS-1 downto 0);
+    type cache_valids_t is array(index_t) of cache_way_valids_t;
 
     -- Storage. Hopefully "cache_rows" is a BRAM, the rest is LUTs
-    signal cache_rows   : cache_array;
-    signal tags         : cache_tags_array;
-    signal tags_valid   : std_ulogic_vector(NUM_LINES-1 downto 0);
+    signal cache_tags   : cache_tags_array_t;
+    signal cache_valids : cache_valids_t;
+
     attribute ram_style : string;
-    attribute ram_style of cache_rows : signal is "block";
-    attribute ram_decomp : string;
-    attribute ram_decomp of cache_rows : signal is "power";
+    attribute ram_style of cache_tags : signal is "distributed";
 
     -- Cache reload state machine
     type state_t is (IDLE, WAIT_ACK);
 
     type reg_internal_t is record
-	-- Cache hit state (1 cycle BRAM access)
-	hit_row   : cache_row_t;
+	-- Cache hit state (Latches for 1 cycle BRAM access)
+	hit_way   : way_t;
 	hit_nia   : std_ulogic_vector(63 downto 0);
 	hit_smark : std_ulogic;
 	hit_valid : std_ulogic;
@@ -127,16 +157,27 @@ architecture rtl of icache is
 	-- Cache miss state (reload state machine)
         state            : state_t;
         wb               : wishbone_master_out;
+	store_way        : way_t;
         store_index      : index_t;
     end record;
 
     signal r : reg_internal_t;
 
     -- Async signals on incoming request
-    signal req_index  : index_t;
-    signal req_row    : row_t;
-    signal req_tag    : cache_tag_t;
-    signal req_is_hit : std_ulogic;
+    signal req_index   : index_t;
+    signal req_row     : row_t;
+    signal req_hit_way : way_t;
+    signal req_tag     : cache_tag_t;
+    signal req_is_hit  : std_ulogic;
+    signal req_is_miss : std_ulogic;
+
+    -- Cache RAM interface
+    type cache_ram_out_t is array(way_t) of cache_row_t;
+    signal cache_out   : cache_ram_out_t;
+
+    -- PLRU output interface
+    type plru_out_t is array(index_t) of std_ulogic_vector(WAY_BITS-1 downto 0);
+    signal plru_victim : plru_out_t;
 
     -- Return the cache line index (tag index) for an address
     function get_index(addr: std_ulogic_vector(63 downto 0)) return index_t is
@@ -185,7 +226,22 @@ architecture rtl of icache is
         return addr(63 downto 64-TAG_BITS);
     end;
 
+    -- Read a tag from a tag memory row
+    function read_tag(way: way_t; tagset: cache_tags_set_t) return cache_tag_t is
+    begin
+	return tagset((way+1) * TAG_BITS - 1 downto way * TAG_BITS);
+    end;
+
+    -- Write a tag to tag memory row
+    procedure write_tag(way: in way_t; tagset: inout cache_tags_set_t;
+			tag: cache_tag_t) is
+    begin
+	tagset((way+1) * TAG_BITS - 1 downto way * TAG_BITS) := tag;
+    end;
+
 begin
+
+    assert LINE_SIZE mod ROW_SIZE = 0;
     assert ispow2(LINE_SIZE)    report "LINE_SIZE not power of 2" severity FAILURE;
     assert ispow2(NUM_LINES)    report "NUM_LINES not power of 2" severity FAILURE;
     assert ispow2(ROW_PER_LINE) report "ROW_PER_LINE not power of 2" severity FAILURE;
@@ -212,66 +268,134 @@ begin
 	report "ROW_OFF_BITS  = " & natural'image(ROW_OFF_BITS);
 	report "INDEX_BITS    = " & natural'image(INDEX_BITS);
 	report "TAG_BITS      = " & natural'image(TAG_BITS);
+	report "WAY_BITS      = " & natural'image(WAY_BITS);
 	wait;
     end process;
 
+    -- Generate a cache RAM for each way
+    rams: for i in 0 to NUM_WAYS-1 generate
+	signal do_write : std_ulogic;
+	signal rd_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
+	signal wr_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
+	signal dout     : cache_row_t;
+    begin
+	way: entity work.cache_ram
+	    generic map (
+		ROW_BITS => ROW_BITS,
+		WIDTH => wishbone_data_bits
+		)
+	    port map (
+		clk     => clk,
+		rd_en   => '1', -- fixme
+		rd_addr => rd_addr,
+		rd_data => dout,
+		wr_en   => do_write,
+		wr_addr => wr_addr,
+		wr_data => wishbone_in.dat
+		);
+	process(all)
+	begin
+	    do_write <= '0';
+	    if wishbone_in.ack = '1' and r.store_way = i then
+		do_write <= '1';
+	    end if;
+	    cache_out(i) <= dout;
+	    rd_addr <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
+	    wr_addr <= std_ulogic_vector(to_unsigned(get_row(r.wb.adr), ROW_BITS));
+	end process;
+    end generate;
+    
+    -- Generate PLRUs
+    maybe_plrus: if NUM_WAYS > 1 generate
+    begin
+	plrus: for i in 0 to NUM_LINES-1 generate
+	    -- PLRU interface
+	    signal plru_acc    : std_ulogic_vector(WAY_BITS-1 downto 0);
+	    signal plru_acc_en : std_ulogic;
+	    signal plru_out    : std_ulogic_vector(WAY_BITS-1 downto 0);
+	    
+	begin
+	    plru : entity work.plru
+		generic map (
+		    BITS => WAY_BITS
+		    )
+		port map (
+		    clk => clk,
+		    rst => rst,
+		    acc => plru_acc,
+		    acc_en => plru_acc_en,
+		    lru => plru_out
+		    );
+
+	    process(req_index, req_is_hit, req_hit_way, req_is_hit, plru_out)
+	    begin
+		-- PLRU interface
+		if req_is_hit = '1' and req_index = i then
+		    plru_acc_en <= req_is_hit;
+		else
+		    plru_acc_en <= '0';
+		end if;
+		plru_acc <= std_ulogic_vector(to_unsigned(req_hit_way, WAY_BITS));
+		plru_victim(i) <= plru_out;
+	    end process;
+	end generate;
+    end generate;
+
+    -- Cache hit detection, output to fetch2 and other misc logic
     icache_comb : process(all)
+	variable is_hit  : std_ulogic;
+	variable hit_way : way_t;
     begin
 	-- Extract line, row and tag from request
         req_index <= get_index(i_in.nia);
         req_row <= get_row(i_in.nia);
         req_tag <= get_tag(i_in.nia);
 
-	-- Test if pending request is a hit
-	if tags(req_index) = req_tag then
-	    req_is_hit <= tags_valid(req_index);
-	else
-	    req_is_hit <= '0';
-	end if;
+	-- Test if pending request is a hit on any way
+	hit_way := 0;
+	is_hit := '0';
+	for i in way_t loop
+	    if read_tag(i, cache_tags(req_index)) = req_tag and
+		cache_valids(req_index)(i) = '1' then
+		hit_way := i;
+		is_hit := '1';
+	    end if;
+	end loop;
+
+	-- Generate the "hit" and "miss" signals for the synchronous blocks
+	req_is_hit  <= i_in.req and is_hit and not flush_in;
+	req_is_miss <= i_in.req and not is_hit and not flush_in;
+	req_hit_way <= hit_way;
 
 	-- Output instruction from current cache row
 	--
 	-- Note: This is a mild violation of our design principle of having pipeline
 	--       stages output from a clean latch. In this case we output the result
-	--       of a mux. The alternative would be output an entire cache line
-	--       which I prefer not to do just yet.
+	--       of a mux. The alternative would be output an entire row which
+	--       I prefer not to do just yet as it would force fetch2 to know about
+	--       some of the cache geometry information.
 	--
-        i_out.insn <= read_insn_word(r.hit_nia, r.hit_row);
+        i_out.insn <= read_insn_word(r.hit_nia, cache_out(r.hit_way));
 	i_out.valid <= r.hit_valid;
 	i_out.nia <= r.hit_nia;
 	i_out.stop_mark <= r.hit_smark;
 
-	-- This needs to match the latching of a new request in process icache_hit
-	stall_out <= not req_is_hit;
+	-- Stall fetch1 if we have a miss
+	stall_out <= not is_hit;
 
 	-- Wishbone requests output (from the cache miss reload machine)
 	wishbone_out <= r.wb;
     end process;
 
+    -- Cache hit synchronous machine
     icache_hit : process(clk)
     begin
         if rising_edge(clk) then
-	    -- Debug
-	    if i_in.req = '1' then
-		report "cache search for " & to_hstring(i_in.nia) &
-		    " index:" & integer'image(req_index) &
-		    " row:" & integer'image(req_row) &
-		    " want_tag:" & to_hstring(req_tag) & " got_tag:" & to_hstring(req_tag) &
-		    " valid:" & std_ulogic'image(tags_valid(req_index));
-		if req_is_hit = '1' then
-		    report "is hit !";
-		else
-		    report "is miss !";
-		end if;
-	    end if;
-
-	    -- Are we free to latch a new request ?
+	    -- On a hit, latch the request for the next cycle, when the BRAM data
+	    -- will be available on the cache_out output of the corresponding way
 	    --
-	    -- Note: this test needs to match the equation for generating stall_out
-	    --
-	    if i_in.req = '1' and req_is_hit = '1' and flush_in = '0' then
-		-- Read the cache line (BRAM read port) and remember the NIA
-		r.hit_row <= cache_rows(req_row);
+	    if req_is_hit = '1' then
+		r.hit_way <= req_hit_way;
 		r.hit_nia <= i_in.nia;
 		r.hit_smark <= i_in.stop_mark;
 		r.hit_valid <= '1';
@@ -279,20 +403,28 @@ begin
 		report "cache hit nia:" & to_hstring(i_in.nia) &
 		    " SM:" & std_ulogic'image(i_in.stop_mark) &
 		    " idx:" & integer'image(req_index) &
-		    " tag:" & to_hstring(req_tag);
+		    " tag:" & to_hstring(req_tag) &
+		    " way: " & integer'image(req_hit_way);
 	    else
 		r.hit_valid <= '0';
+
 		-- Send stop marks down regardless of validity
 		r.hit_smark <= i_in.stop_mark;
 	    end if;
 	end if;
     end process;
 
+    -- Cache miss/reload synchronous machine
     icache_miss : process(clk)
+	variable way : integer range 0 to NUM_WAYS-1;
+	variable tagset : cache_tags_set_t;
     begin
         if rising_edge(clk) then
+	    -- On reset, clear all valid bits to force misses
             if rst = '1' then
-                tags_valid <= (others => '0');
+		for i in index_t loop
+		    cache_valids(i) <= (others => '0');
+		end loop;
                 r.state <= IDLE;
                 r.wb.cyc <= '0';
                 r.wb.stb <= '0';
@@ -302,23 +434,38 @@ begin
 		r.wb.sel <= "11111111";
 		r.wb.we  <= '0';
             else
-		-- State machine
+		-- Main state machine
 		case r.state is
 		when IDLE =>
 		    -- We need to read a cache line
-		    if i_in.req = '1' and req_is_hit = '0' then
+		    if req_is_miss = '1' then
+			way := to_integer(unsigned(plru_victim(req_index)));
+
 			report "cache miss nia:" & to_hstring(i_in.nia) &
 			    " SM:" & std_ulogic'image(i_in.stop_mark) &
 			    " idx:" & integer'image(req_index) &
+			    " way:" & integer'image(way) &
 			    " tag:" & to_hstring(req_tag);
 
-			-- Force misses while reloading that line
-			tags_valid(req_index) <= '0';
-			tags(req_index) <= req_tag;
-			r.store_index <= req_index;
+			-- Force misses on that way while reloading that line
+			cache_valids(req_index)(way) <= '0';
 
-			-- Prep for first wishbone read. We calculate the address off
+			-- Store new tag in selected way
+			for i in 0 to NUM_WAYS-1 loop
+			    if i = way then
+				tagset := cache_tags(req_index);
+				write_tag(i, tagset, req_tag);
+				cache_tags(req_index) <= tagset;
+			    end if;
+			end loop;
+
+			-- Keep track of our index and way for subsequent stores
+			r.store_index <= req_index;
+			r.store_way <= way;
+
+			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line
+			--
 			r.wb.adr <= i_in.nia(63 downto LINE_OFF_BITS) &
 				    (LINE_OFF_BITS-1 downto 0 => '0');
 			r.wb.cyc <= '1';
@@ -328,12 +475,9 @@ begin
 		    end if;
 		when WAIT_ACK =>
 		    if wishbone_in.ack = '1' then
-			-- Store the current dword in both the cache
-			cache_rows(get_row(r.wb.adr)) <= wishbone_in.dat;
-
 			-- That was the last word ? We are done
 			if is_last_row(r.wb.adr) then
-			    tags_valid(r.store_index) <= '1';
+			    cache_valids(r.store_index)(way) <= '1';
 			    r.wb.cyc <= '0';
 			    r.wb.stb <= '0';
 			    r.state <= IDLE;

@@ -30,7 +30,10 @@ fetch2.o: common.o wishbone_types.o
 glibc_random_helpers.o:
 glibc_random.o: glibc_random_helpers.o
 helpers.o:
-icache.o: common.o wishbone_types.o
+cache_ram.o:
+plru.o:
+plru_tb.o: plru.o
+icache.o: common.o wishbone_types.o plru.o cache_ram.o
 icache_tb.o: common.o wishbone_types.o icache.o simple_ram_behavioural.o
 insn_helpers.o:
 loadstore1.o: common.o helpers.o
@@ -55,8 +58,6 @@ writeback.o: common.o
 dmi_dtm_tb.o: dmi_dtm_xilinx.o wishbone_debug_master.o
 dmi_dtm_xilinx.o: wishbone_types.o sim-unisim/unisim_vcomponents.o
 wishbone_debug_master.o: wishbone_types.o
-plru.o:
-plru_tb.o: plru.o
 
 UNISIM_BITS = sim-unisim/unisim_vcomponents.vhdl sim-unisim/BSCANE2.vhdl sim-unisim/BUFG.vhdl
 sim-unisim/unisim_vcomponents.o: $(UNISIM_BITS)
