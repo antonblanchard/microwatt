@@ -99,7 +99,6 @@ begin
 	-- If we are flushing or the instruction comes with a stop mark
 	-- we tag it as invalid so it doesn't get decoded and executed
 	if flush_in = '1' or v.stop_mark = '1' then
-
 	    v.valid := '0';
 	end if;
 
