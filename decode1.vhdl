@@ -47,13 +47,13 @@ architecture behaviour of decode1 is
 		11 =>       (ALU,    OP_CMP,       RA,         CONST_SI,    NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- cmpi
 		10 =>       (ALU,    OP_CMPL,      RA,         CONST_UI,    NONE, NONE, '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- cmpli
 		34 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lbz
-		35 =>       (LDST,   OP_LOAD,      RA,         CONST_SI,    NONE, RT,   '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lbzu
+		35 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lbzu
 		42 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '1'), -- lha
-		43 =>       (LDST,   OP_LOAD,      RA,         CONST_SI,    NONE, RT,   '0', '0', '0', '0', is2B, '0', '1', '1', '0', '0', '0', NONE, '0', '1'), -- lhau
+		43 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', is2B, '0', '1', '1', '0', '0', '0', NONE, '0', '1'), -- lhau
 		40 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lhz
-		41 =>       (LDST,   OP_LOAD,      RA,         CONST_SI,    NONE, RT,   '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lhzu
+		41 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lhzu
 		32 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lwz
-                33 =>       (LDST,   OP_LOAD,      RA,         CONST_SI,    NONE, RT,   '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lwz
+                33 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lwzu
 		 7 =>       (MUL,    OP_MUL_L64,   RA,         CONST_SI,    NONE, RT,   '0', '1', '0', '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '1'), -- mulli
 		24 =>       (ALU,    OP_OR,        RS,         CONST_UI,    NONE, RA,   '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- ori
 		25 =>       (ALU,    OP_OR,        RS,         CONST_UI_HI, NONE, RA,   '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- oris
@@ -61,11 +61,11 @@ architecture behaviour of decode1 is
 		21 =>       (ALU,    OP_RLWINM,    RS,         NONE,        NONE, RA,   '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rlwinm
 		23 =>       (ALU,    OP_RLWNM,     RS,         RB,          NONE, RA,   '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rlwnm
 		38 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- stb
-		39 =>       (LDST,   OP_STORE,     RA,         CONST_SI,    RS,   NONE, '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', RC,   '0', '1'), -- stbu
-		44 =>       (LDST,   OP_STORE,     RA,         CONST_SI,    RS,   NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- sth
-		45 =>       (LDST,   OP_STORE,     RA,         CONST_SI,    RS,   NONE, '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- sthu
+		39 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', RC,   '0', '1'), -- stbu
+		44 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- sth
+		45 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- sthu
 		36 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- stw
-		37 =>       (LDST,   OP_STORE,     RA,         CONST_SI,    RS,   NONE, '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stwu
+		37 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stwu
 		 8 =>       (ALU,    OP_SUBFE,     RA,         CONST_SI,    NONE, RT,   '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- subfic
 		 2 =>       (ALU,    OP_TDI,       RA,         CONST_SI,    NONE, NONE, '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- tdi
 		--PPC_TWI 3
@@ -200,23 +200,23 @@ architecture behaviour of decode1 is
 		2#1111001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
 		2#1111101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   '1', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
 		2#0000110100#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is1B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- lbarx
-		2#0001110111#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lbzux
+		2#0001110111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lbzux
 		2#0001010111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lbzx
 		2#0001010100#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is8B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- ldarx
 		2#1000010100#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is8B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- ldbrx
-		2#0000110101#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- ldux
+		2#0000110101#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- ldux
 		2#0000010101#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- ldx
 		2#0001110100#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is2B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- lharx
-		2#0101110111#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', is2B, '0', '1', '1', '0', '0', '0', NONE, '0', '1'), -- lhaux
+		2#0101110111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is2B, '0', '1', '1', '0', '0', '0', NONE, '0', '1'), -- lhaux
 		2#0101010111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '1'), -- lhax
 		2#1100010110#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is2B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lhbrx
-		2#0100110111#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lhzux
+		2#0100110111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lhzux
 		2#0100010111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lhzx
 		2#0000010100#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- lwarx
-		2#0101110101#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', is4B, '0', '1', '1', '0', '0', '0', NONE, '0', '1'), -- lwaux
+		2#0101110101#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is4B, '0', '1', '1', '0', '0', '0', NONE, '0', '1'), -- lwaux
 		2#0101010101#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '1'), -- lwax
 		2#1000010110#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is4B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lwbrx
-		2#0000110111#  =>       (LDST,   OP_LOAD,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lwzux
+		2#0000110111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lwzux
 		2#0000010111#  =>       (LDST,   OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lwzx
 		-- 2#1000000000# mcrxr
 		-- 2#1001000000# mcrxrx
@@ -260,19 +260,19 @@ architecture behaviour of decode1 is
 		2#1000011011#  =>       (ALU,    OP_SRD,       RS,         RB,          NONE, RA,   '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srd
 		2#1000011000#  =>       (ALU,    OP_SRW,       RS,         RB,          RS,   RA,   '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srw
 		2#1010110110#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '1', '0', '0', RC,   '0', '1'), -- stbcx
-		2#0011110111#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', RC,   '0', '1'), -- stbux
+		2#0011110111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is1B, '0', '0', '1', '0', '0', '0', RC,   '0', '1'), -- stbux
 		2#0011010111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is1B, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- stbx
 		2#1010010100#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is8B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- stdbrx
 		2#0011010110#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- stdcx
-		2#0010110101#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stdux
+		2#0010110101#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stdux
 		2#0010010101#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- stdx
 		2#1110010110#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is2B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- sthbrx
 		2#1011010110#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- sthcx
-		2#0110110111#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- sthux
+		2#0110110111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- sthux
 		2#0110010111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- sthx
 		2#1010010110#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is4B, '1', '0', '0', '0', '0', '0', NONE, '0', '1'), -- stwbrx
 		2#0010010110#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '1'), -- stwcx
-		2#0010110111#  =>       (LDST,   OP_STORE,     RA,         RB,          RS,   NONE, '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stwux
+		2#0010110111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stwux
 		2#0010010111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- stwx
 		2#0000101000#  =>       (ALU,    OP_SUBF,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- subf
 		2#0000001000#  =>       (ALU,    OP_SUBFE,     RA,         RB,          NONE, RT,   '0', '0', '0', '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- subfc
@@ -290,7 +290,7 @@ architecture behaviour of decode1 is
 		--              unit     internal     in1         in2          in3   out   CR   CR   cry  cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
 		--                             op                                          in   out  in   out  len        ext             32  sgn             pipe
 		0     =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_DS,    NONE, RT,   '0', '0', '0', '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- ld
-                1     =>       (LDST,   OP_LOAD,      RA,         CONST_DS,    NONE, RT,   '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- ldu
+                1     =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_DS,    NONE, RT,   '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- ldu
                 2     =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_DS,    NONE, RT,   '0', '0', '0', '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '1'), -- lwa
 		others   => decode_rom_init
         );
@@ -299,7 +299,7 @@ architecture behaviour of decode1 is
 		--              unit     internal     in1         in2          in3   out   CR   CR   cry  cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
 		--                             op                                          in   out  in   out  len        ext             32  sgn             pipe
 		0     =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_DS,    RS,   NONE, '0', '0', '0', '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- std
-		1     =>       (LDST,   OP_STORE,     RA,         CONST_DS,    RS,   NONE, '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stdu
+		1     =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_DS,    RS,   NONE, '0', '0', '0', '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stdu
 		others   => decode_rom_init
         );
 
