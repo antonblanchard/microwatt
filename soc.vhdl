@@ -106,7 +106,7 @@ begin
     -- Wishbone slaves address decoder & mux
     slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out)
 	-- Selected slave
-	type slave_type is (SLAVE_UART,
+	type slave_type is (SLAVE_UART_0,
 			    SLAVE_MEMORY,
 			    SLAVE_NONE);
 	variable slave : slave_type;
@@ -116,8 +116,8 @@ begin
 	if wb_master_out.adr(63 downto 24) = x"0000000000" then
 	    slave := SLAVE_MEMORY;
 	elsif wb_master_out.adr(63 downto 24) = x"00000000c0" then
-	    if wb_master_out.adr(15 downto 12) = x"2" then
-		slave := SLAVE_UART;
+	    if wb_master_out.adr(23 downto 12) = x"002" then
+		slave := SLAVE_UART_0;
 	    end if;
 	end if;
 
@@ -130,7 +130,7 @@ begin
 	when SLAVE_MEMORY =>
 	    wb_bram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_bram_out;
-	when SLAVE_UART =>
+	when SLAVE_UART_0 =>
 	    wb_uart0_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_uart0_out;
 	when others =>
