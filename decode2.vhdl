@@ -96,6 +96,8 @@ architecture behaviour of decode2 is
 			return ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64)));
 		when CONST_DS =>
 			return ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64)));
+                when CONST_M1 =>
+                        return ('0', (others => '0'), x"FFFFFFFFFFFFFFFF");
 		when NONE =>
 			return ('0', (others => '0'), (others => '0'));
 		end case;
@@ -208,6 +210,7 @@ begin
 		v.e.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
 		v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
 		v.e.cr := c_in.read_cr_data;
+                v.e.invert_a := d_in.decode.invert_a;
 		v.e.input_carry := d_in.decode.input_carry;
 		v.e.output_carry := d_in.decode.output_carry;
 		if d_in.decode.lr = '1' then

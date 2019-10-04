@@ -41,6 +41,18 @@ architecture behaviour of execute1 is
 
 	signal ctrl: ctrl_t := (carry => '0', others => (others => '0'));
 	signal ctrl_tmp: ctrl_t := (carry => '0', others => (others => '0'));
+
+        function decode_input_carry (carry_sel : carry_in_t; ca_in : std_ulogic) return std_ulogic is
+        begin
+                case carry_sel is
+                when ZERO =>
+                        return '0';
+                when CA =>
+                        return ca_in;
+                when ONE =>
+                        return '1';
+                end case;
+        end;
 begin
 	execute1_0: process(clk)
 	begin
@@ -52,6 +64,7 @@ begin
 
 	execute1_1: process(all)
 		variable v : reg_type;
+                variable a_inv : std_ulogic_vector(63 downto 0);
 		variable result : std_ulogic_vector(63 downto 0);
 		variable newcrf : std_ulogic_vector(3 downto 0);
 		variable result_with_carry : std_ulogic_vector(64 downto 0);
@@ -93,12 +106,16 @@ begin
 				when OP_NOP =>
 					-- Do nothing
 				when OP_ADD =>
-					result := ppc_add(e_in.read_data1, e_in.read_data2);
-					result_en := 1;
-				when OP_ADDE =>
-					result_with_carry := ppc_adde(e_in.read_data1, e_in.read_data2, ctrl.carry and e_in.input_carry);
+                                        if e_in.invert_a = '0' then
+                                                a_inv := e_in.read_data1;
+                                        else
+                                                a_inv := not e_in.read_data1;
+                                        end if;
+					result_with_carry := ppc_adde(a_inv, e_in.read_data2, decode_input_carry(e_in.input_carry, ctrl.carry));
 					result := result_with_carry(63 downto 0);
-					ctrl_tmp.carry <= result_with_carry(64) and e_in.output_carry;
+                                        if e_in.output_carry then
+                                                ctrl_tmp.carry <= result_with_carry(64);
+                                        end if;
 					result_en := 1;
 				when OP_AND =>
 					result := ppc_and(e_in.read_data1, e_in.read_data2);
@@ -372,14 +389,6 @@ begin
 					result_en := 1;
 				when OP_SRW =>
 					result := ppc_srw(e_in.read_data1, e_in.read_data2);
-					result_en := 1;
-				when OP_SUBF =>
-					result := ppc_subf(e_in.read_data1, e_in.read_data2);
-					result_en := 1;
-				when OP_SUBFE =>
-					result_with_carry := ppc_subfe(e_in.read_data1, e_in.read_data2, ctrl.carry or not(e_in.input_carry));
-					result := result_with_carry(63 downto 0);
-					ctrl_tmp.carry <= result_with_carry(64) and e_in.output_carry;
 					result_en := 1;
 				when OP_XOR =>
 					result := ppc_xor(e_in.read_data1, e_in.read_data2);
