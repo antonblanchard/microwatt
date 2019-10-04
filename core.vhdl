@@ -94,9 +94,6 @@ architecture behave of core is
     -- Debug status
     signal dbg_core_is_stopped: std_ulogic;
 
-    -- For sim
-    signal registers: regfile;
-
 begin
 
     core_rst <= dbg_core_rst or rst;
@@ -180,12 +177,16 @@ begin
             );
 
     register_file_0: entity work.register_file
+        generic map (
+            SIM => SIM
+            )
         port map (
             clk => clk,
             d_in => decode2_to_register_file,
             d_out => register_file_to_decode2,
             w_in => writeback_to_register_file,
-            registers_out => registers);
+	    sim_dump => terminate
+	    );
 
     cr_file_0: entity work.cr_file
         port map (
@@ -276,18 +277,5 @@ begin
 	    nia => fetch1_to_fetch2.nia,
 	    terminated_out => terminated_out
 	    );
-
-    -- Dump registers if core terminates
-    sim_terminate_test: if SIM generate
-	dump_registers: process(all)
-	begin
-	    if terminate = '1' then
-		loop_0: for i in 0 to 31 loop
-		    report "REG " & to_hstring(registers(i));
-		end loop loop_0;
-		assert false report "end of test" severity failure;
-	    end if;
-	end process;
-    end generate;
 
 end behave;

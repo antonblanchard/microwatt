@@ -6,6 +6,9 @@ library work;
 use work.common.all;
 
 entity register_file is
+    generic (
+        SIM : boolean := false
+        );
     port(
         clk           : in std_logic;
 
@@ -15,11 +18,12 @@ entity register_file is
         w_in          : in WritebackToRegisterFileType;
 
         -- debug
-        registers_out : out regfile
+        sim_dump      : in std_ulogic
         );
 end entity register_file;
 
 architecture behaviour of register_file is
+    type regfile is array(0 to 32) of std_ulogic_vector(63 downto 0);
     signal registers : regfile := (others => (others => '0'));
 begin
     -- synchronous writes
@@ -64,6 +68,17 @@ begin
         end if;
     end process register_read_0;
 
-    -- debug
-    registers_out <= registers;
+    -- Dump registers if core terminates
+    sim_dump_test: if SIM generate
+	dump_registers: process(all)
+	begin
+	    if sim_dump = '1' then
+		loop_0: for i in 0 to 31 loop
+		    report "REG " & to_hstring(registers(i));
+		end loop loop_0;
+		assert false report "end of test" severity failure;
+	    end if;
+	end process;
+    end generate;
+
 end architecture behaviour;
