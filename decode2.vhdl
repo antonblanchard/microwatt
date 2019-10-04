@@ -62,16 +62,11 @@ architecture behaviour of decode2 is
 	function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
 				     reg_data : std_ulogic_vector(63 downto 0)) return decode_input_reg_t is
 	begin
-		case t is
-		when RA =>
+		if t = RA or (t = RA_OR_ZERO and insn_ra(insn_in) /= "00000") then
 			return ('1', insn_ra(insn_in), reg_data);
-		when RA_OR_ZERO =>
-			return ('1', insn_ra(insn_in), ra_or_zero(reg_data, insn_ra(insn_in)));
-		when RS =>
-			return ('1', insn_rs(insn_in), reg_data);
-		when NONE =>
+		else
 			return ('0', (others => '0'), (others => '0'));
-		end case;
+		end if;
 	end;
 
 	function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0);
@@ -80,8 +75,6 @@ architecture behaviour of decode2 is
 		case t is
 		when RB =>
 			return ('1', insn_rb(insn_in), reg_data);
-		when RS =>
-			return ('1', insn_rs(insn_in), reg_data);
 		when CONST_UI =>
 			return ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
 		when CONST_SI =>
@@ -152,17 +145,9 @@ begin
 		end if;
 	end process;
 
-	r_out.read1_reg <= insn_ra(d_in.insn) when (d_in.decode.input_reg_a = RA) else
-			   insn_ra(d_in.insn) when d_in.decode.input_reg_a = RA_OR_ZERO else
-			   insn_rs(d_in.insn) when d_in.decode.input_reg_a = RS else
-			   (others => '0');
-
-	r_out.read2_reg <= insn_rb(d_in.insn) when d_in.decode.input_reg_b = RB else
-			   insn_rs(d_in.insn) when d_in.decode.input_reg_b = RS else
-			   (others => '0');
-
-	r_out.read3_reg <= insn_rs(d_in.insn) when d_in.decode.input_reg_c = RS else
-			   (others => '0');
+	r_out.read1_reg <= insn_ra(d_in.insn);
+	r_out.read2_reg <= insn_rb(d_in.insn);
+	r_out.read3_reg <= insn_rs(d_in.insn);
 
 	c_out.read <= d_in.decode.input_cr;
 
@@ -207,6 +192,7 @@ begin
 		v.e.read_data1 := decoded_reg_a.data;
 		v.e.read_reg2 := decoded_reg_b.reg;
 		v.e.read_data2 := decoded_reg_b.data;
+                v.e.read_data3 := decoded_reg_c.data;
 		v.e.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
 		v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
 		v.e.cr := c_in.read_cr_data;

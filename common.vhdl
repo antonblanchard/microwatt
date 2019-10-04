@@ -52,6 +52,7 @@ package common is
 		read_reg2: std_ulogic_vector(4 downto 0);
 		read_data1: std_ulogic_vector(63 downto 0);
 		read_data2: std_ulogic_vector(63 downto 0);
+		read_data3: std_ulogic_vector(63 downto 0);
 		cr: std_ulogic_vector(31 downto 0);
 		lr: std_ulogic;
 		rc: std_ulogic;
