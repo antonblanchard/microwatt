@@ -34,8 +34,8 @@ architecture behaviour of decode1 is
                             (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1');
 
         constant major_decode_rom_array : major_rom_array_t := (
-		--          unit     internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
-		--                        op                                            in   out   A   in    out  len        ext             32  sgn             pipe
+		--          unit     internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+		--                        op                                            in   out   A   in    out  len        ext                                 pipe
 		12 =>       (ALU,    OP_ADD,       RA,         CONST_SI,    NONE, RT,   '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- addic
 		13 =>       (ALU,    OP_ADD,       RA,         CONST_SI,    NONE, RT,   '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '1'), -- addic.
                 14 =>       (ALU,    OP_ADD,       RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- addi
@@ -99,8 +99,8 @@ architecture behaviour of decode1 is
 
         -- indexed by bits 5, 3, 2 of instruction word
 	constant decode_op_19_array : op_19_subop_array_t := (
-		--                 unit     internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
-		--                               op                                            in   out   A   in    out  len        ext             32  sgn             pipe
+		--                 unit     internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+		--                               op                                            in   out   A   in    out  len        ext                                 pipe
                 -- mcrf; cr logical ops not implemented yet
 		2#000#    =>       (ALU,    OP_MCRF,      NONE,       NONE,        NONE, NONE, '1', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		-- addpcis not implemented yet
@@ -113,8 +113,8 @@ architecture behaviour of decode1 is
         );
 
 	constant decode_op_30_array : op_30_subop_array_t := (
-		--                 unit    internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
-		--                               op                                           in   out   A   in    out  len        ext             32  sgn             pipe
+		--                 unit    internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+		--                               op                                           in   out   A   in    out  len        ext                                pipe
 		2#010#   =>       (ALU,    OP_RLDIC,     NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		2#000#   =>       (ALU,    OP_RLDICL,    NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
 		2#001#   =>       (ALU,    OP_RLDICR,    NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
@@ -126,8 +126,8 @@ architecture behaviour of decode1 is
 
 	-- Note: reformat with column -t -o ' '
 	constant decode_op_31_array : op_31_subop_array_t := (
-		--                       unit    internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
-		--                                    op                                            in   out   A   in    out  len        ext             32  sgn             pipe
+		--                       unit    internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+		--                                    op                                            in   out   A   in    out  len        ext                                 pipe
 		2#0100001010#  =>       (ALU,    OP_ADD,       RA,         RB,          NONE, RT,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- add
 		2#0000001010#  =>       (ALU,    OP_ADD,       RA,         RB,          NONE, RT,   '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- addc
 		2#0010001010#  =>       (ALU,    OP_ADD,       RA,         RB,          NONE, RT,   '0', '0', '0', CA,   '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- adde
@@ -286,8 +286,8 @@ architecture behaviour of decode1 is
 	);
 
         constant decode_op_58_array : minor_rom_array_2_t := (
-		--              unit    internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
-		--                           op                                            in   out   A   in    out  len        ext             32  sgn             pipe
+		--              unit    internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+		--                           op                                            in   out   A   in    out  len        ext                                 pipe
 		0     =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_DS,    NONE, RT,   '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- ld
                 1     =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_DS,    NONE, RT,   '0', '0', '0', ZERO, '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- ldu
                 2     =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_DS,    NONE, RT,   '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '1'), -- lwa
@@ -295,15 +295,15 @@ architecture behaviour of decode1 is
         );
 
         constant decode_op_62_array : minor_rom_array_2_t := (
-		--              unit    internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
-		--                            op                                           in   out   A   in    out  len        ext             32  sgn             pipe
+		--              unit    internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+		--                            op                                           in   out   A   in    out  len        ext                                 pipe
 		0     =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_DS,    RS,   NONE, '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- std
 		1     =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_DS,    RS,   NONE, '0', '0', '0', ZERO, '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stdu
 		others   => decode_rom_init
         );
 
-        --                                       unit     internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv mul  mul  rc    lk   sgl
-        --                                                      op                                           in   out   A   in    out  len        ext             32  sgn             pipe
+        --                                       unit     internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+        --                                                      op                                           in   out   A   in    out  len        ext                                 pipe
         constant attn_instr    : decode_rom_t := (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1');
 	constant nop_instr     : decode_rom_t := (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1');
         constant sim_cfg_instr : decode_rom_t := (ALU,    OP_SIM_CONFIG,NONE,       NONE,        NONE, RT,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1');

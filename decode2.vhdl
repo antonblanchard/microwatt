@@ -199,6 +199,8 @@ begin
                 v.e.invert_a := d_in.decode.invert_a;
 		v.e.input_carry := d_in.decode.input_carry;
 		v.e.output_carry := d_in.decode.output_carry;
+		v.e.is_32bit := d_in.decode.is_32bit;
+		v.e.is_signed := d_in.decode.is_signed;
 		if d_in.decode.lr = '1' then
 			v.e.lr := insn_lk(d_in.insn);
 		end if;
@@ -211,8 +213,8 @@ begin
 		v.m.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
 		v.m.rc := decode_rc(d_in.decode.rc, d_in.insn);
 
-		if d_in.decode.mul_32bit = '1' then
-			if d_in.decode.mul_signed = '1' then
+		if d_in.decode.is_32bit = '1' then
+			if d_in.decode.is_signed = '1' then
 				v.m.data1 := (others => mul_a(31));
 				v.m.data1(31 downto 0) := mul_a(31 downto 0);
 				v.m.data2 := (others => mul_b(31));
@@ -222,7 +224,7 @@ begin
 				v.m.data2 := '0' & x"00000000" & mul_b(31 downto 0);
 			end if;
 		else
-			if d_in.decode.mul_signed = '1' then
+			if d_in.decode.is_signed = '1' then
 				v.m.data1 := mul_a(63) & mul_a;
 				v.m.data2 := mul_b(63) & mul_b;
 			else

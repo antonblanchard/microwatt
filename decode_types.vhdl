@@ -71,9 +71,9 @@ package decode_types is
 		update       : std_ulogic;
 		reserve      : std_ulogic;
 
-		-- multiplier signals
-		mul_32bit     : std_ulogic;
-		mul_signed    : std_ulogic;
+		-- multiplier and ALU signals
+		is_32bit     : std_ulogic;
+		is_signed    : std_ulogic;
 
 		rc           : rc_t;
 		lr           : std_ulogic;
@@ -86,8 +86,8 @@ package decode_types is
 		output_reg_a => NONE, input_cr => '0', output_cr => '0',
 		invert_a => '0', input_carry => ZERO, output_carry => '0',
 		length => NONE, byte_reverse => '0', sign_extend => '0',
-		update => '0', reserve => '0', mul_32bit => '0',
-		mul_signed => '0', rc => NONE, lr => '0', sgl_pipe => '0');
+		update => '0', reserve => '0', is_32bit => '0',
+		is_signed => '0', rc => NONE, lr => '0', sgl_pipe => '0');
 
 end decode_types;
 
