@@ -52,18 +52,23 @@ package common is
 		read_reg2: std_ulogic_vector(4 downto 0);
 		read_data1: std_ulogic_vector(63 downto 0);
 		read_data2: std_ulogic_vector(63 downto 0);
-		const1: std_ulogic_vector(7 downto 0);
-		const2: std_ulogic_vector(5 downto 0);
-		const3: std_ulogic_vector(4 downto 0);
+		read_data3: std_ulogic_vector(63 downto 0);
 		cr: std_ulogic_vector(31 downto 0);
 		lr: std_ulogic;
 		rc: std_ulogic;
-		input_carry: std_ulogic;
+                invert_a: std_ulogic;
+		input_carry: carry_in_t;
 		output_carry: std_ulogic;
 		input_cr: std_ulogic;
 		output_cr: std_ulogic;
+		is_32bit: std_ulogic;
+		is_signed: std_ulogic;
+                insn: std_ulogic_vector(31 downto 0);
 	end record;
-	constant Decode2ToExecute1Init : Decode2ToExecute1Type := (valid => '0', insn_type => OP_ILLEGAL, lr => '0', rc => '0', input_carry => '0', output_carry => '0', input_cr => '0', output_cr => '0', others => (others => '0'));
+	constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
+		(valid => '0', insn_type => OP_ILLEGAL, lr => '0', rc => '0', invert_a => '0',
+		 input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
+		 is_32bit => '0', is_signed => '0', others => (others => '0'));
 
 	type Decode2ToMultiplyType is record
 		valid: std_ulogic;

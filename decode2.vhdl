@@ -62,16 +62,11 @@ architecture behaviour of decode2 is
 	function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
 				     reg_data : std_ulogic_vector(63 downto 0)) return decode_input_reg_t is
 	begin
-		case t is
-		when RA =>
+		if t = RA or (t = RA_OR_ZERO and insn_ra(insn_in) /= "00000") then
 			return ('1', insn_ra(insn_in), reg_data);
-		when RA_OR_ZERO =>
-			return ('1', insn_ra(insn_in), ra_or_zero(reg_data, insn_ra(insn_in)));
-		when RS =>
-			return ('1', insn_rs(insn_in), reg_data);
-		when NONE =>
+		else
 			return ('0', (others => '0'), (others => '0'));
-		end case;
+		end if;
 	end;
 
 	function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0);
@@ -80,8 +75,6 @@ architecture behaviour of decode2 is
 		case t is
 		when RB =>
 			return ('1', insn_rb(insn_in), reg_data);
-		when RS =>
-			return ('1', insn_rs(insn_in), reg_data);
 		when CONST_UI =>
 			return ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
 		when CONST_SI =>
@@ -96,6 +89,12 @@ architecture behaviour of decode2 is
 			return ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64)));
 		when CONST_DS =>
 			return ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64)));
+                when CONST_M1 =>
+			return ('0', (others => '0'), x"FFFFFFFFFFFFFFFF");
+		when CONST_SH =>
+			return ('0', (others => '0'), x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11));
+		when CONST_SH32 =>
+			return ('0', (others => '0'), x"00000000000000" & "000" & insn_in(15 downto 11));
 		when NONE =>
 			return ('0', (others => '0'), (others => '0'));
 		end case;
@@ -119,58 +118,6 @@ architecture behaviour of decode2 is
 			return insn_rt(insn_in);
 		when RA =>
 			return insn_ra(insn_in);
-		when NONE =>
-			return "00000";
-		end case;
-	end;
-
-	function decode_const_a (t : constant_a_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
-	begin
-		case t is
-		when SH =>
-			return "00" & insn_sh(insn_in);
-		when SH32 =>
-			return "000" & insn_sh32(insn_in);
-		when FXM =>
-			return insn_fxm(insn_in);
-		when BO =>
-			return "000" & insn_bo(insn_in);
-		when BF =>
-			return "00000" & insn_bf(insn_in);
-		when TOO =>
-			return "000" & insn_to(insn_in);
-		when BC =>
-			return "000" & insn_bc(insn_in);
-		when NONE =>
-			return "00000000";
-		end case;
-	end;
-
-	function decode_const_b (t : constant_b_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
-	begin
-		case t is
-		when MB =>
-			return insn_mb(insn_in);
-		when ME =>
-			return insn_me(insn_in);
-		when MB32 =>
-			return "0" & insn_mb32(insn_in);
-		when BI =>
-			return "0" & insn_bi(insn_in);
-		when L =>
-			return "00000" & insn_l(insn_in);
-		when NONE =>
-			return "000000";
-		end case;
-	end;
-
-	function decode_const_c (t : constant_c_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
-	begin
-		case t is
-		when ME32 =>
-			return insn_me32(insn_in);
-		when BH =>
-			return "000" & insn_bh(insn_in);
 		when NONE =>
 			return "00000";
 		end case;
@@ -202,17 +149,9 @@ begin
 		end if;
 	end process;
 
-	r_out.read1_reg <= insn_ra(d_in.insn) when (d_in.decode.input_reg_a = RA) else
-			   insn_ra(d_in.insn) when d_in.decode.input_reg_a = RA_OR_ZERO else
-			   insn_rs(d_in.insn) when d_in.decode.input_reg_a = RS else
-			   (others => '0');
-
-	r_out.read2_reg <= insn_rb(d_in.insn) when d_in.decode.input_reg_b = RB else
-			   insn_rs(d_in.insn) when d_in.decode.input_reg_b = RS else
-			   (others => '0');
-
-	r_out.read3_reg <= insn_rs(d_in.insn) when d_in.decode.input_reg_c = RS else
-			   (others => '0');
+	r_out.read1_reg <= insn_ra(d_in.insn);
+	r_out.read2_reg <= insn_rb(d_in.insn);
+	r_out.read3_reg <= insn_rs(d_in.insn);
 
 	c_out.read <= d_in.decode.input_cr;
 
@@ -257,17 +196,19 @@ begin
 		v.e.read_data1 := decoded_reg_a.data;
 		v.e.read_reg2 := decoded_reg_b.reg;
 		v.e.read_data2 := decoded_reg_b.data;
+                v.e.read_data3 := decoded_reg_c.data;
 		v.e.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
 		v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
 		v.e.cr := c_in.read_cr_data;
+                v.e.invert_a := d_in.decode.invert_a;
 		v.e.input_carry := d_in.decode.input_carry;
 		v.e.output_carry := d_in.decode.output_carry;
+		v.e.is_32bit := d_in.decode.is_32bit;
+		v.e.is_signed := d_in.decode.is_signed;
 		if d_in.decode.lr = '1' then
 			v.e.lr := insn_lk(d_in.insn);
 		end if;
-		v.e.const1 := decode_const_a(d_in.decode.const_a, d_in.insn);
-		v.e.const2 := decode_const_b(d_in.decode.const_b, d_in.insn);
-		v.e.const3 := decode_const_c(d_in.decode.const_c, d_in.insn);
+                v.e.insn := d_in.insn;
 
 		-- multiply unit
 		v.m.insn_type := d_in.decode.insn_type;
@@ -276,8 +217,8 @@ begin
 		v.m.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
 		v.m.rc := decode_rc(d_in.decode.rc, d_in.insn);
 
-		if d_in.decode.mul_32bit = '1' then
-			if d_in.decode.mul_signed = '1' then
+		if d_in.decode.is_32bit = '1' then
+			if d_in.decode.is_signed = '1' then
 				v.m.data1 := (others => mul_a(31));
 				v.m.data1(31 downto 0) := mul_a(31 downto 0);
 				v.m.data2 := (others => mul_b(31));
@@ -287,7 +228,7 @@ begin
 				v.m.data2 := '0' & x"00000000" & mul_b(31 downto 0);
 			end if;
 		else
-			if d_in.decode.mul_signed = '1' then
+			if d_in.decode.is_signed = '1' then
 				v.m.data1 := mul_a(63) & mul_a;
 				v.m.data2 := mul_b(63) & mul_b;
 			else
