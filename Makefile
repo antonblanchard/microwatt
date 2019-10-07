@@ -2,7 +2,8 @@ GHDL=ghdl
 GHDLFLAGS=--std=08 -Psim-unisim
 CFLAGS=-O2 -Wall
 
-all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb multiply_tb dmi_dtm_tb divider_tb
+all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb multiply_tb dmi_dtm_tb divider_tb \
+	rotator_tb
 
 # XXX
 # loadstore_tb fetch_tb
@@ -22,7 +23,7 @@ crhelpers.o: common.o
 decode1.o: common.o decode_types.o
 decode2.o: decode_types.o common.o helpers.o insn_helpers.o
 decode_types.o:
-execute1.o: decode_types.o common.o helpers.o crhelpers.o ppc_fx_insns.o insn_helpers.o
+execute1.o: decode_types.o common.o helpers.o crhelpers.o ppc_fx_insns.o insn_helpers.o rotator.o
 execute2.o: common.o crhelpers.o ppc_fx_insns.o
 fetch1.o: common.o
 fetch2.o: common.o wishbone_types.o
@@ -40,6 +41,8 @@ divider_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o divider.o
 divider.o: common.o decode_types.o crhelpers.o
 ppc_fx_insns.o: helpers.o
 register_file.o: common.o
+rotator.o: common.o
+rotator_tb.o: common.o glibc_random.o ppc_fx_insns.o insn_helpers.o rotator.o
 sim_console.o:
 simple_ram_behavioural_helpers.o:
 simple_ram_behavioural_tb.o: wishbone_types.o simple_ram_behavioural.o
@@ -79,6 +82,9 @@ multiply_tb: multiply_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 divider_tb: divider_tb.o
+	$(GHDL) -e $(GHDLFLAGS) $@
+
+rotator_tb: rotator_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 simple_ram_tb: simple_ram_tb.o

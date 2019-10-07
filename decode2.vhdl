@@ -90,7 +90,11 @@ architecture behaviour of decode2 is
 		when CONST_DS =>
 			return ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64)));
                 when CONST_M1 =>
-                        return ('0', (others => '0'), x"FFFFFFFFFFFFFFFF");
+			return ('0', (others => '0'), x"FFFFFFFFFFFFFFFF");
+		when CONST_SH =>
+			return ('0', (others => '0'), x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11));
+		when CONST_SH32 =>
+			return ('0', (others => '0'), x"00000000000000" & "000" & insn_in(15 downto 11));
 		when NONE =>
 			return ('0', (others => '0'), (others => '0'));
 		end case;

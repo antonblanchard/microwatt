@@ -24,6 +24,7 @@ filesets:
       - loadstore2.vhdl
       - multiply.vhdl
       - divider.vhdl
+      - rotator.vhdl
       - writeback.vhdl
       - insn_helpers.vhdl
       - core.vhdl

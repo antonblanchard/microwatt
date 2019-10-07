@@ -42,6 +42,10 @@ architecture behaviour of execute1 is
 	signal ctrl: ctrl_t := (carry => '0', others => (others => '0'));
 	signal ctrl_tmp: ctrl_t := (carry => '0', others => (others => '0'));
 
+	signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
+	signal rotator_result: std_ulogic_vector(63 downto 0);
+	signal rotator_carry: std_ulogic;
+
         function decode_input_carry (carry_sel : carry_in_t; ca_in : std_ulogic) return std_ulogic is
         begin
                 case carry_sel is
@@ -54,6 +58,22 @@ architecture behaviour of execute1 is
                 end case;
         end;
 begin
+
+	rotator_0: entity work.rotator
+		port map (
+			rs => e_in.read_data3,
+			ra => e_in.read_data1,
+			shift => e_in.read_data2(6 downto 0),
+			insn => e_in.insn,
+			is_32bit => e_in.is_32bit,
+			right_shift => right_shift,
+			arith => e_in.is_signed,
+			clear_left => rot_clear_left,
+			clear_right => rot_clear_right,
+			result => rotator_result,
+			carry_out => rotator_carry
+		);
+
 	execute1_0: process(clk)
 	begin
 		if rising_edge(clk) then
@@ -92,6 +112,11 @@ begin
 
 		terminate_out <= '0';
 		f_out <= Execute1ToFetch1TypeInit;
+
+		-- rotator control signals
+		right_shift <= '1' when e_in.insn_type = OP_SHR else '0';
+		rot_clear_left <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCL else '0';
+		rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
 
 		if e_in.valid = '1' then
 
@@ -310,85 +335,11 @@ begin
 				when OP_PRTYW =>
 					result := ppc_prtyw(e_in.read_data3);
 					result_en := 1;
-				when OP_RLDCX =>
-                                        -- note rldcl mb field and rldcr me field are in the same place
-                                        mb := insn_mb(e_in.insn);
-                                        if e_in.insn(1) = '0' then
-                                                result := ppc_rldcl(e_in.read_data3, e_in.read_data2, mb);
-                                        else
-                                                result := ppc_rldcr(e_in.read_data3, e_in.read_data2, mb);
-                                        end if;
-					result_en := 1;
-				when OP_RLDICL =>
-                                        sh := insn_sh(e_in.insn);
-                                        mb := insn_mb(e_in.insn);
-					result := ppc_rldicl(e_in.read_data3, sh, mb);
-					result_en := 1;
-				when OP_RLDICR =>
-                                        sh := insn_sh(e_in.insn);
-                                        me := insn_me(e_in.insn);
-					result := ppc_rldicr(e_in.read_data3, sh, me);
-					result_en := 1;
-				when OP_RLWNM =>
-                                        mb32 := insn_mb32(e_in.insn);
-                                        me32 := insn_me32(e_in.insn);
-					result := ppc_rlwnm(e_in.read_data3, e_in.read_data2, mb32, me32);
-					result_en := 1;
-				when OP_RLWINM =>
-                                        sh32 := insn_sh32(e_in.insn);
-                                        mb32 := insn_mb32(e_in.insn);
-                                        me32 := insn_me32(e_in.insn);
-					result := ppc_rlwinm(e_in.read_data3, sh32, mb32, me32);
-					result_en := 1;
-				when OP_RLDIC =>
-                                        sh := insn_sh(e_in.insn);
-                                        mb := insn_mb(e_in.insn);
-					result := ppc_rldic(e_in.read_data3, sh, mb);
-					result_en := 1;
-				when OP_RLDIMI =>
-                                        sh := insn_sh(e_in.insn);
-                                        mb := insn_mb(e_in.insn);
-					result := ppc_rldimi(e_in.read_data1, e_in.read_data3, sh, mb);
-					result_en := 1;
-				when OP_RLWIMI =>
-                                        sh32 := insn_sh32(e_in.insn);
-                                        mb32 := insn_mb32(e_in.insn);
-                                        me32 := insn_me32(e_in.insn);
-					result := ppc_rlwimi(e_in.read_data1, e_in.read_data3, sh32, mb32, me32);
-					result_en := 1;
-				when OP_SLD =>
-					result := ppc_sld(e_in.read_data3, e_in.read_data2);
-					result_en := 1;
-				when OP_SLW =>
-					result := ppc_slw(e_in.read_data3, e_in.read_data2);
-					result_en := 1;
-				when OP_SRAW =>
-					result_with_carry := ppc_sraw(e_in.read_data3, e_in.read_data2);
-					result := result_with_carry(63 downto 0);
-					ctrl_tmp.carry <= result_with_carry(64);
-					result_en := 1;
-				when OP_SRAWI =>
-                                        sh := '0' & insn_sh32(e_in.insn);
-					result_with_carry := ppc_srawi(e_in.read_data3, sh);
-					result := result_with_carry(63 downto 0);
-					ctrl_tmp.carry <= result_with_carry(64);
-					result_en := 1;
-				when OP_SRAD =>
-					result_with_carry := ppc_srad(e_in.read_data3, e_in.read_data2);
-					result := result_with_carry(63 downto 0);
-					ctrl_tmp.carry <= result_with_carry(64);
-					result_en := 1;
-				when OP_SRADI =>
-                                        sh := insn_sh(e_in.insn);
-					result_with_carry := ppc_sradi(e_in.read_data3, sh);
-					result := result_with_carry(63 downto 0);
-					ctrl_tmp.carry <= result_with_carry(64);
-					result_en := 1;
-				when OP_SRD =>
-					result := ppc_srd(e_in.read_data3, e_in.read_data2);
-					result_en := 1;
-				when OP_SRW =>
-					result := ppc_srw(e_in.read_data3, e_in.read_data2);
+				when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR =>
+					result := rotator_result;
+					if e_in.output_carry = '1' then
+						ctrl_tmp.carry <= rotator_carry;
+					end if;
 					result_en := 1;
 				when OP_XOR =>
 					result := ppc_xor(e_in.read_data3, e_in.read_data2);

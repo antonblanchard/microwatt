@@ -26,7 +26,7 @@ architecture behaviour of decode1 is
         type major_rom_array_t is array(0 to 63) of decode_rom_t;
         type minor_valid_array_t is array(0 to 1023) of std_ulogic;
         type op_19_subop_array_t is array(0 to 7) of decode_rom_t;
-        type op_30_subop_array_t is array(0 to 7) of decode_rom_t;
+        type op_30_subop_array_t is array(0 to 15) of decode_rom_t;
         type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
         type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
 
@@ -57,9 +57,9 @@ architecture behaviour of decode1 is
 		 7 =>       (MUL,    OP_MUL_L64,   RA,         CONST_SI,    NONE, RT,   '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '1'), -- mulli
 		24 =>       (ALU,    OP_OR,        NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- ori
 		25 =>       (ALU,    OP_OR,        NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- oris
-		20 =>       (ALU,    OP_RLWIMI,    RA,         NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rlwimi
-		21 =>       (ALU,    OP_RLWINM,    NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rlwinm
-		23 =>       (ALU,    OP_RLWNM,     NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rlwnm
+		20 =>       (ALU,    OP_RLC,       RA,         CONST_SH32,  RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '1'), -- rlwimi
+		21 =>       (ALU,    OP_RLC,       NONE,       CONST_SH32,  RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '1'), -- rlwinm
+		23 =>       (ALU,    OP_RLC,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '1'), -- rlwnm
 		38 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- stb
 		39 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', ZERO, '0', is1B, '0', '0', '1', '0', '0', '0', RC,   '0', '1'), -- stbu
 		44 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- sth
@@ -115,12 +115,16 @@ architecture behaviour of decode1 is
 	constant decode_op_30_array : op_30_subop_array_t := (
 		--                 unit    internal      in1         in2          in3   out   CR   CR   inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
 		--                               op                                           in   out   A   in    out  len        ext                                pipe
-		2#010#   =>       (ALU,    OP_RLDIC,     NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		2#000#   =>       (ALU,    OP_RLDICL,    NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		2#001#   =>       (ALU,    OP_RLDICR,    NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-		2#011#   =>       (ALU,    OP_RLDIMI,    RA,         NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
-                -- rldcl, rldcr
-		2#100#   =>       (ALU,    OP_RLDCX,     NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		2#0100#  =>       (ALU,    OP_RLC,       NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rldic
+		2#0101#  =>       (ALU,    OP_RLC,       NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rldic
+		2#0000#  =>       (ALU,    OP_RLCL,      NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rldicl
+		2#0001#  =>       (ALU,    OP_RLCL,      NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rldicl
+		2#0010#  =>       (ALU,    OP_RLCR,      NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rldicr
+		2#0011#  =>       (ALU,    OP_RLCR,      NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rldicr
+		2#0110#  =>       (ALU,    OP_RLC,       RA,         CONST_SH,    RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rldimi
+		2#0111#  =>       (ALU,    OP_RLC,       RA,         CONST_SH,    RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rldimi
+		2#1000#  =>       (ALU,    OP_RLCL,      NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rldcl
+		2#1001#  =>       (ALU,    OP_RLCR,      NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- rldcr
 		others   => illegal_inst
         );
 
@@ -249,15 +253,15 @@ architecture behaviour of decode1 is
 		2#0010111010#  =>       (ALU,    OP_PRTYD,     NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- prtyd
 		2#0010011010#  =>       (ALU,    OP_PRTYW,     NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- prtyw
 		-- 2#0010000000# setb
-		2#0000011011#  =>       (ALU,    OP_SLD,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- sld
-		2#0000011000#  =>       (ALU,    OP_SLW,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- slw
-		2#1100011010#  =>       (ALU,    OP_SRAD,      NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srad
-		2#1100111010#  =>       (ALU,    OP_SRADI,     NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- sradi
-		2#1100111011#  =>       (ALU,    OP_SRADI,     NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- sradi
-		2#1100011000#  =>       (ALU,    OP_SRAW,      NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- sraw
-		2#1100111000#  =>       (ALU,    OP_SRAWI,     NONE,       NONE,        RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srawi
-		2#1000011011#  =>       (ALU,    OP_SRD,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srd
-		2#1000011000#  =>       (ALU,    OP_SRW,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srw
+		2#0000011011#  =>       (ALU,    OP_SHL,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- sld
+		2#0000011000#  =>       (ALU,    OP_SHL,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '1'), -- slw
+		2#1100011010#  =>       (ALU,    OP_SHR,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- srad
+		2#1100111010#  =>       (ALU,    OP_SHR,       NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- sradi
+		2#1100111011#  =>       (ALU,    OP_SHR,       NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- sradi
+		2#1100011000#  =>       (ALU,    OP_SHR,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'), -- sraw
+		2#1100111000#  =>       (ALU,    OP_SHR,       NONE,       CONST_SH32,  RS,   RA,   '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'), -- srawi
+		2#1000011011#  =>       (ALU,    OP_SHR,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- srd
+		2#1000011000#  =>       (ALU,    OP_SHR,       NONE,       RB,          RS,   RA,   '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '1'), -- srw
 		2#1010110110#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '1', '0', '0', RC,   '0', '1'), -- stbcx
 		2#0011110111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', ZERO, '0', is1B, '0', '0', '1', '0', '0', '0', RC,   '0', '1'), -- stbux
 		2#0011010111#  =>       (LDST,   OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- stbx
@@ -323,7 +327,6 @@ begin
 		variable v : Decode1ToDecode2Type;
                 variable majorop : major_opcode_t;
                 variable op_19_bits: std_ulogic_vector(2 downto 0);
-                variable op_30_bits: std_ulogic_vector(2 downto 0);
 	begin
 		v := r;
 
@@ -352,7 +355,7 @@ begin
                         end if;
 
                 elsif majorop = "011110" then
-                        v.decode := decode_op_30_array(to_integer(unsigned(f_in.insn(4 downto 2))));
+                        v.decode := decode_op_30_array(to_integer(unsigned(f_in.insn(4 downto 1))));
 
                 elsif majorop = "111010" then
                         v.decode := decode_op_58_array(to_integer(unsigned(f_in.insn(1 downto 0))));
