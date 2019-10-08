@@ -19,6 +19,7 @@ filesets:
       - ppc_fx_insns.vhdl
       - sim_console.vhdl
       - logical.vhdl
+      - countzero.vhdl
       - execute1.vhdl
       - execute2.vhdl
       - loadstore1.vhdl

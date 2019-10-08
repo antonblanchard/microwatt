@@ -46,6 +46,7 @@ architecture behaviour of execute1 is
 	signal rotator_result: std_ulogic_vector(63 downto 0);
 	signal rotator_carry: std_ulogic;
 	signal logical_result: std_ulogic_vector(63 downto 0);
+	signal countzero_result: std_ulogic_vector(63 downto 0);
 
         function decode_input_carry (carry_sel : carry_in_t; ca_in : std_ulogic) return std_ulogic is
         begin
@@ -83,6 +84,14 @@ begin
 			invert_in => e_in.invert_a,
 			invert_out => e_in.invert_out,
 			result => logical_result
+		);
+
+	countzero_0: entity work.zero_counter
+		port map (
+			rs => e_in.read_data3,
+			count_right => e_in.insn(10),
+			is_32bit => e_in.is_32bit,
+			result => countzero_result
 		);
 
 	execute1_0: process(clk)
@@ -217,17 +226,8 @@ begin
 						hi := lo + 3;
 						v.e.write_cr_data(hi downto lo) := ppc_cmpl(l, e_in.read_data1, e_in.read_data2);
 					end loop;
-				when OP_CNTLZW =>
-					result := ppc_cntlzw(e_in.read_data3);
-					result_en := 1;
-				when OP_CNTTZW =>
-					result := ppc_cnttzw(e_in.read_data3);
-					result_en := 1;
-				when OP_CNTLZD =>
-					result := ppc_cntlzd(e_in.read_data3);
-					result_en := 1;
-				when OP_CNTTZD =>
-					result := ppc_cnttzd(e_in.read_data3);
+				when OP_CNTZ =>
+					result := countzero_result;
 					result_en := 1;
 				when OP_EXTSB =>
 					result := ppc_extsb(e_in.read_data3);
