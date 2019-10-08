@@ -45,6 +45,7 @@ architecture behaviour of execute1 is
 	signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
 	signal rotator_result: std_ulogic_vector(63 downto 0);
 	signal rotator_carry: std_ulogic;
+	signal logical_result: std_ulogic_vector(63 downto 0);
 
         function decode_input_carry (carry_sel : carry_in_t; ca_in : std_ulogic) return std_ulogic is
         begin
@@ -72,6 +73,16 @@ begin
 			clear_right => rot_clear_right,
 			result => rotator_result,
 			carry_out => rotator_carry
+		);
+
+	logical_0: entity work.logical
+		port map (
+			rs => e_in.read_data3,
+			rb => e_in.read_data2,
+			op => e_in.insn_type,
+			invert_in => e_in.invert_a,
+			invert_out => e_in.invert_out,
+			result => logical_result
 		);
 
 	execute1_0: process(clk)
@@ -142,12 +153,9 @@ begin
                                                 ctrl_tmp.carry <= result_with_carry(64);
                                         end if;
 					result_en := 1;
-				when OP_AND =>
-					result := ppc_and(e_in.read_data3, e_in.read_data2);
-					result_en := 1;
-				when OP_ANDC =>
-					result := ppc_andc(e_in.read_data3, e_in.read_data2);
-					result_en := 1;
+				when OP_AND | OP_OR | OP_XOR =>
+                                        result := logical_result;
+                                        result_en := 1;
 				when OP_B =>
 					f_out.redirect <= '1';
 					if (insn_aa(e_in.insn)) then
@@ -230,9 +238,6 @@ begin
 				when OP_EXTSW =>
 					result := ppc_extsw(e_in.read_data3);
 					result_en := 1;
-				when OP_EQV =>
-					result := ppc_eqv(e_in.read_data3, e_in.read_data2);
-					result_en := 1;
 				when OP_ISEL =>
 					crnum := to_integer(unsigned(insn_bc(e_in.insn)));
 					if e_in.cr(31-crnum) = '1' then
@@ -305,20 +310,8 @@ begin
                                         elsif std_match(e_in.insn(20 downto 11), "0100000000") then
                                                 ctrl_tmp.lr <= e_in.read_data3;
                                         end if;
-				when OP_NAND =>
-					result := ppc_nand(e_in.read_data3, e_in.read_data2);
-					result_en := 1;
 				when OP_NEG =>
 					result := ppc_neg(e_in.read_data1);
-					result_en := 1;
-				when OP_NOR =>
-					result := ppc_nor(e_in.read_data3, e_in.read_data2);
-					result_en := 1;
-				when OP_OR =>
-					result := ppc_or(e_in.read_data3, e_in.read_data2);
-					result_en := 1;
-				when OP_ORC =>
-					result := ppc_orc(e_in.read_data3, e_in.read_data2);
 					result_en := 1;
 				when OP_POPCNTB =>
 					result := ppc_popcntb(e_in.read_data3);
@@ -341,10 +334,6 @@ begin
 						ctrl_tmp.carry <= rotator_carry;
 					end if;
 					result_en := 1;
-				when OP_XOR =>
-					result := ppc_xor(e_in.read_data3, e_in.read_data2);
-					result_en := 1;
-
 				when OP_SIM_CONFIG =>
 					-- bit 0 was used to select the microwatt console, which
 					-- we no longer support.
