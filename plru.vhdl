@@ -29,7 +29,7 @@ begin
     -- XXX Check if we can turn that into a little ROM instead that
     -- takes the tree bit vector and returns the LRU. See if it's better
     -- in term of FPGA resouces usage...
-    get_lru: process(all)
+    get_lru: process(tree)
 	variable node : node_t;
     begin
 	node := 0;
