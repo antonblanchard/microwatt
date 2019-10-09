@@ -23,7 +23,7 @@ crhelpers.o: common.o
 decode1.o: common.o decode_types.o
 decode2.o: decode_types.o common.o helpers.o insn_helpers.o
 decode_types.o:
-execute1.o: decode_types.o common.o helpers.o crhelpers.o ppc_fx_insns.o insn_helpers.o rotator.o
+execute1.o: decode_types.o common.o helpers.o crhelpers.o insn_helpers.o ppc_fx_insns.o rotator.o logical.o
 execute2.o: common.o crhelpers.o ppc_fx_insns.o
 fetch1.o: common.o
 fetch2.o: common.o wishbone_types.o
@@ -38,6 +38,7 @@ icache_tb.o: common.o wishbone_types.o icache.o simple_ram_behavioural.o
 insn_helpers.o:
 loadstore1.o: common.o helpers.o
 loadstore2.o: common.o helpers.o wishbone_types.o
+logical.o: decode_types.o
 multiply_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o multiply.o
 multiply.o: common.o decode_types.o ppc_fx_insns.o crhelpers.o
 divider_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o divider.o

@@ -56,6 +56,7 @@ package common is
 		lr: std_ulogic;
 		rc: std_ulogic;
                 invert_a: std_ulogic;
+                invert_out: std_ulogic;
 		input_carry: carry_in_t;
 		output_carry: std_ulogic;
 		input_cr: std_ulogic;
@@ -66,7 +67,7 @@ package common is
 	end record;
 	constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 		(valid => '0', insn_type => OP_ILLEGAL, lr => '0', rc => '0', invert_a => '0',
-		 input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
+		 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 		 is_32bit => '0', is_signed => '0', others => (others => '0'));
 
 	type Decode2ToMultiplyType is record

@@ -201,6 +201,7 @@ begin
 		v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
 		v.e.cr := c_in.read_cr_data;
                 v.e.invert_a := d_in.decode.invert_a;
+                v.e.invert_out := d_in.decode.invert_out;
 		v.e.input_carry := d_in.decode.input_carry;
 		v.e.output_carry := d_in.decode.output_carry;
 		v.e.is_32bit := d_in.decode.is_32bit;
