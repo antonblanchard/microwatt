@@ -274,6 +274,7 @@ begin
 
     -- Generate a cache RAM for each way
     rams: for i in 0 to NUM_WAYS-1 generate
+	signal do_read  : std_ulogic;
 	signal do_write : std_ulogic;
 	signal rd_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
 	signal wr_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
@@ -286,7 +287,7 @@ begin
 		)
 	    port map (
 		clk     => clk,
-		rd_en   => '1', -- fixme
+		rd_en   => do_read,
 		rd_addr => rd_addr,
 		rd_data => dout,
 		wr_en   => do_write,
@@ -296,6 +297,7 @@ begin
 		);
 	process(all)
 	begin
+	    do_read <= '1';
 	    do_write <= '0';
 	    if wishbone_in.ack = '1' and r.store_way = i then
 		do_write <= '1';
@@ -356,10 +358,11 @@ begin
 	hit_way := 0;
 	is_hit := '0';
 	for i in way_t loop
-	    if read_tag(i, cache_tags(req_index)) = req_tag and
-		cache_valids(req_index)(i) = '1' then
-		hit_way := i;
-		is_hit := '1';
+	    if i_in.req = '1' and cache_valids(req_index)(i) = '1' then
+		if read_tag(i, cache_tags(req_index)) = req_tag then
+		    hit_way := i;
+		    is_hit := '1';
+		end if;
 	    end if;
 	end loop;
 
@@ -434,6 +437,9 @@ begin
 		r.wb.dat <= (others => '0');
 		r.wb.sel <= "11111111";
 		r.wb.we  <= '0';
+
+		-- Not useful normally but helps avoiding tons of sim warnings
+		r.wb.adr <= (others => '0');
             else
 		-- Main state machine
 		case r.state is
