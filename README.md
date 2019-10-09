@@ -1,3 +1,7 @@
+<p align="center">
+<img src="media/microwatt-title.png" alt="Microwatt">
+</p>
+
 # Microwatt
 
 A tiny Open POWER ISA softcore written in VHDL 2008. It aims to be simple and easy
