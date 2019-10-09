@@ -290,6 +290,7 @@ begin
 		rd_addr => rd_addr,
 		rd_data => dout,
 		wr_en   => do_write,
+		wr_sel  => (others => '1'),
 		wr_addr => wr_addr,
 		wr_data => wishbone_in.dat
 		);
