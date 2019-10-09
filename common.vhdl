@@ -12,17 +12,16 @@ package common is
 		carry: std_ulogic;
 	end record;
 
-	type Fetch1ToFetch2Type is record
-	    nia: std_ulogic_vector(63 downto 0);
-	end record;
-
-	type Fetch2ToIcacheType is record
+	type Fetch1ToIcacheType is record
 		req: std_ulogic;
-		addr: std_ulogic_vector(63 downto 0);
+		stop_mark: std_ulogic;
+		nia: std_ulogic_vector(63 downto 0);
 	end record;
 
 	type IcacheToFetch2Type is record
-		ack: std_ulogic;
+		valid: std_ulogic;
+		stop_mark: std_ulogic;
+	        nia: std_ulogic_vector(63 downto 0);
 		insn: std_ulogic_vector(31 downto 0);
 	end record;
 
