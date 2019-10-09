@@ -15,12 +15,12 @@ entity loadstore1 is
 
         l_in  : in Decode2ToLoadstore1Type;
 
-        l_out : out Loadstore1ToLoadstore2Type
+        l_out : out Loadstore1ToDcacheType
         );
 end loadstore1;
 
 architecture behave of loadstore1 is
-    signal r, rin : Loadstore1ToLoadstore2Type;
+    signal r, rin : Loadstore1ToDcacheType;
     signal lsu_sum : std_ulogic_vector(63 downto 0);
 begin
     -- Calculate the address in the first cycle
@@ -34,7 +34,7 @@ begin
     end process;
 
     loadstore1_1: process(all)
-        variable v : Loadstore1ToLoadstore2Type;
+        variable v : Loadstore1ToDcacheType;
     begin
         v := r;
 
@@ -47,6 +47,20 @@ begin
         v.sign_extend := l_in.sign_extend;
         v.update := l_in.update;
         v.update_reg := l_in.update_reg;
+
+	-- XXX Temporary hack. Mark the op as non-cachable if the address
+	-- is the form 0xc-------
+	--
+	-- This will have to be replaced by a combination of implementing the
+	-- proper HV CI load/store instructions and having an MMU to get the I
+	-- bit otherwise.
+	if lsu_sum(31 downto 28) = "1100" then
+	    v.nc := '1';
+	else
+	    v.nc := '0';
+	end if;
+
+	-- XXX Do length_to_sel here ?
 
         -- byte reverse stores in the first cycle
         if v.load = '0' and l_in.byte_reverse = '1' then

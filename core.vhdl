@@ -59,8 +59,8 @@ architecture behave of core is
 
     -- load store signals
     signal decode2_to_loadstore1: Decode2ToLoadstore1Type;
-    signal loadstore1_to_loadstore2: Loadstore1ToLoadstore2Type;
-    signal loadstore2_to_writeback: Loadstore2ToWritebackType;
+    signal loadstore1_to_dcache: Loadstore1ToDcacheType;
+    signal dcache_to_writeback: DcacheToWritebackType;
 
     -- multiply signals
     signal decode2_to_multiply: Decode2ToMultiplyType;
@@ -211,16 +211,17 @@ begin
         port map (
             clk => clk,
             l_in => decode2_to_loadstore1,
-            l_out => loadstore1_to_loadstore2
+            l_out => loadstore1_to_dcache
             );
 
-    loadstore2_0: entity work.loadstore2
+    dcache_0: entity work.dcache
         port map (
             clk => clk,
-            l_in => loadstore1_to_loadstore2,
-            w_out => loadstore2_to_writeback,
-            m_in => wishbone_data_in,
-            m_out => wishbone_data_out
+	    rst => core_rst,
+            d_in => loadstore1_to_dcache,
+            d_out => dcache_to_writeback,
+            wishbone_in => wishbone_data_in,
+            wishbone_out => wishbone_data_out
             );
 
     multiply_0: entity work.multiply
@@ -242,7 +243,7 @@ begin
         port map (
             clk => clk,
             e_in => execute1_to_writeback,
-            l_in => loadstore2_to_writeback,
+            l_in => dcache_to_writeback,
             m_in => multiply_to_writeback,
             d_in => divider_to_writeback,
             w_out => writeback_to_register_file,

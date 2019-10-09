@@ -138,9 +138,10 @@ package common is
     end record;
     constant Decode2ToLoadstore1Init : Decode2ToLoadstore1Type := (valid => '0', load => '0', byte_reverse => '0', sign_extend => '0', update => '0', others => (others => '0'));
 
-    type Loadstore1ToLoadstore2Type is record
+    type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
 	load : std_ulogic;
+	nc : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);
 	write_reg : std_ulogic_vector(4 downto 0);
@@ -151,7 +152,7 @@ package common is
 	update_reg : std_ulogic_vector(4 downto 0);
     end record;
 
-    type Loadstore2ToWritebackType is record
+    type DcacheToWritebackType is record
 	valid : std_ulogic;
 	write_enable: std_ulogic;
 	write_reg : std_ulogic_vector(4 downto 0);
@@ -162,7 +163,7 @@ package common is
 	byte_reverse : std_ulogic;
 	second_word : std_ulogic;
     end record;
-    constant Loadstore2ToWritebackInit : Loadstore2ToWritebackType := (valid => '0', write_enable => '0', sign_extend => '0', byte_reverse => '0', second_word => '0', others => (others => '0'));
+    constant DcacheToWritebackInit : DcacheToWritebackType := (valid => '0', write_enable => '0', sign_extend => '0', byte_reverse => '0', second_word => '0', others => (others => '0'));
 
     type Execute1ToWritebackType is record
 	valid: std_ulogic;
@@ -211,6 +212,7 @@ package common is
 	write_cr_data : std_ulogic_vector(31 downto 0);
     end record;
     constant WritebackToCrFileInit : WritebackToCrFileType := (write_cr_enable => '0', others => (others => '0'));
+
 end common;
 
 package body common is
