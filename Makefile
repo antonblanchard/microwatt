@@ -3,7 +3,7 @@ GHDLFLAGS=--std=08 -Psim-unisim
 CFLAGS=-O2 -Wall
 
 all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb multiply_tb dmi_dtm_tb divider_tb \
-	rotator_tb
+	rotator_tb countzero_tb
 
 # XXX
 # loadstore_tb fetch_tb
@@ -19,6 +19,7 @@ core_tb.o: common.o wishbone_types.o core.o soc.o sim_jtag.o
 core.o: common.o wishbone_types.o fetch1.o fetch2.o icache.o decode1.o decode2.o register_file.o cr_file.o execute1.o execute2.o loadstore1.o loadstore2.o multiply.o writeback.o core_debug.o divider.o
 core_debug.o: common.o
 countzero.o:
+countzero_tb.o: common.o glibc_random.o countzero.o
 cr_file.o: common.o
 crhelpers.o: common.o
 decode1.o: common.o decode_types.o
@@ -93,6 +94,9 @@ divider_tb: divider_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 rotator_tb: rotator_tb.o
+	$(GHDL) -e $(GHDLFLAGS) $@
+
+countzero_tb: countzero_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 simple_ram_tb: simple_ram_tb.o
