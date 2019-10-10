@@ -40,7 +40,7 @@ architecture behaviour of decode2 is
 
 	type reg_internal_type is record
 		state : state_type;
-		outstanding : integer;
+		outstanding : integer range -1 to 2;
 	end record;
 
 	type reg_type is record
