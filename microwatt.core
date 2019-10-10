@@ -139,6 +139,7 @@ targets:
       - ram_init_file
       - reset_low=false
       - clk_input=12000000
+      - clk_frequency
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel
