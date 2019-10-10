@@ -7,6 +7,9 @@
 -- * Complete load misses on the cycle when WB data comes instead of
 --   at the end of line (this requires dealing with requests coming in
 --   while not idle...)
+-- * Load with update could use one less non-pipelined cycle by moving
+--   the register update to the pipeline bubble that exists when going
+--   back to the IDLE state.
 --
 library ieee;
 use ieee.std_logic_1164.all;
@@ -138,7 +141,8 @@ architecture rtl of dcache is
 		      
     -- Cache state machine
     type state_t is (IDLE,	       -- Normal load hit processing
-		     LOAD_UPDATE,      -- Load with update address update cycle
+		     LOAD_UPDATE,      -- Load with update extra cycle
+		     LOAD_UPDATE2,     -- Load with update extra cycle
 		     RELOAD_WAIT_ACK,  -- Cache reload wait ack
 		     STORE_WAIT_ACK,   -- Store wait ack
 		     NC_LOAD_WAIT_ACK);-- Non-cachable load wait ack
@@ -147,8 +151,20 @@ architecture rtl of dcache is
 	req_latch : Loadstore1ToDcacheType;
 	
 	-- Cache hit state (Latches for 1 cycle BRAM access)
-	hit_way        : way_t;
-	hit_load_valid : std_ulogic;
+	hit_way          : way_t;
+	hit_load_valid   : std_ulogic;
+
+	-- 1-cycle delayed signals to account for the BRAM extra
+	-- buffer that seems necessary to make timing on load hits
+	--
+	hit_way_delayed        : way_t;
+	hit_load_delayed       : std_ulogic;
+	hit_load_upd_delayed   : std_ulogic;
+	hit_load_reg_delayed   : std_ulogic_vector(4 downto 0);
+	hit_data_shift_delayed : std_ulogic_vector(2 downto 0);
+	hit_dlength_delayed    : std_ulogic_vector(3 downto 0);
+	hit_sign_ext_delayed   : std_ulogic;
+	hit_byte_rev_delayed   : std_ulogic;
 
 	-- Register update (load/store with update)
 	update_valid : std_ulogic;
@@ -382,70 +398,95 @@ begin
     -- Writeback (loads and reg updates) & completion control logic
     --
     writeback_control: process(all)
-	variable writeback_format : boolean;
     begin
 
 	-- The mux on d_out.write reg defaults to the normal load hit case.
 	d_out.write_enable <= '0';
 	d_out.valid <= '0';
-	d_out.write_reg <= r.req_latch.write_reg;
-	d_out.write_data <= cache_out(r.hit_way);
-	d_out.write_len <= r.req_latch.length;
-	d_out.write_shift <= r.req_latch.addr(2 downto 0);
-	d_out.sign_extend <= r.req_latch.sign_extend;
-	d_out.byte_reverse <= r.req_latch.byte_reverse;
+	d_out.write_reg <= r.hit_load_reg_delayed;
+	d_out.write_data <= cache_out(r.hit_way_delayed);
+	d_out.write_len <= r.hit_dlength_delayed;
+	d_out.write_shift <= r.hit_data_shift_delayed;
+	d_out.sign_extend <= r.hit_sign_ext_delayed;
+	d_out.byte_reverse <= r.hit_byte_rev_delayed;
 	d_out.second_word <= '0';
-
-	-- By default writeback doesn't need formatting
-	writeback_format := false;
 
 	-- We have a valid load or store hit or we just completed a slow
 	-- op such as a load miss, a NC load or a store
 	--
-	if r.hit_load_valid = '1' or r.slow_valid = '1' then
-	    if r.req_latch.load = '1' then
-		-- If it's a load, enable write back and enable formatting
-		d_out.write_enable <= '1';
-		writeback_format := true;
+	-- Note: the load hit is delayed by one cycle. However it can still
+	-- not collide with r.slow_valid (well unless I miscalculated) because
+	-- slow_valid can only be set on a subsequent request and not on its
+	-- first cycle (the state machine must have advanced), which makes
+	-- slow_valid at least 2 cycles from the previous hit_load_valid.
+	--
 
-		-- If it's a slow load (miss or NC) source it from the buffer
-		if r.slow_valid = '1' then
-		    d_out.write_data <= r.slow_data;
-		end if;
+	-- Sanity: Only one of these must be set in any given cycle
+	assert (r.update_valid and r.hit_load_delayed) /= '1' report
+	    "unexpected hit_load_delayed collision with update_valid"
+	    severity FAILURE;
+	assert (r.slow_valid and r.hit_load_delayed) /= '1' report
+	    "unexpected hit_load_delayed collision with slow_valid"
+	    severity FAILURE;
+	assert (r.slow_valid and r.update_valid) /= '1' report
+	    "unexpected update_valid collision with slow_valid"
+	    severity FAILURE;
 
-		-- If it's a normal load (not a load with update), we complete
-		-- now, otherwise we wait for the delayed update.
-		--
-		if r.req_latch.update = '0' then
-		    d_out.valid <= '1';
-		end if;
-	    else
-		-- It's a store, complete always
+	-- Delayed load hit case is the standard path
+	if r.hit_load_delayed = '1' then
+	    d_out.write_enable <= '1';
+
+	    -- If it's not a load with update, complete it now
+	    if r.hit_load_upd_delayed = '0' then
 		d_out.valid <= '1';
+		end if;
+	end if;
+
+	-- Slow ops (load miss, NC, stores)
+	if r.slow_valid = '1' then
+	    -- If it's a load, enable register writeback and switch
+	    -- mux accordingly
+	    --
+	    if r.req_latch.load then	    
+		d_out.write_reg <= r.req_latch.write_reg;
+		d_out.write_enable <= '1';
+
+		-- Read data comes from the slow data latch, formatter
+		-- from the latched request.
+		--
+		d_out.write_data <= r.slow_data;
+		d_out.write_shift <= r.req_latch.addr(2 downto 0);
+		d_out.sign_extend <= r.req_latch.sign_extend;
+		d_out.byte_reverse <= r.req_latch.byte_reverse;
+		d_out.write_len <= r.req_latch.length;
 	    end if;
 
-	    -- Sanity
-	    assert r.update_valid = '0' report "unexpected update_valid"
-		severity FAILURE;
+	    -- If it's a store or a non-update load form, complete now
+	    if r.req_latch.load = '0' or r.req_latch.update = '0' then
+		d_out.valid <= '1';
+	    end if;
 	end if;
 
 	-- We have a register update to do.
 	if r.update_valid = '1' then
 	    d_out.write_enable <= '1';
 	    d_out.write_reg <= r.req_latch.update_reg;
-	    d_out.write_data <= r.req_latch.addr;
 
-	    -- If it was a load, this completes the operation
+	    -- Change the read data mux to the address that's going into
+	    -- the register and the formatter does nothing.
+	    --
+	    d_out.write_data <= r.req_latch.addr;
+	    d_out.write_shift <= "000";
+	    d_out.write_len <= "1000";
+	    d_out.sign_extend <= '0';
+	    d_out.byte_reverse <= '0';
+
+	    -- If it was a load, this completes the operation (load with
+	    -- update case).
+	    --
 	    if r.req_latch.load = '1' then
 		d_out.valid <= '1';
 	    end if;
-	end if;
-
-	if not writeback_format then
-	    d_out.write_len <= "1000";
-	    d_out.write_shift <= "000";
-	    d_out.sign_extend <= '0';
-	    d_out.byte_reverse <= '0';
 	end if;
 
     end process;
@@ -465,7 +506,12 @@ begin
 
     -- Generate a cache RAM for each way. This handles the normal
     -- reads, writes from reloads and the special store-hit update
-    -- path as well
+    -- path as well.
+    --
+    -- Note: the BRAMs have an extra read buffer, meaning the output
+    --       is pipelined an extra cycle. This differs from the
+    --       icache. The writeback logic needs to take that into
+    --       account by using 1-cycle delayed signals for load hits.
     --
     rams: for i in 0 to NUM_WAYS-1 generate
 	signal do_read  : std_ulogic;
@@ -479,7 +525,8 @@ begin
 	way: entity work.cache_ram
 	    generic map (
 		ROW_BITS => ROW_BITS,
-		WIDTH => wishbone_data_bits
+		WIDTH => wishbone_data_bits,
+		ADD_BUF => true
 		)
 	    port map (
 		clk     => clk,
@@ -493,13 +540,8 @@ begin
 		);
 	process(all)
 	begin
-	    do_read <= '0';
-	    do_write <= '0';
-
 	    -- Cache hit reads
-	    if req_op = OP_LOAD_HIT and req_hit_way = i then
-		do_read <= '1';
-	    end if;
+	    do_read <= '1';
 	    rd_addr <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
 	    cache_out(i) <= dout;
 
@@ -507,19 +549,30 @@ begin
 	    --
 	    -- Defaults to wishbone read responses (cache refill),
 	    --
-	    wr_data <= wishbone_in.dat;
-	    wr_sel  <= (others => '1');
-	    wr_addr <= std_ulogic_vector(to_unsigned(get_row(r.wb.adr), ROW_BITS));
-	    if r.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' and r.store_way = i then
-		do_write <= '1';
-	    end if;
-
-	    -- Alternatively, store-hit BRAM update case (exclusive from the above).
-	    if req_op = OP_STORE_HIT and req_hit_way = i then
-		report "store_data:" & to_hstring(store_data);
+	    -- For timing, the mux on wr_data/sel/addr is not dependent on anything
+	    -- other than the current state. Only the do_write signal is.
+	    --
+	    if r.state = IDLE then
+		-- When IDLE, the only write path is the store-hit update case
 		wr_addr  <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
 		wr_data  <= store_data;
 		wr_sel   <= bus_sel;
+	    else
+		-- Otherwise, we might be doing a reload
+		wr_data <= wishbone_in.dat;
+		wr_sel  <= (others => '1');
+		wr_addr <= std_ulogic_vector(to_unsigned(get_row(r.wb.adr), ROW_BITS));
+	    end if;
+
+	    -- The two actual write cases here
+	    do_write <= '0';
+	    if r.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' and r.store_way = i then
+		do_write <= '1';
+	    end if;
+	    if req_op = OP_STORE_HIT and req_hit_way = i then
+		assert r.state /= RELOAD_WAIT_ACK report "Store hit while in state:" &
+		    state_t'image(r.state)
+		    severity FAILURE;
 		do_write <= '1';
 	    end if;
 	end process;
@@ -531,6 +584,16 @@ begin
     dcache_fast_hit : process(clk)
     begin
         if rising_edge(clk) then
+	    -- 1-cycle delayed signals for load hit response
+	    r.hit_load_delayed       <= r.hit_load_valid;
+	    r.hit_way_delayed        <= r.hit_way;
+	    r.hit_load_upd_delayed   <= r.req_latch.update;
+	    r.hit_load_reg_delayed   <= r.req_latch.write_reg;
+	    r.hit_data_shift_delayed <= r.req_latch.addr(2 downto 0);
+	    r.hit_sign_ext_delayed   <= r.req_latch.sign_extend;
+	    r.hit_byte_rev_delayed   <= r.req_latch.byte_reverse;
+	    r.hit_dlength_delayed    <= r.req_latch.length;
+
 	    -- On-cycle pulse values get reset on every cycle
 	    r.hit_load_valid <= '0';
 
@@ -543,7 +606,7 @@ begin
 	    if d_in.valid = '1' then
 		r.req_latch <= d_in;
 
-		report "dcache op:" & op_t'image(req_op) &
+		report "op:" & op_t'image(req_op) &
 		    " addr:" & to_hstring(d_in.addr) &
 		    " upd:" & std_ulogic'image(d_in.update) &
 		    " nc:" & std_ulogic'image(d_in.nc) &
@@ -712,6 +775,9 @@ begin
 		    end if;
 
 		when LOAD_UPDATE =>
+		    -- We need the extra cycle to complete a load with update
+		    r.state <= LOAD_UPDATE2;
+		when LOAD_UPDATE2 =>
 		    -- We need the extra cycle to complete a load with update
 		    r.update_valid <= '1';
 		    r.state <= IDLE;

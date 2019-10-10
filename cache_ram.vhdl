@@ -7,7 +7,8 @@ entity cache_ram is
     generic(
 	ROW_BITS : integer := 16;
 	WIDTH    : integer := 64;
-	TRACE    : boolean := false
+	TRACE    : boolean := false;
+	ADD_BUF  : boolean := false
 	);
 
     port(
@@ -33,6 +34,8 @@ architecture rtl of cache_ram is
     attribute ram_decomp : string;
     attribute ram_decomp of ram : signal is "power";
 
+    signal rd_data0 : std_logic_vector(WIDTH - 1 downto 0);
+
 begin
     process(clk)
 	variable lbit : integer range 0 to WIDTH - 1;
@@ -56,7 +59,7 @@ begin
 		end loop;
 	    end if;
 	    if rd_en = '1' then
-		rd_data <= ram(to_integer(unsigned(rd_addr)));
+		rd_data0 <= ram(to_integer(unsigned(rd_addr)));
 		if TRACE then
 		    report "read a:" & to_hstring(rd_addr) &
 			" dat:" & to_hstring(ram(to_integer(unsigned(rd_addr))));
@@ -64,4 +67,20 @@ begin
 	    end if;
 	end if;
     end process;
+
+    buf: if ADD_BUF generate
+    begin
+	process(clk)
+	begin
+	    if rising_edge(clk) then
+		rd_data <= rd_data0;
+	    end if;
+	end process;
+    end generate;
+
+    nobuf: if not ADD_BUF generate
+    begin
+	rd_data <= rd_data0;
+    end generate;
+
 end;
