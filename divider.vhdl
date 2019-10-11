@@ -17,7 +17,7 @@ entity divider is
 end entity divider;
 
 architecture behaviour of divider is
-    signal dend       : std_ulogic_vector(127 downto 0);
+    signal dend       : std_ulogic_vector(128 downto 0);
     signal div        : unsigned(63 downto 0);
     signal quot       : std_ulogic_vector(63 downto 0);
     signal result     : std_ulogic_vector(63 downto 0);
@@ -30,8 +30,11 @@ architecture behaviour of divider is
     signal is_modulus : std_ulogic;
     signal is_32bit   : std_ulogic;
     signal extended   : std_ulogic;
+    signal is_signed  : std_ulogic;
     signal rc         : std_ulogic;
     signal write_reg  : std_ulogic_vector(4 downto 0);
+    signal overflow   : std_ulogic;
+    signal did_ovf    : std_ulogic;
 
     function compare_zero(value : std_ulogic_vector(63 downto 0); is_32 : std_ulogic)
         return std_ulogic_vector is
@@ -67,9 +70,9 @@ begin
                 count <= "0000000";
             elsif d_in.valid = '1' then
                 if d_in.is_extended = '1' and not (d_in.is_signed = '1' and d_in.dividend(63) = '1') then
-                    dend <= d_in.dividend & x"0000000000000000";
+                    dend <= '0' & d_in.dividend & x"0000000000000000";
                 else
-                    dend <= x"0000000000000000" & d_in.dividend;
+                    dend <= '0' & x"0000000000000000" & d_in.dividend;
                 end if;
                 div <= unsigned(d_in.divisor);
                 quot <= (others => '0');
@@ -78,18 +81,20 @@ begin
                 is_modulus <= d_in.is_modulus;
                 extended <= d_in.is_extended;
                 is_32bit <= d_in.is_32bit;
+                is_signed <= d_in.is_signed;
                 rc <= d_in.rc;
-                count <= "0000000";
+                count <= "1111111";
                 running <= '1';
+                overflow <= '0';
                 signcheck <= d_in.is_signed and (d_in.dividend(63) or d_in.divisor(63));
             elsif signcheck = '1' then
                 signcheck <= '0';
                 neg_result <= dend(63) xor (div(63) and not is_modulus);
                 if dend(63) = '1' then
                     if extended = '1' then
-                        dend <= std_ulogic_vector(- signed(dend(63 downto 0))) & x"0000000000000000";
+                        dend <= '0' & std_ulogic_vector(- signed(dend(63 downto 0))) & x"0000000000000000";
                     else
-                        dend <= x"0000000000000000" & std_ulogic_vector(- signed(dend(63 downto 0)));
+                        dend <= '0' & x"0000000000000000" & std_ulogic_vector(- signed(dend(63 downto 0)));
                     end if;
                 end if;
                 if div(63) = '1' then
@@ -99,18 +104,19 @@ begin
                 if count = "0111111" then
                     running <= '0';
                 end if;
-                if dend(127) = '1' or unsigned(dend(126 downto 63)) >= div then
-                    dend <= std_ulogic_vector(unsigned(dend(126 downto 63)) - div) &
-                            dend(62 downto 0) & '0';
+                overflow <= quot(63);
+                if dend(128) = '1' or unsigned(dend(127 downto 64)) >= div then
+                    dend <= std_ulogic_vector(unsigned(dend(127 downto 64)) - div) &
+                            dend(63 downto 0) & '0';
                     quot <= quot(62 downto 0) & '1';
                     count <= count + 1;
-                elsif dend(127 downto 56) = x"000000000000000000" and count(5 downto 3) /= "111" then
+                elsif dend(128 downto 57) = x"000000000000000000" and count(6 downto 3) /= "0111" then
                     -- consume 8 bits of zeroes in one cycle
-                    dend <= dend(119 downto 0) & x"00";
+                    dend <= dend(120 downto 0) & x"00";
                     quot <= quot(55 downto 0) & x"00";
                     count <= count + 8;
                 else
-                    dend <= dend(126 downto 0) & '0';
+                    dend <= dend(127 downto 0) & '0';
                     quot <= quot(62 downto 0) & '0';
                     count <= count + 1;
                 end if;
@@ -126,7 +132,7 @@ begin
         d_out.write_reg_nr <= write_reg;
 
         if is_modulus = '1' then
-            result <= dend(127 downto 64);
+            result <= dend(128 downto 65);
         else
             result <= quot;
         end if;
@@ -135,15 +141,35 @@ begin
         else
             sresult <= result;
         end if;
-        d_out.write_reg_data <= sresult;
+        did_ovf <= '0';
+        if is_32bit = '0' then
+            did_ovf <= overflow or (is_signed and (sresult(63) xor neg_result));
+        elsif is_signed = '1' then
+            if overflow = '1' or
+                (sresult(63 downto 31) /= x"00000000" & '0' and
+                 sresult(63 downto 31) /= x"ffffffff" & '1') then
+                did_ovf <= '1';
+            end if;
+        else
+            did_ovf <= overflow or (or (sresult(63 downto 32)));
+        end if;
+        if did_ovf = '1' then
+            d_out.write_reg_data <= (others => '0');
+        else
+            d_out.write_reg_data <= sresult;
+        end if;
 
-        if count(6) = '1' then
+        if count = "1000000" then
             d_out.valid <= '1';
             d_out.write_reg_enable <= '1';
             if rc = '1' then
                 d_out.write_cr_enable <= '1';
                 d_out.write_cr_mask <= num_to_fxm(0);
-                d_out.write_cr_data <= compare_zero(sresult, is_32bit) & x"0000000";
+                if did_ovf = '1' then
+                    d_out.write_cr_data <= x"20000000";
+                else
+                    d_out.write_cr_data <= compare_zero(sresult, is_32bit) & x"0000000";
+                end if;
             end if;
         end if;
     end process;

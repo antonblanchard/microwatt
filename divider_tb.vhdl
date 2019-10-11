@@ -35,6 +35,7 @@ begin
         variable si: std_ulogic_vector(15 downto 0);
         variable d128: std_ulogic_vector(127 downto 0);
         variable q128: std_ulogic_vector(127 downto 0);
+        variable q64: std_ulogic_vector(63 downto 0);
     begin
         rst <= '1';
         wait for clk_period;
@@ -55,7 +56,7 @@ begin
 
         d1.valid <= '0';
 
-        for j in 0 to 65 loop
+        for j in 0 to 66 loop
             wait for clk_period;
             if d2.valid = '1' then
                 exit;
@@ -79,7 +80,7 @@ begin
 
         d1.valid <= '0';
 
-        for j in 0 to 65 loop
+        for j in 0 to 66 loop
             wait for clk_period;
             if d2.valid = '1' then
                 exit;
@@ -113,7 +114,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -121,13 +122,14 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
-                    if rb /= x"0000000000000000" then
+                    behave_rt := (others => '0');
+                    if rb /= x"0000000000000000" and (ra /= x"8000000000000000" or rb /= x"ffffffffffffffff") then
                         behave_rt := ppc_divd(ra, rb);
-                        assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
-                            report "bad divd expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                        assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for divd";
                     end if;
+                    assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
+                        report "bad divd expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for divd";
                 end loop;
             end loop;
         end loop;
@@ -148,7 +150,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -156,13 +158,14 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
+                    behave_rt := (others => '0');
                     if rb /= x"0000000000000000" then
                         behave_rt := ppc_divdu(ra, rb);
-                        assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
-                            report "bad divdu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                        assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for divdu";
                     end if;
+                    assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
+                        report "bad divdu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for divdu";
                 end loop;
             end loop;
         end loop;
@@ -184,7 +187,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -192,18 +195,19 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
+                    behave_rt := (others => '0');
                     if rb /= x"0000000000000000" then
                         d128 := ra & x"0000000000000000";
                         q128 := std_ulogic_vector(signed(d128) / signed(rb));
                         if q128(127 downto 63) = x"0000000000000000" & '0' or
                             q128(127 downto 63) = x"ffffffffffffffff" & '1' then
                             behave_rt := q128(63 downto 0);
-                            assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
-                                report "bad divde expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
-                            assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                                report "bad CR setting for divde";
                         end if;
                     end if;
+                    assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
+                        report "bad divde expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
+                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for divde";
                 end loop;
             end loop;
         end loop;
@@ -225,7 +229,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -233,15 +237,16 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
+                    behave_rt := (others => '0');
                     if unsigned(rb) > unsigned(ra) then
                         d128 := ra & x"0000000000000000";
                         q128 := std_ulogic_vector(unsigned(d128) / unsigned(rb));
                         behave_rt := q128(63 downto 0);
-                        assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
-                            report "bad divdeu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
-                        assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for divdeu";
                     end if;
+                    assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
+                        report "bad divdeu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
+                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for divdeu";
                 end loop;
             end loop;
         end loop;
@@ -264,7 +269,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -272,13 +277,14 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
-                    if rb /= x"0000000000000000" then
+                    behave_rt := (others => '0');
+                    if rb /= x"0000000000000000" and (ra /= x"ffffffff80000000" or rb /= x"ffffffffffffffff") then
                         behave_rt := ppc_divw(ra, rb);
-                        assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
-                            report "bad divw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                        assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for divw";
                     end if;
+                    assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
+                        report "bad divw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                    assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for divw";
                 end loop;
             end loop;
         end loop;
@@ -301,7 +307,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -309,13 +315,14 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
+                    behave_rt := (others => '0');
                     if rb /= x"0000000000000000" then
                         behave_rt := ppc_divwu(ra, rb);
-                        assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
-                            report "bad divwu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                        assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for divwu";
                     end if;
+                    assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
+                        report "bad divwu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                    assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for divwu";
                 end loop;
             end loop;
         end loop;
@@ -338,7 +345,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -346,15 +353,17 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
+                    behave_rt := (others => '0');
                     if rb /= x"0000000000000000" then
-                        behave_rt := std_ulogic_vector(signed(ra) / signed(rb));
-                        if behave_rt(63 downto 31) = x"00000000" & '0' or
-                            behave_rt(63 downto 31) = x"ffffffff" & '1' then
-                            assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
-                                report "bad divwe expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
-                            assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                                report "bad CR setting for divwe";
+                        q64 := std_ulogic_vector(signed(ra) / signed(rb));
+                        if q64(63 downto 31) = x"00000000" & '0' or
+                            q64(63 downto 31) = x"ffffffff" & '1' then
+                            behave_rt := q64;
                         end if;
+                        assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
+                            report "bad divwe expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
+                        assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                            report "bad CR setting for divwe";
                     end if;
                 end loop;
             end loop;
@@ -378,7 +387,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -386,13 +395,14 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
+                    behave_rt := (others => '0');
                     if unsigned(rb(31 downto 0)) > unsigned(ra(63 downto 32)) then
                         behave_rt := std_ulogic_vector(unsigned(ra) / unsigned(rb));
-                        assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
-                            report "bad divweu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
-                        assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for divweu";
                     end if;
+                    assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
+                        report "bad divweu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
+                    assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for divweu";
                 end loop;
             end loop;
         end loop;
@@ -416,7 +426,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -424,13 +434,14 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
+                    behave_rt := (others => '0');
                     if rb /= x"0000000000000000" then
                         behave_rt := std_ulogic_vector(signed(ra) rem signed(rb));
-                        assert behave_rt = d2.write_reg_data
-                            report "bad modsd expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                        assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for modsd";
                     end if;
+                    assert behave_rt = d2.write_reg_data
+                        report "bad modsd expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for modsd";
                 end loop;
             end loop;
         end loop;
@@ -454,7 +465,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -462,13 +473,14 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
+                    behave_rt := (others => '0');
                     if rb /= x"0000000000000000" then
                         behave_rt := std_ulogic_vector(unsigned(ra) rem unsigned(rb));
-                        assert behave_rt = d2.write_reg_data
-                            report "bad modud expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                        assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for modud";
                     end if;
+                    assert behave_rt = d2.write_reg_data
+                        report "bad modud expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for modud";
                 end loop;
             end loop;
         end loop;
@@ -492,7 +504,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -500,13 +512,14 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
+                    behave_rt := (others => '0');
                     if rb /= x"0000000000000000" then
                         behave_rt := x"00000000" & std_ulogic_vector(signed(ra(31 downto 0)) rem signed(rb(31 downto 0)));
-                        assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
-                            report "bad modsw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                        assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for modsw";
                     end if;
+                    assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
+                        report "bad modsw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                    assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for modsw";
                 end loop;
             end loop;
         end loop;
@@ -530,7 +543,7 @@ begin
                     wait for clk_period;
 
                     d1.valid <= '0';
-                    for j in 0 to 65 loop
+                    for j in 0 to 66 loop
                         wait for clk_period;
                         if d2.valid = '1' then
                             exit;
@@ -538,13 +551,14 @@ begin
                     end loop;
                     assert d2.valid = '1';
 
+                    behave_rt := (others => '0');
                     if rb /= x"0000000000000000" then
                         behave_rt := x"00000000" & std_ulogic_vector(unsigned(ra(31 downto 0)) rem unsigned(rb(31 downto 0)));
-                        assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
-                            report "bad moduw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                        assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for moduw";
                     end if;
+                    assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
+                        report "bad moduw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                    assert ppc_cmpi('0', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
+                        report "bad CR setting for moduw";
                 end loop;
             end loop;
         end loop;
