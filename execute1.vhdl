@@ -121,6 +121,7 @@ begin
 		result := (others => '0');
 		result_with_carry := (others => '0');
 		result_en := 0;
+		newcrf := (others => '0');
 
 		v := r;
 		v.e := Execute1ToExecute2Init;
