@@ -2,9 +2,5 @@
 *~
 *.cf
 *.s
-core_tb
-fetch_tb
-loadstore_tb
-soc_reset_tb
-simple_ram_behavioural_tb
+*_tb
 simple_ram_behavioural.bin
