@@ -241,7 +241,7 @@ begin
     divider_0: entity work.divider
         port map (
             clk => clk,
-            rst => rst,
+            rst => core_rst,
             d_in => decode2_to_divider,
             d_out => divider_to_writeback
             );
