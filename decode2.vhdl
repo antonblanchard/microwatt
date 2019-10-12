@@ -249,7 +249,7 @@ begin
                 --       r = RC bit (record condition code)
 		v.d.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
                 v.d.is_modulus := not d_in.insn(8);
-                v.d.is_32bit := not d_in.insn(2);
+                v.d.is_32bit := d_in.insn(2);
                 if d_in.insn(8) = '1' then
                         signed_division := d_in.insn(6);
                 else
