@@ -23,7 +23,7 @@ entity register_file is
 end entity register_file;
 
 architecture behaviour of register_file is
-    type regfile is array(0 to 32) of std_ulogic_vector(63 downto 0);
+    type regfile is array(0 to 31) of std_ulogic_vector(63 downto 0);
     signal registers : regfile := (others => (others => '0'));
 begin
     -- synchronous writes
