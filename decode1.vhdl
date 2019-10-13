@@ -225,10 +225,10 @@ architecture behaviour of decode1 is
 		-- 2#1001000000# mcrxrx
 		2#0000010011#  =>       (ALU,    OP_MFCR,      NONE,       NONE,        NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mfcr/mfocrf
 		2#0101010011#  =>       (ALU,    OP_MFSPR,     NONE,       NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mfspr
-		2#0100001001#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- modud
-		2#0100001011#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- moduw
-		2#1100001001#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- modsd
-		2#1100001011#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- modsw
+		2#0100001001#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- modud
+		2#0100001011#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- moduw
+		2#1100001001#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- modsd
+		2#1100001011#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- modsw
 		2#0010010000#  =>       (ALU,    OP_MTCRF,     NONE,       NONE,        RS,   NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mtcrf/mtocrf
 		2#0111010011#  =>       (ALU,    OP_MTSPR,     NONE,       NONE,        RS,   NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mtspr
 		2#0001001001#  =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- mulhd
