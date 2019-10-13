@@ -30,7 +30,7 @@ end entity pp_fifo;
 architecture behaviour of pp_fifo is
 
 	type memory_array is array(0 to DEPTH - 1) of std_logic_vector(WIDTH - 1 downto 0);
-	shared variable memory : memory_array := (others => (others => '0'));
+	signal memory : memory_array := (others => (others => '0'));
 
 	subtype index_type is integer range 0 to DEPTH - 1;
 	signal top, bottom : index_type;
@@ -64,7 +64,7 @@ begin
 				top <= 0;
 			else
 				if push = '1' then
-					memory(top) := data_in;
+					memory(top) <= data_in;
 					top <= (top + 1) mod DEPTH;
 				end if;
 			end if;
