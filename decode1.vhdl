@@ -168,7 +168,7 @@ architecture behaviour of decode1 is
 		2#1110011010#  =>       (ALU,    OP_EXTSH,     NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- extsh
 		2#1111011010#  =>       (ALU,    OP_EXTSW,     NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- extsw
 		-- 2#110111101-# extswsli
-		-- 2#1111010110# icbi
+		2#1111010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- icbi
 		2#0000010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- icbt
 		2#0000001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
 		2#0000101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
