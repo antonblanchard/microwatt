@@ -208,6 +208,7 @@ begin
 		variable decoded_reg_b : decode_input_reg_t;
 		variable decoded_reg_c : decode_input_reg_t;
                 variable signed_division: std_ulogic;
+                variable length : std_ulogic_vector(3 downto 0);
 	begin
 		v := r;
 
@@ -231,6 +232,19 @@ begin
 		r_out.read2_enable <= decoded_reg_b.reg_valid;
 		r_out.read3_enable <= decoded_reg_c.reg_valid;
 
+		case d_in.decode.length is
+		when is1B =>
+			length := "0001";
+		when is2B =>
+			length := "0010";
+		when is4B =>
+			length := "0100";
+		when is8B =>
+			length := "1000";
+		when NONE =>
+			length := "0000";
+		end case;
+
 		-- execute unit
 		v.e.nia := d_in.nia;
 		v.e.insn_type := d_in.decode.insn_type;
@@ -252,6 +266,7 @@ begin
 			v.e.lr := insn_lk(d_in.insn);
 		end if;
                 v.e.insn := d_in.insn;
+                v.e.data_len := length;
 
 		-- multiply unit
 		v.m.insn_type := d_in.decode.insn_type;
@@ -336,19 +351,7 @@ begin
 			v.l.load := '0';
 		end if;
 
-		case d_in.decode.length is
-		when is1B =>
-			v.l.length := "0001";
-		when is2B =>
-			v.l.length := "0010";
-		when is4B =>
-			v.l.length := "0100";
-		when is8B =>
-			v.l.length := "1000";
-		when NONE =>
-			v.l.length := "0000";
-		end case;
-
+                v.l.length := length;
 		v.l.byte_reverse := d_in.decode.byte_reverse;
 		v.l.sign_extend := d_in.decode.sign_extend;
 		v.l.update := d_in.decode.update;

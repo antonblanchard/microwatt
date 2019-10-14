@@ -64,6 +64,7 @@ package common is
 		is_32bit: std_ulogic;
 		is_signed: std_ulogic;
                 insn: std_ulogic_vector(31 downto 0);
+                data_len: std_ulogic_vector(3 downto 0);
 	end record;
 	constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 		(valid => '0', insn_type => OP_ILLEGAL, lr => '0', rc => '0', invert_a => '0',
@@ -168,12 +169,14 @@ package common is
 		write_enable : std_ulogic;
 		write_reg: std_ulogic_vector(4 downto 0);
 		write_data: std_ulogic_vector(63 downto 0);
+		write_len : std_ulogic_vector(3 downto 0);
 		write_cr_enable : std_ulogic;
 		write_cr_mask : std_ulogic_vector(7 downto 0);
 		write_cr_data : std_ulogic_vector(31 downto 0);
 		rc : std_ulogic;
+                sign_extend: std_ulogic;
 	end record;
-	constant Execute1ToExecute2Init : Execute1ToExecute2Type := (valid => '0', write_enable => '0', write_cr_enable => '0', rc => '0', others => (others => '0'));
+	constant Execute1ToExecute2Init : Execute1ToExecute2Type := (valid => '0', write_enable => '0', write_cr_enable => '0', rc => '0', sign_extend => '0',  others => (others => '0'));
 
 	type Execute2ToWritebackType is record
 		valid: std_ulogic;
@@ -181,11 +184,13 @@ package common is
 		write_enable : std_ulogic;
 		write_reg: std_ulogic_vector(4 downto 0);
 		write_data: std_ulogic_vector(63 downto 0);
+		write_len : std_ulogic_vector(3 downto 0);
 		write_cr_enable : std_ulogic;
 		write_cr_mask : std_ulogic_vector(7 downto 0);
 		write_cr_data : std_ulogic_vector(31 downto 0);
+                sign_extend: std_ulogic;
 	end record;
-	constant Execute2ToWritebackInit : Execute2ToWritebackType := (valid => '0', rc => '0', write_enable => '0', write_cr_enable => '0', others => (others => '0'));
+	constant Execute2ToWritebackInit : Execute2ToWritebackType := (valid => '0', rc => '0', write_enable => '0', write_cr_enable => '0', sign_extend => '0', others => (others => '0'));
 
 	type MultiplyToWritebackType is record
 		valid: std_ulogic;

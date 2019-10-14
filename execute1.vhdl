@@ -143,6 +143,8 @@ begin
 
 			v.e.valid := '1';
 			v.e.write_reg := e_in.write_reg;
+                        v.e.write_len := x"8";
+                        v.e.sign_extend := '0';
 
 			case_0: case e_in.insn_type is
 
@@ -230,14 +232,10 @@ begin
 				when OP_CNTZ =>
 					result := countzero_result;
 					result_en := 1;
-				when OP_EXTSB =>
-					result := ppc_extsb(e_in.read_data3);
-					result_en := 1;
-				when OP_EXTSH =>
-					result := ppc_extsh(e_in.read_data3);
-					result_en := 1;
-				when OP_EXTSW =>
-					result := ppc_extsw(e_in.read_data3);
+				when OP_EXTS =>
+                                        v.e.write_len := e_in.data_len;
+                                        v.e.sign_extend := '1';
+					result := e_in.read_data3;
 					result_en := 1;
 				when OP_ISEL =>
 					crnum := to_integer(unsigned(insn_bc(e_in.insn)));

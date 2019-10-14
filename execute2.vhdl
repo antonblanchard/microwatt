@@ -40,6 +40,8 @@ begin
         v.write_cr_mask := e_in.write_cr_mask;
         v.write_cr_data := e_in.write_cr_data;
         v.rc := e_in.rc;
+        v.write_len := e_in.write_len;
+        v.sign_extend := e_in.sign_extend;
 
         -- Update registers
         rin <= v;

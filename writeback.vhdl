@@ -100,6 +100,8 @@ begin
             w_out.write_reg <= e_in.write_reg;
             data_in <= e_in.write_data;
             w_out.write_enable <= '1';
+            data_len <= unsigned(e_in.write_len);
+            sign_extend <= e_in.sign_extend;
             rc <= e_in.rc;
         end if;
 
