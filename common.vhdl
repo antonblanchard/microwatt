@@ -155,8 +155,13 @@ package common is
 		write_enable: std_ulogic;
 		write_reg : std_ulogic_vector(4 downto 0);
 		write_data : std_ulogic_vector(63 downto 0);
+		write_len : std_ulogic_vector(3 downto 0);
+		write_shift : std_ulogic_vector(2 downto 0);
+		sign_extend : std_ulogic;
+		byte_reverse : std_ulogic;
+		second_word : std_ulogic;
 	end record;
-	constant Loadstore2ToWritebackInit : Loadstore2ToWritebackType := (valid => '0', write_enable => '0', others => (others => '0'));
+	constant Loadstore2ToWritebackInit : Loadstore2ToWritebackType := (valid => '0', write_enable => '0', sign_extend => '0', byte_reverse => '0', second_word => '0', others => (others => '0'));
 
 	type Execute1ToExecute2Type is record
 		valid: std_ulogic;
@@ -172,6 +177,7 @@ package common is
 
 	type Execute2ToWritebackType is record
 		valid: std_ulogic;
+		rc : std_ulogic;
 		write_enable : std_ulogic;
 		write_reg: std_ulogic_vector(4 downto 0);
 		write_data: std_ulogic_vector(63 downto 0);
@@ -179,7 +185,7 @@ package common is
 		write_cr_mask : std_ulogic_vector(7 downto 0);
 		write_cr_data : std_ulogic_vector(31 downto 0);
 	end record;
-	constant Execute2ToWritebackInit : Execute2ToWritebackType := (valid => '0', write_enable => '0', write_cr_enable => '0', others => (others => '0'));
+	constant Execute2ToWritebackInit : Execute2ToWritebackType := (valid => '0', rc => '0', write_enable => '0', write_cr_enable => '0', others => (others => '0'));
 
 	type MultiplyToWritebackType is record
 		valid: std_ulogic;
@@ -187,11 +193,9 @@ package common is
 		write_reg_enable : std_ulogic;
 		write_reg_nr: std_ulogic_vector(4 downto 0);
 		write_reg_data: std_ulogic_vector(63 downto 0);
-		write_cr_enable: std_ulogic;
-		write_cr_mask: std_ulogic_vector(7 downto 0);
-		write_cr_data: std_ulogic_vector(31 downto 0);
+		rc: std_ulogic;
 	end record;
-	constant MultiplyToWritebackInit : MultiplyToWritebackType := (valid => '0', write_reg_enable => '0', write_cr_enable => '0', others => (others => '0'));
+	constant MultiplyToWritebackInit : MultiplyToWritebackType := (valid => '0', write_reg_enable => '0', rc => '0', others => (others => '0'));
 
 	type DividerToWritebackType is record
 		valid: std_ulogic;
@@ -199,11 +203,9 @@ package common is
 		write_reg_enable : std_ulogic;
 		write_reg_nr: std_ulogic_vector(4 downto 0);
 		write_reg_data: std_ulogic_vector(63 downto 0);
-		write_cr_enable: std_ulogic;
-		write_cr_mask: std_ulogic_vector(7 downto 0);
-		write_cr_data: std_ulogic_vector(31 downto 0);
+		rc: std_ulogic;
 	end record;
-	constant DividerToWritebackInit : DividerToWritebackType := (valid => '0', write_reg_enable => '0', write_cr_enable => '0', others => (others => '0'));
+	constant DividerToWritebackInit : DividerToWritebackType := (valid => '0', write_reg_enable => '0', rc => '0', others => (others => '0'));
 
 	type WritebackToRegisterFileType is record
 		write_reg : std_ulogic_vector(4 downto 0);

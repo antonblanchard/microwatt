@@ -5,8 +5,6 @@ use ieee.numeric_std.all;
 library work;
 use work.common.all;
 use work.decode_types.all;
-use work.ppc_fx_insns.all;
-use work.crhelpers.all;
 
 entity multiply is
     generic (
@@ -88,12 +86,7 @@ begin
         if v.multiply_pipeline(PIPELINE_DEPTH-1).valid = '1' then
             m_out.valid <= '1';
             m_out.write_reg_enable <= '1';
-
-            if v.multiply_pipeline(PIPELINE_DEPTH-1).rc = '1' then
-                m_out.write_cr_enable <= '1';
-                m_out.write_cr_mask <= num_to_fxm(0);
-                m_out.write_cr_data <= ppc_cmpi('1', d2, x"0000") & x"0000000";
-            end if;
+            m_out.rc <= v.multiply_pipeline(PIPELINE_DEPTH-1).rc;
         end if;
 
         rin <= v;

@@ -26,9 +26,6 @@ architecture behave of loadstore2 is
     signal l_saved : Loadstore1ToLoadstore2Type;
     signal w_tmp   : Loadstore2ToWritebackType;
     signal m_tmp   : wishbone_master_out;
-    signal read_data : std_ulogic_vector(63 downto 0);
-    signal read_data_shift : std_ulogic_vector(2 downto 0);
-    signal sign_extend_byte_reverse: std_ulogic_vector(1 downto 0);
     signal dlength : std_ulogic_vector(3 downto 0);
 
     type state_t is (IDLE, WAITING_FOR_READ_ACK, WAITING_FOR_WRITE_ACK);
@@ -61,37 +58,6 @@ architecture behave of loadstore2 is
     end function wishbone_data_sel;
 begin
 
-    loadstore2_1: process(all)
-        variable tmp     : std_ulogic_vector(63 downto 0);
-        variable data    : std_ulogic_vector(63 downto 0);
-    begin
-        tmp := std_logic_vector(shift_right(unsigned(read_data), to_integer(unsigned(read_data_shift)) * 8));
-        data := (others => '0');
-        case to_integer(unsigned(dlength)) is
-            when 0 =>
-            when 1 =>
-                data(7 downto 0) := tmp(7 downto 0);
-            when 2 =>
-                data(15 downto 0) := tmp(15 downto 0);
-            when 4 =>
-                data(31 downto 0) := tmp(31 downto 0);
-            when 8 =>
-                data(63 downto 0) := tmp(63 downto 0);
-            when others =>
-                assert false report "invalid length" severity failure;
-                data(63 downto 0) := tmp(63 downto 0);
-        end case;
-
-        case sign_extend_byte_reverse is
-            when "10" =>
-                w_tmp.write_data <= sign_extend(data, to_integer(unsigned(l_saved.length)));
-            when "01" =>
-                w_tmp.write_data <= byte_reverse(data, to_integer(unsigned(l_saved.length)));
-            when others =>
-                w_tmp.write_data <= data;
-        end case;
-    end process;
-
     w_out <= w_tmp;
     m_out <= m_tmp;
 
@@ -102,11 +68,13 @@ begin
             w_tmp.valid <= '0';
             w_tmp.write_enable <= '0';
             w_tmp.write_reg <= (others => '0');
+            w_tmp.write_len <= "1000";
+            w_tmp.write_shift <= "000";
+            w_tmp.sign_extend <= '0';
+            w_tmp.byte_reverse <= '0';
+            w_tmp.second_word <= '0';
 
             l_saved <= l_saved;
-            read_data_shift <= "000";
-            sign_extend_byte_reverse <= "00";
-            dlength <= "1000";
 
             case_0: case state is
                 when IDLE =>
@@ -131,7 +99,7 @@ begin
                             if l_in.update = '1' then
                                 w_tmp.write_enable <= '1';
                                 w_tmp.write_reg <= l_in.update_reg;
-                                read_data <= l_in.addr;
+                                w_tmp.write_data <= l_in.addr;
                             end if;
 
                             state <= WAITING_FOR_READ_ACK;
@@ -148,15 +116,15 @@ begin
 
                 when WAITING_FOR_READ_ACK =>
                     if m_in.ack = '1' then
-                        read_data <= m_in.dat;
-                        read_data_shift <= l_saved.addr(2 downto 0);
-                        dlength <= l_saved.length;
-                        sign_extend_byte_reverse <= l_saved.sign_extend & l_saved.byte_reverse;
-
                         -- write data to register file
                         w_tmp.valid <= '1';
                         w_tmp.write_enable <= '1';
+                        w_tmp.write_data <= m_in.dat;
                         w_tmp.write_reg <= l_saved.write_reg;
+                        w_tmp.write_len <= l_saved.length;
+                        w_tmp.write_shift <= l_saved.addr(2 downto 0);
+                        w_tmp.sign_extend <= l_saved.sign_extend;
+                        w_tmp.byte_reverse <= l_saved.byte_reverse;
 
                         m_tmp <= wishbone_master_out_init;
                         state <= IDLE;
@@ -168,7 +136,7 @@ begin
                         if l_saved.update = '1' then
                             w_tmp.write_enable <= '1';
                             w_tmp.write_reg <= l_saved.update_reg;
-                            read_data <= l_saved.addr;
+                            w_tmp.write_data <= l_saved.addr;
                         end if;
 
                         m_tmp <= wishbone_master_out_init;

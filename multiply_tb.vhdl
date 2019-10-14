@@ -61,7 +61,7 @@ begin
         assert m2.write_reg_enable = '1';
         assert m2.write_reg_nr = "10001";
         assert m2.write_reg_data = x"0000000001111000";
-        assert m2.write_cr_enable = '0';
+        assert m2.rc = '0';
 
         wait for clk_period;
         assert m2.valid = '0';
@@ -79,8 +79,7 @@ begin
         assert m2.write_reg_enable = '1';
         assert m2.write_reg_nr = "10001";
         assert m2.write_reg_data = x"0000000001111000";
-        assert m2.write_cr_enable = '1';
-        assert m2.write_cr_data = x"40000000";
+        assert m2.rc = '1';
 
         -- test mulld
         mulld_loop : for i in 0 to 1000 loop

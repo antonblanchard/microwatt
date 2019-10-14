@@ -4,8 +4,6 @@ use ieee.numeric_std.all;
 
 library work;
 use work.common.all;
-use work.crhelpers.all;
-use work.ppc_fx_insns.all;
 
 -- 2 cycle ALU
 -- We handle rc form instructions here
@@ -41,12 +39,7 @@ begin
         v.write_cr_enable := e_in.write_cr_enable;
         v.write_cr_mask := e_in.write_cr_mask;
         v.write_cr_data := e_in.write_cr_data;
-
-        if e_in.valid = '1' and e_in.rc = '1' then
-            v.write_cr_enable := '1';
-            v.write_cr_mask := num_to_fxm(0);
-            v.write_cr_data := ppc_cmpi('1', e_in.write_data, x"0000") & x"0000000";
-        end if;
+        v.rc := e_in.rc;
 
         -- Update registers
         rin <= v;

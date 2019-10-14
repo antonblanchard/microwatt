@@ -27,7 +27,7 @@ decode1.o: common.o decode_types.o
 decode2.o: decode_types.o common.o helpers.o insn_helpers.o control.o
 decode_types.o:
 execute1.o: decode_types.o common.o helpers.o crhelpers.o insn_helpers.o ppc_fx_insns.o rotator.o logical.o countzero.o
-execute2.o: common.o crhelpers.o ppc_fx_insns.o
+execute2.o: common.o
 fetch1.o: common.o
 fetch2.o: common.o wishbone_types.o
 glibc_random_helpers.o:
@@ -43,9 +43,9 @@ loadstore1.o: common.o helpers.o
 loadstore2.o: common.o helpers.o wishbone_types.o
 logical.o: decode_types.o
 multiply_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o multiply.o
-multiply.o: common.o decode_types.o ppc_fx_insns.o crhelpers.o
+multiply.o: common.o decode_types.o
 divider_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o divider.o
-divider.o: common.o decode_types.o crhelpers.o
+divider.o: common.o decode_types.o
 ppc_fx_insns.o: helpers.o
 register_file.o: common.o
 rotator.o: common.o
@@ -58,7 +58,7 @@ sim_uart.o: wishbone_types.o sim_console.o
 soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o simple_ram_behavioural.o dmi_dtm_xilinx.o wishbone_debug_master.o
 wishbone_arbiter.o: wishbone_types.o
 wishbone_types.o:
-writeback.o: common.o
+writeback.o: common.o crhelpers.o
 dmi_dtm_tb.o: dmi_dtm_xilinx.o wishbone_debug_master.o
 dmi_dtm_xilinx.o: wishbone_types.o sim-unisim/unisim_vcomponents.o
 wishbone_debug_master.o: wishbone_types.o
