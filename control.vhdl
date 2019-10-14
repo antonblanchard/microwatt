@@ -38,7 +38,7 @@ architecture rtl of control is
 
     type reg_internal_type is record
         state : state_type;
-        outstanding : integer range -1 to PIPELINE_DEPTH+2; -- XXX ?
+        outstanding : integer range -1 to PIPELINE_DEPTH+2;
     end record;
     constant reg_internal_init : reg_internal_type := (state => IDLE, outstanding => 0);
 
@@ -96,6 +96,7 @@ begin
     control0: process(clk)
     begin
         if rising_edge(clk) then
+            assert r_int.outstanding >= 0 and r_int.outstanding <= (PIPELINE_DEPTH+1) report "Outstanding bad " & integer'image(r_int.outstanding) severity failure;
             r_int <= rin_int;
         end if;
     end process;
@@ -112,7 +113,6 @@ begin
         stall_tmp := '0';
 
         if complete_in = '1' then
-            assert r_int.outstanding >= 0 and r_int.outstanding <= (PIPELINE_DEPTH+1) report "Outstanding bad " & integer'image(r_int.outstanding) severity failure;
             v_int.outstanding := r_int.outstanding - 1;
         end if;
 
