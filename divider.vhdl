@@ -22,6 +22,7 @@ architecture behaviour of divider is
     signal quot       : std_ulogic_vector(63 downto 0);
     signal result     : std_ulogic_vector(63 downto 0);
     signal sresult    : std_ulogic_vector(63 downto 0);
+    signal oresult    : std_ulogic_vector(63 downto 0);
     signal qbit       : std_ulogic;
     signal running    : std_ulogic;
     signal signcheck  : std_ulogic;
@@ -35,6 +36,7 @@ architecture behaviour of divider is
     signal write_reg  : std_ulogic_vector(4 downto 0);
     signal overflow   : std_ulogic;
     signal did_ovf    : std_ulogic;
+    signal cr_data    : std_ulogic_vector(2 downto 0);
 
 begin
     divider_0: process(clk)
@@ -106,8 +108,8 @@ begin
 
     divider_1: process(all)
     begin
-        d_out <= DividerToWritebackInit;
         d_out.write_reg_nr <= write_reg;
+        d_out.write_cr_mask <= num_to_fxm(0);
 
         if is_modulus = '1' then
             result <= dend(128 downto 65);
@@ -132,27 +134,36 @@ begin
             did_ovf <= overflow or (or (sresult(63 downto 32)));
         end if;
         if did_ovf = '1' then
-            d_out.write_reg_data <= (others => '0');
+            oresult <= (others => '0');
         elsif (is_32bit = '1') and (is_modulus = '0') then
             -- 32-bit divisions set the top 32 bits of the result to 0
-            d_out.write_reg_data <= x"00000000" & sresult(31 downto 0);
+            oresult <= x"00000000" & sresult(31 downto 0);
         else
-            d_out.write_reg_data <= sresult;
+            oresult <= sresult;
         end if;
 
-        if count = "1000000" then
-            d_out.valid <= '1';
-            d_out.write_reg_enable <= '1';
-            if rc = '1' then
-                d_out.write_cr_enable <= '1';
-                d_out.write_cr_mask <= num_to_fxm(0);
-                if (did_ovf = '1') or (or (sresult) = '0') then
-                    d_out.write_cr_data <= x"20000000";
-                elsif (sresult(63) = '1') and not ((is_32bit = '1') and (is_modulus = '0')) then
-                    d_out.write_cr_data <= x"80000000";
-                else
-                    d_out.write_cr_data <= x"40000000";
-                end if;
+        if (did_ovf = '1') or (or (sresult) = '0') then
+            cr_data <= "001";
+        elsif (sresult(63) = '1') and not ((is_32bit = '1') and (is_modulus = '0')) then
+            cr_data <= "100";
+        else
+            cr_data <= "010";
+        end if;
+    end process;
+
+    divider_out: process(clk)
+    begin
+        if rising_edge(clk) then
+            d_out.write_reg_data <= oresult;
+            d_out.write_cr_data <= cr_data & '0' & x"0000000";
+            if count = "1000000" then
+                d_out.valid <= '1';
+                d_out.write_reg_enable <= '1';
+                d_out.write_cr_enable <= rc;
+            else
+                d_out.valid <= '0';
+                d_out.write_reg_enable <= '0';
+                d_out.write_cr_enable <= '0';
             end if;
         end if;
     end process;
