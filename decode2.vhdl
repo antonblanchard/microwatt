@@ -36,13 +36,6 @@ entity decode2 is
 end entity decode2;
 
 architecture behaviour of decode2 is
-	type state_type is (IDLE, WAIT_FOR_PREV_TO_COMPLETE, WAIT_FOR_CURR_TO_COMPLETE);
-
-	type reg_internal_type is record
-		state : state_type;
-		outstanding : integer range -1 to 2;
-	end record;
-
 	type reg_type is record
 		e : Decode2ToExecute1Type;
 		m : Decode2ToMultiplyType;
@@ -50,7 +43,6 @@ architecture behaviour of decode2 is
 		l : Decode2ToLoadstore1Type;
 	end record;
 
-	signal r_int, rin_int : reg_internal_type;
 	signal r, rin : reg_type;
 
 	type decode_input_reg_t is record
@@ -134,18 +126,37 @@ architecture behaviour of decode2 is
 			return '0';
 		end case;
 	end;
+
+	signal control_valid_in : std_ulogic;
+	signal control_valid_out : std_ulogic;
+	signal control_sgl_pipe : std_logic;
 begin
+	control_0: entity work.control
+	generic map (
+		PIPELINE_DEPTH => 2
+	)
+	port map (
+		clk         => clk,
+		rst         => rst,
+
+		complete_in => complete_in,
+		valid_in    => control_valid_in,
+		flush_in    => flush_in,
+		sgl_pipe_in => control_sgl_pipe,
+		stop_mark_in => d_in.stop_mark,
+
+		valid_out   => control_valid_out,
+		stall_out   => stall_out,
+		stopped_out => stopped_out
+	);
 
 	decode2_0: process(clk)
 	begin
 		if rising_edge(clk) then
-			assert r_int.outstanding <= 1 report "Outstanding bad " & integer'image(r_int.outstanding) severity failure;
-
 			if rin.e.valid = '1' or rin.l.valid = '1' or rin.m.valid = '1' or rin.d.valid = '1' then
 				report "execute " & to_hstring(rin.e.nia);
 			end if;
 			r <= rin;
-			r_int <= rin_int;
 		end if;
 	end process;
 
@@ -157,17 +168,14 @@ begin
 
 	decode2_1: process(all)
 		variable v : reg_type;
-		variable v_int : reg_internal_type;
 		variable mul_a : std_ulogic_vector(63 downto 0);
 		variable mul_b : std_ulogic_vector(63 downto 0);
 		variable decoded_reg_a : decode_input_reg_t;
 		variable decoded_reg_b : decode_input_reg_t;
 		variable decoded_reg_c : decode_input_reg_t;
                 variable signed_division: std_ulogic;
-		variable is_valid : std_ulogic;
 	begin
 		v := r;
-		v_int := r_int;
 
 		v.e := Decode2ToExecute1Init;
 		v.l := Decode2ToLoadStore1Init;
@@ -311,53 +319,9 @@ begin
 		v.l.sign_extend := d_in.decode.sign_extend;
 		v.l.update := d_in.decode.update;
 
-		-- single issue
-
-		if complete_in = '1' then
-			v_int.outstanding := v_int.outstanding - 1;
-		end if;
-
-		-- state machine to handle instructions that must be single
-		-- through the pipeline.
-		stall_out <= '0';
-		is_valid := d_in.valid;
-
-		-- Handle debugger stop
-		stopped_out <= '0';
-		if d_in.stop_mark = '1' and v_int.outstanding = 0 then
-		    stopped_out <= '1';
-		end if;
-
-		case v_int.state is
-		when IDLE =>
-			if (flush_in = '0') and (is_valid = '1') and (d_in.decode.sgl_pipe = '1') then
-				if v_int.outstanding /= 0 then
-					v_int.state := WAIT_FOR_PREV_TO_COMPLETE;
-					stall_out <= '1';
-					is_valid := '0';
-				else
-					-- send insn out and wait on it to complete
-					v_int.state := WAIT_FOR_CURR_TO_COMPLETE;
-				end if;
-			end if;
-
-		when WAIT_FOR_PREV_TO_COMPLETE =>
-			if v_int.outstanding = 0 then
-				-- send insn out and wait on it to complete
-				v_int.state := WAIT_FOR_CURR_TO_COMPLETE;
-			else
-				stall_out <= '1';
-				is_valid := '0';
-			end if;
-
-		when WAIT_FOR_CURR_TO_COMPLETE =>
-			if v_int.outstanding = 0 then
-				v_int.state := IDLE;
-			else
-				stall_out <= '1';
-				is_valid := '0';
-			end if;
-		end case;
+		-- issue control
+		control_valid_in <= d_in.valid;
+		control_sgl_pipe <= d_in.decode.sgl_pipe;
 
 		v.e.valid := '0';
 		v.m.valid := '0';
@@ -365,33 +329,19 @@ begin
 		v.l.valid := '0';
 		case d_in.decode.unit is
 		when ALU =>
-			v.e.valid := is_valid;
+			v.e.valid := control_valid_out;
 		when LDST =>
-			v.l.valid := is_valid;
+			v.l.valid := control_valid_out;
 		when MUL =>
-			v.m.valid := is_valid;
+			v.m.valid := control_valid_out;
                 when DIV =>
-                        v.d.valid := is_valid;
+                        v.d.valid := control_valid_out;
 		when NONE =>
-			v.e.valid := is_valid;
+			v.e.valid := control_valid_out;
 			v.e.insn_type := OP_ILLEGAL;
 		end case;
 
-		if flush_in = '1' then
-			v.e.valid := '0';
-			v.m.valid := '0';
-                        v.d.valid := '0';
-			v.l.valid := '0';
-		end if;
-
-		-- track outstanding instructions
-		if v.e.valid = '1' or v.l.valid = '1' or v.m.valid = '1' or v.d.valid = '1' then
-			v_int.outstanding := v_int.outstanding + 1;
-		end if;
-
 		if rst = '1' then
-			v_int.state := IDLE;
-			v_int.outstanding := 0;
 			v.e := Decode2ToExecute1Init;
 			v.l := Decode2ToLoadStore1Init;
 			v.m := Decode2ToMultiplyInit;
@@ -400,7 +350,6 @@ begin
 
 		-- Update registers
 		rin <= v;
-		rin_int <= v_int;
 
 		-- Update outputs
 		e_out <= r.e;

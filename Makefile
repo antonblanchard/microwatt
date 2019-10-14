@@ -22,7 +22,7 @@ countzero.o:
 cr_file.o: common.o
 crhelpers.o: common.o
 decode1.o: common.o decode_types.o
-decode2.o: decode_types.o common.o helpers.o insn_helpers.o
+decode2.o: decode_types.o common.o helpers.o insn_helpers.o control.o
 decode_types.o:
 execute1.o: decode_types.o common.o helpers.o crhelpers.o insn_helpers.o ppc_fx_insns.o rotator.o logical.o countzero.o
 execute2.o: common.o crhelpers.o ppc_fx_insns.o
