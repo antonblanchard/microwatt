@@ -27,6 +27,9 @@ entity control is
         gpr_c_read_valid_in : in std_ulogic;
         gpr_c_read_in       : in std_ulogic_vector(4 downto 0);
 
+        cr_read_in          : in std_ulogic;
+        cr_write_in         : in std_ulogic;
+
         valid_out           : out std_ulogic;
         stall_out           : out std_ulogic;
         stopped_out         : out std_ulogic
@@ -44,9 +47,13 @@ architecture rtl of control is
 
     signal r_int, rin_int : reg_internal_type := reg_internal_init;
 
-    signal stall_a_out, stall_b_out, stall_c_out : std_ulogic;
+    signal stall_a_out  : std_ulogic;
+    signal stall_b_out  : std_ulogic;
+    signal stall_c_out  : std_ulogic;
+    signal cr_stall_out : std_ulogic;
 
     signal gpr_write_valid : std_ulogic := '0';
+    signal cr_write_valid  : std_ulogic := '0';
 begin
     gpr_hazard0: entity work.gpr_hazard
         generic map (
@@ -93,6 +100,19 @@ begin
             stall_out          => stall_c_out
             );
 
+    cr_hazard0: entity work.cr_hazard
+        generic map (
+            PIPELINE_DEPTH => 2
+            )
+        port map (
+            clk                => clk,
+
+            cr_read_in         => cr_read_in,
+            cr_write_in        => cr_write_valid,
+
+            stall_out          => cr_stall_out
+            );
+
     control0: process(clk)
     begin
         if rising_edge(clk) then
@@ -137,7 +157,7 @@ begin
                         end if;
                     else
                         -- let it go out if there are no GPR hazards
-                        stall_tmp := stall_a_out or stall_b_out or stall_c_out;
+                        stall_tmp := stall_a_out or stall_b_out or stall_c_out or cr_stall_out;
                     end if;
                 end if;
 
@@ -164,7 +184,7 @@ begin
                             end if;
                         else
                             -- let it go out if there are no GPR hazards
-                            stall_tmp := stall_a_out or stall_b_out or stall_c_out;
+                            stall_tmp := stall_a_out or stall_b_out or stall_c_out or cr_stall_out;
                         end if;
                     end if;
                 else
@@ -179,8 +199,10 @@ begin
         if valid_tmp = '1' then
             v_int.outstanding := v_int.outstanding + 1;
             gpr_write_valid <= gpr_write_valid_in;
+            cr_write_valid <= cr_write_in;
         else
             gpr_write_valid <= '0';
+            cr_write_valid <= '0';
         end if;
 
         if rst = '1' then
