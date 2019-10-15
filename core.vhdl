@@ -115,7 +115,7 @@ begin
     icache_0: entity work.icache
         generic map(
             LINE_SIZE => 64,
-            NUM_LINES => 16,
+            NUM_LINES => 32,
 	    NUM_WAYS => 2
             )
         port map(
@@ -215,6 +215,11 @@ begin
             );
 
     dcache_0: entity work.dcache
+        generic map(
+            LINE_SIZE => 64,
+            NUM_LINES => 32,
+	    NUM_WAYS => 2
+            )
         port map (
             clk => clk,
 	    rst => core_rst,
