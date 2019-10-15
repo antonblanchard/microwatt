@@ -147,6 +147,8 @@ architecture behaviour of decode2 is
 
 	signal gpr_c_read_valid : std_ulogic;
 	signal gpr_c_read : std_ulogic_vector(4 downto 0);
+
+	signal cr_write_valid : std_ulogic;
 begin
 	control_0: entity work.control
 	generic map (
@@ -173,6 +175,9 @@ begin
 
 		gpr_c_read_valid_in  => gpr_c_read_valid,
 		gpr_c_read_in        => gpr_c_read,
+
+		cr_read_in           => d_in.decode.input_cr,
+		cr_write_in           => cr_write_valid,
 
 		valid_out   => control_valid_out,
 		stall_out   => stall_out,
@@ -363,6 +368,8 @@ begin
 
 		gpr_c_read_valid <= decoded_reg_c.reg_valid;
 		gpr_c_read <= decoded_reg_c.reg;
+
+                cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
 
 		v.e.valid := '0';
 		v.m.valid := '0';
