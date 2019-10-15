@@ -35,6 +35,7 @@ architecture behaviour of divider is
     signal rc         : std_ulogic;
     signal write_reg  : std_ulogic_vector(4 downto 0);
     signal overflow   : std_ulogic;
+    signal ovf32      : std_ulogic;
     signal did_ovf    : std_ulogic;
     signal cr_data    : std_ulogic_vector(2 downto 0);
 
@@ -66,6 +67,7 @@ begin
                 count <= "1111111";
                 running <= '1';
                 overflow <= '0';
+                ovf32 <= '0';
                 signcheck <= d_in.is_signed and (d_in.dividend(63) or d_in.divisor(63));
             elsif signcheck = '1' then
                 signcheck <= '0';
@@ -86,16 +88,19 @@ begin
                 end if;
                 overflow <= quot(63);
                 if dend(128) = '1' or unsigned(dend(127 downto 64)) >= div then
+                    ovf32 <= ovf32 or quot(31);
                     dend <= std_ulogic_vector(unsigned(dend(127 downto 64)) - div) &
                             dend(63 downto 0) & '0';
                     quot <= quot(62 downto 0) & '1';
                     count <= count + 1;
                 elsif dend(128 downto 57) = x"000000000000000000" and count(6 downto 3) /= "0111" then
                     -- consume 8 bits of zeroes in one cycle
+                    ovf32 <= or (ovf32 & quot(31 downto 24));
                     dend <= dend(120 downto 0) & x"00";
                     quot <= quot(55 downto 0) & x"00";
                     count <= count + 8;
                 else
+                    ovf32 <= ovf32 or quot(31);
                     dend <= dend(127 downto 0) & '0';
                     quot <= quot(62 downto 0) & '0';
                     count <= count + 1;
@@ -125,13 +130,11 @@ begin
         if is_32bit = '0' then
             did_ovf <= overflow or (is_signed and (sresult(63) xor neg_result));
         elsif is_signed = '1' then
-            if overflow = '1' or
-                (sresult(63 downto 31) /= x"00000000" & '0' and
-                 sresult(63 downto 31) /= x"ffffffff" & '1') then
+            if ovf32 = '1' or sresult(32) /= sresult(31) then
                 did_ovf <= '1';
             end if;
         else
-            did_ovf <= overflow or (or (sresult(63 downto 32)));
+            did_ovf <= ovf32;
         end if;
         if did_ovf = '1' then
             oresult <= (others => '0');
