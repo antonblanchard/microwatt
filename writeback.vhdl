@@ -10,7 +10,7 @@ entity writeback is
     port (
         clk          : in std_ulogic;
 
-        e_in         : in Execute2ToWritebackType;
+        e_in         : in Execute1ToWritebackType;
         l_in         : in Loadstore2ToWritebackType;
         m_in         : in MultiplyToWritebackType;
         d_in         : in DividerToWritebackType;
