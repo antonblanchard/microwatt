@@ -311,9 +311,6 @@ begin
                                         elsif std_match(e_in.insn(20 downto 11), "0100000000") then
                                                 ctrl_tmp.lr <= e_in.read_data3;
                                         end if;
-				when OP_NEG =>
-					result := ppc_neg(e_in.read_data1);
-					result_en := 1;
 				when OP_POPCNTB =>
 					result := ppc_popcntb(e_in.read_data3);
 					result_en := 1;
