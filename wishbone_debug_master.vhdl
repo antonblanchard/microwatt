@@ -90,9 +90,8 @@ begin
 		    elsif dmi_addr = DBG_WB_CTRL then
 			reg_ctrl <= dmi_din(10 downto 0);
 		    end if;
-		end if;
-		-- Address register auto-increment
-		if state = WB_CYCLE and (wb_in.ack and reg_ctrl(8))= '1'  then
+                elsif state = WB_CYCLE and (wb_in.ack and reg_ctrl(8))= '1'  then
+		    -- Address register auto-increment
 		    reg_addr <= std_ulogic_vector(unsigned(reg_addr) +
 						  decode_autoinc(reg_ctrl(10 downto 9)));
 		end if;
