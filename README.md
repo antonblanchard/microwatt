@@ -48,7 +48,7 @@ ln -s ../micropython/ports/powerpc/build/firmware.bin simple_ram_behavioural.bin
 
 ## Synthesis on Xilinx FPGAs using Vivado
 
-- Install Vivado (I'm using the free 2019.1 webpack edition).
+- Install Vivado (I'm using the free 2019.1 web pack edition).
 
 - Setup Vivado paths:
 
@@ -93,7 +93,7 @@ make -j$(nproc) check
 
 ## Issues
 
-This is functional, but very simple. We still have quite a lot to do:
+This is functional but very simple. We still have quite a lot to do:
 
 - There are a few instructions still to be implemented
 - Need to add caches and bypassing (in progress)
