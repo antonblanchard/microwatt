@@ -24,5 +24,8 @@ hello_world.bin: hello_world.elf
 hello_world.hex: hello_world.bin
 	./bin2hex.py hello_world.bin > hello_world.hex
 
+hello_world.dec: hello_world.bin
+	./bin2dec.py hello_world.bin > hello_world.dec
+
 clean:
 	@rm -f *.o hello_world.elf hello_world.bin hello_world.hex
