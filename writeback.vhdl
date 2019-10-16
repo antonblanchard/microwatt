@@ -95,7 +95,7 @@ begin
         partial_write <= '0';
         sign_extend <= '0';
         second_word <= '0';
-        data_in <= (others => '0');
+        data_in <= e_in.write_data;
 
         if e_in.write_enable = '1' then
             w_out.write_reg <= e_in.write_reg;
