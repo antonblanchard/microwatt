@@ -68,7 +68,7 @@ begin
         assert d2.write_reg_enable = '1';
         assert d2.write_reg_nr = "10001";
         assert d2.write_reg_data = x"000000000000f001" report "result " & to_hstring(d2.write_reg_data);
-        assert d2.write_cr_enable = '0';
+        assert d2.rc = '0';
 
         wait for clk_period;
         assert d2.valid = '0' report "valid";
@@ -92,9 +92,7 @@ begin
         assert d2.write_reg_enable = '1';
         assert d2.write_reg_nr = "10001";
         assert d2.write_reg_data = x"000000000000f001" report "result " & to_hstring(d2.write_reg_data);
-        assert d2.write_cr_enable = '1';
-        assert d2.write_cr_mask = "10000000";
-        assert d2.write_cr_data = x"40000000" report "cr data is " & to_hstring(d2.write_cr_data);
+        assert d2.rc = '1';
 
         wait for clk_period;
         assert d2.valid = '0';
@@ -129,8 +127,6 @@ begin
                     end if;
                     assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
                         report "bad divd expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for divd";
                 end loop;
             end loop;
         end loop;
@@ -165,8 +161,6 @@ begin
                     end if;
                     assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
                         report "bad divdu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for divdu";
                 end loop;
             end loop;
         end loop;
@@ -207,8 +201,6 @@ begin
                     end if;
                     assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
                         report "bad divde expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for divde";
                 end loop;
             end loop;
         end loop;
@@ -246,8 +238,6 @@ begin
                     end if;
                     assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
                         report "bad divdeu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for divdeu";
                 end loop;
             end loop;
         end loop;
@@ -284,8 +274,6 @@ begin
                     end if;
                     assert behave_rt = d2.write_reg_data
                         report "bad divw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for divw";
                 end loop;
             end loop;
         end loop;
@@ -322,8 +310,6 @@ begin
                     end if;
                     assert behave_rt = d2.write_reg_data
                         report "bad divwu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for divwu";
                 end loop;
             end loop;
         end loop;
@@ -363,8 +349,6 @@ begin
                         end if;
                         assert behave_rt = d2.write_reg_data
                             report "bad divwe expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
-                        assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                            report "bad CR setting for divwe";
                     end if;
                 end loop;
             end loop;
@@ -402,8 +386,6 @@ begin
                     end if;
                     assert behave_rt = d2.write_reg_data
                         report "bad divweu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for divweu";
                 end loop;
             end loop;
         end loop;
@@ -441,8 +423,6 @@ begin
                     end if;
                     assert behave_rt = d2.write_reg_data
                         report "bad modsd expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for modsd";
                 end loop;
             end loop;
         end loop;
@@ -480,8 +460,6 @@ begin
                     end if;
                     assert behave_rt = d2.write_reg_data
                         report "bad modud expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for modud";
                 end loop;
             end loop;
         end loop;
@@ -524,8 +502,6 @@ begin
                     end if;
                     assert behave_rt = d2.write_reg_data
                         report "bad modsw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for modsw";
                 end loop;
             end loop;
         end loop;
@@ -563,8 +539,6 @@ begin
                     end if;
                     assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
                         report "bad moduw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
-                    assert ppc_cmpi('1', behave_rt, x"0000") & x"0000000" = d2.write_cr_data
-                        report "bad CR setting for moduw";
                 end loop;
             end loop;
         end loop;

@@ -25,7 +25,7 @@ entity execute1 is
 		-- asynchronous
 		f_out : out Execute1ToFetch1Type;
 
-		e_out : out Execute1ToExecute2Type;
+		e_out : out Execute1ToWritebackType;
 
 		terminate_out : out std_ulogic
 	);
@@ -34,7 +34,7 @@ end entity execute1;
 architecture behaviour of execute1 is
 	type reg_type is record
 		--f : Execute1ToFetch1Type;
-		e : Execute1ToExecute2Type;
+		e : Execute1ToWritebackType;
 	end record;
 
 	signal r, rin : reg_type;
@@ -124,7 +124,7 @@ begin
 		newcrf := (others => '0');
 
 		v := r;
-		v.e := Execute1ToExecute2Init;
+		v.e := Execute1ToWritebackInit;
 		--v.f := Execute1ToFetch1TypeInit;
 
 		ctrl_tmp <= ctrl;
@@ -143,6 +143,8 @@ begin
 
 			v.e.valid := '1';
 			v.e.write_reg := e_in.write_reg;
+                        v.e.write_len := x"8";
+                        v.e.sign_extend := '0';
 
 			case_0: case e_in.insn_type is
 
@@ -230,14 +232,10 @@ begin
 				when OP_CNTZ =>
 					result := countzero_result;
 					result_en := 1;
-				when OP_EXTSB =>
-					result := ppc_extsb(e_in.read_data3);
-					result_en := 1;
-				when OP_EXTSH =>
-					result := ppc_extsh(e_in.read_data3);
-					result_en := 1;
-				when OP_EXTSW =>
-					result := ppc_extsw(e_in.read_data3);
+				when OP_EXTS =>
+                                        v.e.write_len := e_in.data_len;
+                                        v.e.sign_extend := '1';
+					result := e_in.read_data3;
 					result_en := 1;
 				when OP_ISEL =>
 					crnum := to_integer(unsigned(insn_bc(e_in.insn)));

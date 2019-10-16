@@ -54,8 +54,7 @@ architecture behave of core is
     signal writeback_to_cr_file: WritebackToCrFileType;
 
     -- execute signals
-    signal execute1_to_execute2: Execute1ToExecute2Type;
-    signal execute2_to_writeback: Execute2ToWritebackType;
+    signal execute1_to_writeback: Execute1ToWritebackType;
     signal execute1_to_fetch1: Execute1ToFetch1Type;
 
     -- load store signals
@@ -204,15 +203,8 @@ begin
             flush_out => flush,
             e_in => decode2_to_execute1,
             f_out => execute1_to_fetch1,
-            e_out => execute1_to_execute2,
+            e_out => execute1_to_writeback,
             terminate_out => terminate
-            );
-
-    execute2_0: entity work.execute2
-        port map (
-            clk => clk,
-            e_in => execute1_to_execute2,
-            e_out => execute2_to_writeback
             );
 
     loadstore1_0: entity work.loadstore1
@@ -249,7 +241,7 @@ begin
     writeback_0: entity work.writeback
         port map (
             clk => clk,
-            e_in => execute2_to_writeback,
+            e_in => execute1_to_writeback,
             l_in => loadstore2_to_writeback,
             m_in => multiply_to_writeback,
             d_in => divider_to_writeback,

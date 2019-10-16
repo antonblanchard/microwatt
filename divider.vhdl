@@ -5,7 +5,6 @@ use ieee.numeric_std.all;
 library work;
 use work.common.all;
 use work.decode_types.all;
-use work.crhelpers.all;
 
 entity divider is
     port (
@@ -37,7 +36,6 @@ architecture behaviour of divider is
     signal overflow   : std_ulogic;
     signal ovf32      : std_ulogic;
     signal did_ovf    : std_ulogic;
-    signal cr_data    : std_ulogic_vector(2 downto 0);
 
 begin
     divider_0: process(clk)
@@ -114,7 +112,7 @@ begin
     divider_1: process(all)
     begin
         d_out.write_reg_nr <= write_reg;
-        d_out.write_cr_mask <= num_to_fxm(0);
+        d_out.rc <= rc;
 
         if is_modulus = '1' then
             result <= dend(128 downto 65);
@@ -144,29 +142,18 @@ begin
         else
             oresult <= sresult;
         end if;
-
-        if (did_ovf = '1') or (or (sresult) = '0') then
-            cr_data <= "001";
-        elsif (sresult(63) = '1') and not ((is_32bit = '1') and (is_modulus = '0')) then
-            cr_data <= "100";
-        else
-            cr_data <= "010";
-        end if;
     end process;
 
     divider_out: process(clk)
     begin
         if rising_edge(clk) then
             d_out.write_reg_data <= oresult;
-            d_out.write_cr_data <= cr_data & '0' & x"0000000";
             if count = "1000000" then
                 d_out.valid <= '1';
                 d_out.write_reg_enable <= '1';
-                d_out.write_cr_enable <= rc;
             else
                 d_out.valid <= '0';
                 d_out.write_reg_enable <= '0';
-                d_out.write_cr_enable <= '0';
             end if;
         end if;
     end process;
