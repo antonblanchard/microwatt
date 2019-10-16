@@ -109,8 +109,8 @@ begin
 	variable newcrf : std_ulogic_vector(3 downto 0);
 	variable result_with_carry : std_ulogic_vector(64 downto 0);
 	variable result_en : integer;
-	variable crnum : integer;
-	variable scrnum : integer;
+	variable crnum : crnum_t;
+	variable scrnum : crnum_t;
 	variable lo, hi : integer;
 	variable sh, mb, me : std_ulogic_vector(5 downto 0);
 	variable sh32, mb32, me32 : std_ulogic_vector(4 downto 0);
