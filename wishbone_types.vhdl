@@ -2,7 +2,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 package wishbone_types is
-    constant wishbone_addr_bits : integer := 64;
+    constant wishbone_addr_bits : integer := 32;
     constant wishbone_data_bits : integer := 64;
     constant wishbone_sel_bits : integer := wishbone_data_bits/8;
 
