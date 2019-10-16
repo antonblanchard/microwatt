@@ -108,7 +108,7 @@ begin
 	variable result : std_ulogic_vector(63 downto 0);
 	variable newcrf : std_ulogic_vector(3 downto 0);
 	variable result_with_carry : std_ulogic_vector(64 downto 0);
-	variable result_en : integer;
+	variable result_en : std_ulogic;
 	variable crnum : crnum_t;
 	variable scrnum : crnum_t;
 	variable lo, hi : integer;
@@ -120,7 +120,7 @@ begin
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
-	result_en := 0;
+	result_en := '0';
 	newcrf := (others => '0');
 
 	v := r;
@@ -164,10 +164,10 @@ begin
 		if e_in.output_carry then
 		    ctrl_tmp.carry <= result_with_carry(64);
 		end if;
-		result_en := 1;
+		result_en := '1';
 	    when OP_AND | OP_OR | OP_XOR =>
 		result := logical_result;
-		result_en := 1;
+		result_en := '1';
 	    when OP_B =>
 		f_out.redirect <= '1';
 		if (insn_aa(e_in.insn)) then
@@ -206,7 +206,7 @@ begin
 		end if;
 	    when OP_CMPB =>
 		result := ppc_cmpb(e_in.read_data3, e_in.read_data2);
-		result_en := 1;
+		result_en := '1';
 	    when OP_CMP =>
 		bf := insn_bf(e_in.insn);
 		l := insn_l(e_in.insn);
@@ -231,12 +231,12 @@ begin
 		end loop;
 	    when OP_CNTZ =>
 		result := countzero_result;
-		result_en := 1;
+		result_en := '1';
 	    when OP_EXTS =>
 		v.e.write_len := e_in.data_len;
 		v.e.sign_extend := '1';
 		result := e_in.read_data3;
-		result_en := 1;
+		result_en := '1';
 	    when OP_ISEL =>
 		crnum := to_integer(unsigned(insn_bc(e_in.insn)));
 		if e_in.cr(31-crnum) = '1' then
@@ -244,7 +244,7 @@ begin
 		else
 		    result := e_in.read_data2;
 		end if;
-		result_en := 1;
+		result_en := '1';
 	    when OP_MCRF =>
 		bf := insn_bf(e_in.insn);
 		bfa := insn_bfa(e_in.insn);
@@ -267,13 +267,13 @@ begin
 	    when OP_MFSPR =>
 		if std_match(e_in.insn(20 downto 11), "0100100000") then
 		    result := ctrl.ctr;
-		    result_en := 1;
+		    result_en := '1';
 		elsif std_match(e_in.insn(20 downto 11), "0100000000") then
 		    result := ctrl.lr;
-		    result_en := 1;
+		    result_en := '1';
 		elsif std_match(e_in.insn(20 downto 11), "0110001000") then
 		    result := ctrl.tb;
-		    result_en := 1;
+		    result_en := '1';
 		end if;
 	    when OP_MFCR =>
 		if e_in.insn(20) = '0' then
@@ -291,7 +291,7 @@ begin
 			end if;
 		    end loop;
 		end if;
-		result_en := 1;
+		result_en := '1';
 	    when OP_MTCRF =>
 		v.e.write_cr_enable := '1';
 		if e_in.insn(20) = '0' then
@@ -311,25 +311,25 @@ begin
 		end if;
 	    when OP_POPCNTB =>
 		result := ppc_popcntb(e_in.read_data3);
-		result_en := 1;
+		result_en := '1';
 	    when OP_POPCNTW =>
 		result := ppc_popcntw(e_in.read_data3);
-		result_en := 1;
+		result_en := '1';
 	    when OP_POPCNTD =>
 		result := ppc_popcntd(e_in.read_data3);
-		result_en := 1;
+		result_en := '1';
 	    when OP_PRTYD =>
 		result := ppc_prtyd(e_in.read_data3);
-		result_en := 1;
+		result_en := '1';
 	    when OP_PRTYW =>
 		result := ppc_prtyw(e_in.read_data3);
-		result_en := 1;
+		result_en := '1';
 	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR =>
 		result := rotator_result;
 		if e_in.output_carry = '1' then
 		    ctrl_tmp.carry <= rotator_carry;
 		end if;
-		result_en := 1;
+		result_en := '1';
 	    when OP_SIM_CONFIG =>
 		-- bit 0 was used to select the microwatt console, which
 		-- we no longer support.
@@ -338,7 +338,7 @@ begin
 		else
 		    result := x"0000000000000000";
 		end if;
-		result_en := 1;
+		result_en := '1';
 
 	    when OP_TDI =>
 		-- Keep our test cases happy for now, ignore trap instructions
@@ -353,12 +353,11 @@ begin
 		ctrl_tmp.lr <= std_ulogic_vector(unsigned(e_in.nia) + 4);
 	    end if;
 
-	    if result_en = 1 then
-		v.e.write_data := result;
-		v.e.write_enable := '1';
-		v.e.rc := e_in.rc;
-	    end if;
 	end if;
+
+	v.e.write_data := result;
+	v.e.write_enable := result_en;
+	v.e.rc := e_in.rc;
 
 	-- Update registers
 	rin <= v;
