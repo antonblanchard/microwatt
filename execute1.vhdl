@@ -110,6 +110,7 @@ begin
 	variable result_with_carry : std_ulogic_vector(64 downto 0);
 	variable result_en : std_ulogic;
 	variable crnum : crnum_t;
+	variable crbit : integer range 0 to 31;
 	variable scrnum : crnum_t;
 	variable lo, hi : integer;
 	variable sh, mb, me : std_ulogic_vector(5 downto 0);
@@ -238,8 +239,8 @@ begin
 		result := e_in.read_data3;
 		result_en := '1';
 	    when OP_ISEL =>
-		crnum := to_integer(unsigned(insn_bc(e_in.insn)));
-		if e_in.cr(31-crnum) = '1' then
+		crbit := to_integer(unsigned(insn_bc(e_in.insn)));
+		if e_in.cr(31-crbit) = '1' then
 		    result := e_in.read_data1;
 		else
 		    result := e_in.read_data2;
