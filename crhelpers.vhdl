@@ -5,13 +5,16 @@ library work;
 use work.common.all;
 
 package crhelpers is
-    function fxm_to_num(fxm: std_ulogic_vector(7 downto 0)) return integer;
-    function num_to_fxm(num: integer) return std_ulogic_vector;
+    subtype crnum_t is integer range 0 to 7;
+    subtype crmask_t is std_ulogic_vector(7 downto 0);
+
+    function fxm_to_num(fxm: crmask_t) return crnum_t;
+    function num_to_fxm(num: crnum_t) return crmask_t;
 end package crhelpers;
 
 package body crhelpers is
 
-    function fxm_to_num(fxm: std_ulogic_vector(7 downto 0)) return integer is
+    function fxm_to_num(fxm: crmask_t) return crnum_t is
     begin
         -- If multiple fields are set (undefined), match existing
         -- hardware by returning the first one.
@@ -27,7 +30,7 @@ package body crhelpers is
         return 7;
     end;
 
-    function num_to_fxm(num: integer) return std_ulogic_vector is
+    function num_to_fxm(num: crnum_t) return crmask_t is
     begin
         case num is
             when 0 =>
