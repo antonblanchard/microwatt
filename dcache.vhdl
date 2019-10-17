@@ -221,6 +221,7 @@ architecture rtl of dcache is
     -- PLRU output interface
     type plru_out_t is array(index_t) of std_ulogic_vector(WAY_BITS-1 downto 0);
     signal plru_victim : plru_out_t;
+    signal replace_way : way_t;
 
     -- Wishbone read/write/cache write formatting signals
     signal bus_sel                  : wishbone_sel_type;
@@ -394,6 +395,9 @@ begin
 
 	-- The way that matched on a hit	       
 	req_hit_way <= hit_way;
+
+	-- The way to replace on a miss
+	replace_way <= to_integer(unsigned(plru_victim(req_index)));
 
 	-- Combine the request and cache his status to decide what
 	-- operation needs to be done
@@ -666,7 +670,6 @@ begin
     -- operates at stage 1.
     --
     dcache_slow : process(clk)
-	variable way : integer range 0 to NUM_WAYS-1;
 	variable tagset : cache_tags_set_t;
     begin
         if rising_edge(clk) then
@@ -706,21 +709,17 @@ begin
 		    when OP_LOAD_MISS =>
 			-- Normal load cache miss, start the reload machine
 			--
-			-- First find a victim way from the PLRU
-			--
-			way := to_integer(unsigned(plru_victim(req_index)));
-
 			report "cache miss addr:" & to_hstring(d_in.addr) &
 			    " idx:" & integer'image(req_index) &
-			    " way:" & integer'image(way) &
+			    " way:" & integer'image(replace_way) &
 			    " tag:" & to_hstring(req_tag);
 
 			-- Force misses on that way while reloading that line
-			cache_valids(req_index)(way) <= '0';
+			cache_valids(req_index)(replace_way) <= '0';
 
 			-- Store new tag in selected way
 			for i in 0 to NUM_WAYS-1 loop
-			    if i = way then
+			    if i = replace_way then
 				tagset := cache_tags(req_index);
 				write_tag(i, tagset, req_tag);
 				cache_tags(req_index) <= tagset;
@@ -729,7 +728,7 @@ begin
 
 			-- Keep track of our index and way for subsequent stores.
 			r1.store_index <= req_index;
-			r1.store_way <= way;
+			r1.store_way <= replace_way;
 
 			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line
@@ -785,7 +784,7 @@ begin
 
 			-- That was the last word ? We are done
 			if is_last_row(r1.wb.adr) then
-			    cache_valids(r1.store_index)(way) <= '1';
+			    cache_valids(r1.store_index)(r1.store_way) <= '1';
 			    r1.wb.cyc <= '0';
 			    r1.wb.stb <= '0';
 

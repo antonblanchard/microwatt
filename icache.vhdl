@@ -178,6 +178,7 @@ architecture rtl of icache is
     -- PLRU output interface
     type plru_out_t is array(index_t) of std_ulogic_vector(WAY_BITS-1 downto 0);
     signal plru_victim : plru_out_t;
+    signal replace_way : way_t;
 
     -- Return the cache line index (tag index) for an address
     function get_index(addr: std_ulogic_vector(63 downto 0)) return index_t is
@@ -371,6 +372,9 @@ begin
 	req_is_miss <= i_in.req and not is_hit and not flush_in;
 	req_hit_way <= hit_way;
 
+	-- The way to replace on a miss
+	replace_way <= to_integer(unsigned(plru_victim(req_index)));
+
 	-- Output instruction from current cache row
 	--
 	-- Note: This is a mild violation of our design principle of having pipeline
@@ -420,7 +424,6 @@ begin
 
     -- Cache miss/reload synchronous machine
     icache_miss : process(clk)
-	variable way : integer range 0 to NUM_WAYS-1;
 	variable tagset : cache_tags_set_t;
     begin
         if rising_edge(clk) then
@@ -446,20 +449,18 @@ begin
 		when IDLE =>
 		    -- We need to read a cache line
 		    if req_is_miss = '1' then
-			way := to_integer(unsigned(plru_victim(req_index)));
-
 			report "cache miss nia:" & to_hstring(i_in.nia) &
 			    " SM:" & std_ulogic'image(i_in.stop_mark) &
 			    " idx:" & integer'image(req_index) &
-			    " way:" & integer'image(way) &
+			    " way:" & integer'image(replace_way) &
 			    " tag:" & to_hstring(req_tag);
 
 			-- Force misses on that way while reloading that line
-			cache_valids(req_index)(way) <= '0';
+			cache_valids(req_index)(replace_way) <= '0';
 
 			-- Store new tag in selected way
 			for i in 0 to NUM_WAYS-1 loop
-			    if i = way then
+			    if i = replace_way then
 				tagset := cache_tags(req_index);
 				write_tag(i, tagset, req_tag);
 				cache_tags(req_index) <= tagset;
@@ -468,7 +469,7 @@ begin
 
 			-- Keep track of our index and way for subsequent stores
 			r.store_index <= req_index;
-			r.store_way <= way;
+			r.store_way <= replace_way;
 
 			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line
@@ -484,7 +485,7 @@ begin
 		    if wishbone_in.ack = '1' then
 			-- That was the last word ? We are done
 			if is_last_row(r.wb.adr) then
-			    cache_valids(r.store_index)(way) <= '1';
+			    cache_valids(r.store_index)(r.store_way) <= '1';
 			    r.wb.cyc <= '0';
 			    r.wb.stb <= '0';
 			    r.state <= IDLE;
