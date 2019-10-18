@@ -2,7 +2,7 @@ GHDL=ghdl
 GHDLFLAGS=--std=08 -Psim-unisim
 CFLAGS=-O2 -Wall
 
-all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb multiply_tb dmi_dtm_tb divider_tb \
+all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb \
 	rotator_tb countzero_tb
 
 # XXX
@@ -38,6 +38,7 @@ plru_tb.o: plru.o
 icache.o: common.o wishbone_types.o plru.o cache_ram.o
 icache_tb.o: common.o wishbone_types.o icache.o simple_ram_behavioural.o
 dcache.o: common.o wishbone_types.o plru.o cache_ram.o
+dcache_tb.o: common.o wishbone_types.o dcache.o simple_ram_behavioural.o
 insn_helpers.o:
 loadstore1.o: common.o helpers.o
 logical.o: decode_types.o
@@ -79,6 +80,9 @@ fetch_tb: fetch_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 icache_tb: icache_tb.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
+
+dcache_tb: dcache_tb.o
 	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
 
 plru_tb: plru_tb.o
