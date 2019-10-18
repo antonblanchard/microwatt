@@ -136,6 +136,7 @@ begin
 	when others =>
 	    wb_master_in.dat <= (others => '1');
 	    wb_master_in.ack <= wb_master_out.stb and wb_master_out.cyc;
+	    wb_master_in.stall <= '0';
 	end case;
     end process slave_intercon;
 
@@ -164,6 +165,7 @@ begin
 	    wb_ack_out => wb_uart0_out.ack
 	    );
     wb_uart0_out.dat <= x"00000000000000" & uart_dat8;
+    wb_uart0_out.stall <= '0' when wb_uart0_in.cyc = '0' else not wb_uart0_out.ack;
 
     -- BRAM Memory slave
     bram0: entity work.mw_soc_memory
