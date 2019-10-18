@@ -124,7 +124,6 @@ begin
 
     -- We always move WB cyc and stb simultaneously (no pipelining yet...)
     wb_out.cyc <= '1' when state = WB_CYCLE else '0';
-    wb_out.stb <= '1' when state = WB_CYCLE else '0';
 
     -- Data latch. WB will take the read data away as soon as the cycle
     -- terminates but we must maintain it on DMI until req goes down, so
@@ -145,14 +144,23 @@ begin
 	if rising_edge(clk) then
 	    if (rst) then
 		state <= IDLE;
+		wb_out.stb <= '0';
 	    else
 		case state is
 		when IDLE =>
 		    if dmi_req = '1' and dmi_addr = DBG_WB_DATA then
 			state <= WB_CYCLE;
+			wb_out.stb <= '1';
 		    end if;
 		when WB_CYCLE =>
+		    if wb_in.stall = '0' then
+			wb_out.stb <= '0';
+		    end if;
 		    if wb_in.ack then
+			-- We shouldn't get the ack if we hadn't already cleared
+			-- stb above but if this happen, don't leave it dangling.
+			--
+			wb_out.stb <= '0';
 			state <= DMI_WAIT;
 		    end if;
 		when DMI_WAIT =>
