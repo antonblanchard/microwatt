@@ -43,6 +43,9 @@ begin
 	wb1_out.ack <= wb_in.ack when state = WB1_BUSY else '0';
 	wb2_out.ack <= wb_in.ack when state = WB2_BUSY else '0';
 	wb3_out.ack <= wb_in.ack when state = WB3_BUSY else '0';
+	wb1_out.stall <= wb_in.stall when state = WB1_BUSY else '1';
+	wb2_out.stall <= wb_in.stall when state = WB2_BUSY else '1';
+	wb3_out.stall <= wb_in.stall when state = WB3_BUSY else '1';
     end process;
 
     wishbone_arbiter_process: process(clk)
