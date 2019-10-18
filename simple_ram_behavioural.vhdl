@@ -11,7 +11,7 @@ entity mw_soc_memory is
     generic (
         RAM_INIT_FILE  : string;
         MEMORY_SIZE    : integer;
-	PIPELINE_DEPTH : integer := 0
+	PIPELINE_DEPTH : integer := 1
         );
 
     port (
