@@ -68,6 +68,7 @@ begin
     begin
         i_out.req <= '0';
         i_out.nia <= (others => '0');
+	i_out.stop_mark <= '0';
 
         wait for 4*clk_period;
 
