@@ -65,7 +65,8 @@ begin
 
     wb_adr_in <= wishbone_in.adr(log2(MEMORY_SIZE) - 1 downto 0);
 
-    wishbone_out.ack <= read_ack and wishbone_in.stb;
+    wishbone_out.ack <= read_ack and wishbone_in.cyc and wishbone_in.stb;
+    wishbone_out.stall <= '0' when wishbone_in.cyc = '0' else not wishbone_out.ack;
 
     memory_0: process(clk)
     begin
