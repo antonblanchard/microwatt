@@ -77,7 +77,11 @@ begin
         wait for 30*clk_period;
 
         assert i_in.valid = '1';
-        assert i_in.insn = x"00000001";
+        assert i_in.insn = x"00000001"
+	    report "insn @" & to_hstring(i_out.nia) &
+	    "=" & to_hstring(i_in.insn) &
+	    " expected 00000001"
+	    severity failure;
 
         i_out.req <= '0';
 
@@ -88,7 +92,11 @@ begin
         i_out.nia <= x"0000000000000008";
         wait for clk_period;
         assert i_in.valid = '1';
-        assert i_in.insn = x"00000002";
+        assert i_in.insn = x"00000002"
+	    report "insn @" & to_hstring(i_out.nia) &
+	    "=" & to_hstring(i_in.insn) &
+	    " expected 00000002"
+	    severity failure;
         wait for clk_period;
 
         -- another miss
@@ -98,7 +106,11 @@ begin
         wait for 30*clk_period;
 
         assert i_in.valid = '1';
-        assert i_in.insn = x"00000010";
+        assert i_in.insn = x"00000010"
+	    report "insn @" & to_hstring(i_out.nia) &
+	    "=" & to_hstring(i_in.insn) &
+	    " expected 00000010"
+	    severity failure;
 
         -- test something that aliases
         i_out.req <= '1';
@@ -110,7 +122,11 @@ begin
         wait for 30*clk_period;
 
         assert i_in.valid = '1';
-        assert i_in.insn = x"00000040";
+        assert i_in.insn = x"00000040"
+	    report "insn @" & to_hstring(i_out.nia) &
+	    "=" & to_hstring(i_in.insn) &
+	    " expected 00000040"
+	    severity failure;
 
         i_out.req <= '0';
 
