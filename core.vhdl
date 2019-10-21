@@ -8,7 +8,8 @@ use work.wishbone_types.all;
 
 entity core is
     generic (
-        SIM : boolean := false
+        SIM : boolean := false;
+	DISABLE_FLATTEN : boolean := false
         );
     port (
         clk          : in std_logic;
@@ -93,6 +94,29 @@ architecture behave of core is
     -- Debug status
     signal dbg_core_is_stopped: std_ulogic;
 
+    function keep_h(disable : boolean) return string is
+    begin
+	if disable then
+	    return "yes";
+	else
+	    return "no";
+	end if;
+    end function;
+    attribute keep_hierarchy : string;
+    attribute keep_hierarchy of fetch1_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of icache_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of fetch2_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of decode1_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of decode2_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of register_file_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of cr_file_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of execute1_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of multiply_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of divider_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of loadstore1_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of dcache_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of writeback_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of debug_0 : label is keep_h(DISABLE_FLATTEN);
 begin
 
     core_rst <= dbg_core_rst or rst;

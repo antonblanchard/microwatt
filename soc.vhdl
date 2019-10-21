@@ -17,7 +17,8 @@ entity soc is
 	MEMORY_SIZE   : positive;
 	RAM_INIT_FILE : string;
 	RESET_LOW     : boolean;
-	SIM           : boolean
+	SIM           : boolean;
+	DISABLE_FLATTEN_CORE : boolean := false
 	);
     port(
 	rst          : in  std_ulogic;
@@ -76,7 +77,8 @@ begin
     -- Processor core
     processor: entity work.core
 	generic map(
-	    SIM => SIM
+	    SIM => SIM,
+	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE
 	    )
 	port map(
 	    clk => system_clk,

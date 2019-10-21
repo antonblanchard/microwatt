@@ -7,7 +7,8 @@ entity toplevel is
 	RAM_INIT_FILE : string   := "firmware.hex";
 	RESET_LOW     : boolean  := true;
 	CLK_INPUT     : positive := 100000000;
-	CLK_FREQUENCY : positive := 100000000
+	CLK_FREQUENCY : positive := 100000000;
+	DISABLE_FLATTEN_CORE : boolean := false
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -62,7 +63,8 @@ begin
 	    MEMORY_SIZE   => MEMORY_SIZE,
 	    RAM_INIT_FILE => RAM_INIT_FILE,
 	    RESET_LOW     => RESET_LOW,
-	    SIM           => false
+	    SIM           => false,
+	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
 	    )
 	port map (
 	    system_clk        => system_clk,
