@@ -44,6 +44,7 @@ architecture behaviour of writeback is
     signal sign_extend : std_ulogic;
     signal negative : std_ulogic;
     signal second_word : std_ulogic;
+    signal zero : std_ulogic;
 begin
     writeback_0: process(clk)
     begin
@@ -155,7 +156,9 @@ begin
 
         -- If the data can arrive split over two cycles, this will be correct
         -- provided we don't have both sign extension and byte reversal.
-        negative <= (data_len(2) and data_permuted(31)) or (data_len(1) and data_permuted(15)) or
+        negative <= (data_len(3) and data_permuted(63)) or
+		    (data_len(2) and data_permuted(31)) or
+		    (data_len(1) and data_permuted(15)) or
                     (data_len(0) and data_permuted(7));
 
         -- trim and sign-extend
@@ -170,12 +173,16 @@ begin
                 trim_ctl(i) <= '0' & (negative and sign_extend);
             end if;
         end loop;
+	zero <= not negative;
         for i in 0 to 7 loop
             case trim_ctl(i) is
                 when "11" =>
                     data_trimmed(i * 8 + 7 downto i * 8) <= data_latched(i * 8 + 7 downto i * 8);
                 when "10" =>
                     data_trimmed(i * 8 + 7 downto i * 8) <= data_permuted(i * 8 + 7 downto i * 8);
+		    if or data_permuted(i * 8 + 7 downto i * 8) /= '0' then
+			zero <= '0';
+		    end if;
                 when "01" =>
                     data_trimmed(i * 8 + 7 downto i * 8) <= x"FF";
                 when others =>
@@ -190,9 +197,9 @@ begin
         if rc = '1' then
             c_out.write_cr_enable <= '1';
             c_out.write_cr_mask <= num_to_fxm(0);
-            if data_trimmed(63) = '1' then
+            if negative = '1' then
                 c_out.write_cr_data <= x"80000000";
-            elsif or (data_trimmed(62 downto 0)) = '1' then
+            elsif zero = '0' then
                 c_out.write_cr_data <= x"40000000";
             else
                 c_out.write_cr_data <= x"20000000";
