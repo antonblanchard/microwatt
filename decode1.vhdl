@@ -108,7 +108,7 @@ architecture behaviour of decode1 is
                 -- bclr, bcctr, bctar
 		2#100#    =>       (ALU,    OP_BCREG,     NONE,       NONE,        NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '1'),
                 -- isync
-		2#111#    =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
+		2#111#    =>       (ALU,    OP_ISYNC,     NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
 		others   => illegal_inst
         );
 
