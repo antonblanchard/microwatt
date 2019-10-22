@@ -16,6 +16,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
+use work.utils.all;
 use work.common.all;
 use work.helpers.all;
 use work.wishbone_types.all;
@@ -44,26 +45,6 @@ entity dcache is
 end entity dcache;
 
 architecture rtl of dcache is
-    function log2(i : natural) return integer is
-        variable tmp : integer := i;
-        variable ret : integer := 0;
-    begin
-        while tmp > 1 loop
-            ret  := ret + 1;
-            tmp := tmp / 2;
-        end loop;
-        return ret;
-    end function;
-
-    function ispow2(i : integer) return boolean is
-    begin
-        if to_integer(to_unsigned(i, 32) and to_unsigned(i - 1, 32)) = 0 then
-            return true;
-        else
-            return false;
-        end if;
-    end function;
-
     -- BRAM organisation: We never access more than wishbone_data_bits at
     -- a time so to save resources we make the array only that wide, and
     -- use consecutive indices for to make a cache "line"

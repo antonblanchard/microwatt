@@ -35,10 +35,11 @@ helpers.o:
 cache_ram.o:
 plru.o:
 plru_tb.o: plru.o
-icache.o: common.o wishbone_types.o plru.o cache_ram.o
 icache_tb.o: common.o wishbone_types.o icache.o simple_ram_behavioural.o
-dcache.o: common.o wishbone_types.o plru.o cache_ram.o
 dcache_tb.o: common.o wishbone_types.o dcache.o simple_ram_behavioural.o
+utils.o:
+icache.o: utils.o common.o wishbone_types.o plru.o cache_ram.o utils.o
+dcache.o: utils.o common.o wishbone_types.o plru.o cache_ram.o utils.o
 insn_helpers.o:
 loadstore1.o: common.o helpers.o
 logical.o: decode_types.o
