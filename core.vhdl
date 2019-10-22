@@ -76,6 +76,7 @@ architecture behave of core is
     signal fetch2_stall_in : std_ulogic;
     signal decode1_stall_in : std_ulogic;
     signal decode2_stall_out : std_ulogic;
+    signal ex1_icache_inval: std_ulogic;
 
     signal flush: std_ulogic;
 
@@ -129,7 +130,7 @@ begin
             wishbone_in => wishbone_insn_in
             );
 
-    icache_rst <= rst or dbg_icache_rst;
+    icache_rst <= rst or dbg_icache_rst or ex1_icache_inval;
 
     fetch2_0: entity work.fetch2
         port map (
@@ -204,6 +205,7 @@ begin
             e_in => decode2_to_execute1,
             f_out => execute1_to_fetch1,
             e_out => execute1_to_writeback,
+	    icache_inval => ex1_icache_inval,
             terminate_out => terminate
             );
 

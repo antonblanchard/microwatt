@@ -27,6 +27,7 @@ entity execute1 is
 
 	e_out : out Execute1ToWritebackType;
 
+	icache_inval : out std_ulogic;
 	terminate_out : out std_ulogic
 	);
 end entity execute1;
@@ -134,6 +135,7 @@ begin
 	ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
 
 	terminate_out <= '0';
+	icache_inval <= '0';
 	f_out <= Execute1ToFetch1TypeInit;
 
 	-- Next insn adder used in a couple of places
@@ -352,6 +354,9 @@ begin
 	    when OP_ISYNC =>
 		f_out.redirect <= '1';
 		f_out.redirect_nia <= next_nia;
+
+	    when OP_ICBI =>
+		icache_inval <= '1';
 
 	    when others =>
 		terminate_out <= '1';
