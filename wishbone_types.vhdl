@@ -27,4 +27,7 @@ package wishbone_types is
     end record;
     constant wishbone_slave_out_init : wishbone_slave_out := (ack => '0', stall => '0', others => (others => '0'));
 
+    type wishbone_master_out_vector is array (natural range <>) of wishbone_master_out;
+    type wishbone_slave_out_vector is array (natural range <>) of wishbone_slave_out;
+
 end package wishbone_types;

@@ -43,6 +43,12 @@ architecture behaviour of soc is
     signal wishbone_debug_in : wishbone_slave_out;
     signal wishbone_debug_out : wishbone_master_out;
 
+    -- Arbiter array (ghdl doesnt' support assigning the array
+    -- elements in the entity instantiation)
+    constant NUM_WB_MASTERS : positive := 3;
+    signal wb_masters_out : wishbone_master_out_vector(0 to NUM_WB_MASTERS-1);
+    signal wb_masters_in  : wishbone_slave_out_vector(0 to NUM_WB_MASTERS-1);
+
     -- Wishbone master (output of arbiter):
     signal wb_master_in : wishbone_slave_out;
     signal wb_master_out : wishbone_master_out;
@@ -96,13 +102,22 @@ begin
 	    );
 
     -- Wishbone bus master arbiter & mux
+    wb_masters_out <= (0 => wishbone_dcore_out,
+		       1 => wishbone_icore_out,
+		       2 => wishbone_debug_out);
+    wishbone_dcore_in <= wb_masters_in(0);
+    wishbone_icore_in <= wb_masters_in(1);
+    wishbone_debug_in <= wb_masters_in(2);
     wishbone_arbiter_0: entity work.wishbone_arbiter
+	generic map(
+	    NUM_MASTERS => NUM_WB_MASTERS
+	    )
 	port map(
 	    clk => system_clk, rst => rst,
-	    wb1_in => wishbone_dcore_out, wb1_out => wishbone_dcore_in,
-	    wb2_in => wishbone_icore_out, wb2_out => wishbone_icore_in,
-	    wb3_in => wishbone_debug_out, wb3_out => wishbone_debug_in,
-	    wb_out => wb_master_out, wb_in => wb_master_in
+	    wb_masters_in => wb_masters_out,
+	    wb_masters_out => wb_masters_in,
+	    wb_slave_out => wb_master_out,
+	    wb_slave_in => wb_master_in
 	    );
 
     -- Wishbone slaves address decoder & mux
