@@ -23,15 +23,23 @@ end wishbone_arbiter;
 architecture behave of wishbone_arbiter is
     subtype wb_arb_master_t is integer range 0 to NUM_MASTERS-1;
     signal candidate, selected : wb_arb_master_t;
+    signal busy : std_ulogic;
 begin
 
-    wishbone_muxes: process(selected, wb_slave_in, wb_masters_in)
+    busy <= wb_masters_in(selected).cyc;
+
+    wishbone_muxes: process(selected, candidate, busy, wb_slave_in, wb_masters_in)
+	variable early_sel : wb_arb_master_t;
     begin
-	wb_slave_out <= wb_masters_in(selected);
+	early_sel := selected;
+	if busy = '0' then
+	    early_sel := candidate;
+	end if;
+	wb_slave_out <= wb_masters_in(early_sel);
 	for i in 0 to NUM_MASTERS-1 loop
 	    wb_masters_out(i).dat <= wb_slave_in.dat;
-	    wb_masters_out(i).ack <= wb_slave_in.ack when selected = i else '0';
-	    wb_masters_out(i).stall <= wb_slave_in.stall when selected = i else '1';
+	    wb_masters_out(i).ack <= wb_slave_in.ack when early_sel = i else '0';
+	    wb_masters_out(i).stall <= wb_slave_in.stall when early_sel = i else '1';
 	end loop;
     end process;
 
@@ -54,7 +62,7 @@ begin
 	if rising_edge(clk) then
 	    if rst = '1' then
 		selected <= 0;
-	    elsif wb_slave_out.cyc = '0' then
+	    elsif busy = '0' then
 		selected <= candidate;
 	    end if;
 	end if;
