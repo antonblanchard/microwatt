@@ -67,8 +67,16 @@ begin
 		ack_buf <= '0';
 		ack <= '0';
 	    else
-		ack <= wishbone_in.stb;
-		ack_buf <= ack;
+		-- On loads, we have a delay cycle due to BRAM bufferring
+		-- but not on stores. So try to send an early ack on a
+		-- store if we aren't behind an existing load ack.
+		--
+		if ram_we = '1' and ack = '0' then
+		    ack_buf <= '1';
+		else
+		    ack <= wishbone_in.stb;
+		    ack_buf <= ack;
+		end if;
 	    end if;
 	end if;
     end process;
