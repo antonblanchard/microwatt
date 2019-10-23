@@ -36,20 +36,22 @@ filesets:
       - plru.vhdl
       - cache_ram.vhdl
       - core_debug.vhdl
+      - utils.vhdl
     file_type : vhdlSource-2008
 
   soc:
     files:
       - wishbone_arbiter.vhdl
       - wishbone_debug_master.vhdl
+      - wishbone_bram_wrapper.vhdl
       - soc.vhdl
     file_type : vhdlSource-2008
 
   fpga:
     files:
-      - fpga/pp_fifo.vhd
-      - fpga/mw_soc_memory.vhdl
+      - fpga/main_bram.vhdl
       - fpga/soc_reset.vhdl
+      - fpga/pp_fifo.vhd
       - fpga/pp_soc_uart.vhd
       - fpga/pp_utilities.vhd
       - fpga/toplevel.vhdl

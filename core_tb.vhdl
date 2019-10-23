@@ -20,7 +20,7 @@ begin
 	generic map(
 	    SIM => true,
 	    MEMORY_SIZE => 524288,
-	    RAM_INIT_FILE => "simple_ram_behavioural.bin",
+	    RAM_INIT_FILE => "main_ram.bin",
 	    RESET_LOW => false
 	    )
 	port map(

@@ -36,9 +36,9 @@ begin
             );
 
     -- BRAM Memory slave
-    bram0: entity work.mw_soc_memory
+    bram0: entity work.wishbone_bram_wrapper
         generic map(
-            MEMORY_SIZE   => 128,
+            MEMORY_SIZE   => 1024,
             RAM_INIT_FILE => "icache_test.bin"
             )
         port map(
@@ -70,14 +70,18 @@ begin
         i_out.nia <= (others => '0');
 	i_out.stop_mark <= '0';
 
-        wait for 4*clk_period;
+        wait until rising_edge(clk);
+        wait until rising_edge(clk);
+        wait until rising_edge(clk);
+        wait until rising_edge(clk);
 
         i_out.req <= '1';
         i_out.nia <= x"0000000000000004";
 
         wait for 30*clk_period;
+        wait until rising_edge(clk);
 
-        assert i_in.valid = '1';
+        assert i_in.valid = '1' severity failure;
         assert i_in.insn = x"00000001"
 	    report "insn @" & to_hstring(i_out.nia) &
 	    "=" & to_hstring(i_in.insn) &
@@ -86,27 +90,29 @@ begin
 
         i_out.req <= '0';
 
-        wait for clk_period;
+        wait until rising_edge(clk);
 
         -- hit
         i_out.req <= '1';
         i_out.nia <= x"0000000000000008";
-        wait for clk_period;
-        assert i_in.valid = '1';
+        wait until rising_edge(clk);
+        wait until rising_edge(clk);
+        assert i_in.valid = '1' severity failure;
         assert i_in.insn = x"00000002"
 	    report "insn @" & to_hstring(i_out.nia) &
 	    "=" & to_hstring(i_in.insn) &
 	    " expected 00000002"
 	    severity failure;
-        wait for clk_period;
+        wait until rising_edge(clk);
 
         -- another miss
         i_out.req <= '1';
         i_out.nia <= x"0000000000000040";
 
         wait for 30*clk_period;
+        wait until rising_edge(clk);
 
-        assert i_in.valid = '1';
+        assert i_in.valid = '1' severity failure;
         assert i_in.insn = x"00000010"
 	    report "insn @" & to_hstring(i_out.nia) &
 	    "=" & to_hstring(i_in.insn) &
@@ -116,13 +122,15 @@ begin
         -- test something that aliases
         i_out.req <= '1';
         i_out.nia <= x"0000000000000100";
-        wait for clk_period;
-        assert i_in.valid = '0';
-        wait for clk_period;
+        wait until rising_edge(clk);
+        wait until rising_edge(clk);
+        assert i_in.valid = '0' severity failure;
+        wait until rising_edge(clk);
 
         wait for 30*clk_period;
+        wait until rising_edge(clk);
 
-        assert i_in.valid = '1';
+        assert i_in.valid = '1' severity failure;
         assert i_in.insn = x"00000040"
 	    report "insn @" & to_hstring(i_out.nia) &
 	    "=" & to_hstring(i_in.insn) &

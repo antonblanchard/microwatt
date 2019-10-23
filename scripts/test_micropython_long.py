@@ -13,7 +13,7 @@ cwd = os.getcwd()
 os.chdir(tempdir.name)
 
 copyfile(os.path.join(cwd, 'tests/micropython.bin'),
-        os.path.join(tempdir.name, 'simple_ram_behavioural.bin'))
+        os.path.join(tempdir.name, 'main_ram.bin'))
 
 cmd = [ os.path.join(cwd, './core_tb') ]
 

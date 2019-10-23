@@ -170,7 +170,7 @@ begin
     wb_uart0_out.stall <= '0' when wb_uart0_in.cyc = '0' else not wb_uart0_out.ack;
 
     -- BRAM Memory slave
-    bram0: entity work.mw_soc_memory
+    bram0: entity work.wishbone_bram_wrapper
 	generic map(
 	    MEMORY_SIZE   => MEMORY_SIZE,
 	    RAM_INIT_FILE => RAM_INIT_FILE

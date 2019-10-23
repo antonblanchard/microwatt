@@ -2,8 +2,8 @@ GHDL=ghdl
 GHDLFLAGS=--std=08 -Psim-unisim
 CFLAGS=-O2 -Wall
 
-all = core_tb simple_ram_behavioural_tb soc_reset_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb \
-	rotator_tb countzero_tb
+all = core_tb soc_reset_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb \
+	rotator_tb countzero_tb wishbone_bram_tb
 
 # XXX
 # loadstore_tb fetch_tb
@@ -35,11 +35,14 @@ helpers.o:
 cache_ram.o:
 plru.o:
 plru_tb.o: plru.o
-icache_tb.o: common.o wishbone_types.o icache.o simple_ram_behavioural.o
-dcache_tb.o: common.o wishbone_types.o dcache.o simple_ram_behavioural.o
 utils.o:
+sim_bram.o: sim_bram_helpers.o utils.o
+wishbone_bram_wrapper.o: wishbone_types.o sim_bram.o utils.o
+wishbone_bram_tb.o: wishbone_bram_wrapper.o
 icache.o: utils.o common.o wishbone_types.o plru.o cache_ram.o utils.o
+icache_tb.o: common.o wishbone_types.o icache.o wishbone_bram_wrapper.o
 dcache.o: utils.o common.o wishbone_types.o plru.o cache_ram.o utils.o
+dcache_tb.o: common.o wishbone_types.o dcache.o wishbone_bram_wrapper.o
 insn_helpers.o:
 loadstore1.o: common.o helpers.o
 logical.o: decode_types.o
@@ -52,11 +55,8 @@ register_file.o: common.o
 rotator.o: common.o
 rotator_tb.o: common.o glibc_random.o ppc_fx_insns.o insn_helpers.o rotator.o
 sim_console.o:
-simple_ram_behavioural_helpers.o:
-simple_ram_behavioural_tb.o: wishbone_types.o simple_ram_behavioural.o
-simple_ram_behavioural.o: wishbone_types.o simple_ram_behavioural_helpers.o
 sim_uart.o: wishbone_types.o sim_console.o
-soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o simple_ram_behavioural.o dmi_dtm_xilinx.o wishbone_debug_master.o
+soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o wishbone_bram_wrapper.o dmi_dtm_xilinx.o wishbone_debug_master.o
 wishbone_arbiter.o: wishbone_types.o
 wishbone_types.o:
 writeback.o: common.o crhelpers.o
@@ -74,17 +74,17 @@ fpga/soc_reset_tb.o: fpga/soc_reset.o
 soc_reset_tb: fpga/soc_reset_tb.o fpga/soc_reset.o
 	$(GHDL) -e $(GHDLFLAGS) soc_reset_tb
 
-core_tb: core_tb.o simple_ram_behavioural_helpers_c.o sim_console_c.o sim_jtag_socket_c.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o -Wl,sim_console_c.o -Wl,sim_jtag_socket_c.o $@
+core_tb: core_tb.o sim_bram_helpers_c.o sim_console_c.o sim_jtag_socket_c.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o -Wl,sim_console_c.o -Wl,sim_jtag_socket_c.o $@
 
 fetch_tb: fetch_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
 icache_tb: icache_tb.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
+	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o $@
 
 dcache_tb: dcache_tb.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
+	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o $@
 
 plru_tb: plru_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
@@ -107,11 +107,11 @@ countzero_tb: countzero_tb.o
 simple_ram_tb: simple_ram_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
-simple_ram_behavioural_tb: simple_ram_behavioural_helpers_c.o simple_ram_behavioural_tb.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
+wishbone_bram_tb: sim_bram_helpers_c.o wishbone_bram_tb.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o $@
 
-dmi_dtm_tb: dmi_dtm_tb.o simple_ram_behavioural_helpers_c.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,simple_ram_behavioural_helpers_c.o $@
+dmi_dtm_tb: dmi_dtm_tb.o sim_bram_helpers_c.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o $@
 
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 
