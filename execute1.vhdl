@@ -11,9 +11,6 @@ use work.insn_helpers.all;
 use work.ppc_fx_insns.all;
 
 entity execute1 is
-    generic (
-	SIM   : boolean := false
-	);
     port (
 	clk   : in std_logic;
 
@@ -334,11 +331,7 @@ begin
 	    when OP_SIM_CONFIG =>
 		-- bit 0 was used to select the microwatt console, which
 		-- we no longer support.
-		if SIM = true then
-		    result := x"0000000000000000";
-		else
-		    result := x"0000000000000000";
-		end if;
+		result := x"0000000000000000";
 		result_en := '1';
 
 	    when OP_TDI =>
