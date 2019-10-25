@@ -196,9 +196,6 @@ begin
             );
 
     execute1_0: entity work.execute1
-        generic map (
-            SIM => SIM
-            )
         port map (
             clk => clk,
             flush_out => flush,
