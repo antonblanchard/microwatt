@@ -111,11 +111,11 @@ begin
 			    SLAVE_NONE);
 	variable slave : slave_type;
     begin
-	-- Simple address decoder
+	-- Simple address decoder.
 	slave := SLAVE_NONE;
-	if wb_master_out.adr(63 downto 24) = x"0000000000" then
+	if wb_master_out.adr(31 downto 24) = x"00" then
 	    slave := SLAVE_MEMORY;
-	elsif wb_master_out.adr(63 downto 24) = x"00000000c0" then
+	elsif wb_master_out.adr(31 downto 24) = x"c0" then
 	    if wb_master_out.adr(23 downto 12) = x"002" then
 		slave := SLAVE_UART_0;
 	    end if;

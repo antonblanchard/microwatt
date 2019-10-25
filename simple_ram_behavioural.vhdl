@@ -32,6 +32,7 @@ architecture behave of mw_soc_memory is
 begin
     wishbone_process: process(clk)
         variable ret_dat: std_ulogic_vector(63 downto 0) := (others => '0');
+	variable adr: std_ulogic_vector(63 downto 0);
     begin
         wishbone_out.ack <= ret_ack and wishbone_in.cyc and wishbone_in.stb;
         wishbone_out.dat <= ret_dat;
@@ -49,15 +50,16 @@ begin
                         when IDLE =>
                             if wishbone_in.stb = '1' then
                                 -- write
+				adr := (wishbone_in.adr'left downto 0 => wishbone_in.adr, others => '0');
                                 if wishbone_in.we = '1' then
                                     assert not(is_x(wishbone_in.dat)) and not(is_x(wishbone_in.adr)) severity failure;
                                     report "RAM writing " & to_hstring(wishbone_in.dat) & " to " & to_hstring(wishbone_in.adr);
-                                    behavioural_write(wishbone_in.dat, wishbone_in.adr, to_integer(unsigned(wishbone_in.sel)), identifier);
+                                    behavioural_write(wishbone_in.dat, adr, to_integer(unsigned(wishbone_in.sel)), identifier);
                                     reload <= reload + 1;
                                     ret_ack <= '1';
                                     state <= ACK;
                                 else
-                                    behavioural_read(ret_dat, wishbone_in.adr, to_integer(unsigned(wishbone_in.sel)), identifier, reload);
+                                    behavioural_read(ret_dat, adr, to_integer(unsigned(wishbone_in.sel)), identifier, reload);
                                     report "RAM reading from " & to_hstring(wishbone_in.adr) & " returns " & to_hstring(ret_dat);
                                     ret_ack <= '1';
                                     state <= ACK;

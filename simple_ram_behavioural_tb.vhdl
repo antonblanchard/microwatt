@@ -16,6 +16,11 @@ architecture behave of simple_ram_behavioural_tb is
 
     signal w_in         : wishbone_slave_out;
     signal w_out        : wishbone_master_out;
+
+    impure function to_adr(a: integer) return std_ulogic_vector is
+    begin
+	return std_ulogic_vector(to_unsigned(a, w_out.adr'length));
+    end;
 begin
     simple_ram_0: entity work.mw_soc_memory
         generic map (
@@ -56,7 +61,7 @@ begin
         -- test various read lengths and alignments
         w_out.stb <= '1';
         w_out.sel <= "00000001";
-        w_out.adr <= x"0000000000000000";
+        w_out.adr <= to_adr(0);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -67,7 +72,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "00000001";
-        w_out.adr <= x"0000000000000001";
+        w_out.adr <= to_adr(1);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -78,7 +83,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "00000001";
-        w_out.adr <= x"0000000000000007";
+        w_out.adr <= to_adr(7);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -89,7 +94,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "00000011";
-        w_out.adr <= x"0000000000000000";
+        w_out.adr <= to_adr(0);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -100,7 +105,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "00000011";
-        w_out.adr <= x"0000000000000001";
+        w_out.adr <= to_adr(1);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -111,7 +116,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "00000011";
-        w_out.adr <= x"0000000000000007";
+        w_out.adr <= to_adr(7);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -122,7 +127,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "00001111";
-        w_out.adr <= x"0000000000000000";
+        w_out.adr <= to_adr(0);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -133,7 +138,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "00001111";
-        w_out.adr <= x"0000000000000001";
+        w_out.adr <= to_adr(1);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -144,7 +149,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "00001111";
-        w_out.adr <= x"0000000000000007";
+        w_out.adr <= to_adr(7);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -155,7 +160,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "11111111";
-        w_out.adr <= x"0000000000000000";
+        w_out.adr <= to_adr(0);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -166,7 +171,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "11111111";
-        w_out.adr <= x"0000000000000001";
+        w_out.adr <= to_adr(1);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -177,7 +182,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "11111111";
-        w_out.adr <= x"0000000000000007";
+        w_out.adr <= to_adr(7);
         assert w_in.ack = '0';
         wait for clk_period;
         assert w_in.ack = '1';
@@ -189,7 +194,7 @@ begin
         -- test various write lengths and alignments
         w_out.stb <= '1';
         w_out.sel <= "00000001";
-        w_out.adr <= x"0000000000000000";
+        w_out.adr <= to_adr(0);
         w_out.we <= '1';
         w_out.dat(7 downto 0) <= x"0F";
         assert w_in.ack = '0';
@@ -201,7 +206,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "00000001";
-        w_out.adr <= x"0000000000000000";
+        w_out.adr <= to_adr(0);
         w_out.we <= '0';
         assert w_in.ack = '0';
         wait for clk_period;
@@ -213,7 +218,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "11111111";
-        w_out.adr <= x"0000000000000007";
+        w_out.adr <= to_adr(7);
         w_out.we <= '1';
         w_out.dat <= x"BADC0FFEBADC0FFE";
         assert w_in.ack = '0';
@@ -225,7 +230,7 @@ begin
 
         w_out.stb <= '1';
         w_out.sel <= "11111111";
-        w_out.adr <= x"0000000000000007";
+        w_out.adr <= to_adr(7);
         w_out.we <= '0';
         assert w_in.ack = '0';
         wait for clk_period;
