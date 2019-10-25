@@ -25,7 +25,7 @@ filesets:
       - control.vhdl
       - execute1.vhdl
       - loadstore1.vhdl
-      - loadstore2.vhdl
+      - dcache.vhdl
       - multiply.vhdl
       - divider.vhdl
       - rotator.vhdl

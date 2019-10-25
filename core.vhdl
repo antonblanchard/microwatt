@@ -59,8 +59,8 @@ architecture behave of core is
 
     -- load store signals
     signal decode2_to_loadstore1: Decode2ToLoadstore1Type;
-    signal loadstore1_to_loadstore2: Loadstore1ToLoadstore2Type;
-    signal loadstore2_to_writeback: Loadstore2ToWritebackType;
+    signal loadstore1_to_dcache: Loadstore1ToDcacheType;
+    signal dcache_to_writeback: DcacheToWritebackType;
 
     -- multiply signals
     signal decode2_to_multiply: Decode2ToMultiplyType;
@@ -76,6 +76,7 @@ architecture behave of core is
     signal fetch2_stall_in : std_ulogic;
     signal decode1_stall_in : std_ulogic;
     signal decode2_stall_out : std_ulogic;
+    signal ex1_icache_inval: std_ulogic;
 
     signal flush: std_ulogic;
 
@@ -115,7 +116,7 @@ begin
     icache_0: entity work.icache
         generic map(
             LINE_SIZE => 64,
-            NUM_LINES => 16,
+            NUM_LINES => 32,
 	    NUM_WAYS => 2
             )
         port map(
@@ -129,7 +130,7 @@ begin
             wishbone_in => wishbone_insn_in
             );
 
-    icache_rst <= rst or dbg_icache_rst;
+    icache_rst <= rst or dbg_icache_rst or ex1_icache_inval;
 
     fetch2_0: entity work.fetch2
         port map (
@@ -204,6 +205,7 @@ begin
             e_in => decode2_to_execute1,
             f_out => execute1_to_fetch1,
             e_out => execute1_to_writeback,
+	    icache_inval => ex1_icache_inval,
             terminate_out => terminate
             );
 
@@ -211,16 +213,22 @@ begin
         port map (
             clk => clk,
             l_in => decode2_to_loadstore1,
-            l_out => loadstore1_to_loadstore2
+            l_out => loadstore1_to_dcache
             );
 
-    loadstore2_0: entity work.loadstore2
+    dcache_0: entity work.dcache
+        generic map(
+            LINE_SIZE => 64,
+            NUM_LINES => 32,
+	    NUM_WAYS => 2
+            )
         port map (
             clk => clk,
-            l_in => loadstore1_to_loadstore2,
-            w_out => loadstore2_to_writeback,
-            m_in => wishbone_data_in,
-            m_out => wishbone_data_out
+	    rst => core_rst,
+            d_in => loadstore1_to_dcache,
+            d_out => dcache_to_writeback,
+            wishbone_in => wishbone_data_in,
+            wishbone_out => wishbone_data_out
             );
 
     multiply_0: entity work.multiply
@@ -242,7 +250,7 @@ begin
         port map (
             clk => clk,
             e_in => execute1_to_writeback,
-            l_in => loadstore2_to_writeback,
+            l_in => dcache_to_writeback,
             m_in => multiply_to_writeback,
             d_in => divider_to_writeback,
             w_out => writeback_to_register_file,

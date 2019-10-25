@@ -27,6 +27,7 @@ entity execute1 is
 
 	e_out : out Execute1ToWritebackType;
 
+	icache_inval : out std_ulogic;
 	terminate_out : out std_ulogic
 	);
 end entity execute1;
@@ -118,6 +119,7 @@ begin
 	variable bo, bi : std_ulogic_vector(4 downto 0);
 	variable bf, bfa : std_ulogic_vector(2 downto 0);
 	variable l : std_ulogic;
+	variable next_nia : std_ulogic_vector(63 downto 0);
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -133,7 +135,11 @@ begin
 	ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
 
 	terminate_out <= '0';
+	icache_inval <= '0';
 	f_out <= Execute1ToFetch1TypeInit;
+
+	-- Next insn adder used in a couple of places
+	next_nia := std_ulogic_vector(unsigned(e_in.nia) + 4);
 
 	-- rotator control signals
 	right_shift <= '1' when e_in.insn_type = OP_SHR else '0';
@@ -345,13 +351,20 @@ begin
 		-- Keep our test cases happy for now, ignore trap instructions
 		report "OP_TDI FIXME";
 
+	    when OP_ISYNC =>
+		f_out.redirect <= '1';
+		f_out.redirect_nia <= next_nia;
+
+	    when OP_ICBI =>
+		icache_inval <= '1';
+
 	    when others =>
 		terminate_out <= '1';
 		report "illegal";
 	    end case;
 
 	    if e_in.lr = '1' then
-		ctrl_tmp.lr <= std_ulogic_vector(unsigned(e_in.nia) + 4);
+		ctrl_tmp.lr <= next_nia;
 	    end if;
 
 	end if;
