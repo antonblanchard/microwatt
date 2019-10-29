@@ -51,8 +51,22 @@ filesets:
       - fpga/mw_soc_memory.vhdl
       - fpga/soc_reset.vhdl
       - fpga/pp_soc_uart.vhd
+      - fpga/pp_soc_gpio.vhdl
       - fpga/pp_utilities.vhd
       - fpga/toplevel.vhdl
+      - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
+    file_type : vhdlSource-2008
+
+  fpga:
+    files:
+      - fpga/pp_fifo.vhd
+      - fpga/mw_soc_memory.vhdl
+      - fpga/soc_reset.vhdl
+      - fpga/pp_soc_uart.vhd
+      - fpga/pp_soc_gpio.vhdl
+      - fpga/pp_utilities.vhd
+      - fpga/toplevel_nogpio.vhdl
+      - fpga/arty_a7.vhdl
       - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
     file_type : vhdlSource-2008
 
@@ -95,7 +109,7 @@ targets:
       - clk_frequency
     tools:
       vivado: {part : xc7a100tcsg324-1}
-    toplevel : toplevel
+    toplevel : toplevel_nogpio
 
   nexys_video:
     default_tool: vivado
@@ -107,7 +121,7 @@ targets:
       - clk_frequency
     tools:
       vivado: {part : xc7a200tsbg484-1}
-    toplevel : toplevel
+    toplevel : toplevel_nogpio
 
   arty_a7-35:
     default_tool: vivado
@@ -119,7 +133,7 @@ targets:
       - clk_frequency
     tools:
       vivado: {part : xc7a35ticsg324-1L}
-    toplevel : toplevel
+    toplevel : arty_a7
 
   arty_a7-100:
     default_tool: vivado
@@ -131,7 +145,7 @@ targets:
       - clk_frequency
     tools:
       vivado: {part : xc7a100ticsg324-1L}
-    toplevel : toplevel
+    toplevel : arty_a7
 
   cmod_a7-35:
     default_tool: vivado
@@ -144,7 +158,7 @@ targets:
       - clk_frequency
     tools:
       vivado: {part : xc7a35tcpg236-1}
-    toplevel : toplevel
+    toplevel : toplevel_nogpio
 
   synth:
     filesets: [core, soc]

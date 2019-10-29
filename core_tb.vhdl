@@ -21,13 +21,17 @@ begin
 	    SIM => true,
 	    MEMORY_SIZE => 524288,
 	    RAM_INIT_FILE => "simple_ram_behavioural.bin",
-	    RESET_LOW => false
+	    RESET_LOW => false,
+	    GPIO0_PINS => 1,
+	    GPIO1_PINS => 1
 	    )
 	port map(
 	    rst => rst,
 	    system_clk => clk,
 	    uart0_rxd => '0',
-	    uart0_txd => open
+	    uart0_txd => open,
+	    gpio0 => open,
+	    gpio1 => open
 	    );
 
     clk_process: process
