@@ -17,7 +17,9 @@ entity soc is
 	MEMORY_SIZE   : positive;
 	RAM_INIT_FILE : string;
 	RESET_LOW     : boolean;
-	SIM           : boolean
+	SIM           : boolean;
+	GPIO0_PINS    : natural;
+	GPIO1_PINS    : natural
 	);
     port(
 	rst          : in  std_ulogic;
@@ -28,6 +30,8 @@ entity soc is
 	uart0_rxd    : in  std_ulogic;
 
 	-- Misc (to use for things like LEDs)
+	gpio0 : inout std_logic_vector(GPIO0_PINS - 1 downto 0);
+	gpio1 : inout std_logic_vector(GPIO1_PINS - 1 downto 0);
 	core_terminated : out std_ulogic
 	);
 end entity soc;
@@ -50,6 +54,14 @@ architecture behaviour of soc is
     signal wb_uart0_in   : wishbone_master_out;
     signal wb_uart0_out  : wishbone_slave_out;
     signal uart_dat8     : std_ulogic_vector(7 downto 0);
+
+    -- GPIO0 signals:
+    signal wb_gpio0_in   : wishbone_master_out;
+    signal wb_gpio0_out  : wishbone_slave_out;
+
+    -- GPIO1 signals:
+    signal wb_gpio1_in   : wishbone_master_out;
+    signal wb_gpio1_out  : wishbone_slave_out;
 
     -- Main memory signals:
     signal wb_bram_in     : wishbone_master_out;
@@ -104,28 +116,46 @@ begin
 	    );
 
     -- Wishbone slaves address decoder & mux
-    slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out)
+    slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out, wb_gpio0_out, wb_gpio1_out)
 	-- Selected slave
 	type slave_type is (SLAVE_UART_0,
+			    SLAVE_GPIO_0,
+			    SLAVE_GPIO_1,
 			    SLAVE_MEMORY,
 			    SLAVE_NONE);
 	variable slave : slave_type;
     begin
-	-- Simple address decoder.
-	slave := SLAVE_NONE;
-	if wb_master_out.adr(31 downto 24) = x"00" then
+	-- Simple address decoder
+	case wb_master_out.adr(31 downto 24) is
+	when x"00" =>
 	    slave := SLAVE_MEMORY;
-	elsif wb_master_out.adr(31 downto 24) = x"c0" then
-	    if wb_master_out.adr(23 downto 12) = x"002" then
+	when x"c0" =>
+	    case wb_master_out.adr(23 downto 8) is
+	    when x"0002" =>
 		slave := SLAVE_UART_0;
-	    end if;
-	end if;
+	    when others =>
+		slave := SLAVE_NONE;
+	    end case;
+	when x"c1" =>
+	    case wb_master_out.adr(23 downto 8) is
+	    when x"0000" =>
+		slave := SLAVE_GPIO_0;
+	    when x"0001" =>
+		slave := SLAVE_GPIO_1;
+	    when others =>
+		slave := SLAVE_NONE;
+	    end case;
+	when others =>
+		slave := SLAVE_NONE;
+	end case;
 
 	-- Wishbone muxing. Defaults:
 	wb_bram_in <= wb_master_out;
 	wb_bram_in.cyc  <= '0';
 	wb_uart0_in <= wb_master_out;
 	wb_uart0_in.cyc <= '0';
+	wb_gpio0_in <= wb_master_out;
+	wb_gpio0_in.cyc <= '0';
 	case slave is
 	when SLAVE_MEMORY =>
 	    wb_bram_in.cyc <= wb_master_out.cyc;
@@ -133,6 +163,12 @@ begin
 	when SLAVE_UART_0 =>
 	    wb_uart0_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_uart0_out;
+	when SLAVE_GPIO_0 =>
+	    wb_gpio0_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_gpio0_out;
+	when SLAVE_GPIO_1 =>
+	    wb_gpio1_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_gpio1_out;
 	when others =>
 	    wb_master_in.dat <= (others => '1');
 	    wb_master_in.ack <= wb_master_out.stb and wb_master_out.cyc;
@@ -164,6 +200,41 @@ begin
 	    wb_ack_out => wb_uart0_out.ack
 	    );
     wb_uart0_out.dat <= x"00000000000000" & uart_dat8;
+
+    -- GPIO
+    gpio_0: entity work.pp_soc_gpio
+	generic map(
+	    NUM_GPIOS => GPIO0_PINS
+	    )
+	port map(
+	    clk => system_clk,
+	    reset => rst,
+	    gpio => gpio0,
+	    wb_adr_in => wb_gpio0_in.adr(7 downto 0),
+	    wb_dat_in => wb_gpio0_in.dat(63 downto 0),
+	    wb_dat_out => wb_gpio0_out.dat,
+	    wb_cyc_in => wb_gpio0_in.cyc,
+	    wb_stb_in => wb_gpio0_in.stb,
+	    wb_we_in => wb_gpio0_in.we,
+	    wb_ack_out => wb_gpio0_out.ack
+	    );
+
+    gpio_1: entity work.pp_soc_gpio
+	generic map(
+	    NUM_GPIOS => GPIO1_PINS
+	    )
+	port map(
+	    clk => system_clk,
+	    reset => rst,
+	    gpio => gpio1,
+	    wb_adr_in => wb_gpio1_in.adr(7 downto 0),
+	    wb_dat_in => wb_gpio1_in.dat(63 downto 0),
+	    wb_dat_out => wb_gpio1_out.dat,
+	    wb_cyc_in => wb_gpio1_in.cyc,
+	    wb_stb_in => wb_gpio1_in.stb,
+	    wb_we_in => wb_gpio1_in.we,
+	    wb_ack_out => wb_gpio1_out.ack
+	    );
 
     -- BRAM Memory slave
     bram0: entity work.mw_soc_memory
