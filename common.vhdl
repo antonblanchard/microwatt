@@ -12,15 +12,28 @@ package common is
 
     function decode_spr_num(insn: std_ulogic_vector(31 downto 0)) return spr_num_t;
 
+    constant SPR_XER   : spr_num_t := 1;
     constant SPR_LR    : spr_num_t := 8;
     constant SPR_CTR   : spr_num_t := 9;
     constant SPR_TB    : spr_num_t := 268;
 
+    -- The XER is split: the common bits (CA, OV, SO, OV32 and CA32) are
+    -- in the CR file as a kind of CR extension (with a separate write
+    -- control). The rest is stored as a fast SPR.
+    type xer_common_t is record
+	ca : std_ulogic;
+	ca32 : std_ulogic;
+	ov : std_ulogic;
+	ov32 : std_ulogic;
+	so : std_ulogic;
+    end record;
+    constant xerc_init : xer_common_t := (others => '0');
+
+    -- This needs to die...
     type ctrl_t is record
 	lr: std_ulogic_vector(63 downto 0);
 	ctr: std_ulogic_vector(63 downto 0);
 	tb: std_ulogic_vector(63 downto 0);
-	carry: std_ulogic;
     end record;
 
     type Fetch1ToIcacheType is record
@@ -64,8 +77,10 @@ package common is
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
 	cr: std_ulogic_vector(31 downto 0);
+	xerc: xer_common_t;
 	lr: std_ulogic;
 	rc: std_ulogic;
+	oe: std_ulogic;
 	invert_a: std_ulogic;
 	invert_out: std_ulogic;
 	input_carry: carry_in_t;
@@ -78,9 +93,9 @@ package common is
 	data_len: std_ulogic_vector(3 downto 0);
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
-	(valid => '0', insn_type => OP_ILLEGAL, lr => '0', rc => '0', invert_a => '0',
+	(valid => '0', insn_type => OP_ILLEGAL, lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
-	 is_32bit => '0', is_signed => '0', others => (others => '0'));
+	 is_32bit => '0', is_signed => '0', xerc => xerc_init, others => (others => '0'));
 
     type Decode2ToMultiplyType is record
 	valid: std_ulogic;
@@ -89,8 +104,13 @@ package common is
 	data1: std_ulogic_vector(64 downto 0);
 	data2: std_ulogic_vector(64 downto 0);
 	rc: std_ulogic;
+	oe: std_ulogic;
+	is_32bit: std_ulogic;
+	xerc: xer_common_t;
     end record;
-    constant Decode2ToMultiplyInit : Decode2ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0', others => (others => '0'));
+    constant Decode2ToMultiplyInit : Decode2ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0',
+							       oe => '0', is_32bit => '0', xerc => xerc_init,
+							       others => (others => '0'));
 
     type Decode2ToDividerType is record
 	valid: std_ulogic;
@@ -102,8 +122,13 @@ package common is
 	is_extended: std_ulogic;
 	is_modulus: std_ulogic;
 	rc: std_ulogic;
+	oe: std_ulogic;
+	xerc: xer_common_t;
     end record;
-    constant Decode2ToDividerInit: Decode2ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0', is_extended => '0', is_modulus => '0', rc => '0', others => (others => '0'));
+    constant Decode2ToDividerInit: Decode2ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0',
+							    is_extended => '0', is_modulus => '0',
+							    rc => '0', oe => '0', xerc => xerc_init,
+							    others => (others => '0'));
 
     type Decode2ToRegisterFileType is record
 	read1_enable : std_ulogic;
@@ -126,6 +151,7 @@ package common is
 
     type CrFileToDecode2Type is record
 	read_cr_data   : std_ulogic_vector(31 downto 0);
+	read_xerc_data : xer_common_t;
     end record;
 
     type Execute1ToFetch1Type is record
@@ -146,8 +172,11 @@ package common is
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
 	update_reg : std_ulogic_vector(4 downto 0);	-- if so, the register to update
+	xerc : xer_common_t;
     end record;
-    constant Decode2ToLoadstore1Init : Decode2ToLoadstore1Type := (valid => '0', load => '0', byte_reverse => '0', sign_extend => '0', update => '0', others => (others => '0'));
+    constant Decode2ToLoadstore1Init : Decode2ToLoadstore1Type := (valid => '0', load => '0', byte_reverse => '0',
+								   sign_extend => '0', update => '0', xerc => xerc_init,
+								   others => (others => '0'));
 
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
@@ -161,6 +190,7 @@ package common is
 	sign_extend : std_ulogic;
 	update : std_ulogic;
 	update_reg : std_ulogic_vector(4 downto 0);
+	xerc : xer_common_t;
     end record;
 
     type DcacheToWritebackType is record
@@ -173,8 +203,11 @@ package common is
 	sign_extend : std_ulogic;
 	byte_reverse : std_ulogic;
 	second_word : std_ulogic;
+	xerc : xer_common_t;
     end record;
-    constant DcacheToWritebackInit : DcacheToWritebackType := (valid => '0', write_enable => '0', sign_extend => '0', byte_reverse => '0', second_word => '0', others => (others => '0'));
+    constant DcacheToWritebackInit : DcacheToWritebackType := (valid => '0', write_enable => '0', sign_extend => '0',
+							       byte_reverse => '0', second_word => '0', xerc => xerc_init,
+							       others => (others => '0'));
 
     type Execute1ToWritebackType is record
 	valid: std_ulogic;
@@ -186,9 +219,14 @@ package common is
 	write_cr_enable : std_ulogic;
 	write_cr_mask : std_ulogic_vector(7 downto 0);
 	write_cr_data : std_ulogic_vector(31 downto 0);
+	write_xerc_enable : std_ulogic;
+	xerc : xer_common_t;
 	sign_extend: std_ulogic;
     end record;
-    constant Execute1ToWritebackInit : Execute1ToWritebackType := (valid => '0', rc => '0', write_enable => '0', write_cr_enable => '0', sign_extend => '0', others => (others => '0'));
+    constant Execute1ToWritebackInit : Execute1ToWritebackType := (valid => '0', rc => '0', write_enable => '0',
+								   write_cr_enable => '0', sign_extend => '0',
+								   write_xerc_enable => '0', xerc => xerc_init,
+								   others => (others => '0'));
 
     type MultiplyToWritebackType is record
 	valid: std_ulogic;
@@ -196,9 +234,14 @@ package common is
 	write_reg_enable : std_ulogic;
 	write_reg_nr: std_ulogic_vector(4 downto 0);
 	write_reg_data: std_ulogic_vector(63 downto 0);
+	write_xerc_enable : std_ulogic;
+	xerc : xer_common_t;
 	rc: std_ulogic;
     end record;
-    constant MultiplyToWritebackInit : MultiplyToWritebackType := (valid => '0', write_reg_enable => '0', rc => '0', others => (others => '0'));
+    constant MultiplyToWritebackInit : MultiplyToWritebackType := (valid => '0', write_reg_enable => '0',
+								   rc => '0', write_xerc_enable => '0',
+								   xerc => xerc_init,
+								   others => (others => '0'));
 
     type DividerToWritebackType is record
 	valid: std_ulogic;
@@ -206,9 +249,14 @@ package common is
 	write_reg_enable : std_ulogic;
 	write_reg_nr: std_ulogic_vector(4 downto 0);
 	write_reg_data: std_ulogic_vector(63 downto 0);
+	write_xerc_enable : std_ulogic;
+	xerc : xer_common_t;
 	rc: std_ulogic;
     end record;
-    constant DividerToWritebackInit : DividerToWritebackType := (valid => '0', write_reg_enable => '0', rc => '0', others => (others => '0'));
+    constant DividerToWritebackInit : DividerToWritebackType := (valid => '0', write_reg_enable => '0',
+								 rc => '0', write_xerc_enable => '0',
+								 xerc => xerc_init,
+								 others => (others => '0'));
 
     type WritebackToRegisterFileType is record
 	write_reg : std_ulogic_vector(4 downto 0);
@@ -221,9 +269,12 @@ package common is
 	write_cr_enable : std_ulogic;
 	write_cr_mask : std_ulogic_vector(7 downto 0);
 	write_cr_data : std_ulogic_vector(31 downto 0);
+	write_xerc_enable : std_ulogic;
+	write_xerc_data : xer_common_t;
     end record;
-    constant WritebackToCrFileInit : WritebackToCrFileType := (write_cr_enable => '0', others => (others => '0'));
-
+    constant WritebackToCrFileInit : WritebackToCrFileType := (write_cr_enable => '0', write_xerc_enable => '0',
+							       write_xerc_data => xerc_init,
+							       others => (others => '0'));
 end common;
 
 package body common is

@@ -185,6 +185,7 @@ architecture rtl of dcache is
 	length         : std_ulogic_vector(3 downto 0);
 	sign_extend    : std_ulogic;
 	byte_reverse   : std_ulogic;
+	xerc           : xer_common_t;
     end record;
 
     signal r2 : reg_stage_2_t;
@@ -469,6 +470,7 @@ begin
 	d_out.sign_extend <= r2.sign_extend;
 	d_out.byte_reverse <= r2.byte_reverse;
 	d_out.second_word <= '0';
+	d_out.xerc <= r2.xerc;
 
 	-- We have a valid load or store hit or we just completed a slow
 	-- op such as a load miss, a NC load or a store
@@ -518,6 +520,7 @@ begin
 		d_out.sign_extend <= r1.req.sign_extend;
 		d_out.byte_reverse <= r1.req.byte_reverse;
 		d_out.write_len <= r1.req.length;
+		d_out.xerc <= r1.req.xerc;
 	    end if;
 
 	    -- If it's a store or a non-update load form, complete now
@@ -539,6 +542,7 @@ begin
 	    d_out.write_len <= "1000";
 	    d_out.sign_extend <= '0';
 	    d_out.byte_reverse <= '0';
+	    d_out.xerc <= r1.req.xerc;
 
 	    -- If it was a load, this completes the operation (load with
 	    -- update case).

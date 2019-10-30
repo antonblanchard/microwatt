@@ -131,6 +131,22 @@ architecture behaviour of decode2 is
 		end case;
 	end;
 
+	-- For now, use "rc" in the decode table to decide whether oe exists.
+	-- This is not entirely correct architecturally: For mulhd and
+	-- mulhdu, the OE field is reserved. It remains to be seen what an
+	-- actual POWER9 does if we set it on those instructions, for now we
+	-- test that further down when assigning to the multiplier oe input.
+	--
+	function decode_oe (t : rc_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic is
+	begin
+		case t is
+		when RC =>
+			return insn_oe(insn_in);
+		when OTHERS =>
+			return '0';
+		end case;
+	end;
+
 	-- issue control signals
 	signal control_valid_in : std_ulogic;
 	signal control_valid_out : std_ulogic;
@@ -255,7 +271,9 @@ begin
                 v.e.read_data3 := decoded_reg_c.data;
 		v.e.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
 		v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
+		v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
 		v.e.cr := c_in.read_cr_data;
+		v.e.xerc := c_in.read_xerc_data;
                 v.e.invert_a := d_in.decode.invert_a;
                 v.e.invert_out := d_in.decode.invert_out;
 		v.e.input_carry := d_in.decode.input_carry;
@@ -274,6 +292,11 @@ begin
 		mul_b := decoded_reg_b.data;
 		v.m.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
 		v.m.rc := decode_rc(d_in.decode.rc, d_in.insn);
+		v.m.xerc := c_in.read_xerc_data;
+		if v.m.insn_type = OP_MUL_L64 then
+		  v.m.oe := decode_oe(d_in.decode.rc, d_in.insn);
+		end if;
+		v.m.is_32bit := d_in.decode.is_32bit;
 
 		if d_in.decode.is_32bit = '1' then
 			if d_in.decode.is_signed = '1' then
@@ -337,6 +360,8 @@ begin
                         end if;
                 end if;
                 v.d.rc := decode_rc(d_in.decode.rc, d_in.insn);
+		v.d.xerc := c_in.read_xerc_data;
+		v.d.oe := decode_oe(d_in.decode.rc, d_in.insn);
 
 		-- load/store unit
 		v.l.update_reg := decoded_reg_a.reg;
@@ -355,6 +380,7 @@ begin
 		v.l.byte_reverse := d_in.decode.byte_reverse;
 		v.l.sign_extend := d_in.decode.sign_extend;
 		v.l.update := d_in.decode.update;
+		v.l.xerc := c_in.read_xerc_data;
 
 		-- issue control
 		control_valid_in <= d_in.valid;

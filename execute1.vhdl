@@ -31,14 +31,13 @@ end entity execute1;
 
 architecture behaviour of execute1 is
     type reg_type is record
-	--f : Execute1ToFetch1Type;
 	e : Execute1ToWritebackType;
     end record;
 
     signal r, rin : reg_type;
 
-    signal ctrl: ctrl_t := (carry => '0', others => (others => '0'));
-    signal ctrl_tmp: ctrl_t := (carry => '0', others => (others => '0'));
+    signal ctrl: ctrl_t := (others => (others => '0'));
+    signal ctrl_tmp: ctrl_t := (others => (others => '0'));
 
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
@@ -46,17 +45,46 @@ architecture behaviour of execute1 is
     signal logical_result: std_ulogic_vector(63 downto 0);
     signal countzero_result: std_ulogic_vector(63 downto 0);
 
-    function decode_input_carry (carry_sel : carry_in_t; ca_in : std_ulogic) return std_ulogic is
+    procedure set_carry(e: inout Execute1ToWritebackType;
+			carry32 : in std_ulogic;
+			carry : in std_ulogic) is
     begin
-	case carry_sel is
+	e.xerc.ca32 := carry32;
+	e.xerc.ca := carry;
+	e.write_xerc_enable := '1';
+    end;
+
+    procedure set_ov(e: inout Execute1ToWritebackType;
+		     ov   : in std_ulogic;
+		     ov32 : in std_ulogic) is
+    begin
+	e.xerc.ov32 := ov32;
+	e.xerc.ov := ov;
+	if ov = '1' then
+	    e.xerc.so := '1';
+	end if;
+	e.write_xerc_enable := '1';
+    end;
+
+    function calc_ov(msb_a : std_ulogic; msb_b: std_ulogic;
+		     ca: std_ulogic; msb_r: std_ulogic) return std_ulogic is
+    begin
+	return (ca xor msb_r) and not (msb_a xor msb_b);
+    end;
+
+    function decode_input_carry(ic : carry_in_t;
+				xerc : xer_common_t) return std_ulogic is
+    begin
+	case ic is
 	when ZERO =>
 	    return '0';
 	when CA =>
-	    return ca_in;
+	    return xerc.ca;
 	when ONE =>
 	    return '1';
 	end case;
     end;
+
 begin
 
     rotator_0: entity work.rotator
@@ -117,6 +145,7 @@ begin
 	variable bf, bfa : std_ulogic_vector(2 downto 0);
 	variable l : std_ulogic;
 	variable next_nia : std_ulogic_vector(63 downto 0);
+        variable carry_32, carry_64 : std_ulogic;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -125,7 +154,41 @@ begin
 
 	v := r;
 	v.e := Execute1ToWritebackInit;
-	--v.f := Execute1ToFetch1TypeInit;
+
+	-- XER forwarding. To avoid having to track XER hazards, we
+	-- use the previously latched value.
+	--
+	-- If the XER was modified by a multiply or a divide, those are
+	-- single issue, we'll get the up to date value from decode2 from
+	-- the register file.
+	--
+	-- If it was modified by an instruction older than the previous
+	-- one in EX1, it will have also hit writeback and will be up
+	-- to date in decode2.
+	--
+	-- That leaves us with the case where it was updated by the previous
+	-- instruction in EX1. In that case, we can forward it back here.
+	--
+	-- This will break if we allow pipelining of multiply and divide,
+	-- but ideally, those should go via EX1 anyway and run as a state
+	-- machine from here.
+	--
+	-- One additional hazard to beware of is an XER:SO modifying instruction
+	-- in EX1 followed immediately by a store conditional. Due to our
+	-- writeback latency, the store will go down the LSU with the previous
+	-- XER value, thus the stcx. will set CR0:SO using an obsolete SO value.
+	--
+	-- We will need to handle that if we ever make stcx. not single issue
+	--
+	-- We always pass a valid XER value downto writeback even when
+	-- we aren't updating it, in order for XER:SO -> CR0:SO transfer
+	-- to work for RC instructions.
+	--
+	if r.e.write_xerc_enable = '1' then
+	    v.e.xerc := r.e.xerc;
+	else
+	    v.e.xerc := e_in.xerc;
+	end if;
 
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
@@ -163,10 +226,18 @@ begin
 		else
 		    a_inv := not e_in.read_data1;
 		end if;
-		result_with_carry := ppc_adde(a_inv, e_in.read_data2, decode_input_carry(e_in.input_carry, ctrl.carry));
+		result_with_carry := ppc_adde(a_inv, e_in.read_data2,
+					      decode_input_carry(e_in.input_carry, v.e.xerc));
 		result := result_with_carry(63 downto 0);
-		if e_in.output_carry then
-		    ctrl_tmp.carry <= result_with_carry(64);
+                carry_32 := result(32) xor a_inv(32) xor e_in.read_data2(32);
+                carry_64 := result_with_carry(64);
+		if e_in.output_carry = '1' then
+		    set_carry(v.e, carry_32, carry_64);
+		end if;
+		if e_in.oe = '1' then
+		    set_ov(v.e,
+			   calc_ov(a_inv(63), e_in.read_data2(63), carry_64, result_with_carry(63)),
+			   calc_ov(a_inv(31), e_in.read_data2(31), carry_32, result_with_carry(31)));
 		end if;
 		result_en := '1';
 	    when OP_AND | OP_OR | OP_XOR =>
@@ -270,6 +341,13 @@ begin
 		end loop;
 	    when OP_MFSPR =>
 		case decode_spr_num(e_in.insn) is
+		when SPR_XER =>
+		    result := ( 63-32 => v.e.xerc.so,
+				63-33 => v.e.xerc.ov,
+				63-34 => v.e.xerc.ca,
+				63-44 => v.e.xerc.ov32,
+				63-45 => v.e.xerc.ca32,
+				others => '0');
 		when SPR_CTR =>
 		    result := ctrl.ctr;
 		when SPR_LR =>
@@ -310,6 +388,13 @@ begin
 		v.e.write_cr_data := e_in.read_data3(31 downto 0);
 	    when OP_MTSPR =>
 		case decode_spr_num(e_in.insn) is
+		when SPR_XER =>
+		    v.e.xerc.so := e_in.read_data3(63-32);
+		    v.e.xerc.ov := e_in.read_data3(63-33);
+		    v.e.xerc.ca := e_in.read_data3(63-34);
+		    v.e.xerc.ov32 := e_in.read_data3(63-44);
+		    v.e.xerc.ca32 := e_in.read_data3(63-45);
+		    v.e.write_xerc_enable := '1';
 		when SPR_CTR =>
 		    ctrl_tmp.ctr <= e_in.read_data3;
 		when SPR_LR =>
@@ -334,7 +419,7 @@ begin
 	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR =>
 		result := rotator_result;
 		if e_in.output_carry = '1' then
-		    ctrl_tmp.carry <= rotator_carry;
+		    set_carry(v.e, rotator_carry, rotator_carry);
 		end if;
 		result_en := '1';
 	    when OP_SIM_CONFIG =>

@@ -36,7 +36,8 @@ architecture behaviour of divider is
     signal overflow   : std_ulogic;
     signal ovf32      : std_ulogic;
     signal did_ovf    : std_ulogic;
-
+    signal oe         : std_ulogic;
+    signal xerc       : xer_common_t;
 begin
     divider_0: process(clk)
     begin
@@ -62,6 +63,8 @@ begin
                 is_32bit <= d_in.is_32bit;
                 is_signed <= d_in.is_signed;
                 rc <= d_in.rc;
+                oe <= d_in.oe;
+		xerc <= d_in.xerc;
                 count <= "1111111";
                 running <= '1';
                 overflow <= '0';
@@ -147,13 +150,25 @@ begin
     divider_out: process(clk)
     begin
         if rising_edge(clk) then
+	    d_out.valid <= '0';
             d_out.write_reg_data <= oresult;
+	    d_out.write_reg_enable <= '0';
+	    d_out.write_xerc_enable <= '0';
+	    d_out.xerc <= xerc;
             if count = "1000000" then
                 d_out.valid <= '1';
                 d_out.write_reg_enable <= '1';
-            else
-                d_out.valid <= '0';
-                d_out.write_reg_enable <= '0';
+		d_out.write_xerc_enable <= oe;
+
+		-- We must test oe because the RC update code in writeback
+		-- will use the xerc value to set CR0:SO so we must not clobber
+		-- xerc if OE wasn't set.
+		--
+		if oe = '1' then
+		    d_out.xerc.ov <= did_ovf;
+		    d_out.xerc.ov32 <= did_ovf;
+		    d_out.xerc.so <= xerc.so or did_ovf;
+		end if;
             end if;
         end if;
     end process;

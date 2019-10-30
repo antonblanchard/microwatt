@@ -62,6 +62,8 @@ begin
         variable w : std_ulogic_vector(0 downto 0);
         variable j : integer;
         variable k : unsigned(3 downto 0);
+	variable cf: std_ulogic_vector(3 downto 0);
+	variable xe: xer_common_t;
     begin
         x := "" & e_in.valid;
         y := "" & l_in.valid;
@@ -81,6 +83,11 @@ begin
         z := "" & (d_in.valid and d_in.rc);
         assert (to_integer(unsigned(w)) + to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1 severity failure;
 
+        x := "" & e_in.write_xerc_enable;
+        y := "" & m_in.write_xerc_enable;
+        z := "" & D_in.write_xerc_enable;
+        assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1 severity failure;
+
         w_out <= WritebackToRegisterFileInit;
         c_out <= WritebackToCrFileInit;
 
@@ -96,12 +103,12 @@ begin
         partial_write <= '0';
         sign_extend <= '0';
         second_word <= '0';
-        data_in <= e_in.write_data;
+	xe := e_in.xerc;
 
         if e_in.write_enable = '1' then
             w_out.write_reg <= e_in.write_reg;
-            data_in <= e_in.write_data;
             w_out.write_enable <= '1';
+	    data_in <= e_in.write_data;
             data_len <= unsigned(e_in.write_len);
             sign_extend <= e_in.sign_extend;
             rc <= e_in.rc;
@@ -113,7 +120,12 @@ begin
             c_out.write_cr_data <= e_in.write_cr_data;
         end if;
 
-        if l_in.write_enable = '1' then
+	if e_in.write_xerc_enable = '1' then
+            c_out.write_xerc_enable <= '1';
+            c_out.write_xerc_data <= e_in.xerc;
+	end if;
+
+	if l_in.write_enable = '1' then
             w_out.write_reg <= l_in.write_reg;
             data_in <= l_in.write_data;
             data_len <= unsigned(l_in.write_len);
@@ -127,6 +139,7 @@ begin
             if l_in.valid = '0' and (data_len + byte_offset > 8) then
                 partial_write <= '1';
             end if;
+	    xe := l_in.xerc;
         end if;
 
         if m_in.write_reg_enable = '1' then
@@ -134,14 +147,26 @@ begin
             w_out.write_reg <= m_in.write_reg_nr;
             data_in <= m_in.write_reg_data;
             rc <= m_in.rc;
+	    xe := m_in.xerc;
         end if;
+
+	if m_in.write_xerc_enable = '1' then
+            c_out.write_xerc_enable <= '1';
+            c_out.write_xerc_data <= m_in.xerc;
+	end if;
 
         if d_in.write_reg_enable = '1' then
             w_out.write_enable <= '1';
             w_out.write_reg <= d_in.write_reg_nr;
             data_in <= d_in.write_reg_data;
             rc <= d_in.rc;
+	    xe := d_in.xerc;
         end if;
+
+	if d_in.write_xerc_enable = '1' then
+            c_out.write_xerc_enable <= '1';
+            c_out.write_xerc_data <= d_in.xerc;
+	end if;
 
         -- shift and byte-reverse data bytes
         for i in 0 to 7 loop
@@ -193,17 +218,15 @@ begin
         -- deliver to regfile
         w_out.write_data <= data_trimmed;
 
-        -- test value against 0 and set CR0 if requested
+        -- Perform CR0 update for RC forms
         if rc = '1' then
             c_out.write_cr_enable <= '1';
             c_out.write_cr_mask <= num_to_fxm(0);
-            if negative = '1' then
-                c_out.write_cr_data <= x"80000000";
-            elsif zero = '0' then
-                c_out.write_cr_data <= x"40000000";
-            else
-                c_out.write_cr_data <= x"20000000";
-            end if;
+	    cf(3) := negative;
+	    cf(2) := not negative and not zero;
+	    cf(1) := zero;
+	    cf(0) := xe.so;
+	    c_out.write_cr_data(31 downto 28) <= cf;
         end if;
     end process;
 end;
