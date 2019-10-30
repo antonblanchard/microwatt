@@ -43,8 +43,8 @@ begin
         if rising_edge(clk) then
             if w_in.write_cr_enable = '1' then
                 report "Writing " & to_hstring(w_in.write_cr_data) & " to CR mask " & to_hstring(w_in.write_cr_mask);
+		crs <= crs_updated;
             end if;
-            crs <= crs_updated;
         end if;
     end process;
 
