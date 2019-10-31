@@ -152,7 +152,7 @@ architecture behaviour of decode2 is
 begin
 	control_0: entity work.control
 	generic map (
-		PIPELINE_DEPTH => 2
+		PIPELINE_DEPTH => 1
 	)
 	port map (
 		clk         => clk,

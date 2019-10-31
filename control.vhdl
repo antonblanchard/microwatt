@@ -57,7 +57,7 @@ architecture rtl of control is
 begin
     gpr_hazard0: entity work.gpr_hazard
         generic map (
-            PIPELINE_DEPTH => 2
+            PIPELINE_DEPTH => PIPELINE_DEPTH
             )
         port map (
             clk                => clk,
@@ -72,7 +72,7 @@ begin
 
     gpr_hazard1: entity work.gpr_hazard
         generic map (
-            PIPELINE_DEPTH => 2
+            PIPELINE_DEPTH => PIPELINE_DEPTH
             )
         port map (
             clk                => clk,
@@ -87,7 +87,7 @@ begin
 
     gpr_hazard2: entity work.gpr_hazard
         generic map (
-            PIPELINE_DEPTH => 2
+            PIPELINE_DEPTH => PIPELINE_DEPTH
             )
         port map (
             clk                => clk,
@@ -102,7 +102,7 @@ begin
 
     cr_hazard0: entity work.cr_hazard
         generic map (
-            PIPELINE_DEPTH => 2
+            PIPELINE_DEPTH => PIPELINE_DEPTH
             )
         port map (
             clk                => clk,
