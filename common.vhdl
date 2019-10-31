@@ -12,10 +12,31 @@ package common is
 
     function decode_spr_num(insn: std_ulogic_vector(31 downto 0)) return spr_num_t;
 
-    constant SPR_XER   : spr_num_t := 1;
-    constant SPR_LR    : spr_num_t := 8;
-    constant SPR_CTR   : spr_num_t := 9;
-    constant SPR_TB    : spr_num_t := 268;
+    constant SPR_XER    : spr_num_t := 1;
+    constant SPR_LR     : spr_num_t := 8;
+    constant SPR_CTR    : spr_num_t := 9;
+    constant SPR_TB     : spr_num_t := 268;
+    constant SPR_SRR0   : spr_num_t := 26;
+    constant SPR_SRR1   : spr_num_t := 27;
+    constant SPR_HSRR0  : spr_num_t := 314;
+    constant SPR_HSRR1  : spr_num_t := 315;
+    constant SPR_SPRG0  : spr_num_t := 272;
+    constant SPR_SPRG1  : spr_num_t := 273;
+    constant SPR_SPRG2  : spr_num_t := 274;
+    constant SPR_SPRG3  : spr_num_t := 275;
+    constant SPR_SPRG3U : spr_num_t := 259;
+    constant SPR_HSPRG0 : spr_num_t := 304;
+    constant SPR_HSPRG1 : spr_num_t := 305;
+
+    -- Some SPRs are stored in the register file, they use the magic
+    -- GPR numbers above 31.
+    --
+    -- The function fast_spr_num() returns the corresponding fast
+    -- pseudo-GPR number for a given SPR number. The result MSB
+    -- indicates if this is indeed a fast SPR. If clear, then
+    -- the SPR is not stored in the GPR file.
+    --
+    function fast_spr_num(spr: spr_num_t) return std_ulogic_vector;
 
     -- The XER is split: the common bits (CA, OV, SO, OV32 and CA32) are
     -- in the CR file as a kind of CR extension (with a separate write
@@ -281,5 +302,40 @@ package body common is
     function decode_spr_num(insn: std_ulogic_vector(31 downto 0)) return spr_num_t is
     begin
 	return to_integer(unsigned(insn(15 downto 11) & insn(20 downto 16)));
+    end;
+    function fast_spr_num(spr: spr_num_t) return std_ulogic_vector is
+       variable n : integer range 0 to 31;
+    begin
+       case spr is
+       when SPR_LR =>
+           n := 0;
+       when SPR_CTR =>
+           n:= 1;
+       when SPR_SRR0 =>
+           n := 2;
+       when SPR_SRR1 =>
+           n := 3;
+       when SPR_HSRR0 =>
+           n := 4;
+       when SPR_HSRR1 =>
+           n := 5;
+       when SPR_SPRG0 =>
+           n := 6;
+       when SPR_SPRG1 =>
+           n := 7;
+       when SPR_SPRG2 =>
+           n := 8;
+       when SPR_SPRG3 | SPR_SPRG3U =>
+           n := 9;
+       when SPR_HSPRG0 =>
+           n := 10;
+       when SPR_HSPRG1 =>
+           n := 11;
+       when SPR_XER =>
+           n := 12;
+       when others =>
+           return "000000";
+       end case;
+       return "1" & std_ulogic_vector(to_unsigned(n, 5));
     end;
 end common;
