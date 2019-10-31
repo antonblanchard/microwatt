@@ -76,8 +76,10 @@ architecture behave of core is
     signal icache_stall_out : std_ulogic;
     signal fetch2_stall_in : std_ulogic;
     signal decode1_stall_in : std_ulogic;
+    signal decode2_stall_in : std_ulogic;
     signal decode2_stall_out : std_ulogic;
     signal ex1_icache_inval: std_ulogic;
+    signal ex1_stall_out: std_ulogic;
 
     signal flush: std_ulogic;
 
@@ -184,6 +186,7 @@ begin
         port map (
             clk => clk,
             rst => core_rst,
+	    stall_in => decode2_stall_in,
             stall_out => decode2_stall_out,
             flush_in => flush,
             complete_in => complete,
@@ -198,6 +201,7 @@ begin
             c_in => cr_file_to_decode2,
             c_out => decode2_to_cr_file
             );
+    decode2_stall_in <= ex1_stall_out;
 
     register_file_0: entity work.register_file
         generic map (
@@ -223,6 +227,7 @@ begin
         port map (
             clk => clk,
             flush_out => flush,
+	    stall_out => ex1_stall_out,
             e_in => decode2_to_execute1,
             f_out => execute1_to_fetch1,
             e_out => execute1_to_writeback,

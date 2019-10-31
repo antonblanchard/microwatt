@@ -21,10 +21,10 @@ package decode_types is
 			 OP_TWI, OP_XOR, OP_SIM_CONFIG
 			 );
 
-    type input_reg_a_t is (NONE, RA, RA_OR_ZERO);
-    type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD, CONST_DS, CONST_M1, CONST_SH, CONST_SH32);
+    type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR);
+    type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD, CONST_DS, CONST_M1, CONST_SH, CONST_SH32, SPR);
     type input_reg_c_t is (NONE, RS);
-    type output_reg_a_t is (NONE, RT, RA);
+    type output_reg_a_t is (NONE, RT, RA, SPR);
     type rc_t is (NONE, ONE, RC);
     type carry_in_t is (ZERO, CA, ONE);
 

@@ -7,7 +7,8 @@ entity cr_hazard is
         PIPELINE_DEPTH : natural := 2
         );
     port(
-        clk         : in std_logic;
+        clk         : in std_ulogic;
+	stall_in    : in std_ulogic;
 
         cr_read_in  : in std_ulogic;
         cr_write_in : in std_ulogic;
@@ -29,7 +30,9 @@ begin
     cr_hazard0: process(clk)
     begin
         if rising_edge(clk) then
-            r <= rin;
+	    if stall_in = '0' then
+		r <= rin;
+	    end if;
         end if;
     end process;
 

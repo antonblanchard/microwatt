@@ -126,7 +126,7 @@ begin
 	end if;
 
 	if l_in.write_enable = '1' then
-            w_out.write_reg <= l_in.write_reg;
+            w_out.write_reg <= gpr_to_gspr(l_in.write_reg);
             data_in <= l_in.write_data;
             data_len <= unsigned(l_in.write_len);
             byte_offset <= unsigned(l_in.write_shift);
@@ -144,7 +144,7 @@ begin
 
         if m_in.write_reg_enable = '1' then
             w_out.write_enable <= '1';
-            w_out.write_reg <= m_in.write_reg_nr;
+            w_out.write_reg <= gpr_to_gspr(m_in.write_reg_nr);
             data_in <= m_in.write_reg_data;
             rc <= m_in.rc;
 	    xe := m_in.xerc;
@@ -157,7 +157,7 @@ begin
 
         if d_in.write_reg_enable = '1' then
             w_out.write_enable <= '1';
-            w_out.write_reg <= d_in.write_reg_nr;
+            w_out.write_reg <= gpr_to_gspr(d_in.write_reg_nr);
             data_in <= d_in.write_reg_data;
             rc <= d_in.rc;
 	    xe := d_in.xerc;

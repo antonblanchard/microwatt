@@ -14,6 +14,7 @@ entity decode2 is
 		rst   : in std_ulogic;
 
 		complete_in : in std_ulogic;
+		stall_in : in std_ulogic;
 		stall_out : out std_ulogic;
 
 		stopped_out : out std_ulogic;
@@ -47,30 +48,49 @@ architecture behaviour of decode2 is
 
 	type decode_input_reg_t is record
 		reg_valid : std_ulogic;
-		reg       : std_ulogic_vector(4 downto 0);
+		reg       : gspr_index_t;
 		data      : std_ulogic_vector(63 downto 0);
 	end record;
 
+	type decode_output_reg_t is record
+		reg_valid : std_ulogic;
+		reg       : gspr_index_t;
+	end record;
+
 	function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
-				     reg_data : std_ulogic_vector(63 downto 0)) return decode_input_reg_t is
+				     reg_data : std_ulogic_vector(63 downto 0);
+				     ispr : gspr_index_t) return decode_input_reg_t is
 		variable is_reg : std_ulogic;
 	begin
 		is_reg := '0' when insn_ra(insn_in) = "00000" else '1';
 
 		if t = RA or (t = RA_OR_ZERO and insn_ra(insn_in) /= "00000") then
-			--return (is_reg, insn_ra(insn_in), reg_data);
-			return ('1', insn_ra(insn_in), reg_data);
+		    assert is_fast_spr(ispr) = '0' report "Decode A says GPR but ISPR says SPR:" &
+			to_hstring(ispr) severity failure;
+		    return ('1', gpr_to_gspr(insn_ra(insn_in)), reg_data);
+		elsif t = SPR then
+		    -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
+		    -- If it's all 0, we don't treat it as a dependency as slow SPRs
+		    -- operations are single issue.
+		    --
+		    assert is_fast_spr(ispr) =  '1' or ispr = "000000"
+			report "Decode A says SPR but ISPR is invalid:" &
+			to_hstring(ispr) severity failure;
+		    return (is_fast_spr(ispr), ispr, reg_data);
 		else
 			return ('0', (others => '0'), (others => '0'));
 		end if;
 	end;
 
 	function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0);
-				     reg_data : std_ulogic_vector(63 downto 0)) return decode_input_reg_t is
+				     reg_data : std_ulogic_vector(63 downto 0);
+				     ispr : gspr_index_t) return decode_input_reg_t is
 	begin
 		case t is
 		when RB =>
-			return ('1', insn_rb(insn_in), reg_data);
+		    assert is_fast_spr(ispr) = '0' report "Decode B says GPR but ISPR says SPR:" &
+			to_hstring(ispr) severity failure;
+		    return ('1', gpr_to_gspr(insn_rb(insn_in)), reg_data);
 		when CONST_UI =>
 			return ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
 		when CONST_SI =>
@@ -91,6 +111,14 @@ architecture behaviour of decode2 is
 			return ('0', (others => '0'), x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11));
 		when CONST_SH32 =>
 			return ('0', (others => '0'), x"00000000000000" & "000" & insn_in(15 downto 11));
+		when SPR =>
+		    -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
+		    -- If it's all 0, we don't treat it as a dependency as slow SPRs
+		    -- operations are single issue.
+		    assert is_fast_spr(ispr) = '1' or ispr = "000000"
+			report "Decode B says SPR but ISPR is invalid:" &
+			to_hstring(ispr) severity failure;
+		    return (is_fast_spr(ispr), ispr, reg_data);
 		when NONE =>
 			return ('0', (others => '0'), (others => '0'));
 		end case;
@@ -101,21 +129,30 @@ architecture behaviour of decode2 is
 	begin
 		case t is
 		when RS =>
-			return ('1', insn_rs(insn_in), reg_data);
+			return ('1', gpr_to_gspr(insn_rs(insn_in)), reg_data);
 		when NONE =>
 			return ('0', (others => '0'), (others => '0'));
 		end case;
 	end;
 
-	function decode_output_reg (t : output_reg_a_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
+	function decode_output_reg (t : output_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
+				    ispr : gspr_index_t) return decode_output_reg_t is
 	begin
 		case t is
 		when RT =>
-			return insn_rt(insn_in);
+		    return ('1', gpr_to_gspr(insn_rt(insn_in)));
 		when RA =>
-			return insn_ra(insn_in);
+		    return ('1', gpr_to_gspr(insn_ra(insn_in)));
+		when SPR =>
+		    -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
+		    -- If it's all 0, we don't treat it as a dependency as slow SPRs
+		    -- operations are single issue.
+		    assert is_fast_spr(ispr) = '1' or ispr = "000000"
+			report "Decode B says SPR but ISPR is invalid:" &
+			to_hstring(ispr) severity failure;
+		    return (is_fast_spr(ispr), ispr);
 		when NONE =>
-			return "00000";
+		    return ('0', "000000");
 		end case;
 	end;
 
@@ -153,16 +190,16 @@ architecture behaviour of decode2 is
 	signal control_sgl_pipe : std_logic;
 
 	signal gpr_write_valid : std_ulogic;
-	signal gpr_write : std_ulogic_vector(4 downto 0);
+	signal gpr_write : gspr_index_t;
 
 	signal gpr_a_read_valid : std_ulogic;
-	signal gpr_a_read : std_ulogic_vector(4 downto 0);
+	signal gpr_a_read :gspr_index_t;
 
 	signal gpr_b_read_valid : std_ulogic;
-	signal gpr_b_read : std_ulogic_vector(4 downto 0);
+	signal gpr_b_read : gspr_index_t;
 
 	signal gpr_c_read_valid : std_ulogic;
-	signal gpr_c_read : std_ulogic_vector(4 downto 0);
+	signal gpr_c_read : gpr_index_t;
 
 	signal cr_write_valid : std_ulogic;
 begin
@@ -176,6 +213,7 @@ begin
 
 		complete_in => complete_in,
 		valid_in    => control_valid_in,
+		stall_in    => stall_in,
 		flush_in    => flush_in,
 		sgl_pipe_in => control_sgl_pipe,
 		stop_mark_in => d_in.stop_mark,
@@ -210,8 +248,8 @@ begin
 		end if;
 	end process;
 
-	r_out.read1_reg <= insn_ra(d_in.insn);
-	r_out.read2_reg <= insn_rb(d_in.insn);
+	r_out.read1_reg <= gpr_or_spr_to_gspr(insn_ra(d_in.insn), d_in.ispr1);
+	r_out.read2_reg <= gpr_or_spr_to_gspr(insn_rb(d_in.insn), d_in.ispr2);
 	r_out.read3_reg <= insn_rs(d_in.insn);
 
 	c_out.read <= d_in.decode.input_cr;
@@ -223,6 +261,7 @@ begin
 		variable decoded_reg_a : decode_input_reg_t;
 		variable decoded_reg_b : decode_input_reg_t;
 		variable decoded_reg_c : decode_input_reg_t;
+		variable decoded_reg_o : decode_output_reg_t;
                 variable signed_division: std_ulogic;
                 variable length : std_ulogic_vector(3 downto 0);
 	begin
@@ -239,10 +278,11 @@ begin
 		--v.e.input_cr := d_in.decode.input_cr;
 		--v.m.input_cr := d_in.decode.input_cr;
 		--v.e.output_cr := d_in.decode.output_cr;
-
-		decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data);
-		decoded_reg_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, r_in.read2_data);
+    
+		decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data, d_in.ispr1);
+		decoded_reg_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, r_in.read2_data, d_in.ispr2);
 		decoded_reg_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn, r_in.read3_data);
+		decoded_reg_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.ispr1);
 
 		r_out.read1_enable <= decoded_reg_a.reg_valid;
 		r_out.read2_enable <= decoded_reg_b.reg_valid;
@@ -269,7 +309,7 @@ begin
 		v.e.read_reg2 := decoded_reg_b.reg;
 		v.e.read_data2 := decoded_reg_b.data;
                 v.e.read_data3 := decoded_reg_c.data;
-		v.e.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
+		v.e.write_reg := decoded_reg_o.reg;
 		v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
 		v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
 		v.e.cr := c_in.read_cr_data;
@@ -290,7 +330,7 @@ begin
 		v.m.insn_type := d_in.decode.insn_type;
 		mul_a := decoded_reg_a.data;
 		mul_b := decoded_reg_b.data;
-		v.m.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
+		v.m.write_reg := gspr_to_gpr(decoded_reg_o.reg);
 		v.m.rc := decode_rc(d_in.decode.rc, d_in.insn);
 		v.m.xerc := c_in.read_xerc_data;
 		if v.m.insn_type = OP_MUL_L64 then
@@ -327,7 +367,7 @@ begin
                 --       s = 1 for signed, 0 for unsigned (for div*)
                 --       t = 1 for 32-bit, 0 for 64-bit
                 --       r = RC bit (record condition code)
-		v.d.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
+		v.d.write_reg := gspr_to_gpr(decoded_reg_o.reg);
                 v.d.is_modulus := not d_in.insn(8);
                 v.d.is_32bit := d_in.insn(2);
                 if d_in.insn(8) = '1' then
@@ -364,11 +404,11 @@ begin
 		v.d.oe := decode_oe(d_in.decode.rc, d_in.insn);
 
 		-- load/store unit
-		v.l.update_reg := decoded_reg_a.reg;
+		v.l.update_reg := gspr_to_gpr(decoded_reg_a.reg);
 		v.l.addr1 := decoded_reg_a.data;
 		v.l.addr2 := decoded_reg_b.data;
 		v.l.data := decoded_reg_c.data;
-		v.l.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
+		v.l.write_reg := gspr_to_gpr(decoded_reg_o.reg);
 
 		if d_in.decode.insn_type = OP_LOAD then
 			v.l.load := '1';
@@ -386,8 +426,8 @@ begin
 		control_valid_in <= d_in.valid;
 		control_sgl_pipe <= d_in.decode.sgl_pipe;
 
-		gpr_write_valid <= '1' when d_in.decode.output_reg_a /= NONE else '0';
-		gpr_write <= decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
+		gpr_write_valid <= decoded_reg_o.reg_valid;
+		gpr_write <= decoded_reg_o.reg;
 
 		gpr_a_read_valid <= decoded_reg_a.reg_valid;
 		gpr_a_read <= decoded_reg_a.reg;
@@ -396,7 +436,7 @@ begin
 		gpr_b_read <= decoded_reg_b.reg;
 
 		gpr_c_read_valid <= decoded_reg_c.reg_valid;
-		gpr_c_read <= decoded_reg_c.reg;
+		gpr_c_read <= gspr_to_gpr(decoded_reg_c.reg);
 
                 cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
 

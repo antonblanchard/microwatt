@@ -23,7 +23,7 @@ entity register_file is
 end entity register_file;
 
 architecture behaviour of register_file is
-    type regfile is array(0 to 31) of std_ulogic_vector(63 downto 0);
+    type regfile is array(0 to 63) of std_ulogic_vector(63 downto 0);
     signal registers : regfile := (others => (others => '0'));
 begin
     -- synchronous writes
@@ -32,7 +32,11 @@ begin
         if rising_edge(clk) then
             if w_in.write_enable = '1' then
                 assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
-                report "Writing GPR " & to_hstring(w_in.write_reg) & " " & to_hstring(w_in.write_data);
+		if w_in.write_reg(5) = '0' then
+		    report "Writing GPR " & to_hstring(w_in.write_reg) & " " & to_hstring(w_in.write_data);
+		else
+		    report "Writing GSPR " & to_hstring(w_in.write_reg) & " " & to_hstring(w_in.write_data);
+		end if;
                 registers(to_integer(unsigned(w_in.write_reg))) <= w_in.write_data;
             end if;
         end if;
@@ -52,7 +56,7 @@ begin
         end if;
         d_out.read1_data <= registers(to_integer(unsigned(d_in.read1_reg)));
         d_out.read2_data <= registers(to_integer(unsigned(d_in.read2_reg)));
-        d_out.read3_data <= registers(to_integer(unsigned(d_in.read3_reg)));
+        d_out.read3_data <= registers(to_integer(unsigned(gpr_to_gspr(d_in.read3_reg))));
 
         -- Forward any written data
         if w_in.write_enable = '1' then
@@ -62,7 +66,7 @@ begin
             if d_in.read2_reg = w_in.write_reg then
                 d_out.read2_data <= w_in.write_data;
             end if;
-            if d_in.read3_reg = w_in.write_reg then
+            if gpr_to_gspr(d_in.read3_reg) = w_in.write_reg then
                 d_out.read3_data <= w_in.write_data;
             end if;
         end if;

@@ -12,10 +12,11 @@ use work.ppc_fx_insns.all;
 
 entity execute1 is
     port (
-	clk   : in std_logic;
+	clk   : in std_ulogic;
 
 	-- asynchronous
 	flush_out : out std_ulogic;
+	stall_out : out std_ulogic;
 
 	e_in  : in Decode2ToExecute1Type;
 
@@ -32,6 +33,8 @@ end entity execute1;
 architecture behaviour of execute1 is
     type reg_type is record
 	e : Execute1ToWritebackType;
+	lr_update : std_ulogic;
+	next_lr : std_ulogic_vector(63 downto 0);
     end record;
 
     signal r, rin : reg_type;
@@ -125,6 +128,12 @@ begin
 	if rising_edge(clk) then
 	    r <= rin;
 	    ctrl <= ctrl_tmp;
+	    assert not (r.lr_update = '1' and e_in.valid = '1')
+		report "LR update collision with valid in EX1"
+		severity failure;
+	    if r.lr_update = '1' then
+		report "LR update to " & to_hstring(r.next_lr);
+	    end if;
 	end if;
     end process;
 
@@ -190,12 +199,15 @@ begin
 	    v.e.xerc := e_in.xerc;
 	end if;
 
+	v.lr_update := '0';
+
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
 	ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
 
 	terminate_out <= '0';
 	icache_inval <= '0';
+	stall_out <= '0';
 	f_out <= Execute1ToFetch1TypeInit;
 
 	-- Next insn adder used in a couple of places
@@ -251,12 +263,15 @@ begin
 		    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
 		end if;
 	    when OP_BC =>
+		-- read_data1 is CTR
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
 		if bo(4-2) = '0' then
-		    ctrl_tmp.ctr <= std_ulogic_vector(unsigned(ctrl.ctr) - 1);
+		    result := std_ulogic_vector(unsigned(e_in.read_data1) - 1);
+		    result_en := '1';
+		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
-		if ppc_bc_taken(bo, bi, e_in.cr, ctrl.ctr) = 1 then
+		if ppc_bc_taken(bo, bi, e_in.cr, e_in.read_data1) = 1 then
 		    f_out.redirect <= '1';
 		    if (insn_aa(e_in.insn)) then
 			f_out.redirect_nia <= std_ulogic_vector(signed(e_in.read_data2));
@@ -265,19 +280,18 @@ begin
 		    end if;
 		end if;
 	    when OP_BCREG =>
-                -- bits 10 and 6 distinguish between bclr, bcctr and bctar
+		-- read_data1 is CTR
+		-- read_data2 is target register (CTR, LR or TAR)
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
 		if bo(4-2) = '0' and e_in.insn(10) = '0' then
-		    ctrl_tmp.ctr <= std_ulogic_vector(unsigned(ctrl.ctr) - 1);
+		    result := std_ulogic_vector(unsigned(e_in.read_data1) - 1);
+		    result_en := '1';
+		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
-		if ppc_bc_taken(bo, bi, e_in.cr, ctrl.ctr) = 1 then
+		if ppc_bc_taken(bo, bi, e_in.cr, e_in.read_data1) = 1 then
 		    f_out.redirect <= '1';
-		    if e_in.insn(10) = '0' then
-			f_out.redirect_nia <= ctrl.lr(63 downto 2) & "00";
-		    else
-			f_out.redirect_nia <= ctrl.ctr(63 downto 2) & "00";
-		    end if;
+		    f_out.redirect_nia <= e_in.read_data2(63 downto 2) & "00";
 		end if;
 	    when OP_CMPB =>
 		result := ppc_cmpb(e_in.read_data3, e_in.read_data2);
@@ -340,23 +354,24 @@ begin
 		    v.e.write_cr_data(hi downto lo) := newcrf;
 		end loop;
 	    when OP_MFSPR =>
-		case decode_spr_num(e_in.insn) is
-		when SPR_XER =>
-		    result := ( 63-32 => v.e.xerc.so,
-				63-33 => v.e.xerc.ov,
-				63-34 => v.e.xerc.ca,
-				63-44 => v.e.xerc.ov32,
-				63-45 => v.e.xerc.ca32,
-				others => '0');
-		when SPR_CTR =>
-		    result := ctrl.ctr;
-		when SPR_LR =>
-		    result := ctrl.lr;
-		when SPR_TB =>
-		    result := ctrl.tb;
-		when others =>
-		    result := (others => '0');
-		end case;
+		if is_fast_spr(e_in.read_reg1) then
+		    result := e_in.read_data1;
+		    if decode_spr_num(e_in.insn) = SPR_XER then
+			result(63-32) := v.e.xerc.so;
+			result(63-33) := v.e.xerc.ov;
+			result(63-34) := v.e.xerc.ca;
+			result(63-35 downto 63-43) := "000000000";
+			result(63-44) := v.e.xerc.ov32;
+			result(63-45) := v.e.xerc.ca32;
+		    end if;
+		else
+		    case decode_spr_num(e_in.insn) is
+		    when SPR_TB =>
+			result := ctrl.tb;
+		    when others =>
+			result := (others => '0');
+		    end case;
+		end if;
 		result_en := '1';
 	    when OP_MFCR =>
 		if e_in.insn(20) = '0' then
@@ -387,20 +402,25 @@ begin
 		end if;
 		v.e.write_cr_data := e_in.read_data3(31 downto 0);
 	    when OP_MTSPR =>
-		case decode_spr_num(e_in.insn) is
-		when SPR_XER =>
-		    v.e.xerc.so := e_in.read_data3(63-32);
-		    v.e.xerc.ov := e_in.read_data3(63-33);
-		    v.e.xerc.ca := e_in.read_data3(63-34);
-		    v.e.xerc.ov32 := e_in.read_data3(63-44);
-		    v.e.xerc.ca32 := e_in.read_data3(63-45);
-		    v.e.write_xerc_enable := '1';
-		when SPR_CTR =>
-		    ctrl_tmp.ctr <= e_in.read_data3;
-		when SPR_LR =>
-		    ctrl_tmp.lr <= e_in.read_data3;
-		when others =>
-		end case;
+		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
+		    "=" & to_hstring(e_in.read_data3);
+		if is_fast_spr(e_in.write_reg) then
+		    result := e_in.read_data3;
+		    result_en := '1';
+		    if decode_spr_num(e_in.insn) = SPR_XER then
+			v.e.xerc.so := e_in.read_data3(63-32);
+			v.e.xerc.ov := e_in.read_data3(63-33);
+			v.e.xerc.ca := e_in.read_data3(63-34);
+			v.e.xerc.ov32 := e_in.read_data3(63-44);
+			v.e.xerc.ca32 := e_in.read_data3(63-45);
+			v.e.write_xerc_enable := '1';
+		    end if;
+		else
+-- TODO: Implement slow SPRs	    
+--		    case decode_spr_num(e_in.insn) is
+--		    when others =>
+--		    end case;
+		end if;
 	    when OP_POPCNTB =>
 		result := ppc_popcntb(e_in.read_data3);
 		result_en := '1';
@@ -444,15 +464,36 @@ begin
 		report "illegal";
 	    end case;
 
+	    -- Update LR on the next cycle after a branch link
+	    --
+	    -- WARNING: The LR update isn't tracked by our hazard tracker. This
+	    --          will work (well I hope) because it only happens on branches
+	    --          which will flush all decoded instructions. By the time
+	    --          fetch catches up, we'll have the new LR. This will
+	    --          *not* work properly however if we have a branch predictor,
+	    --          in which case the solution would probably be to keep a
+	    --          local cache of the updated LR in execute1 (flushed on
+	    --          exceptions) that is used instead of the value from
+	    --          decode when its content is valid.
 	    if e_in.lr = '1' then
-		ctrl_tmp.lr <= next_nia;
+		v.lr_update := '1';
+		v.next_lr := next_nia;
+		v.e.valid := '0';
+		report "Delayed LR update to " & to_hstring(next_nia);
+		stall_out <= '1';
 	    end if;
-
+	elsif r.lr_update = '1' then
+	    result_en := '1';
+	    result := r.next_lr;
+	    v.e.write_reg := fast_spr_num(SPR_LR);
+	    v.e.write_len := x"8";
+	    v.e.sign_extend := '0';
+	    v.e.valid := '1';
 	end if;
 
 	v.e.write_data := result;
 	v.e.write_enable := result_en;
-	v.e.rc := e_in.rc;
+	v.e.rc := e_in.rc and e_in.valid;
 
 	-- Update registers
 	rin <= v;

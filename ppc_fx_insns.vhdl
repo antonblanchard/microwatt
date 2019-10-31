@@ -94,7 +94,6 @@ package ppc_fx_insns is
 	function ppc_divwu (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 
 	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return integer;
-	function ppc_bcctr_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0)) return integer;
 end package ppc_fx_insns;
 
 package body ppc_fx_insns is
@@ -809,21 +808,4 @@ package body ppc_fx_insns is
 		return ret;
 	end;
 
-	function ppc_bcctr_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0)) return integer is
-		variable crfield: integer;
-		variable crbit_match: std_ulogic;
-		variable cond_ok: std_ulogic;
-		variable ret: integer;
-	begin
-		crfield := to_integer(unsigned(bi));
-		-- BE bit numbering
-		crbit_match := '1' when cr(31-crfield) = bo(4-1) else '0';
-		cond_ok := bo(4-0) or crbit_match;
-		if cond_ok = '1' then
-			ret := 1;
-		else
-			ret := 0;
-		end if;
-		return ret;
-	end;
 end package body ppc_fx_insns;
