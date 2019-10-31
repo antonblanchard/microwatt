@@ -1,10 +1,21 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 library work;
 use work.decode_types.all;
 
 package common is
+
+    -- SPR numbers
+    subtype spr_num_t is integer range 0 to 1023;
+
+    function decode_spr_num(insn: std_ulogic_vector(31 downto 0)) return spr_num_t;
+
+    constant SPR_LR    : spr_num_t := 8;
+    constant SPR_CTR   : spr_num_t := 9;
+    constant SPR_TB    : spr_num_t := 268;
+
     type ctrl_t is record
 	lr: std_ulogic_vector(63 downto 0);
 	ctr: std_ulogic_vector(63 downto 0);
@@ -216,4 +227,8 @@ package common is
 end common;
 
 package body common is
+    function decode_spr_num(insn: std_ulogic_vector(31 downto 0)) return spr_num_t is
+    begin
+	return to_integer(unsigned(insn(15 downto 11) & insn(20 downto 16)));
+    end;
 end common;
