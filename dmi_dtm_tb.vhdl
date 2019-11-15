@@ -50,8 +50,8 @@ begin
 	    dmi_ack	=> dmi_ack
 	    );
 
-    simple_ram_0: entity work.mw_soc_memory
-	generic map(RAM_INIT_FILE => "simple_ram_behavioural.bin",
+    simple_ram_0: entity work.wishbone_bram_wrapper
+	generic map(RAM_INIT_FILE => "main_ram.bin",
 		    MEMORY_SIZE => 524288)
 	port map(clk => clk, rst => rst,
 		 wishbone_in => wishbone_ram_out,

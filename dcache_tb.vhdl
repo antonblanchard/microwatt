@@ -35,9 +35,9 @@ begin
             );
 
     -- BRAM Memory slave
-    bram0: entity work.mw_soc_memory
+    bram0: entity work.wishbone_bram_wrapper
         generic map(
-            MEMORY_SIZE   => 128,
+            MEMORY_SIZE   => 1024,
             RAM_INIT_FILE => "icache_test.bin"
             )
         port map(
@@ -121,7 +121,6 @@ begin
         d_in.valid <= '1';
 	wait until rising_edge(clk);
 	d_in.valid <= '0';
-
 	wait until rising_edge(clk) and d_out.write_enable = '1';
         assert d_out.valid = '1';
         assert d_out.write_data = x"0000004100000040"
@@ -130,7 +129,10 @@ begin
 	    " expected 0000004100000040"
 	    severity failure;
 
-	wait for clk_period*4;
+	wait until rising_edge(clk);
+	wait until rising_edge(clk);
+	wait until rising_edge(clk);
+	wait until rising_edge(clk);
 
         assert false report "end of test" severity failure;
         wait;

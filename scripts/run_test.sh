@@ -21,7 +21,7 @@ Y=$(${MICROWATT_DIR}/scripts/hash.py tests/${TEST}.out)
 
 cd $TMPDIR
 
-cp ${MICROWATT_DIR}/tests/${TEST}.bin simple_ram_behavioural.bin
+cp ${MICROWATT_DIR}/tests/${TEST}.bin main_ram.bin
 
 X=$( ${MICROWATT_DIR}/core_tb | ${MICROWATT_DIR}/scripts/hash.py )
 

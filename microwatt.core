@@ -36,20 +36,22 @@ filesets:
       - plru.vhdl
       - cache_ram.vhdl
       - core_debug.vhdl
+      - utils.vhdl
     file_type : vhdlSource-2008
 
   soc:
     files:
       - wishbone_arbiter.vhdl
       - wishbone_debug_master.vhdl
+      - wishbone_bram_wrapper.vhdl
       - soc.vhdl
     file_type : vhdlSource-2008
 
   fpga:
     files:
-      - fpga/pp_fifo.vhd
-      - fpga/mw_soc_memory.vhdl
+      - fpga/main_bram.vhdl
       - fpga/soc_reset.vhdl
+      - fpga/pp_fifo.vhd
       - fpga/pp_soc_uart.vhd
       - fpga/pp_utilities.vhd
       - fpga/toplevel.vhdl
@@ -93,6 +95,7 @@ targets:
       - ram_init_file
       - clk_input
       - clk_frequency
+      - disable_flatten_core
     tools:
       vivado: {part : xc7a100tcsg324-1}
     toplevel : toplevel
@@ -105,6 +108,7 @@ targets:
       - ram_init_file
       - clk_input
       - clk_frequency
+      - disable_flatten_core
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -117,6 +121,7 @@ targets:
       - ram_init_file
       - clk_input
       - clk_frequency
+      - disable_flatten_core
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
@@ -129,6 +134,7 @@ targets:
       - ram_init_file
       - clk_input
       - clk_frequency
+      - disable_flatten_core
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -142,6 +148,7 @@ targets:
       - reset_low=false
       - clk_input=12000000
       - clk_frequency
+      - disable_flatten_core
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel
@@ -179,3 +186,9 @@ parameters:
     description : Generated system clock frequency in HZ (for top-generic based boards)
     paramtype   : generic
     default     : 50000000
+
+  disable_flatten_core:
+    datatype    : bool
+    description : Prevent Vivado from flattening the main core components
+    paramtype   : generic
+    default     : false

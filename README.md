@@ -39,7 +39,7 @@ make
 - Link in the micropython image:
 
 ```
-ln -s ../micropython/ports/powerpc/build/firmware.bin simple_ram_behavioural.bin
+ln -s ../micropython/ports/powerpc/build/firmware.bin main_ram.bin
 ```
 
 - Now run microwatt, sending debug output to /dev/null:

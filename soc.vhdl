@@ -17,7 +17,8 @@ entity soc is
 	MEMORY_SIZE   : positive;
 	RAM_INIT_FILE : string;
 	RESET_LOW     : boolean;
-	SIM           : boolean
+	SIM           : boolean;
+	DISABLE_FLATTEN_CORE : boolean := false
 	);
     port(
 	rst          : in  std_ulogic;
@@ -41,6 +42,12 @@ architecture behaviour of soc is
     signal wishbone_icore_out : wishbone_master_out;
     signal wishbone_debug_in : wishbone_slave_out;
     signal wishbone_debug_out : wishbone_master_out;
+
+    -- Arbiter array (ghdl doesnt' support assigning the array
+    -- elements in the entity instantiation)
+    constant NUM_WB_MASTERS : positive := 3;
+    signal wb_masters_out : wishbone_master_out_vector(0 to NUM_WB_MASTERS-1);
+    signal wb_masters_in  : wishbone_slave_out_vector(0 to NUM_WB_MASTERS-1);
 
     -- Wishbone master (output of arbiter):
     signal wb_master_in : wishbone_slave_out;
@@ -76,7 +83,8 @@ begin
     -- Processor core
     processor: entity work.core
 	generic map(
-	    SIM => SIM
+	    SIM => SIM,
+	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE
 	    )
 	port map(
 	    clk => system_clk,
@@ -94,13 +102,22 @@ begin
 	    );
 
     -- Wishbone bus master arbiter & mux
+    wb_masters_out <= (0 => wishbone_dcore_out,
+		       1 => wishbone_icore_out,
+		       2 => wishbone_debug_out);
+    wishbone_dcore_in <= wb_masters_in(0);
+    wishbone_icore_in <= wb_masters_in(1);
+    wishbone_debug_in <= wb_masters_in(2);
     wishbone_arbiter_0: entity work.wishbone_arbiter
+	generic map(
+	    NUM_MASTERS => NUM_WB_MASTERS
+	    )
 	port map(
 	    clk => system_clk, rst => rst,
-	    wb1_in => wishbone_dcore_out, wb1_out => wishbone_dcore_in,
-	    wb2_in => wishbone_icore_out, wb2_out => wishbone_icore_in,
-	    wb3_in => wishbone_debug_out, wb3_out => wishbone_debug_in,
-	    wb_out => wb_master_out, wb_in => wb_master_in
+	    wb_masters_in => wb_masters_out,
+	    wb_masters_out => wb_masters_in,
+	    wb_slave_out => wb_master_out,
+	    wb_slave_in => wb_master_in
 	    );
 
     -- Wishbone slaves address decoder & mux
@@ -136,6 +153,7 @@ begin
 	when others =>
 	    wb_master_in.dat <= (others => '1');
 	    wb_master_in.ack <= wb_master_out.stb and wb_master_out.cyc;
+	    wb_master_in.stall <= '0';
 	end case;
     end process slave_intercon;
 
@@ -164,9 +182,10 @@ begin
 	    wb_ack_out => wb_uart0_out.ack
 	    );
     wb_uart0_out.dat <= x"00000000000000" & uart_dat8;
+    wb_uart0_out.stall <= '0' when wb_uart0_in.cyc = '0' else not wb_uart0_out.ack;
 
     -- BRAM Memory slave
-    bram0: entity work.mw_soc_memory
+    bram0: entity work.wishbone_bram_wrapper
 	generic map(
 	    MEMORY_SIZE   => MEMORY_SIZE,
 	    RAM_INIT_FILE => RAM_INIT_FILE

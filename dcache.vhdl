@@ -16,6 +16,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
+use work.utils.all;
 use work.common.all;
 use work.helpers.all;
 use work.wishbone_types.all;
@@ -44,26 +45,6 @@ entity dcache is
 end entity dcache;
 
 architecture rtl of dcache is
-    function log2(i : natural) return integer is
-        variable tmp : integer := i;
-        variable ret : integer := 0;
-    begin
-        while tmp > 1 loop
-            ret  := ret + 1;
-            tmp := tmp / 2;
-        end loop;
-        return ret;
-    end function;
-
-    function ispow2(i : integer) return boolean is
-    begin
-        if to_integer(to_unsigned(i, 32) and to_unsigned(i - 1, 32)) = 0 then
-            return true;
-        else
-            return false;
-        end if;
-    end function;
-
     -- BRAM organisation: We never access more than wishbone_data_bits at
     -- a time so to save resources we make the array only that wide, and
     -- use consecutive indices for to make a cache "line"
@@ -187,6 +168,7 @@ architecture rtl of dcache is
         state            : state_t;
         wb               : wishbone_master_out;
 	store_way        : way_t;
+	store_row        : row_t;
         store_index      : index_t;
     end record;
 
@@ -213,6 +195,7 @@ architecture rtl of dcache is
     signal req_hit_way : way_t;
     signal req_tag     : cache_tag_t;
     signal req_op      : op_t;
+    signal req_laddr   : std_ulogic_vector(63 downto 0);
 
     -- Cache RAM interface
     type cache_ram_out_t is array(way_t) of cache_row_t;
@@ -244,10 +227,19 @@ architecture rtl of dcache is
     end;
 
     -- Returns whether this is the last row of a line
-    function is_last_row(addr: wishbone_addr_type) return boolean is
+    function is_last_row_addr(addr: wishbone_addr_type) return boolean is
 	constant ones : std_ulogic_vector(ROW_LINEBITS-1 downto 0) := (others => '1');
     begin
 	return addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS) = ones;
+    end;
+
+    -- Returns whether this is the last row of a line
+    function is_last_row(row: row_t) return boolean is
+	variable row_v : std_ulogic_vector(ROW_BITS-1 downto 0);
+	constant ones  : std_ulogic_vector(ROW_LINEBITS-1 downto 0) := (others => '1');
+    begin
+	row_v := std_ulogic_vector(to_unsigned(row, ROW_BITS));
+	return row_v(ROW_LINEBITS-1 downto 0) = ones;
     end;
 
     -- Return the address of the next row in the current cache line
@@ -261,6 +253,21 @@ architecture rtl of dcache is
 	result := addr;
 	result(LINE_OFF_BITS-1 downto ROW_OFF_BITS) := row_idx;
 	return result;
+    end;
+
+    -- Return the next row in the current cache line. We use a dedicated
+    -- function in order to limit the size of the generated adder to be
+    -- only the bits within a cache line (3 bits with default settings)
+    --
+    function next_row(row: row_t) return row_t is
+       variable row_v  : std_ulogic_vector(ROW_BITS-1 downto 0);
+       variable row_idx : std_ulogic_vector(ROW_LINEBITS-1 downto 0);
+       variable result : std_ulogic_vector(ROW_BITS-1 downto 0);
+    begin
+       row_v := std_ulogic_vector(to_unsigned(row, ROW_BITS));
+       row_idx := row_v(ROW_LINEBITS-1 downto 0);
+       row_v(ROW_LINEBITS-1 downto 0) := std_ulogic_vector(unsigned(row_idx) + 1);
+       return to_integer(unsigned(row_v));
     end;
 
     -- Get the tag value from the address
@@ -380,6 +387,12 @@ begin
         req_index <= get_index(d_in.addr);
         req_row <= get_row(d_in.addr);
         req_tag <= get_tag(d_in.addr);
+
+       -- Calculate address of beginning of cache line, will be
+       -- used for cache miss processing if needed
+       --
+       req_laddr <= d_in.addr(63 downto LINE_OFF_BITS) &
+                    (LINE_OFF_BITS-1 downto 0 => '0');
 
 	-- Test if pending request is a hit on any way
 	hit_way := 0;
@@ -573,7 +586,8 @@ begin
 		wr_data => wr_data
 		);
 	process(all)
-	    variable tmp_adr : std_ulogic_vector(63 downto 0);
+	    variable tmp_adr   : std_ulogic_vector(63 downto 0);
+	    variable reloading : boolean;
 	begin
 	    -- Cache hit reads
 	    do_read <= '1';
@@ -596,17 +610,17 @@ begin
 		-- Otherwise, we might be doing a reload
 		wr_data <= wishbone_in.dat;
 		wr_sel  <= (others => '1');
-		tmp_adr := (r1.wb.adr'left downto 0 => r1.wb.adr, others => '0');
-		wr_addr <= std_ulogic_vector(to_unsigned(get_row(tmp_adr), ROW_BITS));
+		wr_addr <= std_ulogic_vector(to_unsigned(r1.store_row, ROW_BITS));
 	    end if;
 
 	    -- The two actual write cases here
 	    do_write <= '0';
-	    if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' and r1.store_way = i then
+	    reloading := r1.state = RELOAD_WAIT_ACK;
+	    if reloading and wishbone_in.ack = '1' and r1.store_way = i then
 		do_write <= '1';
 	    end if;
 	    if req_op = OP_STORE_HIT and req_hit_way = i then
-		assert r1.state /= RELOAD_WAIT_ACK report "Store hit while in state:" &
+		assert not reloading report "Store hit while in state:" &
 		    state_t'image(r1.state)
 		    severity FAILURE;
 		do_write <= '1';
@@ -637,7 +651,7 @@ begin
 	    -- single issue on load/stores so we are fine, later, we can generate
 	    -- a stall output if necessary).
 
-	    if d_in.valid = '1' then
+	    if req_op /= OP_NONE then
 		r1.req <= d_in;
 
 		report "op:" & op_t'image(req_op) &
@@ -672,7 +686,8 @@ begin
     -- operates at stage 1.
     --
     dcache_slow : process(clk)
-	variable tagset : cache_tags_set_t;
+	variable tagset    : cache_tags_set_t;
+	variable stbs_done : boolean;
     begin
         if rising_edge(clk) then
 	    -- On reset, clear all valid bits to force misses
@@ -731,16 +746,18 @@ begin
 			-- Keep track of our index and way for subsequent stores.
 			r1.store_index <= req_index;
 			r1.store_way <= replace_way;
+			r1.store_row <= get_row(req_laddr);
 
 			-- Prep for first wishbone read. We calculate the address of
-			-- the start of the cache line
+			-- the start of the cache line and start the WB cycle
 			--
-			r1.wb.adr <= d_in.addr(r1.wb.adr'left downto LINE_OFF_BITS) &
-				     (LINE_OFF_BITS-1 downto 0 => '0');
+			r1.wb.adr <= req_laddr(r1.wb.adr'left downto 0);
 			r1.wb.sel <= (others => '1');
 			r1.wb.we  <= '0';
 			r1.wb.cyc <= '1';
 			r1.wb.stb <= '1';
+
+			-- Track that we had one request sent
 			r1.state <= RELOAD_WAIT_ACK;
 
 		    when OP_LOAD_NC =>
@@ -770,6 +787,25 @@ begin
 		    end case;
 
 		when RELOAD_WAIT_ACK =>
+		    -- Requests are all sent if stb is 0
+		    stbs_done := r1.wb.stb = '0';
+
+		    -- If we are still sending requests, was one accepted ?
+		    if wishbone_in.stall = '0' and not stbs_done then
+			-- That was the last word ? We are done sending. Clear
+			-- stb and set stbs_done so we can handle an eventual last
+			-- ack on the same cycle.
+			--
+			if is_last_row_addr(r1.wb.adr) then
+			    r1.wb.stb <= '0';
+			    stbs_done := true;
+			end if;
+
+			-- Calculate the next row address
+			r1.wb.adr <= next_row_addr(r1.wb.adr);
+		    end if;
+
+		    -- Incoming acks processing
 		    if wishbone_in.ack = '1' then
 			-- Is this the data we were looking for ? Latch it so
 			-- we can respond later. We don't currently complete the
@@ -779,16 +815,17 @@ begin
 			-- not idle, which we don't currently know how to deal
 			-- with.
 			--
-			if r1.wb.adr(LINE_OFF_BITS-1 downto ROW_OFF_BITS) =
-			    r1.req.addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS) then
+			if r1.store_row = get_row(r1.req.addr) then
 			    r1.slow_data <= wishbone_in.dat;
 			end if;
 
-			-- That was the last word ? We are done
-			if is_last_row(r1.wb.adr) then
-			    cache_valids(r1.store_index)(r1.store_way) <= '1';
+			-- Check for completion
+			if stbs_done and is_last_row(r1.store_row) then
+			    -- Complete wishbone cycle
 			    r1.wb.cyc <= '0';
-			    r1.wb.stb <= '0';
+
+			    -- Cache line is now valid
+			    cache_valids(r1.store_index)(r1.store_way) <= '1';
 
 			    -- Complete the load that missed. For load with update
 			    -- we also need to do the deferred update cycle.
@@ -801,10 +838,10 @@ begin
 				r1.state <= IDLE;
 				report "completing miss !";
 			    end if;
-			else
-			    -- Otherwise, calculate the next row address
-			    r1.wb.adr <= next_row_addr(r1.wb.adr);
 			end if;
+
+			-- Increment store row counter
+			r1.store_row <= next_row(r1.store_row);
 		    end if;
 
 		when LOAD_UPDATE =>
@@ -816,7 +853,13 @@ begin
 		    r1.state <= IDLE;
 
 		when STORE_WAIT_ACK | NC_LOAD_WAIT_ACK =>
-                    if wishbone_in.ack = '1' then
+		    -- Clear stb when slave accepted request
+                    if wishbone_in.stall = '0' then
+			r1.wb.stb <= '0';
+		    end if;
+
+		    -- Got ack ? complete.
+		    if wishbone_in.ack = '1' then
 			if r1.state = NC_LOAD_WAIT_ACK then
 			    r1.slow_data <= wishbone_in.dat;
 			end if;
