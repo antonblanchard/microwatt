@@ -269,16 +269,17 @@ begin
 		    v.e.write_cr_data(hi downto lo) := newcrf;
 		end loop;
 	    when OP_MFSPR =>
-		if std_match(e_in.insn(20 downto 11), "0100100000") then
+		case decode_spr_num(e_in.insn) is
+		when SPR_CTR =>
 		    result := ctrl.ctr;
-		    result_en := '1';
-		elsif std_match(e_in.insn(20 downto 11), "0100000000") then
+		when SPR_LR =>
 		    result := ctrl.lr;
-		    result_en := '1';
-		elsif std_match(e_in.insn(20 downto 11), "0110001000") then
+		when SPR_TB =>
 		    result := ctrl.tb;
-		    result_en := '1';
-		end if;
+		when others =>
+		    result := (others => '0');
+		end case;
+		result_en := '1';
 	    when OP_MFCR =>
 		if e_in.insn(20) = '0' then
 		    -- mfcr
@@ -308,11 +309,13 @@ begin
 		end if;
 		v.e.write_cr_data := e_in.read_data3(31 downto 0);
 	    when OP_MTSPR =>
-		if std_match(e_in.insn(20 downto 11), "0100100000") then
+		case decode_spr_num(e_in.insn) is
+		when SPR_CTR =>
 		    ctrl_tmp.ctr <= e_in.read_data3;
-		elsif std_match(e_in.insn(20 downto 11), "0100000000") then
+		when SPR_LR =>
 		    ctrl_tmp.lr <= e_in.read_data3;
-		end if;
+		when others =>
+		end case;
 	    when OP_POPCNTB =>
 		result := ppc_popcntb(e_in.read_data3);
 		result_en := '1';
