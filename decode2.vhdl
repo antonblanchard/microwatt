@@ -270,30 +270,12 @@ begin
 
 		-- multiply unit
 		v.m.insn_type := d_in.decode.insn_type;
-		mul_a := decoded_reg_a.data;
-		mul_b := decoded_reg_b.data;
+		v.m.data1 := decoded_reg_a.data;
+		v.m.data2 := decoded_reg_b.data;
 		v.m.write_reg := decode_output_reg(d_in.decode.output_reg_a, d_in.insn);
 		v.m.rc := decode_rc(d_in.decode.rc, d_in.insn);
-
-		if d_in.decode.is_32bit = '1' then
-			if d_in.decode.is_signed = '1' then
-				v.m.data1 := (others => mul_a(31));
-				v.m.data1(31 downto 0) := mul_a(31 downto 0);
-				v.m.data2 := (others => mul_b(31));
-				v.m.data2(31 downto 0) := mul_b(31 downto 0);
-			else
-				v.m.data1 := '0' & x"00000000" & mul_a(31 downto 0);
-				v.m.data2 := '0' & x"00000000" & mul_b(31 downto 0);
-			end if;
-		else
-			if d_in.decode.is_signed = '1' then
-				v.m.data1 := mul_a(63) & mul_a;
-				v.m.data2 := mul_b(63) & mul_b;
-			else
-				v.m.data1 := '0' & mul_a;
-				v.m.data2 := '0' & mul_b;
-			end if;
-		end if;
+                v.m.is_32bit := d_in.decode.is_32bit;
+                v.m.is_signed := d_in.decode.is_signed;
 
                 -- divide unit
                 -- PPC divide and modulus instruction words have these bits in

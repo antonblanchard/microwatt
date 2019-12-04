@@ -38,12 +38,17 @@ architecture behaviour of multiply is
     end record;
 
     signal r, rin : reg_type := (multiply_pipeline => MultiplyPipelineInit);
+
+    signal data1, data1_in : std_ulogic_vector(64 downto 0);
+    signal data2, data2_in : std_ulogic_vector(64 downto 0);
 begin
     multiply_0: process(clk)
     begin
         if rising_edge(clk) then
             m <= m_in;
             r <= rin;
+	    data1 <= data1_in;
+	    data2 <= data2_in;
         end if;
     end process;
 
@@ -56,9 +61,30 @@ begin
 
         m_out <= MultiplyToWritebackInit;
 
+	if m_in.is_32bit = '1' then
+	    if m_in.is_signed = '1' then
+		data1_in <= (others => m_in.data1(31));
+		data1_in(31 downto 0) <= m_in.data1(31 downto 0);
+		data2_in <= (others => m_in.data2(31));
+		data2_in(31 downto 0) <= m_in.data2(31 downto 0);
+	    else
+		data1_in <= '0' & x"00000000" & m_in.data1(31 downto 0);
+		data2_in <= '0' & x"00000000" & m_in.data2(31 downto 0);
+	    end if;
+	else
+	    if m_in.is_signed = '1' then
+		data1_in <= m_in.data1(63) & m_in.data1;
+		data2_in <= m_in.data2(63) & m_in.data2;
+	    else
+		data1_in <= '0' & m_in.data1;
+		data2_in <= '0' & m_in.data2;
+	    end if;
+	end if;
+
+
         v.multiply_pipeline(0).valid := m.valid;
         v.multiply_pipeline(0).insn_type := m.insn_type;
-        v.multiply_pipeline(0).data := signed(m.data1) * signed(m.data2);
+        v.multiply_pipeline(0).data := signed(data1) * signed(data2);
         v.multiply_pipeline(0).write_reg := m.write_reg;
         v.multiply_pipeline(0).rc := m.rc;
 

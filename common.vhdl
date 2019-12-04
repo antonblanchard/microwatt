@@ -86,11 +86,15 @@ package common is
 	valid: std_ulogic;
 	insn_type: insn_type_t;
 	write_reg: std_ulogic_vector(4 downto 0);
-	data1: std_ulogic_vector(64 downto 0);
-	data2: std_ulogic_vector(64 downto 0);
+	data1: std_ulogic_vector(63 downto 0);
+	data2: std_ulogic_vector(63 downto 0);
 	rc: std_ulogic;
+	is_32bit: std_ulogic;
+	is_signed: std_ulogic;
     end record;
-    constant Decode2ToMultiplyInit : Decode2ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0', others => (others => '0'));
+    constant Decode2ToMultiplyInit : Decode2ToMultiplyType :=
+	    (valid => '0', insn_type => OP_ILLEGAL, rc => '0', is_32bit => '0', is_signed => '0',
+	     others => (others => '0'));
 
     type Decode2ToDividerType is record
 	valid: std_ulogic;

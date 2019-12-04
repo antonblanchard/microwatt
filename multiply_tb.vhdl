@@ -41,8 +41,10 @@ begin
         m1.valid <= '1';
         m1.insn_type <= OP_MUL_L64;
         m1.write_reg <= "10001";
-        m1.data1 <= '0' & x"0000000000001000";
-        m1.data2 <= '0' & x"0000000000001111";
+        m1.data1 <= x"0000000000001000";
+        m1.data2 <= x"0000000000001111";
+        m1.is_32bit <= '0';
+        m1.is_signed <= '0';
         m1.rc <= '0';
 
         wait for clk_period;
@@ -88,8 +90,8 @@ begin
 
             behave_rt := ppc_mulld(ra, rb);
 
-            m1.data1 <= '0' & ra;
-            m1.data2 <= '0' & rb;
+            m1.data1 <= ra;
+            m1.data2 <= rb;
             m1.valid <= '1';
             m1.insn_type <= OP_MUL_L64;
 
@@ -112,8 +114,8 @@ begin
 
             behave_rt := ppc_mulhdu(ra, rb);
 
-            m1.data1 <= '0' & ra;
-            m1.data2 <= '0' & rb;
+            m1.data1 <= ra;
+            m1.data2 <= rb;
             m1.valid <= '1';
             m1.insn_type <= OP_MUL_H64;
 
@@ -136,8 +138,9 @@ begin
 
             behave_rt := ppc_mulhd(ra, rb);
 
-            m1.data1 <= ra(63) & ra;
-            m1.data2 <= rb(63) & rb;
+            m1.data1 <= ra;
+            m1.data2 <= rb;
+            m1.is_signed <= '1';
             m1.valid <= '1';
             m1.insn_type <= OP_MUL_H64;
 
@@ -160,12 +163,11 @@ begin
 
             behave_rt := ppc_mullw(ra, rb);
 
-            m1.data1 <= (others => ra(31));
-            m1.data1(31 downto 0) <= ra(31 downto 0);
-            m1.data2 <= (others => rb(31));
-            m1.data2(31 downto 0) <= rb(31 downto 0);
+            m1.data1 <= ra;
+            m1.data2 <= rb;
             m1.valid <= '1';
             m1.insn_type <= OP_MUL_L64;
+            m1.is_32bit <= '1';
 
             wait for clk_period;
 
@@ -186,10 +188,8 @@ begin
 
             behave_rt := ppc_mulhw(ra, rb);
 
-            m1.data1 <= (others => ra(31));
-            m1.data1(31 downto 0) <= ra(31 downto 0);
-            m1.data2 <= (others => rb(31));
-            m1.data2(31 downto 0) <= rb(31 downto 0);
+            m1.data1 <= ra;
+            m1.data2 <= rb;
             m1.valid <= '1';
             m1.insn_type <= OP_MUL_H32;
 
@@ -212,10 +212,9 @@ begin
 
             behave_rt := ppc_mulhwu(ra, rb);
 
-            m1.data1 <= (others => '0');
-            m1.data1(31 downto 0) <= ra(31 downto 0);
-            m1.data2 <= (others => '0');
-            m1.data2(31 downto 0) <= rb(31 downto 0);
+            m1.data1 <= ra;
+            m1.data2 <= rb;
+            m1.is_signed <= '0';
             m1.valid <= '1';
             m1.insn_type <= OP_MUL_H32;
 
@@ -238,9 +237,11 @@ begin
 
             behave_rt := ppc_mulli(ra, si);
 
-            m1.data1 <= ra(63) & ra;
+            m1.data1 <= ra;
             m1.data2 <= (others => si(15));
             m1.data2(15 downto 0) <= si;
+            m1.is_signed <= '1';
+            m1.is_32bit <= '0';
             m1.valid <= '1';
             m1.insn_type <= OP_MUL_L64;
 
