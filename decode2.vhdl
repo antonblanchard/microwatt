@@ -60,10 +60,7 @@ architecture behaviour of decode2 is
 	function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
 				     reg_data : std_ulogic_vector(63 downto 0);
 				     ispr : gspr_index_t) return decode_input_reg_t is
-		variable is_reg : std_ulogic;
 	begin
-		is_reg := '0' when insn_ra(insn_in) = "00000" else '1';
-
 		if t = RA or (t = RA_OR_ZERO and insn_ra(insn_in) /= "00000") then
 		    assert is_fast_spr(ispr) = '0' report "Decode A says GPR but ISPR says SPR:" &
 			to_hstring(ispr) severity failure;
