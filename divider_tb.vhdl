@@ -319,13 +319,13 @@ begin
         divwe_loop : for vlength in 1 to 4 loop
             for dlength in 1 to vlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 32)) & x"00000000";
+                    ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
                     d1.is_signed <= '1';
-                    d1.is_extended <= '0';
+                    d1.is_extended <= '1';
                     d1.is_32bit <= '1';
                     d1.valid <= '1';
 
@@ -342,7 +342,7 @@ begin
 
                     behave_rt := (others => '0');
                     if rb /= x"0000000000000000" then
-                        q64 := std_ulogic_vector(signed(ra) / signed(rb));
+                        q64 := std_ulogic_vector(signed(ra(31 downto 0) & x"00000000") / signed(rb));
                         if q64(63 downto 31) = x"00000000" & '0' or
                             q64(63 downto 31) = x"ffffffff" & '1' then
                             behave_rt := x"00000000" & q64(31 downto 0);
@@ -359,13 +359,13 @@ begin
         divweu_loop : for vlength in 1 to 4 loop
             for dlength in 1 to vlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(unsigned(pseudorand(dlength * 8)), 32)) & x"00000000";
+                    ra := std_ulogic_vector(resize(unsigned(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(unsigned(pseudorand(vlength * 8)), 64));
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
                     d1.is_signed <= '0';
-                    d1.is_extended <= '0';
+                    d1.is_extended <= '1';
                     d1.is_32bit <= '1';
                     d1.valid <= '1';
 
@@ -381,8 +381,8 @@ begin
                     assert d2.valid = '1';
 
                     behave_rt := (others => '0');
-                    if unsigned(rb(31 downto 0)) > unsigned(ra(63 downto 32)) then
-                        behave_rt := std_ulogic_vector(unsigned(ra) / unsigned(rb));
+                    if unsigned(rb(31 downto 0)) > unsigned(ra(31 downto 0)) then
+                        behave_rt := std_ulogic_vector(unsigned(ra(31 downto 0) & x"00000000") / unsigned(rb));
                     end if;
                     assert behave_rt = d2.write_reg_data
                         report "bad divweu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);

@@ -48,17 +48,34 @@ begin
                 running <= '0';
                 count <= "0000000";
             elsif d_in.valid = '1' then
-                if d_in.is_extended = '1' and not (d_in.is_signed = '1' and d_in.dividend(63) = '1') then
+                if d_in.is_extended = '1' and d_in.is_32bit = '0' and
+		    not (d_in.is_signed = '1' and d_in.dividend(63) = '1') then
+		    -- 64-bit extended division
                     dend <= '0' & d_in.dividend & x"0000000000000000";
-                else
+                elsif d_in.is_32bit = '0' then
+		    -- other 64-bit ops
                     dend <= '0' & x"0000000000000000" & d_in.dividend;
+		elsif d_in.is_extended = '1' then
+		    -- 32-bit extended ops
+		    dend <= '0' & x"0000000000000000" & d_in.dividend(31 downto 0) & x"00000000";
+		elsif d_in.is_signed = '1' and d_in.dividend(31) = '1' then
+		    -- other 32-bit signed ops with negative dividend
+		    dend <= '0' & x"0000000000000000ffffffff" & d_in.dividend(31 downto 0);
+		else
+		    dend <= '0' & x"000000000000000000000000" & d_in.dividend(31 downto 0);
                 end if;
-                div <= unsigned(d_in.divisor);
+		if d_in.is_32bit = '0' then
+		    div <= unsigned(d_in.divisor);
+		elsif d_in.is_signed = '1' and d_in.divisor(31) = '1' then
+		    div <= unsigned(x"ffffffff" & d_in.divisor(31 downto 0));
+		else
+		    div <= unsigned(x"00000000" & d_in.divisor(31 downto 0));
+		end if;
                 quot <= (others => '0');
                 write_reg <= d_in.write_reg;
                 neg_result <= '0';
                 is_modulus <= d_in.is_modulus;
-                extended <= d_in.is_extended;
+                extended <= d_in.is_extended and not d_in.is_32bit;
                 is_32bit <= d_in.is_32bit;
                 is_signed <= d_in.is_signed;
                 rc <= d_in.rc;
@@ -66,7 +83,11 @@ begin
                 running <= '1';
                 overflow <= '0';
                 ovf32 <= '0';
-                signcheck <= d_in.is_signed and (d_in.dividend(63) or d_in.divisor(63));
+		if d_in.is_32bit = '1' then
+		    signcheck <= d_in.is_signed and (d_in.dividend(31) or d_in.divisor(31));
+		else
+		    signcheck <= d_in.is_signed and (d_in.dividend(63) or d_in.divisor(63));
+		end if;
             elsif signcheck = '1' then
                 signcheck <= '0';
                 neg_result <= dend(63) xor (div(63) and not is_modulus);

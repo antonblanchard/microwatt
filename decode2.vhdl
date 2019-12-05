@@ -294,30 +294,10 @@ begin
                 else
                         signed_division := d_in.insn(10);
                 end if;
+		v.d.is_extended := d_in.insn(8) and not d_in.insn(7);
                 v.d.is_signed := signed_division;
-                if d_in.insn(2) = '0' then
-                        -- 64-bit forms
-                        if d_in.insn(8) = '1' and d_in.insn(7) = '0' then
-                                v.d.is_extended := '1';
-                        end if;
-                        v.d.dividend := decoded_reg_a.data;
-                        v.d.divisor := decoded_reg_b.data;
-                else
-                        -- 32-bit forms
-                        if d_in.insn(8) = '1' and d_in.insn(7) = '0' then   -- extended forms
-                                v.d.dividend := decoded_reg_a.data(31 downto 0) & x"00000000";
-                        elsif signed_division = '1' and decoded_reg_a.data(31) = '1' then
-                                -- sign extend to 64 bits
-                                v.d.dividend := x"ffffffff" & decoded_reg_a.data(31 downto 0);
-                        else
-                                v.d.dividend := x"00000000" & decoded_reg_a.data(31 downto 0);
-                        end if;
-                        if signed_division = '1' and decoded_reg_b.data(31) = '1' then
-                                v.d.divisor := x"ffffffff" & decoded_reg_b.data(31 downto 0);
-                        else
-                                v.d.divisor := x"00000000" & decoded_reg_b.data(31 downto 0);
-                        end if;
-                end if;
+		v.d.dividend := decoded_reg_a.data;
+		v.d.divisor := decoded_reg_b.data;
                 v.d.rc := decode_rc(d_in.decode.rc, d_in.insn);
 
 		-- load/store unit
