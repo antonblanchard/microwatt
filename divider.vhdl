@@ -20,7 +20,7 @@ architecture behaviour of divider is
     signal div        : unsigned(63 downto 0);
     signal quot       : std_ulogic_vector(63 downto 0);
     signal result     : std_ulogic_vector(63 downto 0);
-    signal sresult    : std_ulogic_vector(63 downto 0);
+    signal sresult    : std_ulogic_vector(64 downto 0);
     signal oresult    : std_ulogic_vector(63 downto 0);
     signal qbit       : std_ulogic;
     signal running    : std_ulogic;
@@ -123,13 +123,13 @@ begin
             result <= quot;
         end if;
         if neg_result = '1' then
-            sresult <= std_ulogic_vector(- signed(result));
+            sresult <= std_ulogic_vector(- signed('0' & result));
         else
-            sresult <= result;
+            sresult <= '0' & result;
         end if;
         did_ovf <= '0';
         if is_32bit = '0' then
-            did_ovf <= overflow or (is_signed and (sresult(63) xor neg_result));
+            did_ovf <= overflow or (is_signed and (sresult(64) xor sresult(63)));
         elsif is_signed = '1' then
             if ovf32 = '1' or sresult(32) /= sresult(31) then
                 did_ovf <= '1';
@@ -143,7 +143,7 @@ begin
             -- 32-bit divisions set the top 32 bits of the result to 0
             oresult <= x"00000000" & sresult(31 downto 0);
         else
-            oresult <= sresult;
+            oresult <= sresult(63 downto 0);
         end if;
     end process;
 
