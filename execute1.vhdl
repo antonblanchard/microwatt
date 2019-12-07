@@ -291,7 +291,7 @@ begin
 		for i in 0 to 7 loop
 		    lo := i*4;
 		    hi := lo + 3;
-		    v.e.write_cr_data(hi downto lo) := ppc_cmp(l, e_in.read_data1, e_in.read_data2);
+		    v.e.write_cr_data(hi downto lo) := ppc_cmp(l, e_in.read_data1, e_in.read_data2, v.e.xerc.so);
 		end loop;
 	    when OP_CMPL =>
 		bf := insn_bf(e_in.insn);
@@ -302,7 +302,7 @@ begin
 		for i in 0 to 7 loop
 		    lo := i*4;
 		    hi := lo + 3;
-		    v.e.write_cr_data(hi downto lo) := ppc_cmpl(l, e_in.read_data1, e_in.read_data2);
+		    v.e.write_cr_data(hi downto lo) := ppc_cmpl(l, e_in.read_data1, e_in.read_data2, v.e.xerc.so);
 		end loop;
 	    when OP_CNTZ =>
 		result := countzero_result;

@@ -77,10 +77,14 @@ package ppc_fx_insns is
 	function ppc_mulhw (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 	function ppc_mulhwu (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 
-	function ppc_cmpi (l: std_ulogic; ra: std_ulogic_vector(63 downto 0); si: std_ulogic_vector(15 downto 0)) return std_ulogic_vector;
-	function ppc_cmp (l: std_ulogic; ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
-	function ppc_cmpli (l: std_ulogic; ra: std_ulogic_vector(63 downto 0); si: std_ulogic_vector(15 downto 0)) return std_ulogic_vector;
-	function ppc_cmpl (l: std_ulogic; ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
+	function ppc_cmpi (l: std_ulogic; ra: std_ulogic_vector(63 downto 0); si: std_ulogic_vector(15 downto 0);
+                           so: std_ulogic) return std_ulogic_vector;
+	function ppc_cmp (l: std_ulogic; ra, rb: std_ulogic_vector(63 downto 0);
+                           so: std_ulogic) return std_ulogic_vector;
+	function ppc_cmpli (l: std_ulogic; ra: std_ulogic_vector(63 downto 0); si: std_ulogic_vector(15 downto 0);
+                           so: std_ulogic) return std_ulogic_vector;
+	function ppc_cmpl (l: std_ulogic; ra, rb: std_ulogic_vector(63 downto 0);
+                           so: std_ulogic) return std_ulogic_vector;
 
 	function ppc_cmpb (rs, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 
@@ -677,7 +681,8 @@ package body ppc_fx_insns is
 		return std_ulogic_vector(tmp(63 downto 32)) & std_ulogic_vector(tmp(63 downto 32));
 	end;
 
-	function ppc_cmpi (l: std_ulogic; ra: std_ulogic_vector(63 downto 0); si: std_ulogic_vector(15 downto 0)) return std_ulogic_vector is
+	function ppc_cmpi (l: std_ulogic; ra: std_ulogic_vector(63 downto 0); si: std_ulogic_vector(15 downto 0);
+                           so: std_ulogic) return std_ulogic_vector is
 		variable tmp: signed(ra'range);
 	begin
 		tmp := signed(ra);
@@ -685,10 +690,11 @@ package body ppc_fx_insns is
 			tmp := resize(signed(ra(31 downto 0)), tmp'length);
 		end if;
 
-		return ppc_signed_compare(tmp, resize(signed(si), tmp'length));
+		return ppc_signed_compare(tmp, resize(signed(si), tmp'length), so);
 	end;
 
-	function ppc_cmp (l: std_ulogic; ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
+	function ppc_cmp (l: std_ulogic; ra, rb: std_ulogic_vector(63 downto 0);
+                          so: std_ulogic) return std_ulogic_vector is
 		variable tmpa, tmpb: signed(ra'range);
 	begin
 		tmpa := signed(ra);
@@ -698,10 +704,11 @@ package body ppc_fx_insns is
 			tmpb := resize(signed(rb(31 downto 0)), ra'length);
 		end if;
 
-		return ppc_signed_compare(tmpa, tmpb);
+		return ppc_signed_compare(tmpa, tmpb, so);
 	end;
 
-	function ppc_cmpli (l: std_ulogic; ra: std_ulogic_vector(63 downto 0); si: std_ulogic_vector(15 downto 0)) return std_ulogic_vector is
+	function ppc_cmpli (l: std_ulogic; ra: std_ulogic_vector(63 downto 0); si: std_ulogic_vector(15 downto 0);
+                            so: std_ulogic) return std_ulogic_vector is
 		variable tmp: unsigned(ra'range);
 	begin
 		tmp := unsigned(ra);
@@ -709,10 +716,11 @@ package body ppc_fx_insns is
 			tmp := resize(unsigned(ra(31 downto 0)), tmp'length);
 		end if;
 
-		return ppc_unsigned_compare(tmp, resize(unsigned(si), tmp'length));
+		return ppc_unsigned_compare(tmp, resize(unsigned(si), tmp'length), so);
 	end;
 
-	function ppc_cmpl (l: std_ulogic; ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
+	function ppc_cmpl (l: std_ulogic; ra, rb: std_ulogic_vector(63 downto 0);
+                           so: std_ulogic) return std_ulogic_vector is
 		variable tmpa, tmpb: unsigned(ra'range);
 	begin
 		tmpa := unsigned(ra);
@@ -722,7 +730,7 @@ package body ppc_fx_insns is
 			tmpb := resize(unsigned(rb(31 downto 0)), ra'length);
 		end if;
 
-		return ppc_unsigned_compare(tmpa, tmpb);
+		return ppc_unsigned_compare(tmpa, tmpb, so);
 	end;
 
 	function ppc_cmpb (rs, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is

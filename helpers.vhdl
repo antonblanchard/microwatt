@@ -17,8 +17,8 @@ package helpers is
 
     function cmp_one_byte(a, b: std_ulogic_vector(7 downto 0)) return std_ulogic_vector;
 
-    function ppc_signed_compare(a, b: signed(63 downto 0)) return std_ulogic_vector;
-    function ppc_unsigned_compare(a, b: unsigned(63 downto 0)) return std_ulogic_vector;
+    function ppc_signed_compare(a, b: signed(63 downto 0); so: std_ulogic) return std_ulogic_vector;
+    function ppc_unsigned_compare(a, b: unsigned(63 downto 0); so: std_ulogic) return std_ulogic_vector;
 
     function ra_or_zero(ra: std_ulogic_vector(63 downto 0); reg: std_ulogic_vector(4 downto 0)) return std_ulogic_vector;
 
@@ -126,32 +126,32 @@ package body helpers is
         return ret;
     end;
 
-    function ppc_signed_compare(a, b: signed(63 downto 0)) return std_ulogic_vector is
-        variable ret: std_ulogic_vector(3 downto 0);
+    function ppc_signed_compare(a, b: signed(63 downto 0); so: std_ulogic) return std_ulogic_vector is
+        variable ret: std_ulogic_vector(2 downto 0);
     begin
         if a < b then
-            ret := "1000";
+            ret := "100";
         elsif a > b then
-            ret := "0100";
+            ret := "010";
         else
-            ret := "0010";
+            ret := "001";
         end if;
 
-        return ret;
+        return ret & so;
     end;
 
-    function ppc_unsigned_compare(a, b: unsigned(63 downto 0)) return std_ulogic_vector is
-        variable ret: std_ulogic_vector(3 downto 0);
+    function ppc_unsigned_compare(a, b: unsigned(63 downto 0); so: std_ulogic) return std_ulogic_vector is
+        variable ret: std_ulogic_vector(2 downto 0);
     begin
         if a < b then
-            ret := "1000";
+            ret := "100";
         elsif a > b then
-            ret := "0100";
+            ret := "010";
         else
-            ret := "0010";
+            ret := "001";
         end if;
 
-        return ret;
+        return ret & so;
     end;
 
     function ra_or_zero(ra: std_ulogic_vector(63 downto 0); reg: std_ulogic_vector(4 downto 0)) return std_ulogic_vector is
