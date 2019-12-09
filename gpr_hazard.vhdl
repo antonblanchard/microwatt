@@ -7,12 +7,13 @@ entity gpr_hazard is
         PIPELINE_DEPTH : natural := 2
         );
     port(
-        clk                : in std_logic;
+        clk                : in std_ulogic;
+	stall_in           : in std_ulogic;
 
         gpr_write_valid_in : in std_ulogic;
-        gpr_write_in       : in std_ulogic_vector(4 downto 0);
+        gpr_write_in       : in std_ulogic_vector(5 downto 0);
         gpr_read_valid_in  : in std_ulogic;
-        gpr_read_in        : in std_ulogic_vector(4 downto 0);
+        gpr_read_in        : in std_ulogic_vector(5 downto 0);
 
         stall_out          : out std_ulogic
         );
@@ -20,7 +21,7 @@ end entity gpr_hazard;
 architecture behaviour of gpr_hazard is
     type pipeline_entry_type is record
         valid : std_ulogic;
-        gpr   : std_ulogic_vector(4 downto 0);
+        gpr   : std_ulogic_vector(5 downto 0);
     end record;
     constant pipeline_entry_init : pipeline_entry_type := (valid => '0', gpr => (others => '0'));
 
@@ -32,7 +33,9 @@ begin
     gpr_hazard0: process(clk)
     begin
         if rising_edge(clk) then
-            r <= rin;
+	    if stall_in = '0' then
+		r <= rin;
+	    end if;
         end if;
     end process;
 

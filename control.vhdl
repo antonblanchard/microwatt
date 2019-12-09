@@ -1,6 +1,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
+library work;
+use work.common.all;
+
 entity control is
     generic (
         PIPELINE_DEPTH : natural := 2
@@ -12,20 +15,21 @@ entity control is
         complete_in         : in std_ulogic;
         valid_in            : in std_ulogic;
         flush_in            : in std_ulogic;
+	stall_in            : in std_ulogic;
         sgl_pipe_in         : in std_ulogic;
         stop_mark_in        : in std_ulogic;
 
         gpr_write_valid_in  : in std_ulogic;
-        gpr_write_in        : in std_ulogic_vector(4 downto 0);
+        gpr_write_in        : in gspr_index_t;
 
         gpr_a_read_valid_in : in std_ulogic;
-        gpr_a_read_in       : in std_ulogic_vector(4 downto 0);
+        gpr_a_read_in       : in gspr_index_t;
 
         gpr_b_read_valid_in : in std_ulogic;
-        gpr_b_read_in       : in std_ulogic_vector(4 downto 0);
+        gpr_b_read_in       : in gspr_index_t;
 
         gpr_c_read_valid_in : in std_ulogic;
-        gpr_c_read_in       : in std_ulogic_vector(4 downto 0);
+        gpr_c_read_in       : in gpr_index_t;
 
         cr_read_in          : in std_ulogic;
         cr_write_in         : in std_ulogic;
@@ -61,6 +65,7 @@ begin
             )
         port map (
             clk                => clk,
+	    stall_in           => stall_in,
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
@@ -76,6 +81,7 @@ begin
             )
         port map (
             clk                => clk,
+	    stall_in           => stall_in,
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
@@ -91,11 +97,12 @@ begin
             )
         port map (
             clk                => clk,
+	    stall_in           => stall_in,
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
             gpr_read_valid_in  => gpr_c_read_valid_in,
-            gpr_read_in        => gpr_c_read_in,
+            gpr_read_in        => "0" & gpr_c_read_in,
 
             stall_out          => stall_c_out
             );
@@ -106,6 +113,7 @@ begin
             )
         port map (
             clk                => clk,
+	    stall_in           => stall_in,
 
             cr_read_in         => cr_read_in,
             cr_write_in        => cr_write_valid,
@@ -129,8 +137,8 @@ begin
         v_int := r_int;
 
         -- asynchronous
-        valid_tmp := valid_in and not flush_in;
-        stall_tmp := '0';
+        valid_tmp := valid_in and not flush_in and not stall_in;
+        stall_tmp := stall_in;
 
         if complete_in = '1' then
             v_int.outstanding := r_int.outstanding - 1;

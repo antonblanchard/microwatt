@@ -47,6 +47,7 @@ begin
         v.sign_extend := l_in.sign_extend;
         v.update := l_in.update;
         v.update_reg := l_in.update_reg;
+	v.xerc := l_in.xerc;
 
 	-- XXX Temporary hack. Mark the op as non-cachable if the address
 	-- is the form 0xc-------

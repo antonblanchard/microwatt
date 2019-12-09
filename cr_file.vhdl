@@ -18,7 +18,9 @@ end entity cr_file;
 
 architecture behaviour of cr_file is
     signal crs : std_ulogic_vector(31 downto 0) := (others => '0');
-    signal crs_updated : std_ulogic_vector(31 downto 0) := (others => '0');
+    signal crs_updated : std_ulogic_vector(31 downto 0);
+    signal xerc : xer_common_t := xerc_init;
+    signal xerc_updated : xer_common_t;
 begin
     cr_create_0: process(all)
         variable hi, lo : integer := 0;
@@ -35,6 +37,13 @@ begin
         end loop;
 
         crs_updated <= cr_tmp;
+
+	if w_in.write_xerc_enable = '1' then
+	    xerc_updated <= w_in.write_xerc_data;
+	else
+	    xerc_updated <= xerc;
+	end if;
+
     end process;
 
     -- synchronous writes
@@ -43,8 +52,12 @@ begin
         if rising_edge(clk) then
             if w_in.write_cr_enable = '1' then
                 report "Writing " & to_hstring(w_in.write_cr_data) & " to CR mask " & to_hstring(w_in.write_cr_mask);
+		crs <= crs_updated;
             end if;
-            crs <= crs_updated;
+	    if w_in.write_xerc_enable = '1' then
+                report "Writing XERC";
+		xerc <= xerc_updated;
+	    end if;
         end if;
     end process;
 
@@ -56,5 +69,6 @@ begin
             report "Reading CR " & to_hstring(crs_updated);
         end if;
         d_out.read_cr_data <= crs_updated;
+        d_out.read_xerc_data <= xerc_updated;
     end process;
 end architecture behaviour;

@@ -20,7 +20,7 @@ architecture behaviour of divider is
     signal div        : unsigned(63 downto 0);
     signal quot       : std_ulogic_vector(63 downto 0);
     signal result     : std_ulogic_vector(63 downto 0);
-    signal sresult    : std_ulogic_vector(63 downto 0);
+    signal sresult    : std_ulogic_vector(64 downto 0);
     signal oresult    : std_ulogic_vector(63 downto 0);
     signal qbit       : std_ulogic;
     signal running    : std_ulogic;
@@ -36,7 +36,8 @@ architecture behaviour of divider is
     signal overflow   : std_ulogic;
     signal ovf32      : std_ulogic;
     signal did_ovf    : std_ulogic;
-
+    signal oe         : std_ulogic;
+    signal xerc       : xer_common_t;
 begin
     divider_0: process(clk)
     begin
@@ -62,6 +63,8 @@ begin
                 is_32bit <= d_in.is_32bit;
                 is_signed <= d_in.is_signed;
                 rc <= d_in.rc;
+                oe <= d_in.oe;
+		xerc <= d_in.xerc;
                 count <= "1111111";
                 running <= '1';
                 overflow <= '0';
@@ -120,13 +123,13 @@ begin
             result <= quot;
         end if;
         if neg_result = '1' then
-            sresult <= std_ulogic_vector(- signed(result));
+            sresult <= std_ulogic_vector(- signed('0' & result));
         else
-            sresult <= result;
+            sresult <= '0' & result;
         end if;
         did_ovf <= '0';
         if is_32bit = '0' then
-            did_ovf <= overflow or (is_signed and (sresult(63) xor neg_result));
+            did_ovf <= overflow or (is_signed and (sresult(64) xor sresult(63)));
         elsif is_signed = '1' then
             if ovf32 = '1' or sresult(32) /= sresult(31) then
                 did_ovf <= '1';
@@ -140,20 +143,32 @@ begin
             -- 32-bit divisions set the top 32 bits of the result to 0
             oresult <= x"00000000" & sresult(31 downto 0);
         else
-            oresult <= sresult;
+            oresult <= sresult(63 downto 0);
         end if;
     end process;
 
     divider_out: process(clk)
     begin
         if rising_edge(clk) then
+	    d_out.valid <= '0';
             d_out.write_reg_data <= oresult;
+	    d_out.write_reg_enable <= '0';
+	    d_out.write_xerc_enable <= '0';
+	    d_out.xerc <= xerc;
             if count = "1000000" then
                 d_out.valid <= '1';
                 d_out.write_reg_enable <= '1';
-            else
-                d_out.valid <= '0';
-                d_out.write_reg_enable <= '0';
+		d_out.write_xerc_enable <= oe;
+
+		-- We must test oe because the RC update code in writeback
+		-- will use the xerc value to set CR0:SO so we must not clobber
+		-- xerc if OE wasn't set.
+		--
+		if oe = '1' then
+		    d_out.xerc.ov <= did_ovf;
+		    d_out.xerc.ov32 <= did_ovf;
+		    d_out.xerc.so <= xerc.so or did_ovf;
+		end if;
             end if;
         end if;
     end process;
