@@ -17,8 +17,8 @@ architecture behave of multiply_tb is
 
     constant pipeline_depth : integer := 4;
 
-    signal m1               : Decode2ToMultiplyType;
-    signal m2               : MultiplyToWritebackType;
+    signal m1               : Execute1ToMultiplyType;
+    signal m2               : MultiplyToExecute1Type;
 begin
     multiply_0: entity work.multiply
         generic map (PIPELINE_DEPTH => pipeline_depth)
@@ -58,7 +58,6 @@ begin
 
         wait for clk_period;
         assert m2.valid = '1';
-        assert m2.write_reg_enable = '1';
         assert m2.write_reg_nr = "10001";
         assert m2.write_reg_data = x"0000000001111000";
         assert m2.rc = '0';
@@ -76,7 +75,6 @@ begin
 
         wait for clk_period * (pipeline_depth-1);
         assert m2.valid = '1';
-        assert m2.write_reg_enable = '1';
         assert m2.write_reg_nr = "10001";
         assert m2.write_reg_data = x"0000000001111000";
         assert m2.rc = '1';

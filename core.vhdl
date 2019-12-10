@@ -63,10 +63,6 @@ architecture behave of core is
     signal loadstore1_to_dcache: Loadstore1ToDcacheType;
     signal dcache_to_writeback: DcacheToWritebackType;
 
-    -- multiply signals
-    signal decode2_to_multiply: Decode2ToMultiplyType;
-    signal multiply_to_writeback: MultiplyToWritebackType;
-
     -- divider signals
     signal decode2_to_divider: Decode2ToDividerType;
     signal divider_to_writeback: DividerToWritebackType;
@@ -115,7 +111,6 @@ architecture behave of core is
     attribute keep_hierarchy of register_file_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of cr_file_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of execute1_0 : label is keep_h(DISABLE_FLATTEN);
-    attribute keep_hierarchy of multiply_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of divider_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of loadstore1_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of dcache_0 : label is keep_h(DISABLE_FLATTEN);
@@ -197,7 +192,6 @@ begin
             d_in => decode1_to_decode2,
             e_out => decode2_to_execute1,
             l_out => decode2_to_loadstore1,
-            m_out => decode2_to_multiply,
             d_out => decode2_to_divider,
             r_in => register_file_to_decode2,
             r_out => decode2_to_register_file,
@@ -265,13 +259,6 @@ begin
             wishbone_out => wishbone_data_out
             );
 
-    multiply_0: entity work.multiply
-        port map (
-            clk => clk,
-            m_in => decode2_to_multiply,
-            m_out => multiply_to_writeback
-            );
-
     divider_0: entity work.divider
         port map (
             clk => clk,
@@ -285,7 +272,6 @@ begin
             clk => clk,
             e_in => execute1_to_writeback,
             l_in => dcache_to_writeback,
-            m_in => multiply_to_writeback,
             d_in => divider_to_writeback,
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,

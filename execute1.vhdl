@@ -35,6 +35,7 @@ architecture behaviour of execute1 is
 	e : Execute1ToWritebackType;
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
+	mul_in_progress : std_ulogic;
     end record;
 
     signal r, rin : reg_type;
@@ -47,6 +48,10 @@ architecture behaviour of execute1 is
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
     signal countzero_result: std_ulogic_vector(63 downto 0);
+
+    -- multiply signals
+    signal x_to_multiply: Execute1ToMultiplyType;
+    signal multiply_to_x: MultiplyToExecute1Type;
 
     procedure set_carry(e: inout Execute1ToWritebackType;
 			carry32 : in std_ulogic;
@@ -122,6 +127,13 @@ begin
 	    is_32bit => e_in.is_32bit,
 	    result => countzero_result
 	    );
+
+    multiply_0: entity work.multiply
+        port map (
+            clk => clk,
+            m_in => x_to_multiply,
+            m_out => multiply_to_x
+            );
 
     execute1_0: process(clk)
     begin
@@ -204,6 +216,38 @@ begin
 	end if;
 
 	v.lr_update := '0';
+	v.mul_in_progress := '0';
+
+	-- signals to multiply unit
+	x_to_multiply <= Execute1ToMultiplyInit;
+	x_to_multiply.insn_type <= e_in.insn_type;
+	x_to_multiply.write_reg <= gspr_to_gpr(e_in.write_reg);
+	x_to_multiply.rc <= e_in.rc;
+	x_to_multiply.xerc <= v.e.xerc;
+	if e_in.insn_type = OP_MUL_L64 then
+	    x_to_multiply.oe <= e_in.oe;
+	end if;
+	x_to_multiply.is_32bit <= e_in.is_32bit;
+
+	if e_in.is_32bit = '1' then
+	    if e_in.is_signed = '1' then
+		x_to_multiply.data1 <= (others => e_in.read_data1(31));
+		x_to_multiply.data1(31 downto 0) <= e_in.read_data1(31 downto 0);
+		x_to_multiply.data2 <= (others => e_in.read_data2(31));
+		x_to_multiply.data2(31 downto 0) <= e_in.read_data2(31 downto 0);
+	    else
+		x_to_multiply.data1 <= '0' & x"00000000" & e_in.read_data1(31 downto 0);
+		x_to_multiply.data2 <= '0' & x"00000000" & e_in.read_data2(31 downto 0);
+	    end if;
+	else
+	    if e_in.is_signed = '1' then
+		x_to_multiply.data1 <= e_in.read_data1(63) & e_in.read_data1;
+		x_to_multiply.data2 <= e_in.read_data2(63) & e_in.read_data2;
+	    else
+		x_to_multiply.data1 <= '0' & e_in.read_data1;
+		x_to_multiply.data2 <= '0' & e_in.read_data2;
+	    end if;
+	end if;
 
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
@@ -506,10 +550,18 @@ begin
 	    when OP_ICBI =>
 		icache_inval <= '1';
 
+		when OP_MUL_L64 | OP_MUL_H64 | OP_MUL_H32 =>
+		v.e.valid := '0';
+		v.mul_in_progress := '1';
+		stall_out <= '1';
+		x_to_multiply.valid <= '1';
+
 	    when others =>
 		terminate_out <= '1';
 		report "illegal";
 	    end case;
+
+	    v.e.rc := e_in.rc and e_in.valid;
 
 	    -- Update LR on the next cycle after a branch link
 	    --
@@ -536,11 +588,25 @@ begin
 	    v.e.write_len := x"8";
 	    v.e.sign_extend := '0';
 	    v.e.valid := '1';
+	elsif r.mul_in_progress = '1' then
+	    if multiply_to_x.valid = '1' then
+		v.e.write_reg := gpr_to_gspr(multiply_to_x.write_reg_nr);
+		result := multiply_to_x.write_reg_data;
+		result_en := '1';
+		v.e.rc := multiply_to_x.rc;
+		v.e.xerc := multiply_to_x.xerc;
+		v.e.write_xerc_enable := multiply_to_x.write_xerc_enable;
+		v.e.valid := '1';
+		v.e.write_len := x"8";
+		v.e.sign_extend := '0';
+	    else
+		stall_out <= '1';
+		v.mul_in_progress := '1';
+	    end if;
 	end if;
 
 	v.e.write_data := result;
 	v.e.write_enable := result_en;
-	v.e.rc := e_in.rc and e_in.valid;
 
 	-- Update registers
 	rin <= v;

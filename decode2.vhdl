@@ -24,7 +24,6 @@ entity decode2 is
 		d_in  : in Decode1ToDecode2Type;
 
 		e_out : out Decode2ToExecute1Type;
-		m_out : out Decode2ToMultiplyType;
                 d_out : out Decode2ToDividerType;
 		l_out : out Decode2ToLoadstore1Type;
 
@@ -39,7 +38,6 @@ end entity decode2;
 architecture behaviour of decode2 is
 	type reg_type is record
 		e : Decode2ToExecute1Type;
-		m : Decode2ToMultiplyType;
                 d : Decode2ToDividerType;
 		l : Decode2ToLoadstore1Type;
 	end record;
@@ -238,7 +236,7 @@ begin
 	decode2_0: process(clk)
 	begin
 		if rising_edge(clk) then
-			if rin.e.valid = '1' or rin.l.valid = '1' or rin.m.valid = '1' or rin.d.valid = '1' then
+			if rin.e.valid = '1' or rin.l.valid = '1' or rin.d.valid = '1' then
 				report "execute " & to_hstring(rin.e.nia);
 			end if;
 			r <= rin;
@@ -266,14 +264,12 @@ begin
 
 		v.e := Decode2ToExecute1Init;
 		v.l := Decode2ToLoadStore1Init;
-		v.m := Decode2ToMultiplyInit;
                 v.d := Decode2ToDividerInit;
 
 		mul_a := (others => '0');
 		mul_b := (others => '0');
 
 		--v.e.input_cr := d_in.decode.input_cr;
-		--v.m.input_cr := d_in.decode.input_cr;
 		--v.e.output_cr := d_in.decode.output_cr;
     
 		decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data, d_in.ispr1);
@@ -322,38 +318,6 @@ begin
 		end if;
                 v.e.insn := d_in.insn;
                 v.e.data_len := length;
-
-		-- multiply unit
-		v.m.insn_type := d_in.decode.insn_type;
-		mul_a := decoded_reg_a.data;
-		mul_b := decoded_reg_b.data;
-		v.m.write_reg := gspr_to_gpr(decoded_reg_o.reg);
-		v.m.rc := decode_rc(d_in.decode.rc, d_in.insn);
-		v.m.xerc := c_in.read_xerc_data;
-		if v.m.insn_type = OP_MUL_L64 then
-		  v.m.oe := decode_oe(d_in.decode.rc, d_in.insn);
-		end if;
-		v.m.is_32bit := d_in.decode.is_32bit;
-
-		if d_in.decode.is_32bit = '1' then
-			if d_in.decode.is_signed = '1' then
-				v.m.data1 := (others => mul_a(31));
-				v.m.data1(31 downto 0) := mul_a(31 downto 0);
-				v.m.data2 := (others => mul_b(31));
-				v.m.data2(31 downto 0) := mul_b(31 downto 0);
-			else
-				v.m.data1 := '0' & x"00000000" & mul_a(31 downto 0);
-				v.m.data2 := '0' & x"00000000" & mul_b(31 downto 0);
-			end if;
-		else
-			if d_in.decode.is_signed = '1' then
-				v.m.data1 := mul_a(63) & mul_a;
-				v.m.data2 := mul_b(63) & mul_b;
-			else
-				v.m.data1 := '0' & mul_a;
-				v.m.data2 := '0' & mul_b;
-			end if;
-		end if;
 
                 -- divide unit
                 -- PPC divide and modulus instruction words have these bits in
@@ -438,7 +402,6 @@ begin
                 cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
 
 		v.e.valid := '0';
-		v.m.valid := '0';
                 v.d.valid := '0';
 		v.l.valid := '0';
 		case d_in.decode.unit is
@@ -446,8 +409,6 @@ begin
 			v.e.valid := control_valid_out;
 		when LDST =>
 			v.l.valid := control_valid_out;
-		when MUL =>
-			v.m.valid := control_valid_out;
                 when DIV =>
                         v.d.valid := control_valid_out;
 		when NONE =>
@@ -458,7 +419,6 @@ begin
 		if rst = '1' then
 			v.e := Decode2ToExecute1Init;
 			v.l := Decode2ToLoadStore1Init;
-			v.m := Decode2ToMultiplyInit;
                         v.d := Decode2ToDividerInit;
 		end if;
 
@@ -468,7 +428,6 @@ begin
 		-- Update outputs
 		e_out <= r.e;
 		l_out <= r.l;
-		m_out <= r.m;
                 d_out <= r.d;
 	end process;
 end architecture behaviour;

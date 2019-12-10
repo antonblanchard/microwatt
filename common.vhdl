@@ -130,7 +130,7 @@ package common is
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, others => (others => '0'));
 
-    type Decode2ToMultiplyType is record
+    type Execute1ToMultiplyType is record
 	valid: std_ulogic;
 	insn_type: insn_type_t;
 	write_reg: gpr_index_t;
@@ -141,9 +141,9 @@ package common is
 	is_32bit: std_ulogic;
 	xerc: xer_common_t;
     end record;
-    constant Decode2ToMultiplyInit : Decode2ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0',
-							       oe => '0', is_32bit => '0', xerc => xerc_init,
-							       others => (others => '0'));
+    constant Execute1ToMultiplyInit : Execute1ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0',
+								 oe => '0', is_32bit => '0', xerc => xerc_init,
+								 others => (others => '0'));
 
     type Decode2ToDividerType is record
 	valid: std_ulogic;
@@ -261,20 +261,19 @@ package common is
 								   write_xerc_enable => '0', xerc => xerc_init,
 								   others => (others => '0'));
 
-    type MultiplyToWritebackType is record
+    type MultiplyToExecute1Type is record
 	valid: std_ulogic;
 
-	write_reg_enable : std_ulogic;
 	write_reg_nr: gpr_index_t;
 	write_reg_data: std_ulogic_vector(63 downto 0);
 	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
 	rc: std_ulogic;
     end record;
-    constant MultiplyToWritebackInit : MultiplyToWritebackType := (valid => '0', write_reg_enable => '0',
-								   rc => '0', write_xerc_enable => '0',
-								   xerc => xerc_init,
-								   others => (others => '0'));
+    constant MultiplyToExecute1Init : MultiplyToExecute1Type := (valid => '0',
+								 rc => '0', write_xerc_enable => '0',
+								 xerc => xerc_init,
+								 others => (others => '0'));
 
     type DividerToWritebackType is record
 	valid: std_ulogic;

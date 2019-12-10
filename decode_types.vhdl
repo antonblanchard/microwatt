@@ -46,7 +46,7 @@ package decode_types is
 
     constant TOO_OFFSET : integer := 0;
 
-    type unit_t is (NONE, ALU, LDST, MUL, DIV);
+    type unit_t is (NONE, ALU, LDST, DIV);
     type length_t is (NONE, is1B, is2B, is4B, is8B);
 
     type decode_rom_t is record

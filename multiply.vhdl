@@ -13,13 +13,13 @@ entity multiply is
     port (
         clk   : in std_logic;
 
-        m_in  : in Decode2ToMultiplyType;
-        m_out : out MultiplyToWritebackType
+        m_in  : in Execute1ToMultiplyType;
+        m_out : out MultiplyToExecute1Type
         );
 end entity multiply;
 
 architecture behaviour of multiply is
-    signal m: Decode2ToMultiplyType;
+    signal m: Execute1ToMultiplyType;
 
     type multiply_pipeline_stage is record
         valid     : std_ulogic;
@@ -64,7 +64,7 @@ begin
     begin
         v := r;
 
-        m_out <= MultiplyToWritebackInit;
+        m_out <= MultiplyToExecute1Init;
 
         v.multiply_pipeline(0).valid := m.valid;
         v.multiply_pipeline(0).insn_type := m.insn_type;
@@ -107,7 +107,6 @@ begin
 	-- Generate OV/OV32/SO when OE=1
         if v.multiply_pipeline(PIPELINE_DEPTH-1).valid = '1' then
             m_out.valid <= '1';
-            m_out.write_reg_enable <= '1';
             m_out.rc <= v.multiply_pipeline(PIPELINE_DEPTH-1).rc;
             m_out.write_xerc_enable <= v.multiply_pipeline(PIPELINE_DEPTH-1).oe;
 
