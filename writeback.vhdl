@@ -12,7 +12,6 @@ entity writeback is
 
         e_in         : in Execute1ToWritebackType;
         l_in         : in DcacheToWritebackType;
-        d_in         : in DividerToWritebackType;
 
         w_out        : out WritebackToRegisterFileType;
         c_out        : out WritebackToCrFileType;
@@ -66,28 +65,21 @@ begin
     begin
         x := "" & e_in.valid;
         y := "" & l_in.valid;
-        z := "" & d_in.valid;
-        assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1 severity failure;
+        assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
 
         x := "" & e_in.write_enable;
         y := "" & l_in.write_enable;
-        z := "" & d_in.write_reg_enable;
-        assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1 severity failure;
+        assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
 
         w := "" & e_in.write_cr_enable;
         x := "" & (e_in.write_enable and e_in.rc);
-        z := "" & (d_in.valid and d_in.rc);
-        assert (to_integer(unsigned(w)) + to_integer(unsigned(x)) + to_integer(unsigned(z))) <= 1 severity failure;
-
-        x := "" & e_in.write_xerc_enable;
-        z := "" & D_in.write_xerc_enable;
-        assert (to_integer(unsigned(x)) + to_integer(unsigned(z))) <= 1 severity failure;
+        assert (to_integer(unsigned(w)) + to_integer(unsigned(x))) <= 1 severity failure;
 
         w_out <= WritebackToRegisterFileInit;
         c_out <= WritebackToCrFileInit;
 
         complete_out <= '0';
-        if e_in.valid = '1' or l_in.valid = '1' or d_in.valid = '1' then
+        if e_in.valid = '1' or l_in.valid = '1' then
             complete_out <= '1';
         end if;
 
@@ -137,19 +129,6 @@ begin
             end if;
 	    xe := l_in.xerc;
         end if;
-
-        if d_in.write_reg_enable = '1' then
-            w_out.write_enable <= '1';
-            w_out.write_reg <= gpr_to_gspr(d_in.write_reg_nr);
-            data_in <= d_in.write_reg_data;
-            rc <= d_in.rc;
-	    xe := d_in.xerc;
-        end if;
-
-	if d_in.write_xerc_enable = '1' then
-            c_out.write_xerc_enable <= '1';
-            c_out.write_xerc_data <= d_in.xerc;
-	end if;
 
         -- shift and byte-reverse data bytes
         for i in 0 to 7 loop

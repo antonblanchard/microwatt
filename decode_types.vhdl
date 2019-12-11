@@ -8,7 +8,7 @@ package decode_types is
 			 OP_CNTZ, OP_CRAND,
 			 OP_CRANDC, OP_CREQV, OP_CRNAND, OP_CRNOR, OP_CROR, OP_CRORC,
 			 OP_CRXOR, OP_DARN, OP_DCBF, OP_DCBST, OP_DCBT, OP_DCBTST,
-			 OP_DCBZ, OP_DIV, OP_EXTS,
+			 OP_DCBZ, OP_DIV, OP_DIVE, OP_EXTS,
 			 OP_EXTSWSLI, OP_ICBI, OP_ICBT, OP_ISEL, OP_ISYNC,
 			 OP_LOAD, OP_STORE, OP_MADDHD, OP_MADDHDU, OP_MADDLD, OP_MCRF,
 			 OP_MCRXR, OP_MCRXRX, OP_MFCR, OP_MFSPR, OP_MOD,
@@ -46,7 +46,7 @@ package decode_types is
 
     constant TOO_OFFSET : integer := 0;
 
-    type unit_t is (NONE, ALU, LDST, DIV);
+    type unit_t is (NONE, ALU, LDST);
     type length_t is (NONE, is1B, is2B, is4B, is8B);
 
     type decode_rom_t is record

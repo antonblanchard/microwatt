@@ -145,7 +145,7 @@ package common is
 								 oe => '0', is_32bit => '0', xerc => xerc_init,
 								 others => (others => '0'));
 
-    type Decode2ToDividerType is record
+    type Execute1ToDividerType is record
 	valid: std_ulogic;
 	write_reg: gpr_index_t;
 	dividend: std_ulogic_vector(63 downto 0);
@@ -154,14 +154,15 @@ package common is
 	is_32bit: std_ulogic;
 	is_extended: std_ulogic;
 	is_modulus: std_ulogic;
+        neg_result: std_ulogic;
 	rc: std_ulogic;
 	oe: std_ulogic;
 	xerc: xer_common_t;
     end record;
-    constant Decode2ToDividerInit: Decode2ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0',
-							    is_extended => '0', is_modulus => '0',
-							    rc => '0', oe => '0', xerc => xerc_init,
-							    others => (others => '0'));
+    constant Execute1ToDividerInit: Execute1ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0',
+                                                              is_extended => '0', is_modulus => '0',
+                                                              rc => '0', oe => '0', xerc => xerc_init,
+                                                              neg_result => '0', others => (others => '0'));
 
     type Decode2ToRegisterFileType is record
 	read1_enable : std_ulogic;
@@ -275,20 +276,19 @@ package common is
 								 xerc => xerc_init,
 								 others => (others => '0'));
 
-    type DividerToWritebackType is record
+    type DividerToExecute1Type is record
 	valid: std_ulogic;
 
-	write_reg_enable : std_ulogic;
 	write_reg_nr: gpr_index_t;
 	write_reg_data: std_ulogic_vector(63 downto 0);
 	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
 	rc: std_ulogic;
     end record;
-    constant DividerToWritebackInit : DividerToWritebackType := (valid => '0', write_reg_enable => '0',
-								 rc => '0', write_xerc_enable => '0',
-								 xerc => xerc_init,
-								 others => (others => '0'));
+    constant DividerToExecute1Init : DividerToExecute1Type := (valid => '0',
+                                                               rc => '0', write_xerc_enable => '0',
+                                                               xerc => xerc_init,
+                                                               others => (others => '0'));
 
     type WritebackToRegisterFileType is record
 	write_reg : gspr_index_t;

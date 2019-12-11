@@ -16,8 +16,8 @@ architecture behave of divider_tb is
     signal rst              : std_ulogic;
     constant clk_period     : time := 10 ns;
 
-    signal d1               : Decode2ToDividerType;
-    signal d2               : DividerToWritebackType;
+    signal d1               : Execute1ToDividerType;
+    signal d2               : DividerToExecute1Type;
 begin
     divider_0: entity work.divider
         port map (clk => clk, rst => rst, d_in => d1, d_out => d2);
@@ -50,6 +50,7 @@ begin
         d1.is_32bit <= '0';
         d1.is_extended <= '0';
         d1.is_modulus <= '0';
+        d1.neg_result <= '0';
         d1.rc <= '0';
 
         wait for clk_period;
@@ -65,7 +66,6 @@ begin
         end loop;
 
         assert d2.valid = '1';
-        assert d2.write_reg_enable = '1';
         assert d2.write_reg_nr = "10001";
         assert d2.write_reg_data = x"000000000000f001" report "result " & to_hstring(d2.write_reg_data);
         assert d2.rc = '0';
@@ -89,7 +89,6 @@ begin
         end loop;
 
         assert d2.valid = '1';
-        assert d2.write_reg_enable = '1';
         assert d2.write_reg_nr = "10001";
         assert d2.write_reg_data = x"000000000000f001" report "result " & to_hstring(d2.write_reg_data);
         assert d2.rc = '1';
@@ -105,9 +104,10 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    d1.dividend <= ra;
-                    d1.divisor <= rb;
+                    d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
+                    d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
                     d1.is_signed <= '1';
+                    d1.neg_result <= ra(63) xor rb(63);
                     d1.valid <= '1';
 
                     wait for clk_period;
@@ -142,6 +142,7 @@ begin
                     d1.dividend <= ra;
                     d1.divisor <= rb;
                     d1.is_signed <= '0';
+                    d1.neg_result <= '0';
                     d1.valid <= '1';
 
                     wait for clk_period;
@@ -173,9 +174,10 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    d1.dividend <= ra;
-                    d1.divisor <= rb;
+                    d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
+                    d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
                     d1.is_signed <= '1';
+                    d1.neg_result <= ra(63) xor rb(63);
                     d1.is_extended <= '1';
                     d1.valid <= '1';
 
@@ -216,6 +218,7 @@ begin
                     d1.dividend <= ra;
                     d1.divisor <= rb;
                     d1.is_signed <= '0';
+                    d1.neg_result <= '0';
                     d1.is_extended <= '1';
                     d1.valid <= '1';
 
@@ -250,9 +253,10 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    d1.dividend <= ra;
-                    d1.divisor <= rb;
+                    d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
+                    d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
                     d1.is_signed <= '1';
+                    d1.neg_result <= ra(63) xor rb(63);
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.valid <= '1';
@@ -289,6 +293,7 @@ begin
                     d1.dividend <= ra;
                     d1.divisor <= rb;
                     d1.is_signed <= '0';
+                    d1.neg_result <= '0';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.valid <= '1';
@@ -322,9 +327,10 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 32)) & x"00000000";
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    d1.dividend <= ra;
-                    d1.divisor <= rb;
+                    d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
+                    d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
                     d1.is_signed <= '1';
+                    d1.neg_result <= ra(63) xor rb(63);
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.valid <= '1';
@@ -365,6 +371,7 @@ begin
                     d1.dividend <= ra;
                     d1.divisor <= rb;
                     d1.is_signed <= '0';
+                    d1.neg_result <= '0';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.valid <= '1';
@@ -398,9 +405,10 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    d1.dividend <= ra;
-                    d1.divisor <= rb;
+                    d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
+                    d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
                     d1.is_signed <= '1';
+                    d1.neg_result <= ra(63);
                     d1.is_extended <= '0';
                     d1.is_32bit <= '0';
                     d1.is_modulus <= '1';
@@ -438,6 +446,7 @@ begin
                     d1.dividend <= ra;
                     d1.divisor <= rb;
                     d1.is_signed <= '0';
+                    d1.neg_result <= '0';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '0';
                     d1.is_modulus <= '1';
@@ -472,9 +481,10 @@ begin
                     ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
                     rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
 
-                    d1.dividend <= ra;
-                    d1.divisor <= rb;
+                    d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
+                    d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
                     d1.is_signed <= '1';
+                    d1.neg_result <= ra(63);
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.is_modulus <= '1';
@@ -517,6 +527,7 @@ begin
                     d1.dividend <= ra;
                     d1.divisor <= rb;
                     d1.is_signed <= '0';
+                    d1.neg_result <= '0';
                     d1.is_extended <= '0';
                     d1.is_32bit <= '1';
                     d1.is_modulus <= '1';

@@ -10,8 +10,8 @@ entity divider is
     port (
         clk   : in std_logic;
         rst   : in std_logic;
-        d_in  : in Decode2ToDividerType;
-        d_out : out DividerToWritebackType
+        d_in  : in Execute1ToDividerType;
+        d_out : out DividerToExecute1Type
         );
 end entity divider;
 
@@ -23,7 +23,6 @@ architecture behaviour of divider is
     signal sresult    : std_ulogic_vector(64 downto 0);
     signal oresult    : std_ulogic_vector(63 downto 0);
     signal running    : std_ulogic;
-    signal signcheck  : std_ulogic;
     signal count      : unsigned(6 downto 0);
     signal neg_result : std_ulogic;
     signal is_modulus : std_ulogic;
@@ -48,7 +47,7 @@ begin
                 running <= '0';
                 count <= "0000000";
             elsif d_in.valid = '1' then
-                if d_in.is_extended = '1' and not (d_in.is_signed = '1' and d_in.dividend(63) = '1') then
+                if d_in.is_extended = '1'  then
                     dend <= '0' & d_in.dividend & x"0000000000000000";
                 else
                     dend <= '0' & x"0000000000000000" & d_in.dividend;
@@ -56,7 +55,7 @@ begin
                 div <= unsigned(d_in.divisor);
                 quot <= (others => '0');
                 write_reg <= d_in.write_reg;
-                neg_result <= '0';
+                neg_result <= d_in.neg_result;
                 is_modulus <= d_in.is_modulus;
                 extended <= d_in.is_extended;
                 is_32bit <= d_in.is_32bit;
@@ -68,20 +67,6 @@ begin
                 running <= '1';
                 overflow <= '0';
                 ovf32 <= '0';
-                signcheck <= d_in.is_signed and (d_in.dividend(63) or d_in.divisor(63));
-            elsif signcheck = '1' then
-                signcheck <= '0';
-                neg_result <= dend(63) xor (div(63) and not is_modulus);
-                if dend(63) = '1' then
-                    if extended = '1' then
-                        dend <= '0' & std_ulogic_vector(- signed(dend(63 downto 0))) & x"0000000000000000";
-                    else
-                        dend <= '0' & x"0000000000000000" & std_ulogic_vector(- signed(dend(63 downto 0)));
-                    end if;
-                end if;
-                if div(63) = '1' then
-                    div <= unsigned(- signed(div));
-                end if;
             elsif running = '1' then
                 if count = "0111111" then
                     running <= '0';
@@ -151,12 +136,10 @@ begin
         if rising_edge(clk) then
 	    d_out.valid <= '0';
             d_out.write_reg_data <= oresult;
-	    d_out.write_reg_enable <= '0';
 	    d_out.write_xerc_enable <= '0';
 	    d_out.xerc <= xerc;
             if count = "1000000" then
                 d_out.valid <= '1';
-                d_out.write_reg_enable <= '1';
 		d_out.write_xerc_enable <= oe;
 
 		-- We must test oe because the RC update code in writeback

@@ -13,6 +13,7 @@ use work.ppc_fx_insns.all;
 entity execute1 is
     port (
 	clk   : in std_ulogic;
+        rst   : in std_ulogic;
 
 	-- asynchronous
 	flush_out : out std_ulogic;
@@ -36,6 +37,7 @@ architecture behaviour of execute1 is
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
 	mul_in_progress : std_ulogic;
+        div_in_progress : std_ulogic;
     end record;
 
     signal r, rin : reg_type;
@@ -52,6 +54,10 @@ architecture behaviour of execute1 is
     -- multiply signals
     signal x_to_multiply: Execute1ToMultiplyType;
     signal multiply_to_x: MultiplyToExecute1Type;
+
+    -- divider signals
+    signal x_to_divider: Execute1ToDividerType;
+    signal divider_to_x: DividerToExecute1Type;
 
     procedure set_carry(e: inout Execute1ToWritebackType;
 			carry32 : in std_ulogic;
@@ -135,6 +141,14 @@ begin
             m_out => multiply_to_x
             );
 
+    divider_0: entity work.divider
+        port map (
+            clk => clk,
+            rst => rst,
+            d_in => x_to_divider,
+            d_out => divider_to_x
+            );
+
     execute1_0: process(clk)
     begin
 	if rising_edge(clk) then
@@ -171,6 +185,8 @@ begin
 	variable l : std_ulogic;
 	variable next_nia : std_ulogic_vector(63 downto 0);
         variable carry_32, carry_64 : std_ulogic;
+        variable sign1, sign2 : std_ulogic;
+        variable abs1, abs2 : signed(63 downto 0);
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -217,6 +233,7 @@ begin
 
 	v.lr_update := '0';
 	v.mul_in_progress := '0';
+        v.div_in_progress := '0';
 
 	-- signals to multiply unit
 	x_to_multiply <= Execute1ToMultiplyInit;
@@ -248,6 +265,59 @@ begin
 		x_to_multiply.data2 <= '0' & e_in.read_data2;
 	    end if;
 	end if;
+
+        -- signals to divide unit
+        sign1 := '0';
+        sign2 := '0';
+        if e_in.is_signed = '1' then
+            if e_in.is_32bit = '1' then
+                sign1 := e_in.read_data1(31);
+                sign2 := e_in.read_data2(31);
+            else
+                sign1 := e_in.read_data1(63);
+                sign2 := e_in.read_data2(63);
+            end if;
+        end if;
+        -- take absolute values
+        if sign1 = '0' then
+            abs1 := signed(e_in.read_data1);
+        else
+            abs1 := - signed(e_in.read_data1);
+        end if;
+        if sign2 = '0' then
+            abs2 := signed(e_in.read_data2);
+        else
+            abs2 := - signed(e_in.read_data2);
+        end if;
+
+        x_to_divider <= Execute1ToDividerInit;
+	x_to_divider.write_reg <= gspr_to_gpr(e_in.write_reg);
+        x_to_divider.is_signed <= e_in.is_signed;
+	x_to_divider.is_32bit <= e_in.is_32bit;
+        if e_in.insn_type = OP_MOD then
+            x_to_divider.is_modulus <= '1';
+        end if;
+        x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
+	x_to_divider.rc <= e_in.rc;
+	x_to_divider.oe <= e_in.oe;
+	x_to_divider.xerc <= v.e.xerc;
+        if e_in.is_32bit = '0' then
+            -- 64-bit forms
+            if e_in.insn_type = OP_DIVE then
+                x_to_divider.is_extended <= '1';
+            end if;
+            x_to_divider.dividend <= std_ulogic_vector(abs1);
+            x_to_divider.divisor <= std_ulogic_vector(abs2);
+        else
+            -- 32-bit forms
+            x_to_divider.is_extended <= '0';
+            if e_in.insn_type = OP_DIVE then   -- extended forms
+                x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
+            else
+                x_to_divider.dividend <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
+            end if;
+            x_to_divider.divisor <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
+        end if;
 
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
@@ -550,13 +620,19 @@ begin
 	    when OP_ICBI =>
 		icache_inval <= '1';
 
-		when OP_MUL_L64 | OP_MUL_H64 | OP_MUL_H32 =>
+	    when OP_MUL_L64 | OP_MUL_H64 | OP_MUL_H32 =>
 		v.e.valid := '0';
 		v.mul_in_progress := '1';
 		stall_out <= '1';
 		x_to_multiply.valid <= '1';
 
-	    when others =>
+	    when OP_DIV | OP_DIVE | OP_MOD =>
+		v.e.valid := '0';
+		v.div_in_progress := '1';
+		stall_out <= '1';
+		x_to_divider.valid <= '1';
+
+            when others =>
 		terminate_out <= '1';
 		report "illegal";
 	    end case;
@@ -602,6 +678,21 @@ begin
 	    else
 		stall_out <= '1';
 		v.mul_in_progress := '1';
+	    end if;
+        elsif r.div_in_progress = '1' then
+            if divider_to_x.valid = '1' then
+                v.e.write_reg := gpr_to_gspr(divider_to_x.write_reg_nr);
+                result := divider_to_x.write_reg_data;
+                result_en := '1';
+                v.e.rc := divider_to_x.rc;
+                v.e.xerc := divider_to_x.xerc;
+                v.e.write_xerc_enable := divider_to_x.write_xerc_enable;
+                v.e.valid := '1';
+                v.e.write_len := x"8";
+		v.e.sign_extend := '0';
+	    else
+		stall_out <= '1';
+		v.div_in_progress := '1';
 	    end if;
 	end if;
 

@@ -63,10 +63,6 @@ architecture behave of core is
     signal loadstore1_to_dcache: Loadstore1ToDcacheType;
     signal dcache_to_writeback: DcacheToWritebackType;
 
-    -- divider signals
-    signal decode2_to_divider: Decode2ToDividerType;
-    signal divider_to_writeback: DividerToWritebackType;
-
     -- local signals
     signal fetch1_stall_in : std_ulogic;
     signal icache_stall_out : std_ulogic;
@@ -111,7 +107,6 @@ architecture behave of core is
     attribute keep_hierarchy of register_file_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of cr_file_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of execute1_0 : label is keep_h(DISABLE_FLATTEN);
-    attribute keep_hierarchy of divider_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of loadstore1_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of dcache_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of writeback_0 : label is keep_h(DISABLE_FLATTEN);
@@ -192,7 +187,6 @@ begin
             d_in => decode1_to_decode2,
             e_out => decode2_to_execute1,
             l_out => decode2_to_loadstore1,
-            d_out => decode2_to_divider,
             r_in => register_file_to_decode2,
             r_out => decode2_to_register_file,
             c_in => cr_file_to_decode2,
@@ -228,6 +222,7 @@ begin
     execute1_0: entity work.execute1
         port map (
             clk => clk,
+            rst => core_rst,
             flush_out => flush,
 	    stall_out => ex1_stall_out,
             e_in => decode2_to_execute1,
@@ -259,20 +254,11 @@ begin
             wishbone_out => wishbone_data_out
             );
 
-    divider_0: entity work.divider
-        port map (
-            clk => clk,
-            rst => core_rst,
-            d_in => decode2_to_divider,
-            d_out => divider_to_writeback
-            );
-
     writeback_0: entity work.writeback
         port map (
             clk => clk,
             e_in => execute1_to_writeback,
             l_in => dcache_to_writeback,
-            d_in => divider_to_writeback,
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             complete_out => complete

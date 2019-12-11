@@ -24,7 +24,6 @@ entity decode2 is
 		d_in  : in Decode1ToDecode2Type;
 
 		e_out : out Decode2ToExecute1Type;
-                d_out : out Decode2ToDividerType;
 		l_out : out Decode2ToLoadstore1Type;
 
 		r_in  : in RegisterFileToDecode2Type;
@@ -38,7 +37,6 @@ end entity decode2;
 architecture behaviour of decode2 is
 	type reg_type is record
 		e : Decode2ToExecute1Type;
-                d : Decode2ToDividerType;
 		l : Decode2ToLoadstore1Type;
 	end record;
 
@@ -236,7 +234,7 @@ begin
 	decode2_0: process(clk)
 	begin
 		if rising_edge(clk) then
-			if rin.e.valid = '1' or rin.l.valid = '1' or rin.d.valid = '1' then
+			if rin.e.valid = '1' or rin.l.valid = '1' then
 				report "execute " & to_hstring(rin.e.nia);
 			end if;
 			r <= rin;
@@ -257,14 +255,12 @@ begin
 		variable decoded_reg_b : decode_input_reg_t;
 		variable decoded_reg_c : decode_input_reg_t;
 		variable decoded_reg_o : decode_output_reg_t;
-                variable signed_division: std_ulogic;
                 variable length : std_ulogic_vector(3 downto 0);
 	begin
 		v := r;
 
 		v.e := Decode2ToExecute1Init;
 		v.l := Decode2ToLoadStore1Init;
-                v.d := Decode2ToDividerInit;
 
 		mul_a := (others => '0');
 		mul_b := (others => '0');
@@ -319,51 +315,6 @@ begin
                 v.e.insn := d_in.insn;
                 v.e.data_len := length;
 
-                -- divide unit
-                -- PPC divide and modulus instruction words have these bits in
-                -- the bottom 11 bits: o1dns 010t1 r
-                -- where o = OE for div instrs, signedness for mod instrs
-                --       d = 1 for div*, 0 for mod*
-                --       n = 1 for normal, 0 for extended (dividend << 32/64)
-                --       s = 1 for signed, 0 for unsigned (for div*)
-                --       t = 1 for 32-bit, 0 for 64-bit
-                --       r = RC bit (record condition code)
-		v.d.write_reg := gspr_to_gpr(decoded_reg_o.reg);
-                v.d.is_modulus := not d_in.insn(8);
-                v.d.is_32bit := d_in.insn(2);
-                if d_in.insn(8) = '1' then
-                        signed_division := d_in.insn(6);
-                else
-                        signed_division := d_in.insn(10);
-                end if;
-                v.d.is_signed := signed_division;
-                if d_in.insn(2) = '0' then
-                        -- 64-bit forms
-                        if d_in.insn(8) = '1' and d_in.insn(7) = '0' then
-                                v.d.is_extended := '1';
-                        end if;
-                        v.d.dividend := decoded_reg_a.data;
-                        v.d.divisor := decoded_reg_b.data;
-                else
-                        -- 32-bit forms
-                        if d_in.insn(8) = '1' and d_in.insn(7) = '0' then   -- extended forms
-                                v.d.dividend := decoded_reg_a.data(31 downto 0) & x"00000000";
-                        elsif signed_division = '1' and decoded_reg_a.data(31) = '1' then
-                                -- sign extend to 64 bits
-                                v.d.dividend := x"ffffffff" & decoded_reg_a.data(31 downto 0);
-                        else
-                                v.d.dividend := x"00000000" & decoded_reg_a.data(31 downto 0);
-                        end if;
-                        if signed_division = '1' and decoded_reg_b.data(31) = '1' then
-                                v.d.divisor := x"ffffffff" & decoded_reg_b.data(31 downto 0);
-                        else
-                                v.d.divisor := x"00000000" & decoded_reg_b.data(31 downto 0);
-                        end if;
-                end if;
-                v.d.rc := decode_rc(d_in.decode.rc, d_in.insn);
-		v.d.xerc := c_in.read_xerc_data;
-		v.d.oe := decode_oe(d_in.decode.rc, d_in.insn);
-
 		-- load/store unit
 		v.l.update_reg := gspr_to_gpr(decoded_reg_a.reg);
 		v.l.addr1 := decoded_reg_a.data;
@@ -402,15 +353,12 @@ begin
                 cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
 
 		v.e.valid := '0';
-                v.d.valid := '0';
 		v.l.valid := '0';
 		case d_in.decode.unit is
 		when ALU =>
 			v.e.valid := control_valid_out;
 		when LDST =>
 			v.l.valid := control_valid_out;
-                when DIV =>
-                        v.d.valid := control_valid_out;
 		when NONE =>
 			v.e.valid := control_valid_out;
 			v.e.insn_type := OP_ILLEGAL;
@@ -419,7 +367,6 @@ begin
 		if rst = '1' then
 			v.e := Decode2ToExecute1Init;
 			v.l := Decode2ToLoadStore1Init;
-                        v.d := Decode2ToDividerInit;
 		end if;
 
 		-- Update registers
@@ -428,6 +375,5 @@ begin
 		-- Update outputs
 		e_out <= r.e;
 		l_out <= r.l;
-                d_out <= r.d;
 	end process;
 end architecture behaviour;
