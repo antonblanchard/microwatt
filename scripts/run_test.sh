@@ -17,17 +17,18 @@ trap finish EXIT
 
 MICROWATT_DIR=$PWD
 
-Y=$(${MICROWATT_DIR}/scripts/hash.py tests/${TEST}.out)
-
 cd $TMPDIR
 
 cp ${MICROWATT_DIR}/tests/${TEST}.bin main_ram.bin
 
-X=$( ${MICROWATT_DIR}/core_tb | ${MICROWATT_DIR}/scripts/hash.py )
+${MICROWATT_DIR}/core_tb | sed 's/.*: //' | egrep '^(GPR[0-9]|LR |CTR |XER |CR [0-9])' | sort | grep -v GPR31 | grep -v XER > test.out || true
 
-if [ $X == $Y ]; then
-	echo "$TEST PASS"
-else
-	echo "$TEST FAIL ********"
-	exit 1
-fi
+grep -v "^$" ${MICROWATT_DIR}/tests/${TEST}.out | sort | grep -v GPR31 | grep -v XER > exp.out
+
+cp test.out /tmp
+cp exp.out /tmp
+
+diff -q test.out exp.out && echo "$TEST PASS" && exit 0
+
+echo "$TEST FAIL ********"
+exit 1

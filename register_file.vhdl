@@ -18,7 +18,8 @@ entity register_file is
         w_in          : in WritebackToRegisterFileType;
 
         -- debug
-        sim_dump      : in std_ulogic
+        sim_dump      : in std_ulogic;
+        sim_dump_done : out std_ulogic
         );
 end entity register_file;
 
@@ -78,9 +79,15 @@ begin
 	begin
 	    if sim_dump = '1' then
 		loop_0: for i in 0 to 31 loop
-		    report "REG " & to_hstring(registers(i));
+		    report "GPR" & integer'image(i) & " " & to_hstring(registers(i));
 		end loop loop_0;
-		assert false report "end of test" severity failure;
+
+		report "LR " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_LR)))));
+		report "CTR " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_CTR)))));
+		report "XER " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_XER)))));
+		sim_dump_done <= '1';
+	    else
+		sim_dump_done <= '0';
 	    end if;
 	end process;
     end generate;

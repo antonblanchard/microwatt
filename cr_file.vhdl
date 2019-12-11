@@ -6,13 +6,19 @@ library work;
 use work.common.all;
 
 entity cr_file is
+    generic (
+        SIM : boolean := false
+        );
     port(
         clk   : in std_logic;
 
         d_in  : in Decode2ToCrFileType;
         d_out : out CrFileToDecode2Type;
 
-        w_in  : in WritebackToCrFileType
+        w_in  : in WritebackToCrFileType;
+
+        -- debug
+        sim_dump : in std_ulogic
         );
 end entity cr_file;
 
@@ -71,4 +77,15 @@ begin
         d_out.read_cr_data <= crs_updated;
         d_out.read_xerc_data <= xerc_updated;
     end process;
+
+    sim_dump_test: if SIM generate
+        dump_cr: process(all)
+        begin
+            if sim_dump = '1' then
+                report "CR 00000000" & to_hstring(crs);
+		assert false report "end of test" severity failure;
+            end if;
+        end process;
+    end generate;
+
 end architecture behaviour;
