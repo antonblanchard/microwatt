@@ -192,6 +192,7 @@ begin
         variable sign1, sign2 : std_ulogic;
         variable abs1, abs2 : signed(63 downto 0);
 	variable overflow : std_ulogic;
+	variable negative : std_ulogic;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -335,8 +336,6 @@ begin
 
 	    v.e.valid := '1';
 	    v.e.write_reg := e_in.write_reg;
-	    v.e.write_len := x"8";
-	    v.e.sign_extend := '0';
 	    v.slow_op_dest := gspr_to_gpr(e_in.write_reg);
 	    v.slow_op_rc := e_in.rc;
 	    v.slow_op_oe := e_in.oe;
@@ -438,10 +437,19 @@ begin
 	    when OP_CNTZ =>
 		result := countzero_result;
 		result_en := '1';
-	    when OP_EXTS =>
-		v.e.write_len := e_in.data_len;
-		v.e.sign_extend := '1';
-		result := e_in.read_data3;
+            when OP_EXTS =>
+                -- note data_len is a 1-hot encoding
+		negative := (e_in.data_len(0) and e_in.read_data3(7)) or
+			    (e_in.data_len(1) and e_in.read_data3(15)) or
+			    (e_in.data_len(2) and e_in.read_data3(31));
+		result := (others => negative);
+		if e_in.data_len(2) = '1' then
+		    result(31 downto 16) := e_in.read_data3(31 downto 16);
+		end if;
+		if e_in.data_len(2) = '1' or e_in.data_len(1) = '1' then
+		    result(15 downto 8) := e_in.read_data3(15 downto 8);
+		end if;
+		result(7 downto 0) := e_in.read_data3(7 downto 0);
 		result_en := '1';
 	    when OP_ISEL =>
 		crbit := to_integer(unsigned(insn_bc(e_in.insn)));
@@ -660,8 +668,6 @@ begin
 	    result_en := '1';
 	    result := r.next_lr;
 	    v.e.write_reg := fast_spr_num(SPR_LR);
-	    v.e.write_len := x"8";
-	    v.e.sign_extend := '0';
 	    v.e.valid := '1';
 	elsif r.mul_in_progress = '1' or r.div_in_progress = '1' then
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
@@ -687,8 +693,6 @@ begin
 		    v.e.xerc.so := v.slow_op_xerc.so or overflow;
 		end if;
 		v.e.valid := '1';
-		v.e.write_len := x"8";
-		v.e.sign_extend := '0';
 	    else
 		stall_out <= '1';
 		v.mul_in_progress := r.mul_in_progress;

@@ -240,16 +240,14 @@ package common is
 	write_enable : std_ulogic;
 	write_reg: gspr_index_t;
 	write_data: std_ulogic_vector(63 downto 0);
-	write_len : std_ulogic_vector(3 downto 0);
 	write_cr_enable : std_ulogic;
 	write_cr_mask : std_ulogic_vector(7 downto 0);
 	write_cr_data : std_ulogic_vector(31 downto 0);
 	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
-	sign_extend: std_ulogic;
     end record;
     constant Execute1ToWritebackInit : Execute1ToWritebackType := (valid => '0', rc => '0', write_enable => '0',
-								   write_cr_enable => '0', sign_extend => '0',
+								   write_cr_enable => '0',
 								   write_xerc_enable => '0', xerc => xerc_init,
 								   others => (others => '0'));
 
