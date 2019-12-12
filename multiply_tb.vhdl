@@ -40,10 +40,8 @@ begin
 
         m1.valid <= '1';
         m1.insn_type <= OP_MUL_L64;
-        m1.write_reg <= "10001";
         m1.data1 <= '0' & x"0000000000001000";
         m1.data2 <= '0' & x"0000000000001111";
-        m1.rc <= '0';
 
         wait for clk_period;
         assert m2.valid = '0';
@@ -58,15 +56,12 @@ begin
 
         wait for clk_period;
         assert m2.valid = '1';
-        assert m2.write_reg_nr = "10001";
         assert m2.write_reg_data = x"0000000001111000";
-        assert m2.rc = '0';
 
         wait for clk_period;
         assert m2.valid = '0';
 
         m1.valid <= '1';
-        m1.rc <= '1';
 
         wait for clk_period;
         assert m2.valid = '0';
@@ -75,9 +70,7 @@ begin
 
         wait for clk_period * (pipeline_depth-1);
         assert m2.valid = '1';
-        assert m2.write_reg_nr = "10001";
         assert m2.write_reg_data = x"0000000001111000";
-        assert m2.rc = '1';
 
         -- test mulld
         mulld_loop : for i in 0 to 1000 loop

@@ -300,7 +300,9 @@ begin
                 v.e.read_data3 := decoded_reg_c.data;
 		v.e.write_reg := decoded_reg_o.reg;
 		v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
-		v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
+                if not (d_in.decode.insn_type = OP_MUL_H32 or d_in.decode.insn_type = OP_MUL_H64) then
+                        v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
+                end if;
 		v.e.cr := c_in.read_cr_data;
 		v.e.xerc := c_in.read_xerc_data;
                 v.e.invert_a := d_in.decode.invert_a;

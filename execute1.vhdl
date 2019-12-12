@@ -38,6 +38,10 @@ architecture behaviour of execute1 is
 	next_lr : std_ulogic_vector(63 downto 0);
 	mul_in_progress : std_ulogic;
         div_in_progress : std_ulogic;
+	slow_op_dest : gpr_index_t;
+	slow_op_rc : std_ulogic;
+	slow_op_oe : std_ulogic;
+	slow_op_xerc : xer_common_t;
     end record;
 
     signal r, rin : reg_type;
@@ -187,6 +191,7 @@ begin
         variable carry_32, carry_64 : std_ulogic;
         variable sign1, sign2 : std_ulogic;
         variable abs1, abs2 : signed(63 downto 0);
+	variable overflow : std_ulogic;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -238,12 +243,6 @@ begin
 	-- signals to multiply unit
 	x_to_multiply <= Execute1ToMultiplyInit;
 	x_to_multiply.insn_type <= e_in.insn_type;
-	x_to_multiply.write_reg <= gspr_to_gpr(e_in.write_reg);
-	x_to_multiply.rc <= e_in.rc;
-	x_to_multiply.xerc <= v.e.xerc;
-	if e_in.insn_type = OP_MUL_L64 then
-	    x_to_multiply.oe <= e_in.oe;
-	end if;
 	x_to_multiply.is_32bit <= e_in.is_32bit;
 
 	if e_in.is_32bit = '1' then
@@ -291,16 +290,12 @@ begin
         end if;
 
         x_to_divider <= Execute1ToDividerInit;
-	x_to_divider.write_reg <= gspr_to_gpr(e_in.write_reg);
         x_to_divider.is_signed <= e_in.is_signed;
 	x_to_divider.is_32bit <= e_in.is_32bit;
         if e_in.insn_type = OP_MOD then
             x_to_divider.is_modulus <= '1';
         end if;
         x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
-	x_to_divider.rc <= e_in.rc;
-	x_to_divider.oe <= e_in.oe;
-	x_to_divider.xerc <= v.e.xerc;
         if e_in.is_32bit = '0' then
             -- 64-bit forms
             if e_in.insn_type = OP_DIVE then
@@ -342,6 +337,10 @@ begin
 	    v.e.write_reg := e_in.write_reg;
 	    v.e.write_len := x"8";
 	    v.e.sign_extend := '0';
+	    v.slow_op_dest := gspr_to_gpr(e_in.write_reg);
+	    v.slow_op_rc := e_in.rc;
+	    v.slow_op_oe := e_in.oe;
+	    v.slow_op_xerc := v.e.xerc;
 
 	    case_0: case e_in.insn_type is
 
@@ -664,35 +663,36 @@ begin
 	    v.e.write_len := x"8";
 	    v.e.sign_extend := '0';
 	    v.e.valid := '1';
-	elsif r.mul_in_progress = '1' then
-	    if multiply_to_x.valid = '1' then
-		v.e.write_reg := gpr_to_gspr(multiply_to_x.write_reg_nr);
-		result := multiply_to_x.write_reg_data;
+	elsif r.mul_in_progress = '1' or r.div_in_progress = '1' then
+	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
+	       (r.div_in_progress = '1' and divider_to_x.valid = '1') then
+		if r.mul_in_progress = '1' then
+		    result := multiply_to_x.write_reg_data;
+		    overflow := multiply_to_x.overflow;
+		else
+		    result := divider_to_x.write_reg_data;
+		    overflow := divider_to_x.overflow;
+		end if;
 		result_en := '1';
-		v.e.rc := multiply_to_x.rc;
-		v.e.xerc := multiply_to_x.xerc;
-		v.e.write_xerc_enable := multiply_to_x.write_xerc_enable;
+		v.e.write_reg := gpr_to_gspr(v.slow_op_dest);
+		v.e.rc := v.slow_op_rc;
+		v.e.xerc := v.slow_op_xerc;
+		v.e.write_xerc_enable := v.slow_op_oe;
+		-- We must test oe because the RC update code in writeback
+		-- will use the xerc value to set CR0:SO so we must not clobber
+		-- xerc if OE wasn't set.
+		if v.slow_op_oe = '1' then
+		    v.e.xerc.ov := overflow;
+		    v.e.xerc.ov32 := overflow;
+		    v.e.xerc.so := v.slow_op_xerc.so or overflow;
+		end if;
 		v.e.valid := '1';
 		v.e.write_len := x"8";
 		v.e.sign_extend := '0';
 	    else
 		stall_out <= '1';
-		v.mul_in_progress := '1';
-	    end if;
-        elsif r.div_in_progress = '1' then
-            if divider_to_x.valid = '1' then
-                v.e.write_reg := gpr_to_gspr(divider_to_x.write_reg_nr);
-                result := divider_to_x.write_reg_data;
-                result_en := '1';
-                v.e.rc := divider_to_x.rc;
-                v.e.xerc := divider_to_x.xerc;
-                v.e.write_xerc_enable := divider_to_x.write_xerc_enable;
-                v.e.valid := '1';
-                v.e.write_len := x"8";
-		v.e.sign_extend := '0';
-	    else
-		stall_out <= '1';
-		v.div_in_progress := '1';
+		v.mul_in_progress := r.mul_in_progress;
+		v.div_in_progress := r.div_in_progress;
 	    end if;
 	end if;
 

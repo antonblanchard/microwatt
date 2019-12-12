@@ -43,7 +43,6 @@ begin
         rst <= '0';
 
         d1.valid <= '1';
-        d1.write_reg <= "10001";
         d1.dividend <= x"0000000010001000";
         d1.divisor  <= x"0000000000001111";
         d1.is_signed <= '0';
@@ -51,7 +50,6 @@ begin
         d1.is_extended <= '0';
         d1.is_modulus <= '0';
         d1.neg_result <= '0';
-        d1.rc <= '0';
 
         wait for clk_period;
         assert d2.valid = '0';
@@ -66,15 +64,12 @@ begin
         end loop;
 
         assert d2.valid = '1';
-        assert d2.write_reg_nr = "10001";
         assert d2.write_reg_data = x"000000000000f001" report "result " & to_hstring(d2.write_reg_data);
-        assert d2.rc = '0';
 
         wait for clk_period;
         assert d2.valid = '0' report "valid";
 
         d1.valid <= '1';
-        d1.rc <= '1';
 
         wait for clk_period;
         assert d2.valid = '0' report "valid";
@@ -89,9 +84,7 @@ begin
         end loop;
 
         assert d2.valid = '1';
-        assert d2.write_reg_nr = "10001";
         assert d2.write_reg_data = x"000000000000f001" report "result " & to_hstring(d2.write_reg_data);
-        assert d2.rc = '1';
 
         wait for clk_period;
         assert d2.valid = '0';

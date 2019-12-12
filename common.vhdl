@@ -133,21 +133,16 @@ package common is
     type Execute1ToMultiplyType is record
 	valid: std_ulogic;
 	insn_type: insn_type_t;
-	write_reg: gpr_index_t;
 	data1: std_ulogic_vector(64 downto 0);
 	data2: std_ulogic_vector(64 downto 0);
-	rc: std_ulogic;
-	oe: std_ulogic;
 	is_32bit: std_ulogic;
-	xerc: xer_common_t;
     end record;
-    constant Execute1ToMultiplyInit : Execute1ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0',
-								 oe => '0', is_32bit => '0', xerc => xerc_init,
+    constant Execute1ToMultiplyInit : Execute1ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL,
+								 is_32bit => '0',
 								 others => (others => '0'));
 
     type Execute1ToDividerType is record
 	valid: std_ulogic;
-	write_reg: gpr_index_t;
 	dividend: std_ulogic_vector(63 downto 0);
 	divisor: std_ulogic_vector(63 downto 0);
 	is_signed: std_ulogic;
@@ -155,13 +150,9 @@ package common is
 	is_extended: std_ulogic;
 	is_modulus: std_ulogic;
         neg_result: std_ulogic;
-	rc: std_ulogic;
-	oe: std_ulogic;
-	xerc: xer_common_t;
     end record;
     constant Execute1ToDividerInit: Execute1ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0',
                                                               is_extended => '0', is_modulus => '0',
-                                                              rc => '0', oe => '0', xerc => xerc_init,
                                                               neg_result => '0', others => (others => '0'));
 
     type Decode2ToRegisterFileType is record
@@ -264,30 +255,18 @@ package common is
 
     type MultiplyToExecute1Type is record
 	valid: std_ulogic;
-
-	write_reg_nr: gpr_index_t;
 	write_reg_data: std_ulogic_vector(63 downto 0);
-	write_xerc_enable : std_ulogic;
-	xerc : xer_common_t;
-	rc: std_ulogic;
+        overflow : std_ulogic;
     end record;
-    constant MultiplyToExecute1Init : MultiplyToExecute1Type := (valid => '0',
-								 rc => '0', write_xerc_enable => '0',
-								 xerc => xerc_init,
+    constant MultiplyToExecute1Init : MultiplyToExecute1Type := (valid => '0', overflow => '0',
 								 others => (others => '0'));
 
     type DividerToExecute1Type is record
 	valid: std_ulogic;
-
-	write_reg_nr: gpr_index_t;
 	write_reg_data: std_ulogic_vector(63 downto 0);
-	write_xerc_enable : std_ulogic;
-	xerc : xer_common_t;
-	rc: std_ulogic;
+        overflow : std_ulogic;
     end record;
-    constant DividerToExecute1Init : DividerToExecute1Type := (valid => '0',
-                                                               rc => '0', write_xerc_enable => '0',
-                                                               xerc => xerc_init,
+    constant DividerToExecute1Init : DividerToExecute1Type := (valid => '0', overflow => '0',
                                                                others => (others => '0'));
 
     type WritebackToRegisterFileType is record
