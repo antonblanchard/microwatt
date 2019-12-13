@@ -193,6 +193,9 @@ begin
         variable abs1, abs2 : signed(63 downto 0);
 	variable overflow : std_ulogic;
 	variable negative : std_ulogic;
+        variable zerohi, zerolo : std_ulogic;
+        variable msb_a, msb_b : std_ulogic;
+        variable a_lt : std_ulogic;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -348,7 +351,7 @@ begin
 		report "illegal";
 	    when OP_NOP =>
 		-- Do nothing
-	    when OP_ADD =>
+	    when OP_ADD | OP_CMP =>
 		if e_in.invert_a = '0' then
 		    a_inv := e_in.read_data1;
 		else
@@ -359,15 +362,57 @@ begin
 		result := result_with_carry(63 downto 0);
                 carry_32 := result(32) xor a_inv(32) xor e_in.read_data2(32);
                 carry_64 := result_with_carry(64);
-		if e_in.output_carry = '1' then
-		    set_carry(v.e, carry_32, carry_64);
-		end if;
-		if e_in.oe = '1' then
-		    set_ov(v.e,
-			   calc_ov(a_inv(63), e_in.read_data2(63), carry_64, result_with_carry(63)),
-			   calc_ov(a_inv(31), e_in.read_data2(31), carry_32, result_with_carry(31)));
-		end if;
-		result_en := '1';
+                if e_in.insn_type = OP_ADD then
+                    if e_in.output_carry = '1' then
+                        set_carry(v.e, carry_32, carry_64);
+                    end if;
+                    if e_in.oe = '1' then
+                        set_ov(v.e,
+                               calc_ov(a_inv(63), e_in.read_data2(63), carry_64, result_with_carry(63)),
+                               calc_ov(a_inv(31), e_in.read_data2(31), carry_32, result_with_carry(31)));
+                    end if;
+                    result_en := '1';
+                else
+                    -- CMP and CMPL instructions
+                    -- Note, we have done RB - RA, not RA - RB
+                    bf := insn_bf(e_in.insn);
+                    l := insn_l(e_in.insn);
+                    v.e.write_cr_enable := '1';
+                    crnum := to_integer(unsigned(bf));
+                    v.e.write_cr_mask := num_to_fxm(crnum);
+                    zerolo := not (or (e_in.read_data1(31 downto 0) xor e_in.read_data2(31 downto 0)));
+                    zerohi := not (or (e_in.read_data1(63 downto 32) xor e_in.read_data2(63 downto 32)));
+                    if zerolo = '1' and (l = '0' or zerohi = '1') then
+                        -- values are equal
+                        newcrf := "001" & v.e.xerc.so;
+                    else
+                        if l = '1' then
+                            -- 64-bit comparison
+                            msb_a := e_in.read_data1(63);
+                            msb_b := e_in.read_data2(63);
+                        else
+                            -- 32-bit comparison
+                            msb_a := e_in.read_data1(31);
+                            msb_b := e_in.read_data2(31);
+                        end if;
+                        if msb_a /= msb_b then
+                            -- Subtraction might overflow, but
+                            -- comparison is clear from MSB difference.
+                            -- for signed, 0 is greater; for unsigned, 1 is greater
+                            a_lt := msb_a xnor e_in.is_signed;
+                        else
+                            -- Subtraction cannot overflow since MSBs are equal.
+                            -- carry = 1 indicates RA is smaller (signed or unsigned)
+                            a_lt := (not l and carry_32) or (l and carry_64);
+                        end if;
+                        newcrf := a_lt & not a_lt & '0' & v.e.xerc.so;
+                    end if;
+                    for i in 0 to 7 loop
+                        lo := i*4;
+                        hi := lo + 3;
+                        v.e.write_cr_data(hi downto lo) := newcrf;
+                    end loop;
+                end if;
 	    when OP_AND | OP_OR | OP_XOR =>
 		result := logical_result;
 		result_en := '1';
@@ -412,28 +457,6 @@ begin
 	    when OP_CMPB =>
 		result := ppc_cmpb(e_in.read_data3, e_in.read_data2);
 		result_en := '1';
-	    when OP_CMP =>
-		bf := insn_bf(e_in.insn);
-		l := insn_l(e_in.insn);
-		v.e.write_cr_enable := '1';
-		crnum := to_integer(unsigned(bf));
-		v.e.write_cr_mask := num_to_fxm(crnum);
-		for i in 0 to 7 loop
-		    lo := i*4;
-		    hi := lo + 3;
-		    v.e.write_cr_data(hi downto lo) := ppc_cmp(l, e_in.read_data1, e_in.read_data2, v.e.xerc.so);
-		end loop;
-	    when OP_CMPL =>
-		bf := insn_bf(e_in.insn);
-		l := insn_l(e_in.insn);
-		v.e.write_cr_enable := '1';
-		crnum := to_integer(unsigned(bf));
-		v.e.write_cr_mask := num_to_fxm(crnum);
-		for i in 0 to 7 loop
-		    lo := i*4;
-		    hi := lo + 3;
-		    v.e.write_cr_data(hi downto lo) := ppc_cmpl(l, e_in.read_data1, e_in.read_data2, v.e.xerc.so);
-		end loop;
 	    when OP_CNTZ =>
 		result := countzero_result;
 		result_en := '1';
