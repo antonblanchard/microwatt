@@ -152,6 +152,10 @@ begin
 	variable sh32, mb32, me32 : std_ulogic_vector(4 downto 0);
 	variable bo, bi : std_ulogic_vector(4 downto 0);
 	variable bf, bfa : std_ulogic_vector(2 downto 0);
+	variable cr_op : std_ulogic_vector(9 downto 0);
+	variable bt, ba, bb : std_ulogic_vector(4 downto 0);
+	variable btnum, banum, bbnum : integer range 0 to 31;
+	variable crresult : std_ulogic;
 	variable l : std_ulogic;
 	variable next_nia : std_ulogic_vector(63 downto 0);
         variable carry_32, carry_64 : std_ulogic;
@@ -335,24 +339,64 @@ begin
 		end if;
 		result_en := '1';
 	    when OP_MCRF =>
-		bf := insn_bf(e_in.insn);
-		bfa := insn_bfa(e_in.insn);
-		v.e.write_cr_enable := '1';
-		crnum := to_integer(unsigned(bf));
-		scrnum := to_integer(unsigned(bfa));
-		v.e.write_cr_mask := num_to_fxm(crnum);
-		for i in 0 to 7 loop
-		    lo := (7-i)*4;
-		    hi := lo + 3;
-		    if i = scrnum then
-			newcrf := e_in.cr(hi downto lo);
-		    end if;
-		end loop;
-		for i in 0 to 7 loop
-		    lo := i*4;
-		    hi := lo + 3;
-		    v.e.write_cr_data(hi downto lo) := newcrf;
-		end loop;
+		cr_op := insn_cr(e_in.insn);
+		report "CR OP " & to_hstring(cr_op);
+		if cr_op(0) = '0' then -- MCRF
+		    bf := insn_bf(e_in.insn);
+		    bfa := insn_bfa(e_in.insn);
+		    v.e.write_cr_enable := '1';
+		    crnum := to_integer(unsigned(bf));
+		    scrnum := to_integer(unsigned(bfa));
+		    v.e.write_cr_mask := num_to_fxm(crnum);
+		    for i in 0 to 7 loop
+		        lo := (7-i)*4;
+		        hi := lo + 3;
+		        if i = scrnum then
+			    newcrf := e_in.cr(hi downto lo);
+		        end if;
+		    end loop;
+		    for i in 0 to 7 loop
+		        lo := i*4;
+		        hi := lo + 3;
+		        v.e.write_cr_data(hi downto lo) := newcrf;
+		    end loop;
+		else
+		    v.e.write_cr_enable := '1';
+		    bt := insn_bt(e_in.insn);
+		    ba := insn_ba(e_in.insn);
+		    bb := insn_bb(e_in.insn);
+		    btnum := 31 - to_integer(unsigned(bt));
+		    banum := 31 - to_integer(unsigned(ba));
+		    bbnum := 31 - to_integer(unsigned(bb));
+		    case cr_op(8 downto 5) is
+	            when "1001" => -- CREQV
+			crresult := not(e_in.cr(banum) xor e_in.cr(bbnum));
+	            when "0111" => -- CRNAND
+			crresult := not(e_in.cr(banum) and e_in.cr(bbnum));
+	            when "0100" => -- CRANDC
+			crresult := (e_in.cr(banum) and not e_in.cr(bbnum));
+	            when "1000" => -- CRAND
+			crresult := (e_in.cr(banum) and e_in.cr(bbnum));
+	            when "0001" => -- CRNOR
+			crresult := not(e_in.cr(banum) or e_in.cr(bbnum));
+	            when "1101" => -- CRORC
+			crresult := (e_in.cr(banum) or not e_in.cr(bbnum));
+	            when "0110" => -- CRXOR
+			crresult := (e_in.cr(banum) xor e_in.cr(bbnum));
+	            when "1110" => -- CROR
+			crresult := (e_in.cr(banum) or e_in.cr(bbnum));
+		    when others =>
+		        report "BAD CR?";
+	            end case;
+		    v.e.write_cr_mask := num_to_fxm((31-btnum) / 4);
+		    for i in 0 to 31 loop
+			if i = btnum then
+		            v.e.write_cr_data(i) := crresult;
+			else
+		            v.e.write_cr_data(i) := e_in.cr(i);
+			end if;
+		    end loop;
+		end if;
 	    when OP_MFSPR =>
 		if is_fast_spr(e_in.read_reg1) then
 		    result := e_in.read_data1;
