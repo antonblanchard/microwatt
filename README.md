@@ -63,6 +63,11 @@ source /opt/Xilinx/Vivado/2019.1/settings64.sh
 ```
 pip3 install --user -U fusesoc
 ```
+Fedora users can get FuseSoC package via
+```
+sudo dnf copr enable sharkcz/danny
+sudo dnf install fusesoc
+```
 
 - Create a working directory and point FuseSoC at microwatt:
 
