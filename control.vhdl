@@ -58,6 +58,8 @@ architecture rtl of control is
 
     signal gpr_write_valid : std_ulogic := '0';
     signal cr_write_valid  : std_ulogic := '0';
+
+    signal gpr_c_read_in_fmt : std_ulogic_vector(5 downto 0);
 begin
     gpr_hazard0: entity work.gpr_hazard
         generic map (
@@ -91,6 +93,8 @@ begin
             stall_out          => stall_b_out
             );
 
+    gpr_c_read_in_fmt <= "0" & gpr_c_read_in;
+
     gpr_hazard2: entity work.gpr_hazard
         generic map (
             PIPELINE_DEPTH => PIPELINE_DEPTH
@@ -102,7 +106,7 @@ begin
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
             gpr_read_valid_in  => gpr_c_read_valid_in,
-            gpr_read_in        => "0" & gpr_c_read_in,
+            gpr_read_in        => gpr_c_read_in_fmt,
 
             stall_out          => stall_c_out
             );
