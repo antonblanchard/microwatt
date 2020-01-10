@@ -19,9 +19,8 @@ You can try out Microwatt/Micropython without hardware by using the ghdl simulat
   grab the powerpc64le-power8 toolchain from https://toolchains.bootlin.com
 
 ```
-git clone https://github.com/mikey/micropython
+git clone https://github.com/micropython/micropython.git
 cd micropython
-git checkout powerpc
 cd ports/powerpc
 make -j$(nproc)
 cd ../../../
