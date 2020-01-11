@@ -386,6 +386,7 @@ begin
 	            when "1110" => -- CROR
 			crresult := (e_in.cr(banum) or e_in.cr(bbnum));
 		    when others =>
+			crresult := '0';
 		        report "BAD CR?";
 	            end case;
 		    v.e.write_cr_mask := num_to_fxm((31-btnum) / 4);
