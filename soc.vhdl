@@ -26,10 +26,7 @@ entity soc is
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
-	uart0_rxd    : in  std_ulogic;
-
-	-- Misc (to use for things like LEDs)
-	core_terminated : out std_ulogic
+	uart0_rxd    : in  std_ulogic
 	);
 end entity soc;
 

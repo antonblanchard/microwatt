@@ -143,6 +143,7 @@ begin
 
     icache_0: entity work.icache
         generic map(
+            SIM => SIM,
             LINE_SIZE => 64,
             NUM_LINES => 32,
 	    NUM_WAYS => 2

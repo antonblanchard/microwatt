@@ -104,6 +104,7 @@ begin
         sign_extend <= '0';
         second_word <= '0';
 	xe := e_in.xerc;
+	data_in <= (others => '0');
 
         if e_in.write_enable = '1' then
             w_out.write_reg <= e_in.write_reg;

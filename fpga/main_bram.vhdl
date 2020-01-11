@@ -2,7 +2,6 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
-use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;
 use std.textio.all;
 
@@ -68,13 +67,13 @@ begin
 	    if we = '1' then
 		for i in 0 to 7 loop
 		    if sel(i) = '1' then
-			memory(conv_integer(addr))((i + 1) * 8 - 1 downto i * 8) <=
+			memory(to_integer(unsigned(addr)))((i + 1) * 8 - 1 downto i * 8) <=
 			    di((i + 1) * 8 - 1 downto i * 8);
 		    end if;
 		end loop;
 	    end if;
 	    if re = '1' then
-		obuf <= memory(conv_integer(addr));
+		obuf <= memory(to_integer(unsigned(addr)));
 	    end if;
 	    do <= obuf;
 	end if;

@@ -92,4 +92,9 @@ begin
 	end process;
     end generate;
 
+    -- Keep GHDL synthesis happy
+    sim_dump_test_synth: if not SIM generate
+        sim_dump_done <= '0';
+    end generate;
+
 end architecture behaviour;
