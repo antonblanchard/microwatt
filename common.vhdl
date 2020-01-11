@@ -346,6 +346,7 @@ package body common is
        when SPR_XER =>
            n := 12;
        when others =>
+           n := 0;
            return "000000";
        end case;
        return "1" & std_ulogic_vector(to_unsigned(n, 5));
