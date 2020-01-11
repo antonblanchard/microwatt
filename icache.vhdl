@@ -29,6 +29,7 @@ use work.wishbone_types.all;
 
 entity icache is
     generic (
+        SIM : boolean := false;
         -- Line size in bytes
         LINE_SIZE : positive := 64;
         -- Number of lines in a set
@@ -264,6 +265,7 @@ begin
     assert (64 = TAG_BITS + ROW_BITS + ROW_OFF_BITS)
 	report "geometry bits don't add up" severity FAILURE;
 
+    sim_debug: if SIM generate
     debug: process
     begin
 	report "ROW_SIZE      = " & natural'image(ROW_SIZE);
@@ -280,6 +282,7 @@ begin
 	report "WAY_BITS      = " & natural'image(WAY_BITS);
 	wait;
     end process;
+    end generate;
 
     -- Generate a cache RAM for each way
     rams: for i in 0 to NUM_WAYS-1 generate
