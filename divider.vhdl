@@ -22,7 +22,6 @@ architecture behaviour of divider is
     signal result     : std_ulogic_vector(63 downto 0);
     signal sresult    : std_ulogic_vector(64 downto 0);
     signal oresult    : std_ulogic_vector(63 downto 0);
-    signal qbit       : std_ulogic;
     signal running    : std_ulogic;
     signal signcheck  : std_ulogic;
     signal count      : unsigned(6 downto 0);
