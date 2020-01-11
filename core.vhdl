@@ -88,6 +88,8 @@ architecture behave of core is
     signal core_rst: std_ulogic;
     signal icache_rst: std_ulogic;
 
+    signal sim_cr_dump: std_ulogic;
+
     -- Debug actions
     signal dbg_core_stop: std_ulogic;
     signal dbg_core_rst: std_ulogic;
@@ -212,15 +214,20 @@ begin
             d_in => decode2_to_register_file,
             d_out => register_file_to_decode2,
             w_in => writeback_to_register_file,
-	    sim_dump => terminate
+	    sim_dump => terminate,
+	    sim_dump_done => sim_cr_dump
 	    );
 
     cr_file_0: entity work.cr_file
+        generic map (
+            SIM => SIM
+            )
         port map (
             clk => clk,
             d_in => decode2_to_cr_file,
             d_out => cr_file_to_decode2,
-            w_in => writeback_to_cr_file
+            w_in => writeback_to_cr_file,
+            sim_dump => sim_cr_dump
             );
 
     execute1_0: entity work.execute1

@@ -401,6 +401,8 @@ begin
 		if is_fast_spr(e_in.read_reg1) then
 		    result := e_in.read_data1;
 		    if decode_spr_num(e_in.insn) = SPR_XER then
+			-- bits 0:31 and 35:43 are treated as reserved and return 0s when read using mfxer
+			result(63 downto 32) := (others => '0');
 			result(63-32) := v.e.xerc.so;
 			result(63-33) := v.e.xerc.ov;
 			result(63-34) := v.e.xerc.ca;
