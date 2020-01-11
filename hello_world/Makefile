@@ -22,7 +22,7 @@ hello_world.bin: hello_world.elf
 	$(OBJCOPY) -O binary hello_world.elf hello_world.bin
 
 hello_world.hex: hello_world.bin
-	./bin2hex.py hello_world.bin > hello_world.hex
+	../scripts/bin2hex.py hello_world.bin > hello_world.hex
 
 clean:
 	@rm -f *.o hello_world.elf hello_world.bin hello_world.hex
