@@ -127,12 +127,16 @@ package common is
 	is_signed: std_ulogic;
 	insn: std_ulogic_vector(31 downto 0);
 	data_len: std_ulogic_vector(3 downto 0);
+	byte_reverse : std_ulogic;
+	sign_extend : std_ulogic;			-- do we need to sign extend?
+	update : std_ulogic;				-- is this an update instruction?
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
          lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
-	 is_32bit => '0', is_signed => '0', xerc => xerc_init, others => (others => '0'));
+	 is_32bit => '0', is_signed => '0', xerc => xerc_init,
+         byte_reverse => '0', sign_extend => '0', update => '0', others => (others => '0'));
 
     type Execute1ToMultiplyType is record
 	valid: std_ulogic;
@@ -189,7 +193,7 @@ package common is
     end record;
     constant Execute1ToFetch1TypeInit : Execute1ToFetch1Type := (redirect => '0', others => (others => '0'));
 
-    type Decode2ToLoadstore1Type is record
+    type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
 	load : std_ulogic;				-- is this a load or store
 	addr1 : std_ulogic_vector(63 downto 0);
@@ -203,9 +207,9 @@ package common is
 	update_reg : gpr_index_t;                      	-- if so, the register to update
 	xerc : xer_common_t;
     end record;
-    constant Decode2ToLoadstore1Init : Decode2ToLoadstore1Type := (valid => '0', load => '0', byte_reverse => '0',
-								   sign_extend => '0', update => '0', xerc => xerc_init,
-								   others => (others => '0'));
+    constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', load => '0', byte_reverse => '0',
+                                                                     sign_extend => '0', update => '0', xerc => xerc_init,
+                                                                     others => (others => '0'));
 
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;

@@ -60,7 +60,7 @@ architecture behave of core is
     signal execute1_to_fetch1: Execute1ToFetch1Type;
 
     -- load store signals
-    signal decode2_to_loadstore1: Decode2ToLoadstore1Type;
+    signal execute1_to_loadstore1: Execute1ToLoadstore1Type;
     signal loadstore1_to_dcache: Loadstore1ToDcacheType;
     signal dcache_to_writeback: DcacheToWritebackType;
 
@@ -190,7 +190,6 @@ begin
 	    stopped_out => dbg_core_is_stopped,
             d_in => decode1_to_decode2,
             e_out => decode2_to_execute1,
-            l_out => decode2_to_loadstore1,
             r_in => register_file_to_decode2,
             r_out => decode2_to_register_file,
             c_in => cr_file_to_decode2,
@@ -233,6 +232,7 @@ begin
             flush_out => flush,
 	    stall_out => ex1_stall_out,
             e_in => decode2_to_execute1,
+            l_out => execute1_to_loadstore1,
             f_out => execute1_to_fetch1,
             e_out => execute1_to_writeback,
 	    icache_inval => ex1_icache_inval,
@@ -242,7 +242,7 @@ begin
     loadstore1_0: entity work.loadstore1
         port map (
             clk => clk,
-            l_in => decode2_to_loadstore1,
+            l_in => execute1_to_loadstore1,
             l_out => loadstore1_to_dcache
             );
 

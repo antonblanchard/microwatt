@@ -27,7 +27,6 @@ entity decode2 is
 		d_in  : in Decode1ToDecode2Type;
 
 		e_out : out Decode2ToExecute1Type;
-		l_out : out Decode2ToLoadstore1Type;
 
 		r_in  : in RegisterFileToDecode2Type;
 		r_out : out Decode2ToRegisterFileType;
@@ -40,7 +39,6 @@ end entity decode2;
 architecture behaviour of decode2 is
 	type reg_type is record
 		e : Decode2ToExecute1Type;
-		l : Decode2ToLoadstore1Type;
 	end record;
 
 	signal r, rin : reg_type;
@@ -246,7 +244,7 @@ begin
 	decode2_0: process(clk)
 	begin
 		if rising_edge(clk) then
-			if rin.e.valid = '1' or rin.l.valid = '1' then
+			if rin.e.valid = '1' then
 				report "execute " & to_hstring(rin.e.nia);
 			end if;
 			r <= rin;
@@ -272,7 +270,6 @@ begin
 		v := r;
 
 		v.e := Decode2ToExecute1Init;
-		v.l := Decode2ToLoadStore1Init;
 
 		mul_a := (others => '0');
 		mul_b := (others => '0');
@@ -331,25 +328,9 @@ begin
 		end if;
                 v.e.insn := d_in.insn;
                 v.e.data_len := length;
-
-		-- load/store unit
-		v.l.update_reg := gspr_to_gpr(decoded_reg_a.reg);
-		v.l.addr1 := decoded_reg_a.data;
-		v.l.addr2 := decoded_reg_b.data;
-		v.l.data := decoded_reg_c.data;
-		v.l.write_reg := gspr_to_gpr(decoded_reg_o.reg);
-
-		if d_in.decode.insn_type = OP_LOAD then
-			v.l.load := '1';
-		else
-			v.l.load := '0';
-		end if;
-
-                v.l.length := length;
-		v.l.byte_reverse := d_in.decode.byte_reverse;
-		v.l.sign_extend := d_in.decode.sign_extend;
-		v.l.update := d_in.decode.update;
-		v.l.xerc := c_in.read_xerc_data;
+		v.e.byte_reverse := d_in.decode.byte_reverse;
+		v.e.sign_extend := d_in.decode.sign_extend;
+		v.e.update := d_in.decode.update;
 
 		-- issue control
 		control_valid_in <= d_in.valid;
@@ -373,21 +354,13 @@ begin
 
                 cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
 
-		v.e.valid := '0';
-		v.l.valid := '0';
-		case d_in.decode.unit is
-		when ALU =>
-			v.e.valid := control_valid_out;
-		when LDST =>
-			v.l.valid := control_valid_out;
-		when NONE =>
-			v.e.valid := control_valid_out;
+		v.e.valid := control_valid_out;
+		if d_in.decode.unit = NONE then
 			v.e.insn_type := OP_ILLEGAL;
-		end case;
+		end if;
 
 		if rst = '1' then
 			v.e := Decode2ToExecute1Init;
-			v.l := Decode2ToLoadStore1Init;
 		end if;
 
 		-- Update registers
@@ -395,6 +368,5 @@ begin
 
 		-- Update outputs
 		e_out <= r.e;
-		l_out <= r.l;
 	end process;
 end architecture behaviour;

@@ -25,6 +25,7 @@ entity execute1 is
 	e_in  : in Decode2ToExecute1Type;
 
 	-- asynchronous
+        l_out : out Execute1ToLoadstore1Type;
 	f_out : out Execute1ToFetch1Type;
 
 	e_out : out Execute1ToWritebackType;
@@ -210,6 +211,7 @@ begin
         variable zerohi, zerolo : std_ulogic;
         variable msb_a, msb_b : std_ulogic;
         variable a_lt : std_ulogic;
+        variable lv : Execute1ToLoadstore1Type;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -667,6 +669,10 @@ begin
 		stall_out <= '1';
 		x_to_divider.valid <= '1';
 
+            when OP_LOAD | OP_STORE =>
+                -- loadstore/dcache has its own port to writeback
+                v.e.valid := '0';
+
             when others =>
 		terminate_out <= '1';
 		report "illegal";
@@ -731,11 +737,31 @@ begin
 	v.e.write_data := result;
 	v.e.write_enable := result_en;
 
+        -- Outputs to loadstore1 (async)
+        lv := Execute1ToLoadstore1Init;
+        if e_in.valid = '1' and (e_in.insn_type = OP_LOAD or e_in.insn_type = OP_STORE) then
+            lv.valid := '1';
+        end if;
+        if e_in.insn_type = OP_LOAD then
+            lv.load := '1';
+        end if;
+        lv.addr1 := a_in;
+        lv.addr2 := b_in;
+        lv.data := c_in;
+        lv.write_reg := gspr_to_gpr(e_in.write_reg);
+        lv.length := e_in.data_len;
+        lv.byte_reverse := e_in.byte_reverse;
+        lv.sign_extend := e_in.sign_extend;
+        lv.update := e_in.update;
+        lv.update_reg := gspr_to_gpr(e_in.read_reg1);
+        lv.xerc := v.e.xerc;
+
 	-- Update registers
 	rin <= v;
 
 	-- update outputs
 	--f_out <= r.f;
+        l_out <= lv;
 	e_out <= r.e;
 	flush_out <= f_out.redirect;
     end process;

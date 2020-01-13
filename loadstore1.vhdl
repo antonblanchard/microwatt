@@ -13,7 +13,7 @@ entity loadstore1 is
     port (
         clk   : in std_ulogic;
 
-        l_in  : in Decode2ToLoadstore1Type;
+        l_in  : in Execute1ToLoadstore1Type;
 
         l_out : out Loadstore1ToDcacheType
         );
