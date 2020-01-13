@@ -9,6 +9,9 @@ use work.helpers.all;
 use work.insn_helpers.all;
 
 entity decode2 is
+        generic (
+                EX1_BYPASS : boolean := true
+        );
 	port (
 		clk   : in std_ulogic;
 		rst   : in std_ulogic;
@@ -184,15 +187,19 @@ architecture behaviour of decode2 is
 
 	signal gpr_write_valid : std_ulogic;
 	signal gpr_write : gspr_index_t;
+        signal gpr_bypassable  : std_ulogic;
 
 	signal gpr_a_read_valid : std_ulogic;
 	signal gpr_a_read :gspr_index_t;
+        signal gpr_a_bypass : std_ulogic;
 
 	signal gpr_b_read_valid : std_ulogic;
 	signal gpr_b_read : gspr_index_t;
+        signal gpr_b_bypass : std_ulogic;
 
 	signal gpr_c_read_valid : std_ulogic;
 	signal gpr_c_read : gpr_index_t;
+        signal gpr_c_bypass : std_ulogic;
 
 	signal cr_write_valid : std_ulogic;
 begin
@@ -213,6 +220,7 @@ begin
 
 		gpr_write_valid_in => gpr_write_valid,
 		gpr_write_in       => gpr_write,
+                gpr_bypassable     => gpr_bypassable,
 
 		gpr_a_read_valid_in  => gpr_a_read_valid,
 		gpr_a_read_in        => gpr_a_read,
@@ -228,7 +236,11 @@ begin
 
 		valid_out   => control_valid_out,
 		stall_out   => stall_out,
-		stopped_out => stopped_out
+		stopped_out => stopped_out,
+
+                gpr_bypass_a => gpr_a_bypass,
+                gpr_bypass_b => gpr_b_bypass,
+                gpr_bypass_c => gpr_c_bypass
 	);
 
 	decode2_0: process(clk)
@@ -295,9 +307,12 @@ begin
 		v.e.insn_type := d_in.decode.insn_type;
 		v.e.read_reg1 := decoded_reg_a.reg;
 		v.e.read_data1 := decoded_reg_a.data;
+                v.e.bypass_data1 := gpr_a_bypass;
 		v.e.read_reg2 := decoded_reg_b.reg;
 		v.e.read_data2 := decoded_reg_b.data;
+                v.e.bypass_data2 := gpr_b_bypass;
                 v.e.read_data3 := decoded_reg_c.data;
+                v.e.bypass_data3 := gpr_c_bypass;
 		v.e.write_reg := decoded_reg_o.reg;
 		v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
                 if not (d_in.decode.insn_type = OP_MUL_H32 or d_in.decode.insn_type = OP_MUL_H64) then
@@ -342,6 +357,10 @@ begin
 
 		gpr_write_valid <= decoded_reg_o.reg_valid;
 		gpr_write <= decoded_reg_o.reg;
+                gpr_bypassable <= '0';
+                if EX1_BYPASS and d_in.decode.unit = ALU then
+                        gpr_bypassable <= '1';
+                end if;
 
 		gpr_a_read_valid <= decoded_reg_a.reg_valid;
 		gpr_a_read <= decoded_reg_a.reg;

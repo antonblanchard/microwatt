@@ -9,7 +9,8 @@ use work.wishbone_types.all;
 entity core is
     generic (
         SIM : boolean := false;
-	DISABLE_FLATTEN : boolean := false
+	DISABLE_FLATTEN : boolean := false;
+        EX1_BYPASS : boolean := true
         );
     port (
         clk          : in std_logic;
@@ -176,6 +177,9 @@ begin
     decode1_stall_in <= decode2_stall_out;
 
     decode2_0: entity work.decode2
+        generic map (
+            EX1_BYPASS => EX1_BYPASS
+            )
         port map (
             clk => clk,
             rst => core_rst,
@@ -220,6 +224,9 @@ begin
             );
 
     execute1_0: entity work.execute1
+        generic map (
+            EX1_BYPASS => EX1_BYPASS
+            )
         port map (
             clk => clk,
             rst => core_rst,

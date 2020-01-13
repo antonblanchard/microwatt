@@ -21,6 +21,7 @@ entity control is
 
         gpr_write_valid_in  : in std_ulogic;
         gpr_write_in        : in gspr_index_t;
+        gpr_bypassable      : in std_ulogic;
 
         gpr_a_read_valid_in : in std_ulogic;
         gpr_a_read_in       : in gspr_index_t;
@@ -36,7 +37,11 @@ entity control is
 
         valid_out           : out std_ulogic;
         stall_out           : out std_ulogic;
-        stopped_out         : out std_ulogic
+        stopped_out         : out std_ulogic;
+
+        gpr_bypass_a        : out std_ulogic;
+        gpr_bypass_b        : out std_ulogic;
+        gpr_bypass_c        : out std_ulogic
         );
 end entity control;
 
@@ -71,10 +76,12 @@ begin
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
+            bypass_avail       => gpr_bypassable,
             gpr_read_valid_in  => gpr_a_read_valid_in,
             gpr_read_in        => gpr_a_read_in,
 
-            stall_out          => stall_a_out
+            stall_out          => stall_a_out,
+            use_bypass         => gpr_bypass_a
             );
 
     gpr_hazard1: entity work.gpr_hazard
@@ -87,10 +94,12 @@ begin
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
+            bypass_avail       => gpr_bypassable,
             gpr_read_valid_in  => gpr_b_read_valid_in,
             gpr_read_in        => gpr_b_read_in,
 
-            stall_out          => stall_b_out
+            stall_out          => stall_b_out,
+            use_bypass         => gpr_bypass_b
             );
 
     gpr_c_read_in_fmt <= "0" & gpr_c_read_in;
@@ -105,10 +114,12 @@ begin
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
+            bypass_avail       => gpr_bypassable,
             gpr_read_valid_in  => gpr_c_read_valid_in,
             gpr_read_in        => gpr_c_read_in_fmt,
 
-            stall_out          => stall_c_out
+            stall_out          => stall_c_out,
+            use_bypass         => gpr_bypass_c
             );
 
     cr_hazard0: entity work.cr_hazard

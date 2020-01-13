@@ -109,6 +109,9 @@ package common is
 	read_data1: std_ulogic_vector(63 downto 0);
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
+        bypass_data1: std_ulogic;
+        bypass_data2: std_ulogic;
+        bypass_data3: std_ulogic;
 	cr: std_ulogic_vector(31 downto 0);
 	xerc: xer_common_t;
 	lr: std_ulogic;
@@ -126,7 +129,8 @@ package common is
 	data_len: std_ulogic_vector(3 downto 0);
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
-	(valid => '0', insn_type => OP_ILLEGAL, lr => '0', rc => '0', oe => '0', invert_a => '0',
+	(valid => '0', insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
+         lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, others => (others => '0'));
 

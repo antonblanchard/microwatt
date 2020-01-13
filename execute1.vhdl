@@ -11,6 +11,9 @@ use work.insn_helpers.all;
 use work.ppc_fx_insns.all;
 
 entity execute1 is
+    generic (
+        EX1_BYPASS : boolean := true
+        );
     port (
 	clk   : in std_ulogic;
         rst   : in std_ulogic;
@@ -45,6 +48,8 @@ architecture behaviour of execute1 is
     end record;
 
     signal r, rin : reg_type;
+
+    signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
 
     signal ctrl: ctrl_t := (others => (others => '0'));
     signal ctrl_tmp: ctrl_t := (others => (others => '0'));
@@ -109,9 +114,9 @@ begin
 
     rotator_0: entity work.rotator
 	port map (
-	    rs => e_in.read_data3,
-	    ra => e_in.read_data1,
-	    shift => e_in.read_data2(6 downto 0),
+	    rs => c_in,
+	    ra => a_in,
+	    shift => b_in(6 downto 0),
 	    insn => e_in.insn,
 	    is_32bit => e_in.is_32bit,
 	    right_shift => right_shift,
@@ -124,8 +129,8 @@ begin
 
     logical_0: entity work.logical
 	port map (
-	    rs => e_in.read_data3,
-	    rb => e_in.read_data2,
+	    rs => c_in,
+	    rb => b_in,
 	    op => e_in.insn_type,
 	    invert_in => e_in.invert_a,
 	    invert_out => e_in.invert_out,
@@ -137,7 +142,7 @@ begin
 
     countzero_0: entity work.zero_counter
 	port map (
-	    rs => e_in.read_data3,
+	    rs => c_in,
 	    count_right => e_in.insn(10),
 	    is_32bit => e_in.is_32bit,
 	    result => countzero_result
@@ -157,6 +162,10 @@ begin
             d_in => x_to_divider,
             d_out => divider_to_x
             );
+
+    a_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data1 = '1' else e_in.read_data1;
+    b_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data2 = '1' else e_in.read_data2;
+    c_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data3 = '1' else e_in.read_data3;
 
     execute1_0: process(clk)
     begin
@@ -256,21 +265,21 @@ begin
 
 	if e_in.is_32bit = '1' then
 	    if e_in.is_signed = '1' then
-		x_to_multiply.data1 <= (others => e_in.read_data1(31));
-		x_to_multiply.data1(31 downto 0) <= e_in.read_data1(31 downto 0);
-		x_to_multiply.data2 <= (others => e_in.read_data2(31));
-		x_to_multiply.data2(31 downto 0) <= e_in.read_data2(31 downto 0);
+		x_to_multiply.data1 <= (others => a_in(31));
+		x_to_multiply.data1(31 downto 0) <= a_in(31 downto 0);
+		x_to_multiply.data2 <= (others => b_in(31));
+		x_to_multiply.data2(31 downto 0) <= b_in(31 downto 0);
 	    else
-		x_to_multiply.data1 <= '0' & x"00000000" & e_in.read_data1(31 downto 0);
-		x_to_multiply.data2 <= '0' & x"00000000" & e_in.read_data2(31 downto 0);
+		x_to_multiply.data1 <= '0' & x"00000000" & a_in(31 downto 0);
+		x_to_multiply.data2 <= '0' & x"00000000" & b_in(31 downto 0);
 	    end if;
 	else
 	    if e_in.is_signed = '1' then
-		x_to_multiply.data1 <= e_in.read_data1(63) & e_in.read_data1;
-		x_to_multiply.data2 <= e_in.read_data2(63) & e_in.read_data2;
+		x_to_multiply.data1 <= a_in(63) & a_in;
+		x_to_multiply.data2 <= b_in(63) & b_in;
 	    else
-		x_to_multiply.data1 <= '0' & e_in.read_data1;
-		x_to_multiply.data2 <= '0' & e_in.read_data2;
+		x_to_multiply.data1 <= '0' & a_in;
+		x_to_multiply.data2 <= '0' & b_in;
 	    end if;
 	end if;
 
@@ -279,23 +288,23 @@ begin
         sign2 := '0';
         if e_in.is_signed = '1' then
             if e_in.is_32bit = '1' then
-                sign1 := e_in.read_data1(31);
-                sign2 := e_in.read_data2(31);
+                sign1 := a_in(31);
+                sign2 := b_in(31);
             else
-                sign1 := e_in.read_data1(63);
-                sign2 := e_in.read_data2(63);
+                sign1 := a_in(63);
+                sign2 := b_in(63);
             end if;
         end if;
         -- take absolute values
         if sign1 = '0' then
-            abs1 := signed(e_in.read_data1);
+            abs1 := signed(a_in);
         else
-            abs1 := - signed(e_in.read_data1);
+            abs1 := - signed(a_in);
         end if;
         if sign2 = '0' then
-            abs2 := signed(e_in.read_data2);
+            abs2 := signed(b_in);
         else
-            abs2 := - signed(e_in.read_data2);
+            abs2 := - signed(b_in);
         end if;
 
         x_to_divider <= Execute1ToDividerInit;
@@ -358,14 +367,14 @@ begin
 		-- Do nothing
 	    when OP_ADD | OP_CMP =>
 		if e_in.invert_a = '0' then
-		    a_inv := e_in.read_data1;
+		    a_inv := a_in;
 		else
-		    a_inv := not e_in.read_data1;
+		    a_inv := not a_in;
 		end if;
-		result_with_carry := ppc_adde(a_inv, e_in.read_data2,
+		result_with_carry := ppc_adde(a_inv, b_in,
 					      decode_input_carry(e_in.input_carry, v.e.xerc));
 		result := result_with_carry(63 downto 0);
-                carry_32 := result(32) xor a_inv(32) xor e_in.read_data2(32);
+                carry_32 := result(32) xor a_inv(32) xor b_in(32);
                 carry_64 := result_with_carry(64);
                 if e_in.insn_type = OP_ADD then
                     if e_in.output_carry = '1' then
@@ -373,8 +382,8 @@ begin
                     end if;
                     if e_in.oe = '1' then
                         set_ov(v.e,
-                               calc_ov(a_inv(63), e_in.read_data2(63), carry_64, result_with_carry(63)),
-                               calc_ov(a_inv(31), e_in.read_data2(31), carry_32, result_with_carry(31)));
+                               calc_ov(a_inv(63), b_in(63), carry_64, result_with_carry(63)),
+                               calc_ov(a_inv(31), b_in(31), carry_32, result_with_carry(31)));
                     end if;
                     result_en := '1';
                 else
@@ -385,20 +394,20 @@ begin
                     v.e.write_cr_enable := '1';
                     crnum := to_integer(unsigned(bf));
                     v.e.write_cr_mask := num_to_fxm(crnum);
-                    zerolo := not (or (e_in.read_data1(31 downto 0) xor e_in.read_data2(31 downto 0)));
-                    zerohi := not (or (e_in.read_data1(63 downto 32) xor e_in.read_data2(63 downto 32)));
+                    zerolo := not (or (a_in(31 downto 0) xor b_in(31 downto 0)));
+                    zerohi := not (or (a_in(63 downto 32) xor b_in(63 downto 32)));
                     if zerolo = '1' and (l = '0' or zerohi = '1') then
                         -- values are equal
                         newcrf := "001" & v.e.xerc.so;
                     else
                         if l = '1' then
                             -- 64-bit comparison
-                            msb_a := e_in.read_data1(63);
-                            msb_b := e_in.read_data2(63);
+                            msb_a := a_in(63);
+                            msb_b := b_in(63);
                         else
                             -- 32-bit comparison
-                            msb_a := e_in.read_data1(31);
-                            msb_b := e_in.read_data2(31);
+                            msb_a := a_in(31);
+                            msb_b := b_in(31);
                         end if;
                         if msb_a /= msb_b then
                             -- Subtraction might overflow, but
@@ -424,25 +433,25 @@ begin
 	    when OP_B =>
 		f_out.redirect <= '1';
 		if (insn_aa(e_in.insn)) then
-		    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.read_data2));
+		    f_out.redirect_nia <= std_ulogic_vector(signed(b_in));
 		else
-		    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
+		    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
 		end if;
 	    when OP_BC =>
 		-- read_data1 is CTR
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
 		if bo(4-2) = '0' then
-		    result := std_ulogic_vector(unsigned(e_in.read_data1) - 1);
+		    result := std_ulogic_vector(unsigned(a_in) - 1);
 		    result_en := '1';
 		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
-		if ppc_bc_taken(bo, bi, e_in.cr, e_in.read_data1) = 1 then
+		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = 1 then
 		    f_out.redirect <= '1';
 		    if (insn_aa(e_in.insn)) then
-			f_out.redirect_nia <= std_ulogic_vector(signed(e_in.read_data2));
+			f_out.redirect_nia <= std_ulogic_vector(signed(b_in));
 		    else
-			f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(e_in.read_data2));
+			f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
 		    end if;
 		end if;
 	    when OP_BCREG =>
@@ -451,40 +460,40 @@ begin
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
 		if bo(4-2) = '0' and e_in.insn(10) = '0' then
-		    result := std_ulogic_vector(unsigned(e_in.read_data1) - 1);
+		    result := std_ulogic_vector(unsigned(a_in) - 1);
 		    result_en := '1';
 		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
-		if ppc_bc_taken(bo, bi, e_in.cr, e_in.read_data1) = 1 then
+		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = 1 then
 		    f_out.redirect <= '1';
-		    f_out.redirect_nia <= e_in.read_data2(63 downto 2) & "00";
+		    f_out.redirect_nia <= b_in(63 downto 2) & "00";
 		end if;
 	    when OP_CMPB =>
-		result := ppc_cmpb(e_in.read_data3, e_in.read_data2);
+		result := ppc_cmpb(c_in, b_in);
 		result_en := '1';
 	    when OP_CNTZ =>
 		result := countzero_result;
 		result_en := '1';
             when OP_EXTS =>
                 -- note data_len is a 1-hot encoding
-		negative := (e_in.data_len(0) and e_in.read_data3(7)) or
-			    (e_in.data_len(1) and e_in.read_data3(15)) or
-			    (e_in.data_len(2) and e_in.read_data3(31));
+		negative := (e_in.data_len(0) and c_in(7)) or
+			    (e_in.data_len(1) and c_in(15)) or
+			    (e_in.data_len(2) and c_in(31));
 		result := (others => negative);
 		if e_in.data_len(2) = '1' then
-		    result(31 downto 16) := e_in.read_data3(31 downto 16);
+		    result(31 downto 16) := c_in(31 downto 16);
 		end if;
 		if e_in.data_len(2) = '1' or e_in.data_len(1) = '1' then
-		    result(15 downto 8) := e_in.read_data3(15 downto 8);
+		    result(15 downto 8) := c_in(15 downto 8);
 		end if;
-		result(7 downto 0) := e_in.read_data3(7 downto 0);
+		result(7 downto 0) := c_in(7 downto 0);
 		result_en := '1';
 	    when OP_ISEL =>
 		crbit := to_integer(unsigned(insn_bc(e_in.insn)));
 		if e_in.cr(31-crbit) = '1' then
-		    result := e_in.read_data1;
+		    result := a_in;
 		else
-		    result := e_in.read_data2;
+		    result := b_in;
 		end if;
 		result_en := '1';
 	    when OP_MCRF =>
@@ -549,7 +558,7 @@ begin
 		end if;
 	    when OP_MFSPR =>
 		if is_fast_spr(e_in.read_reg1) then
-		    result := e_in.read_data1;
+		    result := a_in;
 		    if decode_spr_num(e_in.insn) = SPR_XER then
 			-- bits 0:31 and 35:43 are treated as reserved and return 0s when read using mfxer
 			result(63 downto 32) := (others => '0');
@@ -596,19 +605,19 @@ begin
 		    crnum := fxm_to_num(insn_fxm(e_in.insn));
 		    v.e.write_cr_mask := num_to_fxm(crnum);
 		end if;
-		v.e.write_cr_data := e_in.read_data3(31 downto 0);
+		v.e.write_cr_data := c_in(31 downto 0);
 	    when OP_MTSPR =>
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
-		    "=" & to_hstring(e_in.read_data3);
+		    "=" & to_hstring(c_in);
 		if is_fast_spr(e_in.write_reg) then
-		    result := e_in.read_data3;
+		    result := c_in;
 		    result_en := '1';
 		    if decode_spr_num(e_in.insn) = SPR_XER then
-			v.e.xerc.so := e_in.read_data3(63-32);
-			v.e.xerc.ov := e_in.read_data3(63-33);
-			v.e.xerc.ca := e_in.read_data3(63-34);
-			v.e.xerc.ov32 := e_in.read_data3(63-44);
-			v.e.xerc.ca32 := e_in.read_data3(63-45);
+			v.e.xerc.so := c_in(63-32);
+			v.e.xerc.ov := c_in(63-33);
+			v.e.xerc.ca := c_in(63-34);
+			v.e.xerc.ov32 := c_in(63-44);
+			v.e.xerc.ca32 := c_in(63-45);
 			v.e.write_xerc_enable := '1';
 		    end if;
 		else
