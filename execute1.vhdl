@@ -54,6 +54,8 @@ architecture behaviour of execute1 is
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
     signal countzero_result: std_ulogic_vector(63 downto 0);
+    signal popcnt_result: std_ulogic_vector(63 downto 0);
+    signal parity_result: std_ulogic_vector(63 downto 0);
 
     -- multiply signals
     signal x_to_multiply: Execute1ToMultiplyType;
@@ -127,7 +129,10 @@ begin
 	    op => e_in.insn_type,
 	    invert_in => e_in.invert_a,
 	    invert_out => e_in.invert_out,
-	    result => logical_result
+	    result => logical_result,
+            datalen => e_in.data_len,
+            popcnt => popcnt_result,
+            parity => parity_result
 	    );
 
     countzero_0: entity work.zero_counter
@@ -612,20 +617,11 @@ begin
 --		    when others =>
 --		    end case;
 		end if;
-	    when OP_POPCNTB =>
-		result := ppc_popcntb(e_in.read_data3);
+	    when OP_POPCNT =>
+		result := popcnt_result;
 		result_en := '1';
-	    when OP_POPCNTW =>
-		result := ppc_popcntw(e_in.read_data3);
-		result_en := '1';
-	    when OP_POPCNTD =>
-		result := ppc_popcntd(e_in.read_data3);
-		result_en := '1';
-	    when OP_PRTYD =>
-		result := ppc_prtyd(e_in.read_data3);
-		result_en := '1';
-	    when OP_PRTYW =>
-		result := ppc_prtyw(e_in.read_data3);
+	    when OP_PRTY =>
+		result := parity_result;
 		result_en := '1';
 	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR =>
 		result := rotator_result;
