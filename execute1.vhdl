@@ -42,6 +42,7 @@ architecture behaviour of execute1 is
 	next_lr : std_ulogic_vector(63 downto 0);
 	mul_in_progress : std_ulogic;
         div_in_progress : std_ulogic;
+        cntz_in_progress : std_ulogic;
 	slow_op_dest : gpr_index_t;
 	slow_op_rc : std_ulogic;
 	slow_op_oe : std_ulogic;
@@ -143,6 +144,7 @@ begin
 
     countzero_0: entity work.zero_counter
 	port map (
+            clk => clk,
 	    rs => c_in,
 	    count_right => e_in.insn(10),
 	    is_32bit => e_in.is_32bit,
@@ -259,6 +261,7 @@ begin
 	v.lr_update := '0';
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
+        v.cntz_in_progress := '0';
 
 	-- signals to multiply unit
 	x_to_multiply <= Execute1ToMultiplyInit;
@@ -473,9 +476,10 @@ begin
 	    when OP_CMPB =>
 		result := ppc_cmpb(c_in, b_in);
 		result_en := '1';
-	    when OP_CNTZ =>
-		result := countzero_result;
-		result_en := '1';
+            when OP_CNTZ =>
+                v.e.valid := '0';
+                v.cntz_in_progress := '1';
+                stall_out <= '1';
             when OP_EXTS =>
                 -- note data_len is a 1-hot encoding
 		negative := (e_in.data_len(0) and c_in(7)) or
@@ -703,6 +707,14 @@ begin
 	    result := r.next_lr;
 	    v.e.write_reg := fast_spr_num(SPR_LR);
 	    v.e.valid := '1';
+        elsif r.cntz_in_progress = '1' then
+            -- cnt[lt]z always takes two cycles
+            result := countzero_result;
+            result_en := '1';
+            v.e.write_reg := gpr_to_gspr(v.slow_op_dest);
+            v.e.rc := v.slow_op_rc;
+            v.e.xerc := v.slow_op_xerc;
+            v.e.valid := '1';
 	elsif r.mul_in_progress = '1' or r.div_in_progress = '1' then
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
 	       (r.div_in_progress = '1' and divider_to_x.valid = '1') then

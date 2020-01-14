@@ -6,6 +6,7 @@ library work;
 
 entity zero_counter is
     port (
+        clk         : in std_logic;
 	rs          : in std_ulogic_vector(63 downto 0);
 	count_right : in std_ulogic;
 	is_32bit    : in std_ulogic;
@@ -14,10 +15,14 @@ entity zero_counter is
 end entity zero_counter;
 
 architecture behaviour of zero_counter is
-    signal y, z     : std_ulogic_vector(3 downto 0);
-    signal v16      : std_ulogic_vector(15 downto 0);
-    signal v4       : std_ulogic_vector(3 downto 0);
-    signal sel      : std_ulogic_vector(5 downto 0);
+    type intermediate_result is record
+        v16: std_ulogic_vector(15 downto 0);
+        sel_hi: std_ulogic_vector(1 downto 0);
+        is_32bit: std_ulogic;
+        count_right: std_ulogic;
+    end record;
+
+    signal r, r_in  : intermediate_result;
 
     -- Return the index of the leftmost or rightmost 1 in a set of 4 bits.
     -- Assumes v is not "0000"; if it is, return (right ? "11" : "00").
@@ -47,65 +52,83 @@ architecture behaviour of zero_counter is
     end;
 
 begin
-    zerocounter0: process(all)
+    zerocounter_0: process(clk)
+    begin
+	if rising_edge(clk) then
+            r <= r_in;
+        end if;
+    end process;
+
+    zerocounter_1: process(all)
+        variable v: intermediate_result;
+        variable y, z: std_ulogic_vector(3 downto 0);
+        variable sel: std_ulogic_vector(5 downto 0);
+        variable v4: std_ulogic_vector(3 downto 0);
+
     begin
 	-- Test 4 groups of 16 bits each.
 	-- The top 2 groups are considered to be zero in 32-bit mode.
-	z(0) <= or (rs(15 downto 0));
-	z(1) <= or (rs(31 downto 16));
-	z(2) <= or (rs(47 downto 32));
-	z(3) <= or (rs(63 downto 48));
+	z(0) := or (rs(15 downto 0));
+	z(1) := or (rs(31 downto 16));
+	z(2) := or (rs(47 downto 32));
+	z(3) := or (rs(63 downto 48));
         if is_32bit = '0' then
-            sel(5 downto 4) <= encoder(z, count_right);
+            v.sel_hi := encoder(z, count_right);
         else
-            sel(5) <= '0';
+            v.sel_hi(1) := '0';
             if count_right = '0' then
-                sel(4) <= z(1);
+                v.sel_hi(0) := z(1);
             else
-                sel(4) <= not z(0);
+                v.sel_hi(0) := not z(0);
             end if;
         end if;
 
 	-- Select the leftmost/rightmost non-zero group of 16 bits
-	case sel(5 downto 4) is
+	case v.sel_hi is
 	    when "00" =>
-		v16 <= rs(15 downto 0);
+		v.v16 := rs(15 downto 0);
 	    when "01" =>
-		v16 <= rs(31 downto 16);
+		v.v16 := rs(31 downto 16);
 	    when "10" =>
-		v16 <= rs(47 downto 32);
+		v.v16 := rs(47 downto 32);
 	    when others =>
-		v16 <= rs(63 downto 48);
+		v.v16 := rs(63 downto 48);
 	end case;
 
+        -- Latch this and do the rest in the next cycle, for the sake of timing
+        v.is_32bit := is_32bit;
+        v.count_right := count_right;
+        r_in <= v;
+        sel(5 downto 4) := r.sel_hi;
+
 	-- Test 4 groups of 4 bits
-	y(0) <= or (v16(3 downto 0));
-	y(1) <= or (v16(7 downto 4));
-	y(2) <= or (v16(11 downto 8));
-	y(3) <= or (v16(15 downto 12));
-	sel(3 downto 2) <= encoder(y, count_right);
+	y(0) := or (r.v16(3 downto 0));
+	y(1) := or (r.v16(7 downto 4));
+	y(2) := or (r.v16(11 downto 8));
+	y(3) := or (r.v16(15 downto 12));
+	sel(3 downto 2) := encoder(y, r.count_right);
 
 	-- Select the leftmost/rightmost non-zero group of 4 bits
 	case sel(3 downto 2) is
 	    when "00" =>
-		v4 <= v16(3 downto 0);
+		v4 := r.v16(3 downto 0);
 	    when "01" =>
-		v4 <= v16(7 downto 4);
+		v4 := r.v16(7 downto 4);
 	    when "10" =>
-		v4 <= v16(11 downto 8);
+		v4 := r.v16(11 downto 8);
 	    when others =>
-		v4 <= v16(15 downto 12);
+		v4 := r.v16(15 downto 12);
 	end case;
 
-	sel(1 downto 0) <= encoder(v4, count_right);
+	sel(1 downto 0) := encoder(v4, r.count_right);
 
 	-- sel is now the index of the leftmost/rightmost 1 bit in rs
 	if v4 = "0000" then
 	    -- operand is zero, return 32 for 32-bit, else 64
-	    result <= x"00000000000000" & '0' & not is_32bit & is_32bit & "00000";
-	elsif count_right = '0' then
+	    result <= x"00000000000000" & '0' & not r.is_32bit & r.is_32bit & "00000";
+	elsif r.count_right = '0' then
 	    -- return (63 - sel), trimmed to 5 bits in 32-bit mode
-	    result <= x"00000000000000" & "00" & (not sel(5) and not is_32bit) & not sel(4 downto 0);
+	    result <= x"00000000000000" & "00" & (not sel(5) and not r.is_32bit) & not sel(4 downto 0);
 	else
 	    result <= x"00000000000000" & "00" & sel;
 	end if;
