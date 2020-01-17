@@ -1,0 +1,77 @@
+# Use local tools
+#GHDLSYNTH = ghdl.so
+#YOSYS     = yosys
+#NEXTPNR   = nextpnr-ecp5
+#ECPPACK   = ecppack
+#OPENOCD    = openocd
+
+# Use Docker images
+DOCKER=docker
+#DOCKER=podman
+#
+PWD = $(shell pwd)
+DOCKERARGS = run --rm -v $(PWD):/src -w /src
+#
+GHDLSYNTH = ghdl
+YOSYS     = $(DOCKER) $(DOCKERARGS) ghdl/synth:beta yosys
+NEXTPNR   = $(DOCKER) $(DOCKERARGS) ghdl/synth:nextpnr-ecp5 nextpnr-ecp5
+ECPPACK   = $(DOCKER) $(DOCKERARGS) ghdl/synth:trellis ecppack
+OPENOCD   = $(DOCKER) $(DOCKERARGS) --device /dev/bus/usb ghdl/synth:prog openocd
+
+
+# Hello world
+GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=8192 -gRAM_INIT_FILE=hello_world/hello_world.hex
+
+# Micropython
+#GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=393216 -gRAM_INIT_FILE=micropython/firmware.hex
+
+
+# OrangeCrab with ECP85
+#GHDL_TARGET_GENERICS=-gRESET_LOW=true -gCLK_INPUT=50000000 -gCLK_FREQUENCY=50000000
+#LPF=constraints/orange-crab.lpf
+#PACKAGE=CSFBGA285
+#NEXTPNR_FLAGS=--um5g-85k --freq 50
+#OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
+#OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+
+# ECP5-EVN
+GHDL_TARGET_GENERICS=-gRESET_LOW=true -gCLK_INPUT=12000000 -gCLK_FREQUENCY=12000000
+LPF=constraints/ecp5-evn.lpf
+PACKAGE=CABGA381
+NEXTPNR_FLAGS=--um5g-85k --freq 12
+OPENOCD_JTAG_CONFIG=openocd/ecp5-evn.cfg
+OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+
+VHDL_FILES  = wishbone_types.vhdl utils.vhdl fpga/main_bram.vhdl
+VHDL_FILES += wishbone_bram_wrapper.vhdl decode_types.vhdl common.vhdl
+VHDL_FILES += fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd wishbone_arbiter.vhdl
+VHDL_FILES += dmi_dtm_dummy.vhdl wishbone_debug_master.vhdl helpers.vhdl
+VHDL_FILES += loadstore1.vhdl crhelpers.vhdl writeback.vhdl ppc_fx_insns.vhdl
+VHDL_FILES += countzero.vhdl insn_helpers.vhdl rotator.vhdl logical.vhdl
+VHDL_FILES += execute1.vhdl fetch1.vhdl gpr_hazard.vhdl cr_hazard.vhdl
+VHDL_FILES += control.vhdl decode2.vhdl cr_file.vhdl cache_ram.vhdl plru.vhdl
+VHDL_FILES += dcache.vhdl core_debug.vhdl multiply.vhdl icache.vhdl fetch2.vhdl
+VHDL_FILES += register_file.vhdl decode1.vhdl divider.vhdl core.vhdl soc.vhdl
+VHDL_FILES += fpga/soc_reset.vhdl fpga/clk_gen_bypass.vhd fpga/toplevel.vhdl
+
+all: microwatt.bit
+
+microwatt.json: $(VHDL_FILES)
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(VHDL_FILES) -e toplevel; synth_ecp5 -json $@"
+
+microwatt_out.config: microwatt.json $(LPF)
+	$(NEXTPNR) --json $< --lpf $(LPF) --textcfg $@ $(NEXTPNR_FLAGS) --package $(PACKAGE)
+
+microwatt.bit: microwatt_out.config
+	$(ECPPACK) --svf microwatt.svf $< $@
+
+microwatt.svf: microwatt.bit
+
+prog: microwatt.svf
+	$(OPENOCD) -f $(OPENOCD_JTAG_CONFIG) -f $(OPENOCD_DEVICE_CONFIG) -c "transport select jtag; init; svf $<; exit"
+
+clean:
+	@rm -f work-obj08.cf *.bit *.json *.svf *.config
+
+.PHONY: clean prog
+.PRECIOUS: microwatt.json microwatt_out.config microwatt.bit
