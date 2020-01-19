@@ -109,6 +109,8 @@ architecture behaviour of pp_soc_uart is
 
     signal wb_ack : std_logic; --! Wishbone acknowledge signal
 
+    signal rxd2 : std_logic := '1';
+    signal rxd3 : std_logic := '1';
 begin
 
     irq <= (irq_recv_enable and (not recv_buffer_empty))
@@ -117,6 +119,13 @@ begin
     ---------- UART receive ----------
 
     recv_buffer_input <= rx_byte;
+
+    -- Add a few FFs on the RX input to avoid metastability issues
+    process (clk) is
+    begin
+        rxd3 <= rxd2;
+        rxd2 <= rxd;
+    end process;
 
     uart_receive: process(clk)
     begin
@@ -131,7 +140,7 @@ begin
 			recv_buffer_push <= '0';
 		    end if;
 
-		    if sample_clk = '1' and rxd = '0' then
+		    if sample_clk = '1' and rxd3 = '0' then
 			rx_sample_value <= rx_sample_counter;
 			rx_sample_delay <= 0;
 			rx_current_bit <= 0;
@@ -150,10 +159,10 @@ begin
 		when RECEIVE =>
 		    if sample_clk = '1' and rx_sample_counter = rx_sample_value then
 			if rx_current_bit /= 7 then
-			    rx_byte(rx_current_bit) <= rxd;
+			    rx_byte(rx_current_bit) <= rxd3;
 			    rx_current_bit <= rx_current_bit + 1;
 			else
-			    rx_byte(rx_current_bit) <= rxd;
+			    rx_byte(rx_current_bit) <= rxd3;
 			    rx_state <= STOPBIT;
 			end if;
 		    end if;
