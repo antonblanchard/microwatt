@@ -3,7 +3,7 @@ use ieee.std_logic_1164.all;
 
 entity toplevel is
     generic (
-	MEMORY_SIZE   : positive := 524288;
+	MEMORY_SIZE   : positive := (384*1024);
 	RAM_INIT_FILE : string   := "firmware.hex";
 	RESET_LOW     : boolean  := true;
 	CLK_INPUT     : positive := 100000000;
