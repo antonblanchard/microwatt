@@ -5,6 +5,7 @@ use ieee.numeric_std.all;
 package utils is
 
     function log2(i : natural) return integer;
+    function log2ceil(i : natural) return integer;
     function ispow2(i : integer) return boolean;
 
 end utils;
@@ -16,6 +17,17 @@ package body utils is
         variable ret : integer := 0;
     begin
         while tmp > 1 loop
+            ret  := ret + 1;
+            tmp := tmp / 2;
+        end loop;
+        return ret;
+    end function;
+
+    function log2ceil(i : natural) return integer is
+        variable tmp : integer := i;
+        variable ret : integer := 0;
+    begin
+        while tmp >= 1 loop
             ret  := ret + 1;
             tmp := tmp / 2;
         end loop;
