@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define STACK_TOP 0x3000
+#define STACK_TOP 0x2000
 
 #define FIXUP_ENDIAN						   \
 	tdi   0,0,0x48;	  /* Reverse endian of b . + 8		*/ \
@@ -40,9 +40,21 @@
 
 	.section ".head","ax"
 
+	/*
+	 * Microwatt currently enters in LE mode at 0x0, so we don't need to
+	 * do any endian fix ups>
+	 */
 	. = 0
 .global _start
 _start:
+	b	boot_entry
+
+	/* QEMU enters at 0x10 */
+	. = 0x10
+	FIXUP_ENDIAN
+	b	boot_entry
+
+	. = 0x100
 	FIXUP_ENDIAN
 	b	boot_entry
 
