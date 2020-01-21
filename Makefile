@@ -11,7 +11,7 @@ all = core_tb soc_reset_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb
 all: $(all)
 
 %.o : %.vhdl
-	$(GHDL) -a $(GHDLFLAGS) $<
+	$(GHDL) -a $(GHDLFLAGS) --workdir=$(shell dirname $@) $<
 
 common.o: decode_types.o
 control.o: gpr_hazard.o cr_hazard.o common.o
@@ -72,7 +72,7 @@ sim-unisim/unisim_vcomponents.o: $(UNISIM_BITS)
 fpga/soc_reset_tb.o: fpga/soc_reset.o
 
 soc_reset_tb: fpga/soc_reset_tb.o fpga/soc_reset.o
-	$(GHDL) -e $(GHDLFLAGS) soc_reset_tb
+	$(GHDL) -e $(GHDLFLAGS) --workdir=fpga soc_reset_tb
 
 core_tb: core_tb.o sim_bram_helpers_c.o sim_console_c.o sim_jtag_socket_c.o
 	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o -Wl,sim_console_c.o -Wl,sim_jtag_socket_c.o $@
@@ -130,6 +130,7 @@ test_micropython_long: core_tb
 
 clean:
 	rm -f *.o work-*cf unisim-*cf $(all)
+	rm -f fpga/*.o fpga/work-*cf
 	rm -f sim-unisim/*.o sim-unisim/unisim-*cf
 
 distclean: clean
