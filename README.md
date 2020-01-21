@@ -26,8 +26,17 @@ make -j$(nproc)
 cd ../../../
 ```
 
+  A prebuilt micropython image is also available in the micropython/ directory.
+
 - Microwatt uses ghdl for simulation. Either install this from your
-  distro or build it. Next build microwatt:
+  distro or build it. Microwatt requires ghdl to be built with the LLVM
+  or gcc backend, which not all distros do (Fedora does, Debian/Ubuntu
+  appears not to). ghdl with the LLVM backend is likely easier to build.
+
+  If building ghdl from scratch is too much for you, the microwatt Makefile
+  supports using Docker or podman images. Read through the Makefile for details.
+
+- Next build microwatt:
 
 ```
 git clone https://github.com/antonblanchard/microwatt
@@ -39,6 +48,12 @@ make
 
 ```
 ln -s ../micropython/ports/powerpc/build/firmware.bin main_ram.bin
+```
+
+  Or if you were using the pre-built image:
+
+```
+ln -s micropython/firmware.bin main_ram.bin
 ```
 
 - Now run microwatt, sending debug output to /dev/null:
