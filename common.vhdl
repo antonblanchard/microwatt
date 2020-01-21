@@ -109,6 +109,9 @@ package common is
 	read_data1: std_ulogic_vector(63 downto 0);
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
+        bypass_data1: std_ulogic;
+        bypass_data2: std_ulogic;
+        bypass_data3: std_ulogic;
 	cr: std_ulogic_vector(31 downto 0);
 	xerc: xer_common_t;
 	lr: std_ulogic;
@@ -124,44 +127,41 @@ package common is
 	is_signed: std_ulogic;
 	insn: std_ulogic_vector(31 downto 0);
 	data_len: std_ulogic_vector(3 downto 0);
+	byte_reverse : std_ulogic;
+	sign_extend : std_ulogic;			-- do we need to sign extend?
+	update : std_ulogic;				-- is this an update instruction?
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
-	(valid => '0', insn_type => OP_ILLEGAL, lr => '0', rc => '0', oe => '0', invert_a => '0',
+	(valid => '0', insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
+         lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
-	 is_32bit => '0', is_signed => '0', xerc => xerc_init, others => (others => '0'));
+	 is_32bit => '0', is_signed => '0', xerc => xerc_init,
+         byte_reverse => '0', sign_extend => '0', update => '0', others => (others => '0'));
 
-    type Decode2ToMultiplyType is record
+    type Execute1ToMultiplyType is record
 	valid: std_ulogic;
 	insn_type: insn_type_t;
-	write_reg: gpr_index_t;
 	data1: std_ulogic_vector(64 downto 0);
 	data2: std_ulogic_vector(64 downto 0);
-	rc: std_ulogic;
-	oe: std_ulogic;
 	is_32bit: std_ulogic;
-	xerc: xer_common_t;
     end record;
-    constant Decode2ToMultiplyInit : Decode2ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL, rc => '0',
-							       oe => '0', is_32bit => '0', xerc => xerc_init,
-							       others => (others => '0'));
+    constant Execute1ToMultiplyInit : Execute1ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL,
+								 is_32bit => '0',
+								 others => (others => '0'));
 
-    type Decode2ToDividerType is record
+    type Execute1ToDividerType is record
 	valid: std_ulogic;
-	write_reg: gpr_index_t;
 	dividend: std_ulogic_vector(63 downto 0);
 	divisor: std_ulogic_vector(63 downto 0);
 	is_signed: std_ulogic;
 	is_32bit: std_ulogic;
 	is_extended: std_ulogic;
 	is_modulus: std_ulogic;
-	rc: std_ulogic;
-	oe: std_ulogic;
-	xerc: xer_common_t;
+        neg_result: std_ulogic;
     end record;
-    constant Decode2ToDividerInit: Decode2ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0',
-							    is_extended => '0', is_modulus => '0',
-							    rc => '0', oe => '0', xerc => xerc_init,
-							    others => (others => '0'));
+    constant Execute1ToDividerInit: Execute1ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0',
+                                                              is_extended => '0', is_modulus => '0',
+                                                              neg_result => '0', others => (others => '0'));
 
     type Decode2ToRegisterFileType is record
 	read1_enable : std_ulogic;
@@ -193,7 +193,7 @@ package common is
     end record;
     constant Execute1ToFetch1TypeInit : Execute1ToFetch1Type := (redirect => '0', others => (others => '0'));
 
-    type Decode2ToLoadstore1Type is record
+    type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
 	load : std_ulogic;				-- is this a load or store
 	addr1 : std_ulogic_vector(63 downto 0);
@@ -207,9 +207,9 @@ package common is
 	update_reg : gpr_index_t;                      	-- if so, the register to update
 	xerc : xer_common_t;
     end record;
-    constant Decode2ToLoadstore1Init : Decode2ToLoadstore1Type := (valid => '0', load => '0', byte_reverse => '0',
-								   sign_extend => '0', update => '0', xerc => xerc_init,
-								   others => (others => '0'));
+    constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', load => '0', byte_reverse => '0',
+                                                                     sign_extend => '0', update => '0', xerc => xerc_init,
+                                                                     others => (others => '0'));
 
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
@@ -248,48 +248,32 @@ package common is
 	write_enable : std_ulogic;
 	write_reg: gspr_index_t;
 	write_data: std_ulogic_vector(63 downto 0);
-	write_len : std_ulogic_vector(3 downto 0);
 	write_cr_enable : std_ulogic;
 	write_cr_mask : std_ulogic_vector(7 downto 0);
 	write_cr_data : std_ulogic_vector(31 downto 0);
 	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
-	sign_extend: std_ulogic;
     end record;
     constant Execute1ToWritebackInit : Execute1ToWritebackType := (valid => '0', rc => '0', write_enable => '0',
-								   write_cr_enable => '0', sign_extend => '0',
+								   write_cr_enable => '0',
 								   write_xerc_enable => '0', xerc => xerc_init,
 								   others => (others => '0'));
 
-    type MultiplyToWritebackType is record
+    type MultiplyToExecute1Type is record
 	valid: std_ulogic;
-
-	write_reg_enable : std_ulogic;
-	write_reg_nr: gpr_index_t;
 	write_reg_data: std_ulogic_vector(63 downto 0);
-	write_xerc_enable : std_ulogic;
-	xerc : xer_common_t;
-	rc: std_ulogic;
+        overflow : std_ulogic;
     end record;
-    constant MultiplyToWritebackInit : MultiplyToWritebackType := (valid => '0', write_reg_enable => '0',
-								   rc => '0', write_xerc_enable => '0',
-								   xerc => xerc_init,
-								   others => (others => '0'));
-
-    type DividerToWritebackType is record
-	valid: std_ulogic;
-
-	write_reg_enable : std_ulogic;
-	write_reg_nr: gpr_index_t;
-	write_reg_data: std_ulogic_vector(63 downto 0);
-	write_xerc_enable : std_ulogic;
-	xerc : xer_common_t;
-	rc: std_ulogic;
-    end record;
-    constant DividerToWritebackInit : DividerToWritebackType := (valid => '0', write_reg_enable => '0',
-								 rc => '0', write_xerc_enable => '0',
-								 xerc => xerc_init,
+    constant MultiplyToExecute1Init : MultiplyToExecute1Type := (valid => '0', overflow => '0',
 								 others => (others => '0'));
+
+    type DividerToExecute1Type is record
+	valid: std_ulogic;
+	write_reg_data: std_ulogic_vector(63 downto 0);
+        overflow : std_ulogic;
+    end record;
+    constant DividerToExecute1Init : DividerToExecute1Type := (valid => '0', overflow => '0',
+                                                               others => (others => '0'));
 
     type WritebackToRegisterFileType is record
 	write_reg : gspr_index_t;

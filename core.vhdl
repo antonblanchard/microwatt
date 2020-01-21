@@ -9,7 +9,8 @@ use work.wishbone_types.all;
 entity core is
     generic (
         SIM : boolean := false;
-	DISABLE_FLATTEN : boolean := false
+	DISABLE_FLATTEN : boolean := false;
+        EX1_BYPASS : boolean := true
         );
     port (
         clk          : in std_logic;
@@ -59,17 +60,9 @@ architecture behave of core is
     signal execute1_to_fetch1: Execute1ToFetch1Type;
 
     -- load store signals
-    signal decode2_to_loadstore1: Decode2ToLoadstore1Type;
+    signal execute1_to_loadstore1: Execute1ToLoadstore1Type;
     signal loadstore1_to_dcache: Loadstore1ToDcacheType;
     signal dcache_to_writeback: DcacheToWritebackType;
-
-    -- multiply signals
-    signal decode2_to_multiply: Decode2ToMultiplyType;
-    signal multiply_to_writeback: MultiplyToWritebackType;
-
-    -- divider signals
-    signal decode2_to_divider: Decode2ToDividerType;
-    signal divider_to_writeback: DividerToWritebackType;
 
     -- local signals
     signal fetch1_stall_in : std_ulogic;
@@ -115,8 +108,6 @@ architecture behave of core is
     attribute keep_hierarchy of register_file_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of cr_file_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of execute1_0 : label is keep_h(DISABLE_FLATTEN);
-    attribute keep_hierarchy of multiply_0 : label is keep_h(DISABLE_FLATTEN);
-    attribute keep_hierarchy of divider_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of loadstore1_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of dcache_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of writeback_0 : label is keep_h(DISABLE_FLATTEN);
@@ -186,6 +177,9 @@ begin
     decode1_stall_in <= decode2_stall_out;
 
     decode2_0: entity work.decode2
+        generic map (
+            EX1_BYPASS => EX1_BYPASS
+            )
         port map (
             clk => clk,
             rst => core_rst,
@@ -196,9 +190,6 @@ begin
 	    stopped_out => dbg_core_is_stopped,
             d_in => decode1_to_decode2,
             e_out => decode2_to_execute1,
-            l_out => decode2_to_loadstore1,
-            m_out => decode2_to_multiply,
-            d_out => decode2_to_divider,
             r_in => register_file_to_decode2,
             r_out => decode2_to_register_file,
             c_in => cr_file_to_decode2,
@@ -232,11 +223,16 @@ begin
             );
 
     execute1_0: entity work.execute1
+        generic map (
+            EX1_BYPASS => EX1_BYPASS
+            )
         port map (
             clk => clk,
+            rst => core_rst,
             flush_out => flush,
 	    stall_out => ex1_stall_out,
             e_in => decode2_to_execute1,
+            l_out => execute1_to_loadstore1,
             f_out => execute1_to_fetch1,
             e_out => execute1_to_writeback,
 	    icache_inval => ex1_icache_inval,
@@ -246,7 +242,7 @@ begin
     loadstore1_0: entity work.loadstore1
         port map (
             clk => clk,
-            l_in => decode2_to_loadstore1,
+            l_in => execute1_to_loadstore1,
             l_out => loadstore1_to_dcache
             );
 
@@ -265,28 +261,11 @@ begin
             wishbone_out => wishbone_data_out
             );
 
-    multiply_0: entity work.multiply
-        port map (
-            clk => clk,
-            m_in => decode2_to_multiply,
-            m_out => multiply_to_writeback
-            );
-
-    divider_0: entity work.divider
-        port map (
-            clk => clk,
-            rst => core_rst,
-            d_in => decode2_to_divider,
-            d_out => divider_to_writeback
-            );
-
     writeback_0: entity work.writeback
         port map (
             clk => clk,
             e_in => execute1_to_writeback,
             l_in => dcache_to_writeback,
-            m_in => multiply_to_writeback,
-            d_in => divider_to_writeback,
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             complete_out => complete

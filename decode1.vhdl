@@ -44,8 +44,8 @@ architecture behaviour of decode1 is
 		29 =>       (ALU,    OP_AND,       NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0'), -- andis.
 		18 =>       (ALU,    OP_B,         NONE,       CONST_LI,    NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0'), -- b
 		16 =>       (ALU,    OP_BC,        SPR,        CONST_BD,    NONE, SPR , '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0'), -- bc
-		11 =>       (ALU,    OP_CMP,       RA,         CONST_SI,    NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- cmpi
-		10 =>       (ALU,    OP_CMPL,      RA,         CONST_UI,    NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- cmpli
+		11 =>       (ALU,    OP_CMP,       RA,         CONST_SI,    NONE, NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0'), -- cmpi
+		10 =>       (ALU,    OP_CMP,       RA,         CONST_UI,    NONE, NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- cmpli
 		34 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lbz
 		35 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lbzu
 		42 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '1'), -- lha
@@ -54,7 +54,7 @@ architecture behaviour of decode1 is
 		41 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lhzu
 		32 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- lwz
                 33 =>       (LDST,   OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- lwzu
-		 7 =>       (MUL,    OP_MUL_L64,   RA,         CONST_SI,    NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '1'), -- mulli
+		 7 =>       (ALU,    OP_MUL_L64,   RA,         CONST_SI,    NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0'), -- mulli
 		24 =>       (ALU,    OP_OR,        NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- ori
 		25 =>       (ALU,    OP_OR,        NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- oris
 		20 =>       (ALU,    OP_RLC,       RA,         CONST_SH32,  RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- rlwimi
@@ -66,7 +66,7 @@ architecture behaviour of decode1 is
 		45 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- sthu
 		36 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- stw
 		37 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '1'), -- stwu
-		 8 =>       (ALU,    OP_ADD,       RA,         CONST_SI,    NONE, RT,   '0', '0', '1', '0', ONE,  '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- subfic
+		 8 =>       (ALU,    OP_ADD,       RA,         CONST_SI,    NONE, RT,   '0', '0', '1', '0', ONE,  '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- subfic
 		 2 =>       (ALU,    OP_TDI,       RA,         CONST_SI,    NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- tdi
 		--PPC_TWI 3
 		26 =>       (ALU,    OP_XOR,       NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- xori
@@ -145,10 +145,10 @@ architecture behaviour of decode1 is
 		2#0000011100#  =>       (ALU,    OP_AND,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- and
 		2#0000111100#  =>       (ALU,    OP_AND,       NONE,       RB,          RS,   RA,   '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- andc
 		-- 2#0011111100# bperm
-		2#0000000000#  =>       (ALU,    OP_CMP,       RA,         RB,          NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- cmp
+		2#0000000000#  =>       (ALU,    OP_CMP,       RA,         RB,          NONE, NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0'), -- cmp
 		2#0111111100#  =>       (ALU,    OP_CMPB,      NONE,       RB,          RS,   RA,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- cmpb
 		-- 2#0011100000# cmpeqb
-		2#0000100000#  =>       (ALU,    OP_CMPL,      RA,         RB,          NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- cmpl
+		2#0000100000#  =>       (ALU,    OP_CMP,       RA,         RB,          NONE, NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- cmpl
 		-- 2#0011000000# cmprb
 		2#0000111010#  =>       (ALU,    OP_CNTZ,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- cntlzd
 		2#0000011010#  =>       (ALU,    OP_CNTZ,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- cntlzw
@@ -160,22 +160,22 @@ architecture behaviour of decode1 is
 		2#0100010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbt
 		2#0011110110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbtst
 		-- 2#1111110110# dcbz
-		2#0110001001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divdeu
-		2#1110001001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divdeuo
-		2#0110001011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divweu
-		2#1110001011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divweuo
-		2#0110101001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divde
-		2#1110101001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divdeo
-		2#0110101011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divwe
-		2#1110101011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divweo
-		2#0111001001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divdu
-		2#1111001001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divduo
-		2#0111001011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divwu
-		2#1111001011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divwuo
-		2#0111101001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divd
-		2#1111101001#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divdo
-		2#0111101011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divw
-		2#1111101011#  =>       (DIV,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- divwo
+		2#0110001001#  =>       (ALU,    OP_DIVE,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- divdeu
+		2#1110001001#  =>       (ALU,    OP_DIVE,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- divdeuo
+		2#0110001011#  =>       (ALU,    OP_DIVE,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- divweu
+		2#1110001011#  =>       (ALU,    OP_DIVE,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- divweuo
+		2#0110101001#  =>       (ALU,    OP_DIVE,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- divde
+		2#1110101001#  =>       (ALU,    OP_DIVE,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- divdeo
+		2#0110101011#  =>       (ALU,    OP_DIVE,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0'), -- divwe
+		2#1110101011#  =>       (ALU,    OP_DIVE,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0'), -- divweo
+		2#0111001001#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- divdu
+		2#1111001001#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- divduo
+		2#0111001011#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- divwu
+		2#1111001011#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- divwuo
+		2#0111101001#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- divd
+		2#1111101001#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- divdo
+		2#0111101011#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0'), -- divw
+		2#1111101011#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0'), -- divwo
 		2#0100011100#  =>       (ALU,    OP_XOR,       NONE,       RB,          RS,   RA,   '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- eqv
 		2#1110111010#  =>       (ALU,    OP_EXTS,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- extsb
 		2#1110011010#  =>       (ALU,    OP_EXTS,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- extsh
@@ -238,36 +238,36 @@ architecture behaviour of decode1 is
 		-- 2#1001000000# mcrxrx
 		2#0000010011#  =>       (ALU,    OP_MFCR,      NONE,       NONE,        NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mfcr/mfocrf
 		2#0101010011#  =>       (ALU,    OP_MFSPR,     SPR,        NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mfspr
-		2#0100001001#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- modud
-		2#0100001011#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- moduw
-		2#1100001001#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- modsd
-		2#1100001011#  =>       (DIV,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- modsw
+		2#0100001001#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- modud
+		2#0100001011#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0'), -- moduw
+		2#1100001001#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0'), -- modsd
+		2#1100001011#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', NONE, '0', '0'), -- modsw
 		2#0010010000#  =>       (ALU,    OP_MTCRF,     NONE,       NONE,        RS,   NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mtcrf/mtocrf
 		2#0111010011#  =>       (ALU,    OP_MTSPR,     NONE,       NONE,        RS,   SPR,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mtspr
-		2#0001001001#  =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- mulhd
-		2#0000001001#  =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- mulhdu
-		2#0001001011#  =>       (MUL,    OP_MUL_H32,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'), -- mulhw
-		2#0000001011#  =>       (MUL,    OP_MUL_H32,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '1'), -- mulhwu
+		2#0001001001#  =>       (ALU,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- mulhd
+		2#0000001001#  =>       (ALU,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- mulhdu
+		2#0001001011#  =>       (ALU,    OP_MUL_H32,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0'), -- mulhw
+		2#0000001011#  =>       (ALU,    OP_MUL_H32,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- mulhwu
                 -- next 4 have reserved bit set
-		2#1001001001#  =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- mulhd
-		2#1000001001#  =>       (MUL,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'), -- mulhdu
-		2#1001001011#  =>       (MUL,    OP_MUL_H32,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'), -- mulhw
-		2#1000001011#  =>       (MUL,    OP_MUL_H32,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '1'), -- mulhwu
-		2#0011101001#  =>       (MUL,    OP_MUL_L64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- mulld
-		2#1011101001#  =>       (MUL,    OP_MUL_L64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '1'), -- mulldo
-		2#0011101011#  =>       (MUL,    OP_MUL_L64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'), -- mullw
-		2#1011101011#  =>       (MUL,    OP_MUL_L64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '1'), -- mullwo
+		2#1001001001#  =>       (ALU,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- mulhd
+		2#1000001001#  =>       (ALU,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- mulhdu
+		2#1001001011#  =>       (ALU,    OP_MUL_H32,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0'), -- mulhw
+		2#1000001011#  =>       (ALU,    OP_MUL_H32,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- mulhwu
+		2#0011101001#  =>       (ALU,    OP_MUL_L64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- mulld
+		2#1011101001#  =>       (ALU,    OP_MUL_L64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- mulldo
+		2#0011101011#  =>       (ALU,    OP_MUL_L64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0'), -- mullw
+		2#1011101011#  =>       (ALU,    OP_MUL_L64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0'), -- mullwo
 		2#0111011100#  =>       (ALU,    OP_AND,       NONE,       RB,          RS,   RA,   '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- nand
 		2#0001101000#  =>       (ALU,    OP_ADD,       RA,         NONE,        NONE, RT,   '0', '0', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- neg
 		2#1001101000#  =>       (ALU,    OP_ADD,       RA,         NONE,        NONE, RT,   '0', '0', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- nego
 		2#0001111100#  =>       (ALU,    OP_OR,        NONE,       RB,          RS,   RA,   '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- nor
 		2#0110111100#  =>       (ALU,    OP_OR,        NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- or
 		2#0110011100#  =>       (ALU,    OP_OR,        NONE,       RB,          RS,   RA,   '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- orc
-		2#0001111010#  =>       (ALU,    OP_POPCNTB,   NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- popcntb
-		2#0111111010#  =>       (ALU,    OP_POPCNTD,   NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- popcntd
-		2#0101111010#  =>       (ALU,    OP_POPCNTW,   NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- popcntw
-		2#0010111010#  =>       (ALU,    OP_PRTYD,     NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- prtyd
-		2#0010011010#  =>       (ALU,    OP_PRTYW,     NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- prtyw
+		2#0001111010#  =>       (ALU,    OP_POPCNT,    NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- popcntb
+		2#0111111010#  =>       (ALU,    OP_POPCNT,    NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- popcntd
+		2#0101111010#  =>       (ALU,    OP_POPCNT,    NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- popcntw
+		2#0010111010#  =>       (ALU,    OP_PRTY,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- prtyd
+		2#0010011010#  =>       (ALU,    OP_PRTY,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- prtyw
 		-- 2#0010000000# setb
 		2#0000011011#  =>       (ALU,    OP_SHL,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- sld
 		2#0000011000#  =>       (ALU,    OP_SHL,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- slw

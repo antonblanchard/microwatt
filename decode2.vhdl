@@ -9,6 +9,9 @@ use work.helpers.all;
 use work.insn_helpers.all;
 
 entity decode2 is
+        generic (
+                EX1_BYPASS : boolean := true
+        );
 	port (
 		clk   : in std_ulogic;
 		rst   : in std_ulogic;
@@ -24,9 +27,6 @@ entity decode2 is
 		d_in  : in Decode1ToDecode2Type;
 
 		e_out : out Decode2ToExecute1Type;
-		m_out : out Decode2ToMultiplyType;
-                d_out : out Decode2ToDividerType;
-		l_out : out Decode2ToLoadstore1Type;
 
 		r_in  : in RegisterFileToDecode2Type;
 		r_out : out Decode2ToRegisterFileType;
@@ -39,9 +39,6 @@ end entity decode2;
 architecture behaviour of decode2 is
 	type reg_type is record
 		e : Decode2ToExecute1Type;
-		m : Decode2ToMultiplyType;
-                d : Decode2ToDividerType;
-		l : Decode2ToLoadstore1Type;
 	end record;
 
 	signal r, rin : reg_type;
@@ -188,15 +185,19 @@ architecture behaviour of decode2 is
 
 	signal gpr_write_valid : std_ulogic;
 	signal gpr_write : gspr_index_t;
+        signal gpr_bypassable  : std_ulogic;
 
 	signal gpr_a_read_valid : std_ulogic;
 	signal gpr_a_read :gspr_index_t;
+        signal gpr_a_bypass : std_ulogic;
 
 	signal gpr_b_read_valid : std_ulogic;
 	signal gpr_b_read : gspr_index_t;
+        signal gpr_b_bypass : std_ulogic;
 
 	signal gpr_c_read_valid : std_ulogic;
 	signal gpr_c_read : gpr_index_t;
+        signal gpr_c_bypass : std_ulogic;
 
 	signal cr_write_valid : std_ulogic;
 begin
@@ -217,6 +218,7 @@ begin
 
 		gpr_write_valid_in => gpr_write_valid,
 		gpr_write_in       => gpr_write,
+                gpr_bypassable     => gpr_bypassable,
 
 		gpr_a_read_valid_in  => gpr_a_read_valid,
 		gpr_a_read_in        => gpr_a_read,
@@ -232,13 +234,17 @@ begin
 
 		valid_out   => control_valid_out,
 		stall_out   => stall_out,
-		stopped_out => stopped_out
+		stopped_out => stopped_out,
+
+                gpr_bypass_a => gpr_a_bypass,
+                gpr_bypass_b => gpr_b_bypass,
+                gpr_bypass_c => gpr_c_bypass
 	);
 
 	decode2_0: process(clk)
 	begin
 		if rising_edge(clk) then
-			if rin.e.valid = '1' or rin.l.valid = '1' or rin.m.valid = '1' or rin.d.valid = '1' then
+			if rin.e.valid = '1' then
 				report "execute " & to_hstring(rin.e.nia);
 			end if;
 			r <= rin;
@@ -259,21 +265,16 @@ begin
 		variable decoded_reg_b : decode_input_reg_t;
 		variable decoded_reg_c : decode_input_reg_t;
 		variable decoded_reg_o : decode_output_reg_t;
-                variable signed_division: std_ulogic;
                 variable length : std_ulogic_vector(3 downto 0);
 	begin
 		v := r;
 
 		v.e := Decode2ToExecute1Init;
-		v.l := Decode2ToLoadStore1Init;
-		v.m := Decode2ToMultiplyInit;
-                v.d := Decode2ToDividerInit;
 
 		mul_a := (others => '0');
 		mul_b := (others => '0');
 
 		--v.e.input_cr := d_in.decode.input_cr;
-		--v.m.input_cr := d_in.decode.input_cr;
 		--v.e.output_cr := d_in.decode.output_cr;
     
 		decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data, d_in.ispr1);
@@ -303,12 +304,17 @@ begin
 		v.e.insn_type := d_in.decode.insn_type;
 		v.e.read_reg1 := decoded_reg_a.reg;
 		v.e.read_data1 := decoded_reg_a.data;
+                v.e.bypass_data1 := gpr_a_bypass;
 		v.e.read_reg2 := decoded_reg_b.reg;
 		v.e.read_data2 := decoded_reg_b.data;
+                v.e.bypass_data2 := gpr_b_bypass;
                 v.e.read_data3 := decoded_reg_c.data;
+                v.e.bypass_data3 := gpr_c_bypass;
 		v.e.write_reg := decoded_reg_o.reg;
 		v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
-		v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
+                if not (d_in.decode.insn_type = OP_MUL_H32 or d_in.decode.insn_type = OP_MUL_H64) then
+                        v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
+                end if;
 		v.e.cr := c_in.read_cr_data;
 		v.e.xerc := c_in.read_xerc_data;
                 v.e.invert_a := d_in.decode.invert_a;
@@ -322,102 +328,9 @@ begin
 		end if;
                 v.e.insn := d_in.insn;
                 v.e.data_len := length;
-
-		-- multiply unit
-		v.m.insn_type := d_in.decode.insn_type;
-		mul_a := decoded_reg_a.data;
-		mul_b := decoded_reg_b.data;
-		v.m.write_reg := gspr_to_gpr(decoded_reg_o.reg);
-		v.m.rc := decode_rc(d_in.decode.rc, d_in.insn);
-		v.m.xerc := c_in.read_xerc_data;
-		if v.m.insn_type = OP_MUL_L64 then
-		  v.m.oe := decode_oe(d_in.decode.rc, d_in.insn);
-		end if;
-		v.m.is_32bit := d_in.decode.is_32bit;
-
-		if d_in.decode.is_32bit = '1' then
-			if d_in.decode.is_signed = '1' then
-				v.m.data1 := (others => mul_a(31));
-				v.m.data1(31 downto 0) := mul_a(31 downto 0);
-				v.m.data2 := (others => mul_b(31));
-				v.m.data2(31 downto 0) := mul_b(31 downto 0);
-			else
-				v.m.data1 := '0' & x"00000000" & mul_a(31 downto 0);
-				v.m.data2 := '0' & x"00000000" & mul_b(31 downto 0);
-			end if;
-		else
-			if d_in.decode.is_signed = '1' then
-				v.m.data1 := mul_a(63) & mul_a;
-				v.m.data2 := mul_b(63) & mul_b;
-			else
-				v.m.data1 := '0' & mul_a;
-				v.m.data2 := '0' & mul_b;
-			end if;
-		end if;
-
-                -- divide unit
-                -- PPC divide and modulus instruction words have these bits in
-                -- the bottom 11 bits: o1dns 010t1 r
-                -- where o = OE for div instrs, signedness for mod instrs
-                --       d = 1 for div*, 0 for mod*
-                --       n = 1 for normal, 0 for extended (dividend << 32/64)
-                --       s = 1 for signed, 0 for unsigned (for div*)
-                --       t = 1 for 32-bit, 0 for 64-bit
-                --       r = RC bit (record condition code)
-		v.d.write_reg := gspr_to_gpr(decoded_reg_o.reg);
-                v.d.is_modulus := not d_in.insn(8);
-                v.d.is_32bit := d_in.insn(2);
-                if d_in.insn(8) = '1' then
-                        signed_division := d_in.insn(6);
-                else
-                        signed_division := d_in.insn(10);
-                end if;
-                v.d.is_signed := signed_division;
-                if d_in.insn(2) = '0' then
-                        -- 64-bit forms
-                        if d_in.insn(8) = '1' and d_in.insn(7) = '0' then
-                                v.d.is_extended := '1';
-                        end if;
-                        v.d.dividend := decoded_reg_a.data;
-                        v.d.divisor := decoded_reg_b.data;
-                else
-                        -- 32-bit forms
-                        if d_in.insn(8) = '1' and d_in.insn(7) = '0' then   -- extended forms
-                                v.d.dividend := decoded_reg_a.data(31 downto 0) & x"00000000";
-                        elsif signed_division = '1' and decoded_reg_a.data(31) = '1' then
-                                -- sign extend to 64 bits
-                                v.d.dividend := x"ffffffff" & decoded_reg_a.data(31 downto 0);
-                        else
-                                v.d.dividend := x"00000000" & decoded_reg_a.data(31 downto 0);
-                        end if;
-                        if signed_division = '1' and decoded_reg_b.data(31) = '1' then
-                                v.d.divisor := x"ffffffff" & decoded_reg_b.data(31 downto 0);
-                        else
-                                v.d.divisor := x"00000000" & decoded_reg_b.data(31 downto 0);
-                        end if;
-                end if;
-                v.d.rc := decode_rc(d_in.decode.rc, d_in.insn);
-		v.d.xerc := c_in.read_xerc_data;
-		v.d.oe := decode_oe(d_in.decode.rc, d_in.insn);
-
-		-- load/store unit
-		v.l.update_reg := gspr_to_gpr(decoded_reg_a.reg);
-		v.l.addr1 := decoded_reg_a.data;
-		v.l.addr2 := decoded_reg_b.data;
-		v.l.data := decoded_reg_c.data;
-		v.l.write_reg := gspr_to_gpr(decoded_reg_o.reg);
-
-		if d_in.decode.insn_type = OP_LOAD then
-			v.l.load := '1';
-		else
-			v.l.load := '0';
-		end if;
-
-                v.l.length := length;
-		v.l.byte_reverse := d_in.decode.byte_reverse;
-		v.l.sign_extend := d_in.decode.sign_extend;
-		v.l.update := d_in.decode.update;
-		v.l.xerc := c_in.read_xerc_data;
+		v.e.byte_reverse := d_in.decode.byte_reverse;
+		v.e.sign_extend := d_in.decode.sign_extend;
+		v.e.update := d_in.decode.update;
 
 		-- issue control
 		control_valid_in <= d_in.valid;
@@ -425,6 +338,10 @@ begin
 
 		gpr_write_valid <= decoded_reg_o.reg_valid;
 		gpr_write <= decoded_reg_o.reg;
+                gpr_bypassable <= '0';
+                if EX1_BYPASS and d_in.decode.unit = ALU then
+                        gpr_bypassable <= '1';
+                end if;
 
 		gpr_a_read_valid <= decoded_reg_a.reg_valid;
 		gpr_a_read <= decoded_reg_a.reg;
@@ -437,29 +354,13 @@ begin
 
                 cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
 
-		v.e.valid := '0';
-		v.m.valid := '0';
-                v.d.valid := '0';
-		v.l.valid := '0';
-		case d_in.decode.unit is
-		when ALU =>
-			v.e.valid := control_valid_out;
-		when LDST =>
-			v.l.valid := control_valid_out;
-		when MUL =>
-			v.m.valid := control_valid_out;
-                when DIV =>
-                        v.d.valid := control_valid_out;
-		when NONE =>
-			v.e.valid := control_valid_out;
+		v.e.valid := control_valid_out;
+		if d_in.decode.unit = NONE then
 			v.e.insn_type := OP_ILLEGAL;
-		end case;
+		end if;
 
 		if rst = '1' then
 			v.e := Decode2ToExecute1Init;
-			v.l := Decode2ToLoadStore1Init;
-			v.m := Decode2ToMultiplyInit;
-                        v.d := Decode2ToDividerInit;
 		end if;
 
 		-- Update registers
@@ -467,8 +368,5 @@ begin
 
 		-- Update outputs
 		e_out <= r.e;
-		l_out <= r.l;
-		m_out <= r.m;
-                d_out <= r.d;
 	end process;
 end architecture behaviour;

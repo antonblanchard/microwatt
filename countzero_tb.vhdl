@@ -15,15 +15,25 @@ architecture behave of countzero_tb is
     signal is_32bit, count_right: std_ulogic := '0';
     signal result: std_ulogic_vector(63 downto 0);
     signal randno: std_ulogic_vector(63 downto 0);
+    signal clk: std_ulogic;
 
 begin
     zerocounter_0: entity work.zero_counter
 	port map (
+            clk => clk,
 	    rs => rs,
 	    result => result,
 	    count_right => count_right,
 	    is_32bit => is_32bit
 	);
+
+    clk_process: process
+    begin
+        clk <= '0';
+        wait for clk_period/2;
+        clk <= '1';
+        wait for clk_period/2;
+    end process;
 
     stim_process: process
         variable r: std_ulogic_vector(63 downto 0);
