@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <poll.h>
 
+/* Should we exit simulation on ctrl-c or pass it through? */
+#define EXIT_ON_CTRL_C
 
 #define vhpi0	2	/* forcing 0 */
 #define vhpi1	3	/* forcing 1 */
@@ -59,12 +61,12 @@ static void to_std_logic_vector(unsigned long val, unsigned char *p,
 
 static struct termios oldt;
 
-static void restore_termios(void)
+static void disable_raw_mode(void)
 {
 	tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 }
 
-static void nonblocking(void)
+static void enable_raw_mode(void)
 {
 	static bool initialized = false;
 
@@ -73,16 +75,13 @@ static void nonblocking(void)
 
 		tcgetattr(STDIN_FILENO, &oldt);
 		newt = oldt;
-		newt.c_lflag &= ~(ICANON|ECHO);
-
-		newt.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-		newt.c_oflag &= ~(OPOST);
-		newt.c_cflag |= (CS8);
-		newt.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-
+		cfmakeraw(&newt);
+#ifdef EXIT_ON_CTRL_C
+		newt.c_lflag |= ISIG;
+#endif
 		tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 		initialized = true;
-		atexit(restore_termios);
+		atexit(disable_raw_mode);
 	}
 }
 
@@ -91,7 +90,7 @@ void sim_console_read(unsigned char *__rt)
 	int ret;
 	unsigned long val = 0;
 
-	nonblocking();
+	enable_raw_mode();
 
 	ret = read(STDIN_FILENO, &val, 1);
 	if (ret != 1) {
@@ -110,7 +109,7 @@ void sim_console_poll(unsigned char *__rt)
 	struct pollfd fdset[1];
 	uint8_t val = 0;
 
-	nonblocking();
+	enable_raw_mode();
 
 	memset(fdset, 0, sizeof(fdset));
 
