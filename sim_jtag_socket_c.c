@@ -9,59 +9,11 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include "sim_vhpi_c.h"
 
 /* XXX Make that some parameter */
 #define TCP_PORT	13245
 #define MAX_PACKET	32
-
-#define vhpi0	2	/* forcing 0 */
-#define vhpi1	3	/* forcing 1 */
-
-static void to_std_logic_vector(unsigned long val, unsigned char *p,
-				unsigned long len)
-{
-	if (len > 64) {
-		fprintf(stderr, "%s: invalid length %lu\n", __func__, len);
-		exit(1);
-	}
-
-	for (unsigned long i = 0; i < len; i++) {
-		if ((val >> (len-1-i) & 1))
-			*p = vhpi1;
-		else
-			*p = vhpi0;
-
-		p++;
-	}
-}
-
-static uint64_t from_std_logic_vector(unsigned char *p, unsigned long len)
-{
-	unsigned long ret = 0;
-
-	if (len > 64) {
-		fprintf(stderr, "%s: invalid length %lu\n", __func__, len);
-		exit(1);
-	}
-
-	for (unsigned long i = 0; i < len; i++) {
-		unsigned char bit;
-
-		if (*p == vhpi0) {
-			bit = 0;
-		} else if (*p == vhpi1) {
-			bit = 1;
-		} else {
-			fprintf(stderr, "%s: bad bit %d\n", __func__, *p);
-			bit = 0;
-		}
-
-		ret = (ret << 1) | bit;
-		p++;
-	}
-
-	return ret;
-}
 
 static int fd = -1;
 static int cfd = -1;

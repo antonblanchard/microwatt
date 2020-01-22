@@ -6,58 +6,10 @@
 #include <termios.h>
 #include <unistd.h>
 #include <poll.h>
+#include "sim_vhpi_c.h"
 
 /* Should we exit simulation on ctrl-c or pass it through? */
 #define EXIT_ON_CTRL_C
-
-#define vhpi0	2	/* forcing 0 */
-#define vhpi1	3	/* forcing 1 */
-
-static uint64_t from_std_logic_vector(unsigned char *p, unsigned long len)
-{
-	unsigned long ret = 0;
-
-	if (len > 64) {
-		fprintf(stderr, "%s: invalid length %lu\n", __func__, len);
-		exit(1);
-	}
-
-	for (unsigned long i = 0; i < len; i++) {
-		unsigned char bit;
-
-		if (*p == vhpi0) {
-			bit = 0;
-		} else if (*p == vhpi1) {
-			bit = 1;
-		} else {
-			fprintf(stderr, "%s: bad bit %d\n", __func__, *p);
-			bit = 0;
-		}
-
-		ret = (ret << 1) | bit;
-		p++;
-	}
-
-	return ret;
-}
-
-static void to_std_logic_vector(unsigned long val, unsigned char *p,
-				unsigned long len)
-{
-	if (len > 64) {
-		fprintf(stderr, "%s: invalid length %lu\n", __func__, len);
-		exit(1);
-	}
-
-	for (unsigned long i = 0; i < len; i++) {
-		if ((val >> (len-1-i) & 1))
-			*p = vhpi1;
-		else
-			*p = vhpi0;
-
-		p++;
-	}
-}
 
 static struct termios oldt;
 
