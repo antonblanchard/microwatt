@@ -88,17 +88,17 @@ fpga/soc_reset_tb.o: fpga/soc_reset.o
 soc_reset_tb: fpga/soc_reset_tb.o fpga/soc_reset.o
 	$(GHDL) -e $(GHDLFLAGS) --workdir=fpga soc_reset_tb
 
-core_tb: core_tb.o sim_bram_helpers_c.o sim_console_c.o sim_jtag_socket_c.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o -Wl,sim_console_c.o -Wl,sim_jtag_socket_c.o $@
+core_tb: core_tb.o sim_vhpi_c.o sim_bram_helpers_c.o sim_console_c.o sim_jtag_socket_c.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o -Wl,sim_console_c.o -Wl,sim_jtag_socket_c.o $@
 
 fetch_tb: fetch_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
-icache_tb: icache_tb.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o $@
+icache_tb: icache_tb.o sim_vhpi_c.o sim_bram_helpers_c.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o $@
 
-dcache_tb: dcache_tb.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o $@
+dcache_tb: dcache_tb.o sim_vhpi_c.o sim_bram_helpers_c.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o $@
 
 plru_tb: plru_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
@@ -121,11 +121,11 @@ countzero_tb: countzero_tb.o
 simple_ram_tb: simple_ram_tb.o
 	$(GHDL) -e $(GHDLFLAGS) $@
 
-wishbone_bram_tb: sim_bram_helpers_c.o wishbone_bram_tb.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o $@
+wishbone_bram_tb: sim_vhpi_c.o sim_bram_helpers_c.o wishbone_bram_tb.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o $@
 
-dmi_dtm_tb: dmi_dtm_tb.o sim_bram_helpers_c.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_bram_helpers_c.o $@
+dmi_dtm_tb: dmi_dtm_tb.o sim_vhpi_c.o sim_bram_helpers_c.o
+	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o $@
 
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 
