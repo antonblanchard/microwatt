@@ -12,7 +12,7 @@ CFLAGS=-O2 -Wall
 #
 # Uncomment these lines to build with Docker/podman
 #PWD = $(shell pwd)
-#DOCKERARGS = run --rm -v $(PWD):/src -w /src
+#DOCKERARGS = run --rm -v $(PWD):/src:z -w /src
 #GHDL = $(DOCKER) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 ghdl
 #CC = $(DOCKER) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 gcc
 

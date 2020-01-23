@@ -10,7 +10,7 @@ DOCKER=docker
 #DOCKER=podman
 #
 PWD = $(shell pwd)
-DOCKERARGS = run --rm -v $(PWD):/src -w /src
+DOCKERARGS = run --rm -v $(PWD):/src:z -w /src
 #
 GHDLSYNTH = ghdl
 YOSYS     = $(DOCKER) $(DOCKERARGS) ghdl/synth:beta yosys
