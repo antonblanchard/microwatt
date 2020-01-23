@@ -64,16 +64,16 @@ begin
         variable zero : std_ulogic;
         variable sign : std_ulogic;
     begin
-        x := "" & e_in.valid;
-        y := "" & l_in.valid;
+        x(0) := e_in.valid;
+        y(0) := l_in.valid;
         assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
 
-        x := "" & e_in.write_enable;
-        y := "" & l_in.write_enable;
+        x(0) := e_in.write_enable;
+        y(0) := l_in.write_enable;
         assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
 
-        w := "" & e_in.write_cr_enable;
-        x := "" & (e_in.write_enable and e_in.rc);
+        w(0) := e_in.write_cr_enable;
+        x(0) := (e_in.write_enable and e_in.rc);
         assert (to_integer(unsigned(w)) + to_integer(unsigned(x))) <= 1 severity failure;
 
         w_out <= WritebackToRegisterFileInit;
