@@ -73,6 +73,7 @@ architecture behave of core is
     signal decode2_stall_out : std_ulogic;
     signal ex1_icache_inval: std_ulogic;
     signal ex1_stall_out: std_ulogic;
+    signal dcache_stall_out: std_ulogic;
 
     signal flush: std_ulogic;
 
@@ -195,7 +196,7 @@ begin
             c_in => cr_file_to_decode2,
             c_out => decode2_to_cr_file
             );
-    decode2_stall_in <= ex1_stall_out;
+    decode2_stall_in <= ex1_stall_out or dcache_stall_out;
 
     register_file_0: entity work.register_file
         generic map (
@@ -257,6 +258,7 @@ begin
 	    rst => core_rst,
             d_in => loadstore1_to_dcache,
             d_out => dcache_to_writeback,
+            stall_out => dcache_stall_out,
             wishbone_in => wishbone_data_in,
             wishbone_out => wishbone_data_out
             );
