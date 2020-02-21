@@ -500,7 +500,7 @@ begin
 	    -- If it's not a load with update, complete it now
 	    if r2.load_is_update = '0' then
 		d_out.valid <= '1';
-		end if;
+            end if;
 	end if;
 
 	-- Slow ops (load miss, NC, stores)
@@ -508,7 +508,7 @@ begin
 	    -- If it's a load, enable register writeback and switch
 	    -- mux accordingly
 	    --
-	    if r1.req.load then	    
+	    if r1.req.load then
 		d_out.write_reg <= r1.req.write_reg;
 		d_out.write_enable <= '1';
 
@@ -679,7 +679,7 @@ begin
     end process;
 
     --
-    -- Every other case is handled by this stage machine:
+    -- Every other case is handled by this state machine:
     --
     --   * Cache load miss/reload (in conjunction with "rams")
     --   * Load hits for update forms
@@ -835,8 +835,8 @@ begin
 			    -- we also need to do the deferred update cycle.
 			    --
 			    r1.slow_valid <= '1';
-			    if r1.req.load = '1' and r1.req.update = '1' then
-				r1.state <= LOAD_UPDATE;
+			    if r1.req.update = '1' then
+				r1.state <= LOAD_UPDATE2;
 				report "completing miss with load-update !";
 			    else
 				r1.state <= IDLE;
@@ -864,13 +864,16 @@ begin
 
 		    -- Got ack ? complete.
 		    if wishbone_in.ack = '1' then
+			r1.state <= IDLE;
 			if r1.state = NC_LOAD_WAIT_ACK then
 			    r1.slow_data <= wishbone_in.dat;
+                            if r1.req.update = '1' then
+                                r1.state <= LOAD_UPDATE2;
+                            end if;
 			end if;
 			r1.slow_valid <= '1';
 			r1.wb.cyc <= '0';
 			r1.wb.stb <= '0';
-			r1.state <= IDLE;
 		    end if;
 		end case;
 	    end if;
