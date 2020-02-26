@@ -116,12 +116,12 @@ begin
             if l_in.byte_reverse = '1' then
                 brev_lenm1 <= unsigned(l_in.write_len(2 downto 0)) - 1;
             end if;
-            w_out.write_enable <= '1';
             second_word <= l_in.second_word;
             if l_in.valid = '0' and (data_len + byte_offset > 8) then
                 partial_write <= '1';
             end if;
 	    xe := l_in.xerc;
+            w_out.write_enable <= not partial_write or second_word;
         end if;
 
         -- shift and byte-reverse data bytes

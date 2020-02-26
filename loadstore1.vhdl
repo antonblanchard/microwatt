@@ -35,12 +35,15 @@ begin
 
     loadstore1_1: process(all)
         variable v : Loadstore1ToDcacheType;
+        variable brev_lenm1 : unsigned(2 downto 0);
+        variable byte_offset : unsigned(2 downto 0);
+        variable j : integer;
+        variable k : unsigned(2 downto 0);
     begin
         v := r;
 
         v.valid := l_in.valid;
         v.load := l_in.load;
-        v.data := l_in.data;
         v.write_reg := l_in.write_reg;
         v.length := l_in.length;
         v.byte_reverse := l_in.byte_reverse;
@@ -63,9 +66,18 @@ begin
 
 	-- XXX Do length_to_sel here ?
 
-        -- byte reverse stores in the first cycle
-        if v.load = '0' and l_in.byte_reverse = '1' then
-            v.data := byte_reverse(l_in.data, to_integer(unsigned(l_in.length)));
+        -- Do byte reversing and rotating for stores in the first cycle
+        if v.load = '0' then
+            byte_offset := unsigned(lsu_sum(2 downto 0));
+            brev_lenm1 := "000";
+            if l_in.byte_reverse = '1' then
+                brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
+            end if;
+            for i in 0 to 7 loop
+                k := (to_unsigned(i, 3) xor brev_lenm1) + byte_offset;
+                j := to_integer(k) * 8;
+                v.data(j + 7 downto j) := l_in.data(i * 8 + 7 downto i * 8);
+            end loop;
         end if;
 
         v.addr := lsu_sum;
