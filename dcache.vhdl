@@ -171,6 +171,9 @@ architecture rtl of dcache is
 	slow_data        : std_ulogic_vector(63 downto 0);
 	slow_valid       : std_ulogic;
 
+        -- Signal to complete a failed stcx.
+        stcx_fail        : std_ulogic;
+
 	-- Cache miss state (reload state machine)
         state            : state_t;
         wb               : wishbone_master_out;
@@ -199,6 +202,15 @@ architecture rtl of dcache is
 
     signal r2 : reg_stage_2_t;
 
+    -- Reservation information
+    --
+    type reservation_t is record
+        valid : std_ulogic;
+        addr  : std_ulogic_vector(63 downto LINE_OFF_BITS);
+    end record;
+
+    signal reservation : reservation_t;
+
     -- Async signals on incoming request
     signal req_index   : index_t;
     signal req_row     : row_t;
@@ -209,6 +221,10 @@ architecture rtl of dcache is
     signal req_addr    : std_ulogic_vector(63 downto 0);
     signal req_laddr   : std_ulogic_vector(63 downto 0);
     signal req_sel     : std_ulogic_vector(7 downto 0);
+
+    signal cancel_store : std_ulogic;
+    signal set_rsrv     : std_ulogic;
+    signal clear_rsrv   : std_ulogic;
 
     -- Cache RAM interface
     type cache_ram_out_t is array(way_t) of cache_row_t;
@@ -481,6 +497,41 @@ begin
     -- Generate stalls from stage 1 state machine
     stall_out <= '1' when r1.state /= IDLE else '0';
 
+    -- Handle load-with-reservation and store-conditional instructions
+    reservation_comb: process(all)
+    begin
+        cancel_store <= '0';
+        set_rsrv <= '0';
+        clear_rsrv <= '0';
+        if d_in.valid = '1' and d_in.reserve = '1' then
+            -- XXX generate alignment interrupt if address is not aligned
+            -- XXX or if d_in.nc = '1'
+            if d_in.load = '1' then
+                -- load with reservation
+                set_rsrv <= '1';
+            else
+                -- store conditional
+                clear_rsrv <= '1';
+                if reservation.valid = '0' or
+                    d_in.addr(63 downto LINE_OFF_BITS) /= reservation.addr then
+                    cancel_store <= '1';
+                end if;
+            end if;
+        end if;
+    end process;
+
+    reservation_reg: process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' or clear_rsrv = '1' then
+                reservation.valid <= '0';
+            elsif set_rsrv = '1' then
+                reservation.valid <= '1';
+                reservation.addr <= d_in.addr(63 downto LINE_OFF_BITS);
+            end if;
+        end if;
+    end process;
+
     -- Writeback (loads and reg updates) & completion control logic
     --
     writeback_control: process(all)
@@ -497,6 +548,8 @@ begin
 	d_out.byte_reverse <= r2.byte_reverse;
 	d_out.second_word <= r2.second_dword;
 	d_out.xerc <= r2.xerc;
+        d_out.rc <= '0';                -- loads never have rc=1
+        d_out.store_done <= '0';
 
 	-- We have a valid load or store hit or we just completed a slow
 	-- op such as a load miss, a NC load or a store
@@ -512,11 +565,14 @@ begin
 	assert (r1.update_valid and r2.hit_load_valid) /= '1' report
 	    "unexpected hit_load_delayed collision with update_valid"
 	    severity FAILURE;
-	assert (r1.slow_valid and r2.hit_load_valid) /= '1' report
+	assert (r1.slow_valid and r1.stcx_fail) /= '1' report
+	    "unexpected slow_valid collision with stcx_fail"
+	    severity FAILURE;
+	assert ((r1.slow_valid or r1.stcx_fail) and r2.hit_load_valid) /= '1' report
 	    "unexpected hit_load_delayed collision with slow_valid"
 	    severity FAILURE;
-	assert (r1.slow_valid and r1.update_valid) /= '1' report
-	    "unexpected update_valid collision with slow_valid"
+	assert ((r1.slow_valid or r1.stcx_fail) and r1.update_valid) /= '1' report
+	    "unexpected update_valid collision with slow_valid or stcx_fail"
 	    severity FAILURE;
 
 	-- Delayed load hit case is the standard path
@@ -551,6 +607,8 @@ begin
 		d_out.xerc <= r1.req.xerc;
                 d_out.second_word <= r1.second_dword;
 	    end if;
+            d_out.rc <= r1.req.rc;
+            d_out.store_done <= '1';
 
 	    -- If it's a store or a non-update load form, complete now
             -- unless we need to do another dword transfer
@@ -560,6 +618,12 @@ begin
 		d_out.valid <= '1';
 	    end if;
 	end if;
+
+        if r1.stcx_fail = '1' then
+            d_out.rc <= r1.req.rc;
+            d_out.store_done <= '0';
+            d_out.valid <= '1';
+        end if;
 
 	-- We have a register update to do.
 	if r1.update_valid = '1' then
@@ -657,7 +721,7 @@ begin
 	    if reloading and wishbone_in.ack = '1' and r1.store_way = i then
 		do_write <= '1';
 	    end if;
-	    if req_op = OP_STORE_HIT and req_hit_way = i then
+	    if req_op = OP_STORE_HIT and req_hit_way = i and cancel_store = '0' then
 		assert not reloading report "Store hit while in state:" &
 		    state_t'image(r1.state)
 		    severity FAILURE;
@@ -753,6 +817,7 @@ begin
 		-- One cycle pulses reset
 		r1.slow_valid <= '0';
 		r1.update_valid <= '0';
+                r1.stcx_fail <= '0';
 
 		-- We cannot currently process a new request when not idle
 		assert d_in.valid = '0' or r1.state = IDLE report "request " &
@@ -832,10 +897,15 @@ begin
                         r1.wb.sel <= req_sel;
                         r1.wb.adr <= req_addr(r1.wb.adr'left downto 3) & "000";
 			r1.wb.dat <= req_data;
-                        r1.wb.cyc <= '1';
-                        r1.wb.stb <= '1';
-			r1.wb.we <= '1';
-			r1.state <= STORE_WAIT_ACK;
+                        if cancel_store = '0' then
+                            r1.wb.cyc <= '1';
+                            r1.wb.stb <= '1';
+                            r1.wb.we <= '1';
+                            r1.state <= STORE_WAIT_ACK;
+                        else
+                            r1.stcx_fail <= '1';
+                            r1.state <= IDLE;
+                        end if;
 
 		    -- OP_NONE and OP_BAD do nothing
 		    when OP_NONE =>
@@ -932,7 +1002,7 @@ begin
 			r1.wb.cyc <= '0';
 			r1.wb.stb <= '0';
 		    end if;
-		end case;
+                end case;
 	    end if;
 	end if;
     end process;

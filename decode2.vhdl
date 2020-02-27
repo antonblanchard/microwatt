@@ -334,6 +334,7 @@ begin
 		v.e.byte_reverse := d_in.decode.byte_reverse;
 		v.e.sign_extend := d_in.decode.sign_extend;
 		v.e.update := d_in.decode.update;
+                v.e.reserve := d_in.decode.reserve;
 
 		-- issue control
 		control_valid_in <= d_in.valid;

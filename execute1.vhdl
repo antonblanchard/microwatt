@@ -759,6 +759,8 @@ begin
         lv.update := e_in.update;
         lv.update_reg := gspr_to_gpr(e_in.read_reg1);
         lv.xerc := v.e.xerc;
+        lv.reserve := e_in.reserve;
+        lv.rc := e_in.rc;
 
 	-- Update registers
 	rin <= v;

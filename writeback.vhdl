@@ -63,6 +63,7 @@ begin
 	variable xe: xer_common_t;
         variable zero : std_ulogic;
         variable sign : std_ulogic;
+	variable scf  : std_ulogic_vector(3 downto 0);
     begin
         x(0) := e_in.valid;
         y(0) := l_in.valid;
@@ -122,6 +123,17 @@ begin
             end if;
 	    xe := l_in.xerc;
             w_out.write_enable <= not partial_write or second_word;
+        end if;
+
+        if l_in.rc = '1' then
+            -- st*cx. instructions
+            scf(3) := '0';
+            scf(2) := '0';
+            scf(1) := l_in.store_done;
+            scf(0) := xe.so;
+            c_out.write_cr_enable <= '1';
+            c_out.write_cr_mask <= num_to_fxm(0);
+            c_out.write_cr_data(31 downto 28) <= scf;
         end if;
 
         -- shift and byte-reverse data bytes
