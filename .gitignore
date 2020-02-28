@@ -3,4 +3,4 @@
 *.cf
 *.s
 *_tb
-simple_ram_behavioural.bin
+main_ram.bin
