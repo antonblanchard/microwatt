@@ -229,6 +229,8 @@ package common is
 	xerc : xer_common_t;
         reserve : std_ulogic;
         rc : std_ulogic;
+        early_low_addr : std_ulogic_vector(11 downto 0);
+        early_valid : std_ulogic;
     end record;
 
     type DcacheToWritebackType is record

@@ -89,5 +89,9 @@ begin
 
         -- Update outputs
         l_out <= r;
+
+        -- Asynchronous output of the low-order address bits (latched in dcache)
+        l_out.early_low_addr <= lsu_sum(11 downto 0);
+        l_out.early_valid <= l_in.valid;
     end process;
 end;

@@ -124,6 +124,7 @@ architecture rtl of dcache is
 		      
     -- Cache state machine
     type state_t is (IDLE,	       -- Normal load hit processing
+                     PRE_NEXT_DWORD,   -- Extra state before NEXT_DWORD
                      NEXT_DWORD,       -- Starting the 2nd xfer of misaligned
 		     LOAD_UPDATE,      -- Load with update extra cycle
 		     LOAD_UPDATE2,     -- Load with update extra cycle
@@ -184,24 +185,6 @@ architecture rtl of dcache is
 
     signal r1 : reg_stage_1_t;
 
-    -- Second stage register, only used for load hits
-    --
-    type reg_stage_2_t is record
-	hit_way        : way_t;
-	hit_load_valid : std_ulogic;
-	load_is_update : std_ulogic;
-	load_reg       : std_ulogic_vector(4 downto 0);
-	data_shift     : std_ulogic_vector(2 downto 0);
-	length         : std_ulogic_vector(3 downto 0);
-	sign_extend    : std_ulogic;
-	byte_reverse   : std_ulogic;
-	xerc           : xer_common_t;
-        last_dword     : std_ulogic;
-        second_dword   : std_ulogic;
-    end record;
-
-    signal r2 : reg_stage_2_t;
-
     -- Reservation information
     --
     type reservation_t is record
@@ -221,6 +204,10 @@ architecture rtl of dcache is
     signal req_addr    : std_ulogic_vector(63 downto 0);
     signal req_laddr   : std_ulogic_vector(63 downto 0);
     signal req_sel     : std_ulogic_vector(7 downto 0);
+    signal next_addr   : std_ulogic_vector(63 downto 0);
+
+    signal early_req_addr : std_ulogic_vector(11 downto 0);
+    signal early_req_row  : row_t;
 
     signal cancel_store : std_ulogic;
     signal set_rsrv     : std_ulogic;
@@ -404,6 +391,12 @@ begin
 	end generate;
     end generate;
 
+    -- Wishbone read and write and BRAM write sel bits generation
+    bus_sel     <= wishbone_data_sel(d_in.length, d_in.addr);
+
+    -- See if the operation crosses two doublewords
+    two_dwords  <= or (bus_sel(15 downto 8));
+
     -- Cache request parsing and hit detection
     dcache_request : process(all)
 	variable is_hit  : std_ulogic;
@@ -444,6 +437,9 @@ begin
         req_laddr <= req_addr(63 downto LINE_OFF_BITS) &
                      (LINE_OFF_BITS-1 downto 0 => '0');
 
+        -- Address of next doubleword, used for unaligned accesses
+        next_addr <= std_ulogic_vector(unsigned(d_in.addr(63 downto 3)) + 1) & "000";
+
 	-- Test if pending request is a hit on any way
 	hit_way := 0;
 	is_hit := '0';
@@ -480,16 +476,20 @@ begin
 
 	req_op <= op;
 
+        -- Versions of the address and row number that are valid one cycle earlier
+        -- in the cases where we need to read the cache data BRAM.
+        if r1.state = IDLE and op = OP_LOAD_HIT and two_dwords = '1' then
+            early_req_addr <= next_addr(11 downto 0);
+        elsif r1.state /= IDLE and r1.two_dwords = '1' and r1.second_dword = '0' then
+            early_req_addr <= r1.next_addr(11 downto 0);
+        else
+            early_req_addr <= d_in.early_low_addr;
+        end if;
+        early_req_row <= get_row(x"0000000000000" & early_req_addr);
     end process;
 
     -- Wire up wishbone request latch out of stage 1
     wishbone_out <= r1.wb;
-
-    -- Wishbone read and write and BRAM write sel bits generation
-    bus_sel     <= wishbone_data_sel(d_in.length, d_in.addr);
-
-    -- See if the operation crosses two doublewords
-    two_dwords  <= or (bus_sel(15 downto 8));
 
    -- TODO: Generate errors
    -- err_nc_collision <= '1' when req_op = OP_BAD else '0';
@@ -540,14 +540,14 @@ begin
 	-- The mux on d_out.write reg defaults to the normal load hit case.
 	d_out.write_enable <= '0';
 	d_out.valid <= '0';
-	d_out.write_reg <= r2.load_reg;
-	d_out.write_data <= cache_out(r2.hit_way);
-	d_out.write_len <= r2.length;
-	d_out.write_shift <= r2.data_shift;
-	d_out.sign_extend <= r2.sign_extend;
-	d_out.byte_reverse <= r2.byte_reverse;
-	d_out.second_word <= r2.second_dword;
-	d_out.xerc <= r2.xerc;
+	d_out.write_reg <= r1.req.write_reg;
+	d_out.write_data <= cache_out(r1.hit_way);
+	d_out.write_len <= r1.req.length;
+	d_out.write_shift <= r1.req.addr(2 downto 0);
+	d_out.sign_extend <= r1.req.sign_extend;
+	d_out.byte_reverse <= r1.req.byte_reverse;
+	d_out.second_word <= r1.second_dword;
+	d_out.xerc <= r1.req.xerc;
         d_out.rc <= '0';                -- loads never have rc=1
         d_out.store_done <= '0';
 
@@ -562,26 +562,27 @@ begin
 	--
 
 	-- Sanity: Only one of these must be set in any given cycle
-	assert (r1.update_valid and r2.hit_load_valid) /= '1' report
+	assert (r1.update_valid and r1.hit_load_valid) /= '1' report
 	    "unexpected hit_load_delayed collision with update_valid"
 	    severity FAILURE;
 	assert (r1.slow_valid and r1.stcx_fail) /= '1' report
 	    "unexpected slow_valid collision with stcx_fail"
 	    severity FAILURE;
-	assert ((r1.slow_valid or r1.stcx_fail) and r2.hit_load_valid) /= '1' report
+	assert ((r1.slow_valid or r1.stcx_fail) and r1.hit_load_valid) /= '1' report
 	    "unexpected hit_load_delayed collision with slow_valid"
 	    severity FAILURE;
 	assert ((r1.slow_valid or r1.stcx_fail) and r1.update_valid) /= '1' report
 	    "unexpected update_valid collision with slow_valid or stcx_fail"
 	    severity FAILURE;
 
-	-- Delayed load hit case is the standard path
-	if r2.hit_load_valid = '1' then
+	-- Load hit case is the standard path
+	if r1.hit_load_valid = '1' then
 	    d_out.write_enable <= '1';
 
             -- If there isn't another dword to go and
 	    -- it's not a load with update, complete it now
-	    if r2.last_dword = '1' and r2.load_is_update = '0' then
+	    if (r1.second_dword or not r1.two_dwords) = '1' and
+                r1.req.update = '0' then
                 report "completing load hit";
 		d_out.valid <= '1';
             end if;
@@ -693,7 +694,7 @@ begin
 	begin
 	    -- Cache hit reads
 	    do_read <= '1';
-	    rd_addr <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
+	    rd_addr <= std_ulogic_vector(to_unsigned(early_req_row, ROW_BITS));
 	    cache_out(i) <= dout;
 
 	    -- Write mux:
@@ -732,23 +733,11 @@ begin
 
     --
     -- Cache hit synchronous machine for the easy case. This handles
-    -- non-update form load hits and stage 1 to stage 2 transfers
+    -- non-update form load hits
     --
     dcache_fast_hit : process(clk)
     begin
         if rising_edge(clk) then
-	    -- stage 1 -> stage 2
-	    r2.hit_load_valid <= r1.hit_load_valid;
-	    r2.hit_way        <= r1.hit_way;
-	    r2.load_is_update <= r1.req.update;
-	    r2.load_reg       <= r1.req.write_reg;
-	    r2.data_shift     <= r1.req.addr(2 downto 0);
-	    r2.length         <= r1.req.length;
-	    r2.sign_extend    <= r1.req.sign_extend;
-	    r2.byte_reverse   <= r1.req.byte_reverse;
-            r2.second_dword   <= r1.second_dword;
-            r2.last_dword     <= r1.second_dword or not r1.two_dwords;
-
 	    -- If we have a request incoming, we have to latch it as d_in.valid
 	    -- is only set for a single cycle. It's up to the control logic to
 	    -- ensure we don't override an uncompleted request (for now we are
@@ -759,7 +748,7 @@ begin
 		r1.req <= d_in;
                 r1.second_dword <= '0';
                 r1.two_dwords <= two_dwords;
-                r1.next_addr <= std_ulogic_vector(unsigned(d_in.addr(63 downto 3)) + 1) & "000";
+                r1.next_addr <= next_addr;
                 r1.next_sel <= bus_sel(15 downto 8);
 
 		report "op:" & op_t'image(req_op) &
@@ -912,6 +901,9 @@ begin
 		    when OP_BAD =>
 		    end case;
 
+                when PRE_NEXT_DWORD =>
+                    r1.state <= NEXT_DWORD;
+
 		when RELOAD_WAIT_ACK =>
 		    -- Requests are all sent if stb is 0
 		    stbs_done := r1.wb.stb = '0';
@@ -958,7 +950,7 @@ begin
 			    -- we also need to do the deferred update cycle.
 			    r1.slow_valid <= '1';
                             if r1.two_dwords and not r1.second_dword then
-                                r1.state <= NEXT_DWORD;
+                                r1.state <= PRE_NEXT_DWORD;
 			    elsif r1.req.update = '1' then
 				r1.state <= LOAD_UPDATE2;
 				report "completing miss with load-update !";
