@@ -127,7 +127,6 @@ architecture rtl of dcache is
                      PRE_NEXT_DWORD,   -- Extra state before NEXT_DWORD
                      NEXT_DWORD,       -- Starting the 2nd xfer of misaligned
 		     LOAD_UPDATE,      -- Load with update extra cycle
-		     LOAD_UPDATE2,     -- Load with update extra cycle
 		     RELOAD_WAIT_ACK,  -- Cache reload wait ack
 		     STORE_WAIT_ACK,   -- Store wait ack
 		     NC_LOAD_WAIT_ACK);-- Non-cachable load wait ack
@@ -824,7 +823,6 @@ begin
                             if two_dwords = '1' then
                                 r1.state <= NEXT_DWORD;
                             elsif d_in.update = '1' then
-                                -- We have a load with update hit, we need the delayed update cycle
                                 r1.state <= LOAD_UPDATE;
                             end if;
                         else
@@ -952,7 +950,7 @@ begin
                             if r1.two_dwords and not r1.second_dword then
                                 r1.state <= PRE_NEXT_DWORD;
 			    elsif r1.req.update = '1' then
-				r1.state <= LOAD_UPDATE2;
+				r1.state <= LOAD_UPDATE;
 				report "completing miss with load-update !";
 			    else
 				r1.state <= IDLE;
@@ -965,9 +963,6 @@ begin
 		    end if;
 
 		when LOAD_UPDATE =>
-		    -- We need the extra cycle to complete a load with update
-		    r1.state <= LOAD_UPDATE2;
-		when LOAD_UPDATE2 =>
 		    -- We need the extra cycle to complete a load with update
 		    r1.update_valid <= '1';
 		    r1.state <= IDLE;
@@ -983,7 +978,7 @@ begin
                         if r1.two_dwords and not r1.second_dword then
                             r1.state <= NEXT_DWORD;
                         elsif r1.state = NC_LOAD_WAIT_ACK and r1.req.update = '1' then
-                            r1.state <= LOAD_UPDATE2;
+                            r1.state <= LOAD_UPDATE;
                         else
                             r1.state <= IDLE;
                         end if;
