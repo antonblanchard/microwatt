@@ -49,6 +49,10 @@ architecture behaviour of execute1 is
 	slow_op_xerc : xer_common_t;
     end record;
 
+    type irq_state_t is (WRITE_SRR0, WRITE_SRR1);
+
+    signal irq_state, irq_state_in : irq_state_t;
+
     signal r, rin : reg_type;
 
     signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
@@ -175,6 +179,7 @@ begin
 	if rising_edge(clk) then
 	    r <= rin;
 	    ctrl <= ctrl_tmp;
+	    irq_state <= irq_state_in;
 	    assert not (r.lr_update = '1' and e_in.valid = '1')
 		report "LR update collision with valid in EX1"
 		severity failure;
@@ -214,6 +219,8 @@ begin
         variable msb_a, msb_b : std_ulogic;
         variable a_lt : std_ulogic;
         variable lv : Execute1ToLoadstore1Type;
+	variable irq_nia : std_ulogic_vector(63 downto 0);
+	variable irq_valid : std_ulogic;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -340,6 +347,15 @@ begin
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
 	ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
+	ctrl_tmp.dec <= std_ulogic_vector(unsigned(ctrl.dec) - 1);
+
+	irq_valid := '0';
+	irq_nia := (others => '-');
+	if ctrl.msr(15) = '1' and ctrl.dec(63) = '1' then
+	    report "IRQ valid";
+	    irq_valid := '1';
+	    irq_nia := std_logic_vector(to_unsigned(16#900#, 64));
+	end if;
 
 	terminate_out <= '0';
 	icache_inval <= '0';
@@ -354,7 +370,33 @@ begin
 	rot_clear_left <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCL else '0';
 	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
 
-	if e_in.valid = '1' then
+	irq_state_in <= WRITE_SRR0;
+
+	if irq_state = WRITE_SRR1 then
+		v.e.write_reg := fast_spr_num(SPR_SRR1);
+		result := ctrl.msr;
+		result_en := '1';
+		-- do this second so IRQ is still valid
+		-- FIXME frob other bits like HV/PR
+		ctrl_tmp.msr(15) <= '0';
+		f_out.redirect <= '1';
+		f_out.redirect_nia <= irq_nia;
+
+	elsif irq_valid = '1' then
+	    -- we need two cycles to write srr0 and 1
+	    -- will need more when we have to write DSISR, DAR and HIER
+	    if irq_state = WRITE_SRR0 then
+		v.e.write_reg := fast_spr_num(SPR_SRR0);
+		result := e_in.nia;
+		if e_in.valid = '1' then
+		    result_en := '1';
+		    irq_state_in <= WRITE_SRR1;
+		    stall_out <= '1';
+		    v.e.valid := '1';
+		end if;
+	    end if;
+
+	elsif e_in.valid = '1' then
 
 	    v.e.valid := '1';
 	    v.e.write_reg := e_in.write_reg;
@@ -473,6 +515,11 @@ begin
 		    f_out.redirect <= '1';
 		    f_out.redirect_nia <= b_in(63 downto 2) & "00";
 		end if;
+
+	    when OP_RFID =>
+		f_out.redirect <= '1';
+		f_out.redirect_nia <= a_in(63 downto 2) & "00"; -- srr0
+		ctrl_tmp.msr <= std_ulogic_vector(signed(b_in)); -- srr1
 	    when OP_CMPB =>
 		result := ppc_cmpb(c_in, b_in);
 		result_en := '1';
@@ -562,7 +609,12 @@ begin
 			end if;
 		    end loop;
 		end if;
+	    when OP_MFMSR =>
+		result := ctrl.msr;
+		result_en := '1';
 	    when OP_MFSPR =>
+		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
+		    "=" & to_hstring(a_in);
 		if is_fast_spr(e_in.read_reg1) then
 		    result := a_in;
 		    if decode_spr_num(e_in.insn) = SPR_XER then
@@ -579,6 +631,8 @@ begin
 		    case decode_spr_num(e_in.insn) is
 		    when SPR_TB =>
 			result := ctrl.tb;
+		    when SPR_DEC =>
+			result := ctrl.dec;
 		    when others =>
 			result := (others => '0');
 		    end case;
@@ -612,6 +666,9 @@ begin
 		    v.e.write_cr_mask := num_to_fxm(crnum);
 		end if;
 		v.e.write_cr_data := c_in(31 downto 0);
+	    when OP_MTMSRD =>
+		-- FIXME handle just the bits we need to.
+		ctrl_tmp.msr <= e_in.read_data3;
 	    when OP_MTSPR =>
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(c_in);
@@ -627,10 +684,12 @@ begin
 			v.e.write_xerc_enable := '1';
 		    end if;
 		else
--- TODO: Implement slow SPRs	    
---		    case decode_spr_num(e_in.insn) is
---		    when others =>
---		    end case;
+		    -- slow spr
+		    case decode_spr_num(e_in.insn) is
+		    when SPR_DEC =>
+			ctrl_tmp.dec <= c_in;
+		    when others =>
+		    end case;
 		end if;
 	    when OP_POPCNT =>
 		result := popcnt_result;

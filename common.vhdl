@@ -16,6 +16,7 @@ package common is
     constant SPR_LR     : spr_num_t := 8;
     constant SPR_CTR    : spr_num_t := 9;
     constant SPR_TB     : spr_num_t := 268;
+    constant SPR_DEC    : spr_num_t := 22;
     constant SPR_SRR0   : spr_num_t := 26;
     constant SPR_SRR1   : spr_num_t := 27;
     constant SPR_HSRR0  : spr_num_t := 314;
@@ -65,6 +66,8 @@ package common is
     -- This needs to die...
     type ctrl_t is record
 	tb: std_ulogic_vector(63 downto 0);
+	dec: std_ulogic_vector(63 downto 0);
+	msr: std_ulogic_vector(63 downto 0);
     end record;
 
     type Fetch1ToIcacheType is record
