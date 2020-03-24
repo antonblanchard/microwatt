@@ -369,6 +369,9 @@ begin
 	    when OP_ILLEGAL =>
 		terminate_out <= '1';
 		report "illegal";
+	    when OP_ATTN =>
+		terminate_out <= '1';
+		report "ATTN";
 	    when OP_NOP =>
 		-- Do nothing
 	    when OP_ADD | OP_CMP =>
