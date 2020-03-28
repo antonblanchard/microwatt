@@ -11,7 +11,7 @@ entity writeback is
         clk          : in std_ulogic;
 
         e_in         : in Execute1ToWritebackType;
-        l_in         : in DcacheToWritebackType;
+        l_in         : in Loadstore1ToWritebackType;
 
         w_out        : out WritebackToRegisterFileType;
         c_out        : out WritebackToCrFileType;

@@ -42,7 +42,6 @@ architecture behaviour of execute1 is
 	next_lr : std_ulogic_vector(63 downto 0);
 	mul_in_progress : std_ulogic;
         div_in_progress : std_ulogic;
-        ldst_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
 	slow_op_dest : gpr_index_t;
 	slow_op_rc : std_ulogic;
@@ -264,7 +263,6 @@ begin
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
-        v.ldst_in_progress := '0';
 
 	-- signals to multiply unit
 	x_to_multiply <= Execute1ToMultiplyInit;
@@ -662,8 +660,6 @@ begin
             when OP_LOAD | OP_STORE =>
                 -- loadstore/dcache has its own port to writeback
                 v.e.valid := '0';
-                stall_out <= '1';
-                v.ldst_in_progress := '1';
 
             when others =>
 		terminate_out <= '1';
@@ -703,10 +699,6 @@ begin
             v.e.rc := v.slow_op_rc;
             v.e.xerc := v.slow_op_xerc;
             v.e.valid := '1';
-        elsif r.ldst_in_progress = '1' then
-            -- assert stall for 2 cycles on load/store, then
-            -- the stall output from dcache takes over
-            stall_out <= '1';
 	elsif r.mul_in_progress = '1' or r.div_in_progress = '1' then
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
 	       (r.div_in_progress = '1' and divider_to_x.valid = '1') then

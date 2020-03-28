@@ -61,8 +61,11 @@ architecture behave of core is
 
     -- load store signals
     signal execute1_to_loadstore1: Execute1ToLoadstore1Type;
+    signal loadstore1_to_writeback: Loadstore1ToWritebackType;
+
+    -- dcache signals
     signal loadstore1_to_dcache: Loadstore1ToDcacheType;
-    signal dcache_to_writeback: DcacheToWritebackType;
+    signal dcache_to_loadstore1: DcacheToLoadstore1Type;
 
     -- local signals
     signal fetch1_stall_in : std_ulogic;
@@ -73,6 +76,7 @@ architecture behave of core is
     signal decode2_stall_out : std_ulogic;
     signal ex1_icache_inval: std_ulogic;
     signal ex1_stall_out: std_ulogic;
+    signal ls1_stall_out: std_ulogic;
     signal dcache_stall_out: std_ulogic;
 
     signal flush: std_ulogic;
@@ -196,7 +200,7 @@ begin
             c_in => cr_file_to_decode2,
             c_out => decode2_to_cr_file
             );
-    decode2_stall_in <= ex1_stall_out or dcache_stall_out;
+    decode2_stall_in <= ex1_stall_out or ls1_stall_out;
 
     register_file_0: entity work.register_file
         generic map (
@@ -243,8 +247,13 @@ begin
     loadstore1_0: entity work.loadstore1
         port map (
             clk => clk,
+            rst => core_rst,
             l_in => execute1_to_loadstore1,
-            l_out => loadstore1_to_dcache
+            l_out => loadstore1_to_writeback,
+            d_out => loadstore1_to_dcache,
+            d_in => dcache_to_loadstore1,
+            dc_stall => dcache_stall_out,
+            stall_out => ls1_stall_out
             );
 
     dcache_0: entity work.dcache
@@ -257,7 +266,7 @@ begin
             clk => clk,
 	    rst => core_rst,
             d_in => loadstore1_to_dcache,
-            d_out => dcache_to_writeback,
+            d_out => dcache_to_loadstore1,
             stall_out => dcache_stall_out,
             wishbone_in => wishbone_data_in,
             wishbone_out => wishbone_data_out
@@ -267,7 +276,7 @@ begin
         port map (
             clk => clk,
             e_in => execute1_to_writeback,
-            l_in => dcache_to_writeback,
+            l_in => loadstore1_to_writeback,
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             complete_out => complete

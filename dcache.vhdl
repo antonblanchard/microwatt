@@ -7,9 +7,6 @@
 -- * Complete load misses on the cycle when WB data comes instead of
 --   at the end of line (this requires dealing with requests coming in
 --   while not idle...)
--- * Load with update could use one less non-pipelined cycle by moving
---   the register update to the pipeline bubble that exists when going
---   back to the IDLE state.
 --
 library ieee;
 use ieee.std_logic_1164.all;
@@ -35,7 +32,7 @@ entity dcache is
         rst          : in std_ulogic;
 
         d_in         : in Loadstore1ToDcacheType;
-        d_out        : out DcacheToWritebackType;
+        d_out        : out DcacheToLoadstore1Type;
 
 	stall_out    : out std_ulogic;
 
@@ -113,6 +110,8 @@ architecture rtl of dcache is
     attribute ram_style : string;
     attribute ram_style of cache_tags : signal is "distributed";
 
+    signal r0 : Loadstore1ToDcacheType;
+
     -- Type of operation on a "valid" input
     type op_t is (OP_NONE,
 		  OP_LOAD_HIT,      -- Cache hit on load
@@ -124,10 +123,8 @@ architecture rtl of dcache is
 		      
     -- Cache state machine
     type state_t is (IDLE,	       -- Normal load hit processing
-                     PRE_NEXT_DWORD,   -- Extra state before NEXT_DWORD
-                     NEXT_DWORD,       -- Starting the 2nd xfer of misaligned
-		     LOAD_UPDATE,      -- Load with update extra cycle
 		     RELOAD_WAIT_ACK,  -- Cache reload wait ack
+                     FINISH_LD_MISS,   -- Extra cycle after load miss
 		     STORE_WAIT_ACK,   -- Store wait ack
 		     NC_LOAD_WAIT_ACK);-- Non-cachable load wait ack
 
@@ -157,15 +154,6 @@ architecture rtl of dcache is
 	-- Cache hit state
 	hit_way          : way_t;
 	hit_load_valid   : std_ulogic;
-
-        -- Info for doing the second transfer of a misaligned load/store
-        two_dwords       : std_ulogic;
-        second_dword     : std_ulogic;
-        next_addr        : std_ulogic_vector(63 downto 0);
-        next_sel         : std_ulogic_vector(7 downto 0);
-
-	-- Register update (load/store with update)
-	update_valid     : std_ulogic;
 
 	-- Data buffer for "slow" read ops (load miss and NC loads).
 	slow_data        : std_ulogic_vector(63 downto 0);
@@ -200,12 +188,8 @@ architecture rtl of dcache is
     signal req_tag     : cache_tag_t;
     signal req_op      : op_t;
     signal req_data    : std_ulogic_vector(63 downto 0);
-    signal req_addr    : std_ulogic_vector(63 downto 0);
     signal req_laddr   : std_ulogic_vector(63 downto 0);
-    signal req_sel     : std_ulogic_vector(7 downto 0);
-    signal next_addr   : std_ulogic_vector(63 downto 0);
 
-    signal early_req_addr : std_ulogic_vector(11 downto 0);
     signal early_req_row  : row_t;
 
     signal cancel_store : std_ulogic;
@@ -222,10 +206,8 @@ architecture rtl of dcache is
     signal replace_way : way_t;
 
     -- Wishbone read/write/cache write formatting signals
-    signal bus_sel     : std_ulogic_vector(15 downto 0);
+    signal bus_sel     : std_ulogic_vector(7 downto 0);
 
-    signal two_dwords  : std_ulogic;
-    
     --
     -- Helper functions to decode incoming requests
     --
@@ -305,37 +287,6 @@ architecture rtl of dcache is
 	tagset((way+1) * TAG_BITS - 1 downto way * TAG_BITS) := tag;
     end;
 
-    -- Generate byte enables from sizes
-    function length_to_sel(length : in std_logic_vector(3 downto 0)) return std_ulogic_vector is
-    begin
-        case length is
-            when "0001" =>
-                return "00000001";
-            when "0010" =>
-                return "00000011";
-            when "0100" =>
-                return "00001111";
-            when "1000" =>
-                return "11111111";
-            when others =>
-                return "00000000";
-        end case;
-    end function length_to_sel;
-
-    -- Calculate byte enables for wishbone
-    -- This returns 16 bits, giving the select signals for two transfers,
-    -- to account for unaligned loads or stores
-    function wishbone_data_sel(size : in std_logic_vector(3 downto 0);
-			       address : in std_logic_vector(63 downto 0))
-	return std_ulogic_vector is
-        variable longsel : std_ulogic_vector(15 downto 0);
-    begin
-        longsel := (others => '0');
-        longsel(7 downto 0) := length_to_sel(size);
-        return std_ulogic_vector(shift_left(unsigned(longsel),
-					    to_integer(unsigned(address(2 downto 0)))));
-    end function wishbone_data_sel;
-
 begin
 
     assert LINE_SIZE mod ROW_SIZE = 0 report "LINE_SIZE not multiple of ROW_SIZE" severity FAILURE;
@@ -390,11 +341,17 @@ begin
 	end generate;
     end generate;
 
-    -- Wishbone read and write and BRAM write sel bits generation
-    bus_sel     <= wishbone_data_sel(d_in.length, d_in.addr);
-
-    -- See if the operation crosses two doublewords
-    two_dwords  <= or (bus_sel(15 downto 8));
+    -- Latch the request in r0 as long as we're not stalling
+    stage_0 : process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' then
+                r0.valid <= '0';
+            elsif stall_out = '0' then
+                r0 <= d_in;
+            end if;
+        end if;
+    end process;
 
     -- Cache request parsing and hit detection
     dcache_request : process(all)
@@ -405,39 +362,20 @@ begin
         variable data    : std_ulogic_vector(63 downto 0);
 	variable opsel   : std_ulogic_vector(3 downto 0);
         variable go      : std_ulogic;
-        variable is_load : std_ulogic;
-        variable is_nc   : std_ulogic;
     begin
 	-- Extract line, row and tag from request
-        if r1.state /= NEXT_DWORD then
-            req_addr <= d_in.addr;
-            req_data <= d_in.data;
-            req_sel <= bus_sel(7 downto 0);
-            go := d_in.valid;
-            is_load := d_in.load;
-            is_nc := d_in.nc;
+        req_index <= get_index(r0.addr);
+        req_row <= get_row(r0.addr);
+        req_tag <= get_tag(r0.addr);
 
-        else
-            req_addr <= r1.next_addr;
-            req_data <= r1.req.data;
-            req_sel <= r1.next_sel;
-            go := '1';
-            is_load := r1.req.load;
-            is_nc := r1.req.nc;
-        end if;
-
-        req_index <= get_index(req_addr);
-        req_row <= get_row(req_addr);
-        req_tag <= get_tag(req_addr);
+        -- Only do anything if not being stalled by stage 1
+        go := r0.valid and not stall_out;
 
         -- Calculate address of beginning of cache line, will be
         -- used for cache miss processing if needed
         --
-        req_laddr <= req_addr(63 downto LINE_OFF_BITS) &
+        req_laddr <= r0.addr(63 downto LINE_OFF_BITS) &
                      (LINE_OFF_BITS-1 downto 0 => '0');
-
-        -- Address of next doubleword, used for unaligned accesses
-        next_addr <= std_ulogic_vector(unsigned(d_in.addr(63 downto 3)) + 1) & "000";
 
 	-- Test if pending request is a hit on any way
 	hit_way := 0;
@@ -460,7 +398,7 @@ begin
 	-- Combine the request and cache his status to decide what
 	-- operation needs to be done
 	--
-	opsel := go & is_load & is_nc & is_hit;
+	opsel := go & r0.load & r0.nc & is_hit;
 	case opsel is
 	when "1101" => op := OP_LOAD_HIT;
 	when "1100" => op := OP_LOAD_MISS;
@@ -475,16 +413,15 @@ begin
 
 	req_op <= op;
 
-        -- Versions of the address and row number that are valid one cycle earlier
+        -- Version of the row number that is valid one cycle earlier
         -- in the cases where we need to read the cache data BRAM.
-        if r1.state = IDLE and op = OP_LOAD_HIT and two_dwords = '1' then
-            early_req_addr <= next_addr(11 downto 0);
-        elsif r1.state /= IDLE and r1.two_dwords = '1' and r1.second_dword = '0' then
-            early_req_addr <= r1.next_addr(11 downto 0);
+        -- If we're stalling then we need to keep reading the last
+        -- row requested.
+        if stall_out = '0' then
+            early_req_row <= get_row(d_in.addr);
         else
-            early_req_addr <= d_in.early_low_addr;
+            early_req_row <= req_row;
         end if;
-        early_req_row <= get_row(x"0000000000000" & early_req_addr);
     end process;
 
     -- Wire up wishbone request latch out of stage 1
@@ -502,17 +439,17 @@ begin
         cancel_store <= '0';
         set_rsrv <= '0';
         clear_rsrv <= '0';
-        if d_in.valid = '1' and d_in.reserve = '1' then
+        if stall_out = '0' and r0.valid = '1' and r0.reserve = '1' then
             -- XXX generate alignment interrupt if address is not aligned
-            -- XXX or if d_in.nc = '1'
-            if d_in.load = '1' then
+            -- XXX or if r0.nc = '1'
+            if r0.load = '1' then
                 -- load with reservation
                 set_rsrv <= '1';
             else
                 -- store conditional
                 clear_rsrv <= '1';
                 if reservation.valid = '0' or
-                    d_in.addr(63 downto LINE_OFF_BITS) /= reservation.addr then
+                    r0.addr(63 downto LINE_OFF_BITS) /= reservation.addr then
                     cancel_store <= '1';
                 end if;
             end if;
@@ -526,28 +463,19 @@ begin
                 reservation.valid <= '0';
             elsif set_rsrv = '1' then
                 reservation.valid <= '1';
-                reservation.addr <= d_in.addr(63 downto LINE_OFF_BITS);
+                reservation.addr <= r0.addr(63 downto LINE_OFF_BITS);
             end if;
         end if;
     end process;
 
-    -- Writeback (loads and reg updates) & completion control logic
+    -- Return data for loads & completion control logic
     --
     writeback_control: process(all)
     begin
 
-	-- The mux on d_out.write reg defaults to the normal load hit case.
-	d_out.write_enable <= '0';
+	-- The mux on d_out.data defaults to the normal load hit case.
 	d_out.valid <= '0';
-	d_out.write_reg <= r1.req.write_reg;
-	d_out.write_data <= cache_out(r1.hit_way);
-	d_out.write_len <= r1.req.length;
-	d_out.write_shift <= r1.req.addr(2 downto 0);
-	d_out.sign_extend <= r1.req.sign_extend;
-	d_out.byte_reverse <= r1.req.byte_reverse;
-	d_out.second_word <= r1.second_dword;
-	d_out.xerc <= r1.req.xerc;
-        d_out.rc <= '0';                -- loads never have rc=1
+	d_out.data <= cache_out(r1.hit_way);
         d_out.store_done <= '0';
 
 	-- We have a valid load or store hit or we just completed a slow
@@ -561,30 +489,17 @@ begin
 	--
 
 	-- Sanity: Only one of these must be set in any given cycle
-	assert (r1.update_valid and r1.hit_load_valid) /= '1' report
-	    "unexpected hit_load_delayed collision with update_valid"
-	    severity FAILURE;
 	assert (r1.slow_valid and r1.stcx_fail) /= '1' report
 	    "unexpected slow_valid collision with stcx_fail"
 	    severity FAILURE;
 	assert ((r1.slow_valid or r1.stcx_fail) and r1.hit_load_valid) /= '1' report
 	    "unexpected hit_load_delayed collision with slow_valid"
 	    severity FAILURE;
-	assert ((r1.slow_valid or r1.stcx_fail) and r1.update_valid) /= '1' report
-	    "unexpected update_valid collision with slow_valid or stcx_fail"
-	    severity FAILURE;
 
 	-- Load hit case is the standard path
 	if r1.hit_load_valid = '1' then
-	    d_out.write_enable <= '1';
-
-            -- If there isn't another dword to go and
-	    -- it's not a load with update, complete it now
-	    if (r1.second_dword or not r1.two_dwords) = '1' and
-                r1.req.update = '0' then
-                report "completing load hit";
-		d_out.valid <= '1';
-            end if;
+            report "completing load hit";
+            d_out.valid <= '1';
 	end if;
 
 	-- Slow ops (load miss, NC, stores)
@@ -593,62 +508,19 @@ begin
 	    -- mux accordingly
 	    --
 	    if r1.req.load then
-		d_out.write_reg <= r1.req.write_reg;
-		d_out.write_enable <= '1';
-
-		-- Read data comes from the slow data latch, formatter
-		-- from the latched request.
-		--
-		d_out.write_data <= r1.slow_data;
-		d_out.write_shift <= r1.req.addr(2 downto 0);
-		d_out.sign_extend <= r1.req.sign_extend;
-		d_out.byte_reverse <= r1.req.byte_reverse;
-		d_out.write_len <= r1.req.length;
-		d_out.xerc <= r1.req.xerc;
-                d_out.second_word <= r1.second_dword;
+		-- Read data comes from the slow data latch
+		d_out.data <= r1.slow_data;
 	    end if;
-            d_out.rc <= r1.req.rc;
             d_out.store_done <= '1';
 
-	    -- If it's a store or a non-update load form, complete now
-            -- unless we need to do another dword transfer
-	    if (r1.req.load = '0' or r1.req.update = '0') and
-                (r1.two_dwords = '0' or r1.second_dword = '1') then
-                report "completing store or load miss";
-		d_out.valid <= '1';
-	    end if;
+            report "completing store or load miss";
+            d_out.valid <= '1';
 	end if;
 
         if r1.stcx_fail = '1' then
-            d_out.rc <= r1.req.rc;
             d_out.store_done <= '0';
             d_out.valid <= '1';
         end if;
-
-	-- We have a register update to do.
-	if r1.update_valid = '1' then
-	    d_out.write_enable <= '1';
-	    d_out.write_reg <= r1.req.update_reg;
-
-	    -- Change the read data mux to the address that's going into
-	    -- the register and the formatter does nothing.
-	    --
-	    d_out.write_data <= r1.req.addr;
-	    d_out.write_shift <= "000";
-	    d_out.write_len <= "1000";
-	    d_out.sign_extend <= '0';
-	    d_out.byte_reverse <= '0';
-	    d_out.xerc <= r1.req.xerc;
-            d_out.second_word <= '0';
-
-	    -- If it was a load, this completes the operation (load with
-	    -- update case).
-	    --
-	    if r1.req.load = '1' then
-                report "completing after load update";
-		d_out.valid <= '1';
-	    end if;
-	end if;
 
     end process;
 
@@ -703,11 +575,11 @@ begin
 	    -- For timing, the mux on wr_data/sel/addr is not dependent on anything
 	    -- other than the current state. Only the do_write signal is.
 	    --
-	    if r1.state = IDLE or r1.state = NEXT_DWORD then
-		-- In these states, the only write path is the store-hit update case
+	    if r1.state = IDLE then
+		-- In IDLE state, the only write path is the store-hit update case
 		wr_addr  <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
-		wr_data  <= req_data;
-		wr_sel   <= req_sel;
+		wr_data  <= r0.data;
+		wr_sel   <= r0.byte_sel;
 	    else
 		-- Otherwise, we might be doing a reload
 		wr_data <= wishbone_in.dat;
@@ -731,35 +603,25 @@ begin
     end generate;
 
     --
-    -- Cache hit synchronous machine for the easy case. This handles
-    -- non-update form load hits
+    -- Cache hit synchronous machine for the easy case. This handles load hits.
     --
     dcache_fast_hit : process(clk)
     begin
         if rising_edge(clk) then
-	    -- If we have a request incoming, we have to latch it as d_in.valid
+	    -- If we have a request incoming, we have to latch it as r0.valid
 	    -- is only set for a single cycle. It's up to the control logic to
 	    -- ensure we don't override an uncompleted request (for now we are
 	    -- single issue on load/stores so we are fine, later, we can generate
 	    -- a stall output if necessary).
 
-	    if req_op /= OP_NONE and d_in.valid = '1' then
-		r1.req <= d_in;
-                r1.second_dword <= '0';
-                r1.two_dwords <= two_dwords;
-                r1.next_addr <= next_addr;
-                r1.next_sel <= bus_sel(15 downto 8);
-
+	    if req_op /= OP_NONE and stall_out = '0' then
+		r1.req <= r0;
 		report "op:" & op_t'image(req_op) &
-		    " addr:" & to_hstring(d_in.addr) &
-		    " upd:" & std_ulogic'image(d_in.update) &
-		    " nc:" & std_ulogic'image(d_in.nc) &
-		    " reg:" & to_hstring(d_in.write_reg) &
+		    " addr:" & to_hstring(r0.addr) &
+		    " nc:" & std_ulogic'image(r0.nc) &
 		    " idx:" & integer'image(req_index) &
 		    " tag:" & to_hstring(req_tag) &
 		    " way: " & integer'image(req_hit_way);
-            elsif r1.state = NEXT_DWORD then
-                r1.second_dword <= '1';
 	    end if;
 
 	    -- Fast path for load/store hits. Set signals for the writeback controls.
@@ -776,7 +638,6 @@ begin
     -- Every other case is handled by this state machine:
     --
     --   * Cache load miss/reload (in conjunction with "rams")
-    --   * Load hits for update forms
     --   * Load hits for non-cachable forms
     --   * Stores (the collision case is handled in "rams")
     --
@@ -795,7 +656,6 @@ begin
 		end loop;
                 r1.state <= IDLE;
 		r1.slow_valid <= '0';
-		r1.update_valid <= '0';
                 r1.wb.cyc <= '0';
                 r1.wb.stb <= '0';
 
@@ -804,39 +664,19 @@ begin
             else
 		-- One cycle pulses reset
 		r1.slow_valid <= '0';
-		r1.update_valid <= '0';
                 r1.stcx_fail <= '0';
-
-		-- We cannot currently process a new request when not idle
-		assert d_in.valid = '0' or r1.state = IDLE report "request " &
-		    op_t'image(req_op) & " while in state " & state_t'image(r1.state)
-		    severity FAILURE;
 
 		-- Main state machine
 		case r1.state is
-                when IDLE | NEXT_DWORD =>
+                when IDLE =>
 		    case req_op is
                     when OP_LOAD_HIT =>
-                        if r1.state = IDLE then
-                            -- If the load is misaligned then we will need to start
-                            -- the state machine
-                            if two_dwords = '1' then
-                                r1.state <= NEXT_DWORD;
-                            elsif d_in.update = '1' then
-                                r1.state <= LOAD_UPDATE;
-                            end if;
-                        else
-                            if r1.req.update = '1' then
-                                r1.state <= LOAD_UPDATE;
-                            else
-                                r1.state <= IDLE;
-                            end if;
-                        end if;
+                        -- stay in IDLE state
 
-		    when OP_LOAD_MISS =>
+                    when OP_LOAD_MISS =>
 			-- Normal load cache miss, start the reload machine
 			--
-			report "cache miss addr:" & to_hstring(req_addr) &
+			report "cache miss addr:" & to_hstring(r0.addr) &
 			    " idx:" & integer'image(req_index) &
 			    " way:" & integer'image(replace_way) &
 			    " tag:" & to_hstring(req_tag);
@@ -871,19 +711,17 @@ begin
 			r1.state <= RELOAD_WAIT_ACK;
 
 		    when OP_LOAD_NC =>
-                        r1.wb.sel <= req_sel;
-                        r1.wb.adr <= req_addr(r1.wb.adr'left downto 3) & "000";
+                        r1.wb.sel <= r0.byte_sel;
+                        r1.wb.adr <= r0.addr(r1.wb.adr'left downto 3) & "000";
                         r1.wb.cyc <= '1';
                         r1.wb.stb <= '1';
 			r1.wb.we <= '0';
 			r1.state <= NC_LOAD_WAIT_ACK;
 
 		    when OP_STORE_HIT | OP_STORE_MISS =>
-			-- For store-with-update do the register update
-                        r1.update_valid <= d_in.valid and d_in.update;
-                        r1.wb.sel <= req_sel;
-                        r1.wb.adr <= req_addr(r1.wb.adr'left downto 3) & "000";
-			r1.wb.dat <= req_data;
+                        r1.wb.sel <= r0.byte_sel;
+                        r1.wb.adr <= r0.addr(r1.wb.adr'left downto 3) & "000";
+			r1.wb.dat <= r0.data;
                         if cancel_store = '0' then
                             r1.wb.cyc <= '1';
                             r1.wb.stb <= '1';
@@ -898,9 +736,6 @@ begin
 		    when OP_NONE =>
 		    when OP_BAD =>
 		    end case;
-
-                when PRE_NEXT_DWORD =>
-                    r1.state <= NEXT_DWORD;
 
 		when RELOAD_WAIT_ACK =>
 		    -- Requests are all sent if stb is 0
@@ -943,31 +778,23 @@ begin
 			    -- Cache line is now valid
 			    cache_valids(r1.store_index)(r1.store_way) <= '1';
 
-			    -- Write back the load data that we got, and start
-                            -- the second dword if necessary.  Otherwise, see if
-			    -- we also need to do the deferred update cycle.
-			    r1.slow_valid <= '1';
-                            if r1.two_dwords and not r1.second_dword then
-                                r1.state <= PRE_NEXT_DWORD;
-			    elsif r1.req.update = '1' then
-				r1.state <= LOAD_UPDATE;
-				report "completing miss with load-update !";
-			    else
-				r1.state <= IDLE;
-				report "completing miss !";
-			    end if;
+                            -- Don't complete and go idle until next cycle, in
+                            -- case the next request is for the last dword of
+                            -- the cache line we just loaded.
+                            r1.state <= FINISH_LD_MISS;
 			end if;
 
 			-- Increment store row counter
 			r1.store_row <= next_row(r1.store_row);
 		    end if;
 
-		when LOAD_UPDATE =>
-		    -- We need the extra cycle to complete a load with update
-		    r1.update_valid <= '1';
-		    r1.state <= IDLE;
+                when FINISH_LD_MISS =>
+                    -- Write back the load data that we got
+                    r1.slow_valid <= '1';
+                    r1.state <= IDLE;
+                    report "completing miss !";
 
-		when STORE_WAIT_ACK | NC_LOAD_WAIT_ACK =>
+                when STORE_WAIT_ACK | NC_LOAD_WAIT_ACK =>
 		    -- Clear stb when slave accepted request
                     if wishbone_in.stall = '0' then
 			r1.wb.stb <= '0';
@@ -975,16 +802,10 @@ begin
 
 		    -- Got ack ? complete.
 		    if wishbone_in.ack = '1' then
-                        if r1.two_dwords and not r1.second_dword then
-                            r1.state <= NEXT_DWORD;
-                        elsif r1.state = NC_LOAD_WAIT_ACK and r1.req.update = '1' then
-                            r1.state <= LOAD_UPDATE;
-                        else
-                            r1.state <= IDLE;
-                        end if;
 			if r1.state = NC_LOAD_WAIT_ACK then
 			    r1.slow_data <= wishbone_in.dat;
 			end if;
+                        r1.state <= IDLE;
 			r1.slow_valid <= '1';
 			r1.wb.cyc <= '0';
 			r1.wb.stb <= '0';
