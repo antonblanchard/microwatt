@@ -43,7 +43,8 @@ architecture behave of loadstore1 is
         -- latch most of the input request
 	load         : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
-	data         : std_ulogic_vector(63 downto 0);
+	store_data   : std_ulogic_vector(63 downto 0);
+	load_data    : std_ulogic_vector(63 downto 0);
 	write_reg    : gpr_index_t;
 	length       : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
@@ -57,6 +58,10 @@ architecture behave of loadstore1 is
         state        : state_t;
         second_bytes : std_ulogic_vector(7 downto 0);
     end record;
+
+    type byte_sel_t is array(0 to 7) of std_ulogic;
+    subtype byte_trim_t is std_ulogic_vector(1 downto 0);
+    type trim_ctl_t is array(0 to 7) of byte_trim_t;
 
     signal r, rin : reg_stage_t;
     signal lsu_sum : std_ulogic_vector(63 downto 0);
@@ -112,6 +117,7 @@ begin
         variable byte_offset : unsigned(2 downto 0);
         variable j : integer;
         variable k : unsigned(2 downto 0);
+        variable kk : unsigned(3 downto 0);
         variable long_sel : std_ulogic_vector(15 downto 0);
         variable byte_sel : std_ulogic_vector(7 downto 0);
         variable req : std_ulogic;
@@ -120,8 +126,13 @@ begin
         variable wdata : std_ulogic_vector(63 downto 0);
         variable write_enable : std_ulogic;
         variable do_update : std_ulogic;
-        variable second_dword : std_ulogic;
+        variable two_dwords : std_ulogic;
         variable done : std_ulogic;
+        variable data_permuted : std_ulogic_vector(63 downto 0);
+        variable data_trimmed : std_ulogic_vector(63 downto 0);
+        variable use_second : byte_sel_t;
+        variable trim_ctl : trim_ctl_t;
+        variable negative : std_ulogic;
     begin
         v := r;
         req := '0';
@@ -132,14 +143,63 @@ begin
 
         write_enable := '0';
         do_update := '0';
-        second_dword := '0';
+        two_dwords := or (r.second_bytes);
+
+        -- load data formatting
+        if r.load = '1' then
+            byte_offset := unsigned(r.addr(2 downto 0));
+            brev_lenm1 := "000";
+            if r.byte_reverse = '1' then
+                brev_lenm1 := unsigned(r.length(2 downto 0)) - 1;
+            end if;
+
+            -- shift and byte-reverse data bytes
+            for i in 0 to 7 loop
+                kk := ('0' & (to_unsigned(i, 3) xor brev_lenm1)) + ('0' & byte_offset);
+                use_second(i) := kk(3);
+                j := to_integer(kk(2 downto 0)) * 8;
+                data_permuted(i * 8 + 7 downto i * 8) := d_in.data(j + 7 downto j);
+            end loop;
+
+            -- Work out the sign bit for sign extension.
+            -- Assumes we are not doing both sign extension and byte reversal,
+            -- in that for unaligned loads crossing two dwords we end up
+            -- using a bit from the second dword, whereas for a byte-reversed
+            -- (i.e. big-endian) load the sign bit would be in the first dword.
+            negative := (r.length(3) and data_permuted(63)) or
+                        (r.length(2) and data_permuted(31)) or
+                        (r.length(1) and data_permuted(15)) or
+                        (r.length(0) and data_permuted(7));
+
+            -- trim and sign-extend
+            for i in 0 to 7 loop
+                if i < to_integer(unsigned(r.length)) then
+                    if two_dwords = '1' then
+                        trim_ctl(i) := '1' & not use_second(i);
+                    else
+                        trim_ctl(i) := not use_second(i) & '0';
+                    end if;
+                else
+                    trim_ctl(i) := '0' & (negative and r.sign_extend);
+                end if;
+                case trim_ctl(i) is
+                    when "11" =>
+                        data_trimmed(i * 8 + 7 downto i * 8) := r.load_data(i * 8 + 7 downto i * 8);
+                    when "10" =>
+                        data_trimmed(i * 8 + 7 downto i * 8) := data_permuted(i * 8 + 7 downto i * 8);
+                    when "01" =>
+                        data_trimmed(i * 8 + 7 downto i * 8) := x"FF";
+                    when others =>
+                        data_trimmed(i * 8 + 7 downto i * 8) := x"00";
+                end case;
+            end loop;
+        end if;
 
         case r.state is
         when IDLE =>
             if l_in.valid = '1' then
                 v.load := l_in.load;
                 v.addr := lsu_sum;
-                v.data := l_in.data;
                 v.write_reg := l_in.write_reg;
                 v.length := l_in.length;
                 v.byte_reverse := l_in.byte_reverse;
@@ -179,7 +239,7 @@ begin
                     for i in 0 to 7 loop
                         k := (to_unsigned(i, 3) xor brev_lenm1) + byte_offset;
                         j := to_integer(k) * 8;
-                        v.data(j + 7 downto j) := l_in.data(i * 8 + 7 downto i * 8);
+                        v.store_data(j + 7 downto j) := l_in.data(i * 8 + 7 downto i * 8);
                     end loop;
                 end if;
 
@@ -203,13 +263,14 @@ begin
         when FIRST_ACK_WAIT =>
             stall := '1';
             if d_in.valid = '1' then
-                write_enable := r.load;
                 v.state := LAST_ACK_WAIT;
+                if r.load = '1' then
+                    v.load_data := data_permuted;
+                end if;
             end if;
 
         when LAST_ACK_WAIT =>
             stall := '1';
-            second_dword := or (r.second_bytes);
             if d_in.valid = '1' then
                 write_enable := r.load;
                 if r.load = '1' and r.update = '1' then
@@ -230,16 +291,13 @@ begin
             done := '1';
         end case;
 
-        -- Update registers
-        rin <= v;
-
         -- Update outputs to dcache
         d_out.valid <= req;
         d_out.load <= v.load;
         d_out.nc <= v.nc;
         d_out.reserve <= v.reserve;
         d_out.addr <= addr;
-        d_out.data <= v.data;
+        d_out.data <= v.store_data;
         d_out.byte_sel <= byte_sel;
 
         -- Update outputs to writeback
@@ -250,28 +308,20 @@ begin
             l_out.write_enable <= '1';
             l_out.write_reg <= r.update_reg;
             l_out.write_data <= r.addr;
-            l_out.write_len <= x"8";
-            l_out.write_shift <= "000";
-            l_out.sign_extend <= '0';
-            l_out.byte_reverse <= '0';
-            l_out.second_word <= '0';
-            l_out.rc <= '0';
-            l_out.store_done <= '0';
         else
             l_out.write_enable <= write_enable;
             l_out.write_reg <= r.write_reg;
-            l_out.write_data <= d_in.data;
-            l_out.write_len <= r.length;
-            l_out.write_shift <= r.addr(2 downto 0);
-            l_out.sign_extend <= r.sign_extend;
-            l_out.byte_reverse <= r.byte_reverse;
-            l_out.second_word <= second_dword;
-            l_out.rc <= r.rc and done;
-            l_out.store_done <= d_in.store_done;
+            l_out.write_data <= data_trimmed;
         end if;
         l_out.xerc <= r.xerc;
+        l_out.rc <= r.rc and done;
+        l_out.store_done <= d_in.store_done;
 
         stall_out <= stall;
 
+        -- Update registers
+        rin <= v;
+
     end process;
+
 end;

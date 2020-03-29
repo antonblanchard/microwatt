@@ -236,17 +236,11 @@ package common is
 	write_enable: std_ulogic;
 	write_reg : gpr_index_t;
 	write_data : std_ulogic_vector(63 downto 0);
-	write_len : std_ulogic_vector(3 downto 0);
-	write_shift : std_ulogic_vector(2 downto 0);
-	sign_extend : std_ulogic;
-	byte_reverse : std_ulogic;
-	second_word : std_ulogic;
 	xerc : xer_common_t;
         rc : std_ulogic;
         store_done : std_ulogic;
     end record;
-    constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType := (valid => '0', write_enable => '0', sign_extend => '0',
-                                                                       byte_reverse => '0', second_word => '0', xerc => xerc_init,
+    constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType := (valid => '0', write_enable => '0', xerc => xerc_init,
                                                                        rc => '0', store_done => '0', others => (others => '0'));
 
     type Execute1ToWritebackType is record
