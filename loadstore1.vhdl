@@ -209,6 +209,7 @@ begin
                 v.xerc := l_in.xerc;
                 v.reserve := l_in.reserve;
                 v.rc := l_in.rc;
+                v.nc := l_in.ci;
 
                 -- XXX Temporary hack. Mark the op as non-cachable if the address
                 -- is the form 0xc-------
@@ -218,8 +219,6 @@ begin
                 -- bit otherwise.
                 if lsu_sum(31 downto 28) = "1100" then
                     v.nc := '1';
-                else
-                    v.nc := '0';
                 end if;
 
                 -- Do length_to_sel and work out if we are doing 2 dwords

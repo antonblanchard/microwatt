@@ -753,6 +753,11 @@ begin
         lv.xerc := v.e.xerc;
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;
+        -- decode l*cix and st*cix instructions here
+        if e_in.insn(31 downto 26) = "011111" and e_in.insn(10 downto 9) = "11" and
+            e_in.insn(5 downto 1) = "10101" then
+            lv.ci := '1';
+        end if;
 
 	-- Update registers
 	rin <= v;
