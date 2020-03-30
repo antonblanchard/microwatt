@@ -13,7 +13,7 @@ architecture behave of dcache_tb is
     signal rst          : std_ulogic;
 
     signal d_in         : Loadstore1ToDcacheType;
-    signal d_out        : DcacheToWritebackType;
+    signal d_out        : DcacheToLoadstore1Type;
 
     signal wb_bram_in   : wishbone_master_out;
     signal wb_bram_out  : wishbone_slave_out;
@@ -71,12 +71,6 @@ begin
  	d_in.nc <= '0';
  	d_in.addr <= (others => '0');
  	d_in.data <= (others => '0');
- 	d_in.write_reg <= (others => '0');
- 	d_in.length <= (others => '0');
- 	d_in.byte_reverse <= '0';
- 	d_in.sign_extend <= '0';
- 	d_in.update <= '0';
- 	d_in.update_reg <= (others => '0');
 
         wait for 4*clk_period;
 	wait until rising_edge(clk);
@@ -89,11 +83,10 @@ begin
 	wait until rising_edge(clk);
         d_in.valid <= '0';
 
-	wait until rising_edge(clk) and d_out.write_enable = '1';
-        assert d_out.valid = '1';
-        assert d_out.write_data = x"0000000100000000"
+	wait until rising_edge(clk) and d_out.valid = '1';
+        assert d_out.data = x"0000000100000000"
 	    report "data @" & to_hstring(d_in.addr) &
-	    "=" & to_hstring(d_out.write_data) &
+	    "=" & to_hstring(d_out.data) &
 	    " expected 0000000100000000"
 	    severity failure;
 --      wait for clk_period;
@@ -106,11 +99,10 @@ begin
 	wait until rising_edge(clk);
         d_in.valid <= '0';
 
-	wait until rising_edge(clk) and d_out.write_enable = '1';
-        assert d_out.valid = '1';
-        assert d_out.write_data = x"0000000D0000000C"
+	wait until rising_edge(clk) and d_out.valid = '1';
+        assert d_out.data = x"0000000D0000000C"
 	    report "data @" & to_hstring(d_in.addr) &
-	    "=" & to_hstring(d_out.write_data) &
+	    "=" & to_hstring(d_out.data) &
 	    " expected 0000000D0000000C"
 	    severity failure;
 
@@ -121,11 +113,10 @@ begin
         d_in.valid <= '1';
 	wait until rising_edge(clk);
 	d_in.valid <= '0';
-	wait until rising_edge(clk) and d_out.write_enable = '1';
-        assert d_out.valid = '1';
-        assert d_out.write_data = x"0000004100000040"
+	wait until rising_edge(clk) and d_out.valid = '1';
+        assert d_out.data = x"0000004100000040"
 	    report "data @" & to_hstring(d_in.addr) &
-	    "=" & to_hstring(d_out.write_data) &
+	    "=" & to_hstring(d_out.data) &
 	    " expected 0000004100000040"
 	    severity failure;
 

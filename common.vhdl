@@ -130,12 +130,13 @@ package common is
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
+        reserve : std_ulogic;                           -- set for larx/stcx
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
          lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
-	 is_32bit => '0', is_signed => '0', xerc => xerc_init,
+	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', others => (others => '0'));
 
     type Execute1ToMultiplyType is record
@@ -201,46 +202,47 @@ package common is
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
 	write_reg : gpr_index_t;
 	length : std_ulogic_vector(3 downto 0);
+        ci : std_ulogic;                                -- cache-inhibited load/store
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
 	update_reg : gpr_index_t;                      	-- if so, the register to update
 	xerc : xer_common_t;
+        reserve : std_ulogic;                           -- set for larx/stcx.
+        rc : std_ulogic;                                -- set for stcx.
     end record;
-    constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', load => '0', byte_reverse => '0',
+    constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', load => '0', ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
-                                                                     others => (others => '0'));
+                                                                     reserve => '0', rc => '0', others => (others => '0'));
 
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
 	load : std_ulogic;
 	nc : std_ulogic;
+        reserve : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);
-	write_reg : gpr_index_t;
-	length : std_ulogic_vector(3 downto 0);
-	byte_reverse : std_ulogic;
-	sign_extend : std_ulogic;
-	update : std_ulogic;
-	update_reg : gpr_index_t;
-	xerc : xer_common_t;
+        byte_sel : std_ulogic_vector(7 downto 0);
     end record;
 
-    type DcacheToWritebackType is record
+    type DcacheToLoadstore1Type is record
+	valid : std_ulogic;
+	data : std_ulogic_vector(63 downto 0);
+        store_done : std_ulogic;
+        error : std_ulogic;
+    end record;
+
+    type Loadstore1ToWritebackType is record
 	valid : std_ulogic;
 	write_enable: std_ulogic;
 	write_reg : gpr_index_t;
 	write_data : std_ulogic_vector(63 downto 0);
-	write_len : std_ulogic_vector(3 downto 0);
-	write_shift : std_ulogic_vector(2 downto 0);
-	sign_extend : std_ulogic;
-	byte_reverse : std_ulogic;
-	second_word : std_ulogic;
 	xerc : xer_common_t;
+        rc : std_ulogic;
+        store_done : std_ulogic;
     end record;
-    constant DcacheToWritebackInit : DcacheToWritebackType := (valid => '0', write_enable => '0', sign_extend => '0',
-							       byte_reverse => '0', second_word => '0', xerc => xerc_init,
-							       others => (others => '0'));
+    constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType := (valid => '0', write_enable => '0', xerc => xerc_init,
+                                                                       rc => '0', store_done => '0', others => (others => '0'));
 
     type Execute1ToWritebackType is record
 	valid: std_ulogic;

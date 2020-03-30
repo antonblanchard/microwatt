@@ -200,6 +200,7 @@ begin
 	variable bo, bi : std_ulogic_vector(4 downto 0);
 	variable bf, bfa : std_ulogic_vector(2 downto 0);
 	variable cr_op : std_ulogic_vector(9 downto 0);
+        variable cr_operands : std_ulogic_vector(1 downto 0);
 	variable bt, ba, bb : std_ulogic_vector(4 downto 0);
 	variable btnum, banum, bbnum : integer range 0 to 31;
 	variable crresult : std_ulogic;
@@ -532,27 +533,10 @@ begin
 		    btnum := 31 - to_integer(unsigned(bt));
 		    banum := 31 - to_integer(unsigned(ba));
 		    bbnum := 31 - to_integer(unsigned(bb));
-		    case cr_op(8 downto 5) is
-	            when "1001" => -- CREQV
-			crresult := not(e_in.cr(banum) xor e_in.cr(bbnum));
-	            when "0111" => -- CRNAND
-			crresult := not(e_in.cr(banum) and e_in.cr(bbnum));
-	            when "0100" => -- CRANDC
-			crresult := (e_in.cr(banum) and not e_in.cr(bbnum));
-	            when "1000" => -- CRAND
-			crresult := (e_in.cr(banum) and e_in.cr(bbnum));
-	            when "0001" => -- CRNOR
-			crresult := not(e_in.cr(banum) or e_in.cr(bbnum));
-	            when "1101" => -- CRORC
-			crresult := (e_in.cr(banum) or not e_in.cr(bbnum));
-	            when "0110" => -- CRXOR
-			crresult := (e_in.cr(banum) xor e_in.cr(bbnum));
-	            when "1110" => -- CROR
-			crresult := (e_in.cr(banum) or e_in.cr(bbnum));
-		    when others =>
-			crresult := '0';
-		        report "BAD CR?";
-	            end case;
+                    -- Bits 5-8 of cr_op give the truth table of the requested
+                    -- logical operation
+                    cr_operands := e_in.cr(banum) & e_in.cr(bbnum);
+                    crresult := cr_op(5 + to_integer(unsigned(cr_operands)));
 		    v.e.write_cr_mask := num_to_fxm((31-btnum) / 4);
 		    for i in 0 to 31 loop
 			if i = btnum then
@@ -767,6 +751,13 @@ begin
         lv.update := e_in.update;
         lv.update_reg := gspr_to_gpr(e_in.read_reg1);
         lv.xerc := v.e.xerc;
+        lv.reserve := e_in.reserve;
+        lv.rc := e_in.rc;
+        -- decode l*cix and st*cix instructions here
+        if e_in.insn(31 downto 26) = "011111" and e_in.insn(10 downto 9) = "11" and
+            e_in.insn(5 downto 1) = "10101" then
+            lv.ci := '1';
+        end if;
 
 	-- Update registers
 	rin <= v;
