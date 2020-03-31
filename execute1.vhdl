@@ -53,9 +53,8 @@ architecture behaviour of execute1 is
 
     signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
 
-    signal ctrl: ctrl_t := (others => (others => '0'));
-    signal ctrl_tmp: ctrl_t := (others => (others => '0'));
-
+    signal ctrl: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
+    signal ctrl_tmp: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
     signal rotator_carry: std_ulogic;
@@ -110,6 +109,27 @@ architecture behaviour of execute1 is
 	when ONE =>
 	    return '1';
 	end case;
+    end;
+
+    function msr_copy(msr: std_ulogic_vector(63 downto 0))
+	return std_ulogic_vector is
+	variable msr_out: std_ulogic_vector(63 downto 0);
+    begin
+	-- ISA says this:
+	--  Defined MSR bits are classified as either full func-
+	--  tion or partial function. Full function MSR bits are
+	--  saved in SRR1 or HSRR1 when an interrupt other
+	--  than a System Call Vectored interrupt occurs and
+	--  restored by rfscv, rfid, or hrfid, while partial func-
+	--  tion MSR bits are not saved or restored.
+	--  Full function MSR bits lie in the range 0:32, 37:41, and
+	--  48:63, and partial function MSR bits lie in the range
+	--  33:36 and 42:47.
+	msr_out := (others => '0');
+	msr_out(32 downto 0) := msr(32 downto 0);
+	msr_out(41 downto 37) := msr(41 downto 37);
+	msr_out(63 downto 48) := msr(63 downto 48);
+	return msr_out;
     end;
 
 begin
@@ -215,6 +235,8 @@ begin
         variable msb_a, msb_b : std_ulogic;
         variable a_lt : std_ulogic;
         variable lv : Execute1ToLoadstore1Type;
+	variable irq_valid : std_ulogic;
+	variable exception : std_ulogic;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -341,6 +363,13 @@ begin
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
 	ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
+	ctrl_tmp.dec <= std_ulogic_vector(unsigned(ctrl.dec) - 1);
+
+	irq_valid := '0';
+	if ctrl.msr(63 - 48) = '1' and ctrl.dec(63) = '1' then
+	    report "IRQ valid";
+	    irq_valid := '1';
+	end if;
 
 	terminate_out <= '0';
 	icache_inval <= '0';
@@ -355,7 +384,28 @@ begin
 	rot_clear_left <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCL else '0';
 	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
 
-	if e_in.valid = '1' then
+	ctrl_tmp.irq_state <= WRITE_SRR0;
+	exception := '0';
+
+	if ctrl.irq_state = WRITE_SRR1 then
+	    v.e.write_reg := fast_spr_num(SPR_SRR1);
+	    result := ctrl.srr1;
+	    result_en := '1';
+	    ctrl_tmp.msr(63 - 48) <= '0'; -- clear EE
+	    f_out.redirect <= '1';
+	    f_out.redirect_nia <= ctrl.irq_nia;
+	    v.e.valid := '1';
+	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
+
+	elsif irq_valid = '1' then
+	    -- we need two cycles to write srr0 and 1
+	    -- will need more when we have to write DSISR, DAR and HIER
+	    exception := '1';
+	    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#900#, 64));
+	    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+	    result := e_in.nia;
+
+	elsif e_in.valid = '1' then
 
 	    v.e.valid := '1';
 	    v.e.write_reg := e_in.write_reg;
@@ -367,8 +417,25 @@ begin
 	    case_0: case e_in.insn_type is
 
 	    when OP_ILLEGAL =>
-		terminate_out <= '1';
+		-- we need two cycles to write srr0 and 1
+		-- will need more when we have to write DSISR, DAR and HIER
+		exception := '1';
+		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
+		ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+		-- Since we aren't doing Hypervisor emulation assist (0xe40) we
+		-- set bit 44 to indicate we have an illegal
+		ctrl_tmp.srr1(63 - 44) <= '1';
+		result := e_in.nia;
 		report "illegal";
+	    when OP_SC =>
+		-- FIXME Assume everything is SC (not SCV) for now
+		-- we need two cycles to write srr0 and 1
+		-- will need more when we have to write DSISR, DAR and HIER
+		exception := '1';
+		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#C00#, 64));
+		ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+		result := std_logic_vector(unsigned(e_in.nia) + 4);
+		report "sc";
 	    when OP_ATTN =>
 		terminate_out <= '1';
 		report "ATTN";
@@ -477,6 +544,11 @@ begin
 		    f_out.redirect <= '1';
 		    f_out.redirect_nia <= b_in(63 downto 2) & "00";
 		end if;
+
+	    when OP_RFID =>
+		f_out.redirect <= '1';
+		f_out.redirect_nia <= a_in(63 downto 2) & "00"; -- srr0
+		ctrl_tmp.msr <= msr_copy(std_ulogic_vector(signed(b_in))); -- srr1
 	    when OP_CMPB =>
 		result := ppc_cmpb(c_in, b_in);
 		result_en := '1';
@@ -549,7 +621,12 @@ begin
 			end if;
 		    end loop;
 		end if;
+	    when OP_MFMSR =>
+		result := msr_copy(ctrl.msr);
+		result_en := '1';
 	    when OP_MFSPR =>
+		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
+		    "=" & to_hstring(a_in);
 		if is_fast_spr(e_in.read_reg1) then
 		    result := a_in;
 		    if decode_spr_num(e_in.insn) = SPR_XER then
@@ -566,6 +643,8 @@ begin
 		    case decode_spr_num(e_in.insn) is
 		    when SPR_TB =>
 			result := ctrl.tb;
+		    when SPR_DEC =>
+			result := ctrl.dec;
 		    when others =>
 			result := (others => '0');
 		    end case;
@@ -599,6 +678,9 @@ begin
 		    v.e.write_cr_mask := num_to_fxm(crnum);
 		end if;
 		v.e.write_cr_data := c_in(31 downto 0);
+	    when OP_MTMSRD =>
+		-- FIXME handle just the bits we need to.
+		ctrl_tmp.msr <= msr_copy(c_in);
 	    when OP_MTSPR =>
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(c_in);
@@ -614,10 +696,12 @@ begin
 			v.e.write_xerc_enable := '1';
 		    end if;
 		else
--- TODO: Implement slow SPRs	    
---		    case decode_spr_num(e_in.insn) is
---		    when others =>
---		    end case;
+		    -- slow spr
+		    case decode_spr_num(e_in.insn) is
+		    when SPR_DEC =>
+			ctrl_tmp.dec <= c_in;
+		    when others =>
+		    end case;
 		end if;
 	    when OP_POPCNT =>
 		result := popcnt_result;
@@ -730,6 +814,16 @@ begin
 		stall_out <= '1';
 		v.mul_in_progress := r.mul_in_progress;
 		v.div_in_progress := r.div_in_progress;
+	    end if;
+	end if;
+
+	if exception = '1' then
+	    v.e.write_reg := fast_spr_num(SPR_SRR0);
+	    if e_in.valid = '1' then
+		result_en := '1';
+		ctrl_tmp.irq_state <= WRITE_SRR1;
+		stall_out <= '1';
+		v.e.valid := '0';
 	    end if;
 	end if;
 
