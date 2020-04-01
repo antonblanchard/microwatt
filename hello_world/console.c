@@ -25,23 +25,16 @@ static uint64_t potato_uart_base;
 
 static uint64_t potato_uart_reg_read(int offset)
 {
-	uint64_t addr;
 	uint64_t val;
 
-	addr = potato_uart_base + offset;
-
-	val = *(volatile uint64_t *)addr;
+	__asm__ volatile("ldcix %0,%1,%2" : "=r" (val) : "b" (potato_uart_base), "r" (offset));
 
 	return val;
 }
 
 static void potato_uart_reg_write(int offset, uint64_t val)
 {
-	uint64_t addr;
-
-	addr = potato_uart_base + offset;
-
-	*(volatile uint64_t *)addr = val;
+	__asm__ volatile("stdcix %0,%1,%2" : : "r" (val), "b" (potato_uart_base), "r" (offset));
 }
 
 static int potato_uart_rx_empty(void)
