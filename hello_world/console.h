@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 void potato_uart_init(void);
 int getchar(void);
 void putchar(unsigned char c);

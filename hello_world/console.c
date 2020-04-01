@@ -1,7 +1,7 @@
-#include <unistd.h>
-#include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+
+#include "console.h"
 
 /*
  * Core UART functions to implement for a port
