@@ -15,8 +15,8 @@ LDFLAGS = -T powerpc.lds
 
 all: hello_world.hex
 
-hello_world.elf: hello_world.o head.o
-	$(LD) $(LDFLAGS) -o hello_world.elf hello_world.o head.o
+hello_world.elf: hello_world.o head.o console.o
+	$(LD) $(LDFLAGS) -o hello_world.elf hello_world.o head.o console.o
 
 hello_world.bin: hello_world.elf
 	$(OBJCOPY) -O binary hello_world.elf hello_world.bin

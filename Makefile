@@ -128,13 +128,17 @@ dmi_dtm_tb: dmi_dtm_tb.o sim_vhpi_c.o sim_bram_helpers_c.o
 	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o $@
 
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
+tests_console = $(sort $(patsubst tests/%.console_out,%,$(wildcard tests/*.console_out)))
 
-check: $(tests) test_micropython test_micropython_long
+check: $(tests) $(test_console) test_micropython test_micropython_long
 
-check_light: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 test_micropython test_micropython_long 
+check_light: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 test_micropython test_micropython_long $(tests_console)
 
 $(tests): core_tb
 	@./scripts/run_test.sh $@
+
+$(tests_console): core_tb
+	@./scripts/run_test_console.sh $@
 
 test_micropython: core_tb
 	@./scripts/test_micropython.py

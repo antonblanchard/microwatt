@@ -4,3 +4,6 @@
 *.s
 *_tb
 main_ram.bin
+tests/*/*.bin
+tests/*/*.hex
+tests/*/*.elf

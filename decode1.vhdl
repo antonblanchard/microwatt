@@ -94,6 +94,7 @@ architecture behaviour of decode1 is
                 2#0011000001# => '1', -- crxor
                 2#0010010110# => '1', -- isync
                 2#0000000000# => '1', -- mcrf
+                2#0000010010# => '1', -- rfid
                 others => '0'
         );
 
@@ -109,6 +110,8 @@ architecture behaviour of decode1 is
 		2#100#    =>       (ALU,    OP_BCREG,     SPR,        SPR,         NONE, SPR,  '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0'),
                 -- isync
 		2#111#    =>       (ALU,    OP_ISYNC,     NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'),
+                -- rfid
+		2#101#    =>       (ALU,    OP_RFID,      SPR,        SPR,         NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'),
 		others   => illegal_inst
         );
 
@@ -241,12 +244,14 @@ architecture behaviour of decode1 is
 		-- 2#1000000000# mcrxr
 		-- 2#1001000000# mcrxrx
 		2#0000010011#  =>       (ALU,    OP_MFCR,      NONE,       NONE,        NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mfcr/mfocrf
+		2#0001010011#  =>       (ALU,    OP_MFMSR,     NONE,       NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mfmsr
 		2#0101010011#  =>       (ALU,    OP_MFSPR,     SPR,        NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mfspr
 		2#0100001001#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- modud
 		2#0100001011#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0'), -- moduw
 		2#1100001001#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0'), -- modsd
 		2#1100001011#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', NONE, '0', '0'), -- modsw
 		2#0010010000#  =>       (ALU,    OP_MTCRF,     NONE,       NONE,        RS,   NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mtcrf/mtocrf
+		2#0010110010#  =>       (ALU,    OP_MTMSRD,    NONE,       NONE,        RS,   NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mtmsrd # ignore top bits and d
 		2#0111010011#  =>       (ALU,    OP_MTSPR,     NONE,       NONE,        RS,   SPR,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mtspr
 		2#0001001001#  =>       (ALU,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- mulhd
 		2#0000001001#  =>       (ALU,    OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- mulhdu
@@ -337,8 +342,9 @@ architecture behaviour of decode1 is
 
         --                                       unit     internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
         --                                                      op                                           in   out   A   out  in    out  len        ext                                 pipe
-        constant attn_instr    : decode_rom_t := (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1');
+        constant attn_instr    : decode_rom_t := (ALU,    OP_ATTN,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1');
 	constant nop_instr     : decode_rom_t := (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
+	constant sc_instr     :  decode_rom_t := (ALU,    OP_SC,        NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
         constant sim_cfg_instr : decode_rom_t := (ALU,    OP_SIM_CONFIG,NONE,       NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1');
 
 begin
@@ -397,6 +403,9 @@ begin
                 elsif std_match(f_in.insn, "01100000000000000000000000000000") then
                         report "PPC_nop";
                         v.decode := nop_instr;
+                elsif std_match(f_in.insn, "010001--------------0000000---1-") then
+                        report "PPC_sc";
+                        v.decode := sc_instr;
                 elsif std_match(f_in.insn, "000001---------------0000000011-") then
                         report "PPC_SIM_CONFIG";
                         v.decode := sim_cfg_instr;
@@ -433,6 +442,10 @@ begin
 		    if is_fast_spr(v.ispr1) = '0' then
 			v.decode.sgl_pipe := '1';
 		    end if;
+		elsif v.decode.insn_type = OP_RFID then
+		    report "PPC RFID";
+		    v.ispr1 := fast_spr_num(SPR_SRR0);
+		    v.ispr2 := fast_spr_num(SPR_SRR1);
 		end if;
 
 		if flush_in = '1' then
