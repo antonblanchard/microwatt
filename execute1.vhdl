@@ -237,6 +237,7 @@ begin
         variable lv : Execute1ToLoadstore1Type;
 	variable irq_valid : std_ulogic;
 	variable exception : std_ulogic;
+        variable exception_nextpc : std_ulogic;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -386,11 +387,15 @@ begin
 
 	ctrl_tmp.irq_state <= WRITE_SRR0;
 	exception := '0';
+        exception_nextpc := '0';
+        v.e.exc_write_enable := '0';
+        v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
+        v.e.exc_write_data := e_in.nia;
 
 	if ctrl.irq_state = WRITE_SRR1 then
-	    v.e.write_reg := fast_spr_num(SPR_SRR1);
-	    result := ctrl.srr1;
-	    result_en := '1';
+	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
+	    v.e.exc_write_data := ctrl.srr1;
+            v.e.exc_write_enable := '1';
 	    ctrl_tmp.msr(63 - 48) <= '0'; -- clear EE
 	    f_out.redirect <= '1';
 	    f_out.redirect_nia <= ctrl.irq_nia;
@@ -403,7 +408,6 @@ begin
 	    exception := '1';
 	    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#900#, 64));
 	    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
-	    result := e_in.nia;
 
 	elsif e_in.valid = '1' then
 
@@ -425,16 +429,15 @@ begin
 		-- Since we aren't doing Hypervisor emulation assist (0xe40) we
 		-- set bit 44 to indicate we have an illegal
 		ctrl_tmp.srr1(63 - 44) <= '1';
-		result := e_in.nia;
 		report "illegal";
 	    when OP_SC =>
 		-- FIXME Assume everything is SC (not SCV) for now
 		-- we need two cycles to write srr0 and 1
 		-- will need more when we have to write DSISR, DAR and HIER
 		exception := '1';
+                exception_nextpc := '1';
 		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#C00#, 64));
 		ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
-		result := std_logic_vector(unsigned(e_in.nia) + 4);
 		report "sc";
 	    when OP_ATTN =>
 		terminate_out <= '1';
@@ -818,12 +821,15 @@ begin
 	end if;
 
 	if exception = '1' then
-	    v.e.write_reg := fast_spr_num(SPR_SRR0);
 	    if e_in.valid = '1' then
-		result_en := '1';
+		v.e.exc_write_enable := '1';
+                if exception_nextpc = '1' then
+                    v.e.exc_write_data := std_logic_vector(unsigned(e_in.nia) + 4);
+                end if;
 		ctrl_tmp.irq_state <= WRITE_SRR1;
 		stall_out <= '1';
 		v.e.valid := '0';
+                result_en := '0';
 	    end if;
 	end if;
 

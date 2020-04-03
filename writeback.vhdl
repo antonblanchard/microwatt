@@ -35,7 +35,7 @@ begin
         y(0) := l_in.valid;
         assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
 
-        x(0) := e_in.write_enable;
+        x(0) := e_in.write_enable or e_in.exc_write_enable;
         y(0) := l_in.write_enable;
         assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
 
@@ -51,7 +51,11 @@ begin
             complete_out <= '1';
         end if;
 
-        if e_in.write_enable = '1' then
+        if e_in.exc_write_enable = '1' then
+            w_out.write_reg <= e_in.exc_write_reg;
+            w_out.write_data <= e_in.exc_write_data;
+            w_out.write_enable <= '1';
+        elsif e_in.write_enable = '1' then
             w_out.write_reg <= e_in.write_reg;
             w_out.write_data <= e_in.write_data;
             w_out.write_enable <= '1';

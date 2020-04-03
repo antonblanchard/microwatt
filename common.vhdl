@@ -263,9 +263,12 @@ package common is
 	write_cr_data : std_ulogic_vector(31 downto 0);
 	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
+        exc_write_enable : std_ulogic;
+        exc_write_reg : gspr_index_t;
+        exc_write_data : std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToWritebackInit : Execute1ToWritebackType := (valid => '0', rc => '0', write_enable => '0',
-								   write_cr_enable => '0',
+								   write_cr_enable => '0', exc_write_enable => '0',
 								   write_xerc_enable => '0', xerc => xerc_init,
 								   others => (others => '0'));
 
