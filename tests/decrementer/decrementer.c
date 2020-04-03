@@ -1,5 +1,4 @@
-#include <unistd.h>
-#include <string.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
