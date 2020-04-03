@@ -464,7 +464,7 @@ begin
             ctrl_tmp.srr1(63 - 45) <= '1';
             report "privileged instruction";
             
-	elsif e_in.valid = '1' then
+	elsif e_in.valid = '1' and e_in.unit = ALU then
 
 	    v.e.valid := '1';
 	    v.e.write_reg := e_in.write_reg;
@@ -844,11 +844,6 @@ begin
 		stall_out <= '1';
 		x_to_divider.valid <= '1';
 
-            when OP_LOAD | OP_STORE =>
-                -- loadstore/dcache has its own port to writeback
-                v.e.valid := '0';
-                lv.valid := '1';
-
             when others =>
 		terminate_out <= '1';
 		report "illegal";
@@ -874,6 +869,14 @@ begin
 		report "Delayed LR update to " & to_hstring(next_nia);
 		stall_out <= '1';
 	    end if;
+
+        elsif e_in.valid = '1' then
+            -- instruction for other units, i.e. LDST
+            v.e.valid := '0';
+            if e_in.unit = LDST then
+                lv.valid := '1';
+            end if;
+
 	elsif r.lr_update = '1' then
 	    result_en := '1';
 	    result := r.next_lr;
@@ -940,9 +943,7 @@ begin
 	v.e.write_enable := result_en;
 
         -- Outputs to loadstore1 (async)
-        if e_in.insn_type = OP_LOAD then
-            lv.load := '1';
-        end if;
+        lv.op := e_in.insn_type;
         lv.addr1 := a_in;
         lv.addr2 := b_in;
         lv.data := c_in;

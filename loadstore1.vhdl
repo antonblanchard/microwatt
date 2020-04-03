@@ -3,6 +3,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
+use work.decode_types.all;
 use work.common.all;
 use work.helpers.all;
 
@@ -41,7 +42,7 @@ architecture behave of loadstore1 is
 
     type reg_stage_t is record
         -- latch most of the input request
-	load         : std_ulogic;
+        load         : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	load_data    : std_ulogic_vector(63 downto 0);
@@ -146,59 +147,60 @@ begin
         two_dwords := or (r.second_bytes);
 
         -- load data formatting
-        if r.load = '1' then
-            byte_offset := unsigned(r.addr(2 downto 0));
-            brev_lenm1 := "000";
-            if r.byte_reverse = '1' then
-                brev_lenm1 := unsigned(r.length(2 downto 0)) - 1;
-            end if;
-
-            -- shift and byte-reverse data bytes
-            for i in 0 to 7 loop
-                kk := ('0' & (to_unsigned(i, 3) xor brev_lenm1)) + ('0' & byte_offset);
-                use_second(i) := kk(3);
-                j := to_integer(kk(2 downto 0)) * 8;
-                data_permuted(i * 8 + 7 downto i * 8) := d_in.data(j + 7 downto j);
-            end loop;
-
-            -- Work out the sign bit for sign extension.
-            -- Assumes we are not doing both sign extension and byte reversal,
-            -- in that for unaligned loads crossing two dwords we end up
-            -- using a bit from the second dword, whereas for a byte-reversed
-            -- (i.e. big-endian) load the sign bit would be in the first dword.
-            negative := (r.length(3) and data_permuted(63)) or
-                        (r.length(2) and data_permuted(31)) or
-                        (r.length(1) and data_permuted(15)) or
-                        (r.length(0) and data_permuted(7));
-
-            -- trim and sign-extend
-            for i in 0 to 7 loop
-                if i < to_integer(unsigned(r.length)) then
-                    if two_dwords = '1' then
-                        trim_ctl(i) := '1' & not use_second(i);
-                    else
-                        trim_ctl(i) := not use_second(i) & '0';
-                    end if;
-                else
-                    trim_ctl(i) := '0' & (negative and r.sign_extend);
-                end if;
-                case trim_ctl(i) is
-                    when "11" =>
-                        data_trimmed(i * 8 + 7 downto i * 8) := r.load_data(i * 8 + 7 downto i * 8);
-                    when "10" =>
-                        data_trimmed(i * 8 + 7 downto i * 8) := data_permuted(i * 8 + 7 downto i * 8);
-                    when "01" =>
-                        data_trimmed(i * 8 + 7 downto i * 8) := x"FF";
-                    when others =>
-                        data_trimmed(i * 8 + 7 downto i * 8) := x"00";
-                end case;
-            end loop;
+        byte_offset := unsigned(r.addr(2 downto 0));
+        brev_lenm1 := "000";
+        if r.byte_reverse = '1' then
+            brev_lenm1 := unsigned(r.length(2 downto 0)) - 1;
         end if;
+
+        -- shift and byte-reverse data bytes
+        for i in 0 to 7 loop
+            kk := ('0' & (to_unsigned(i, 3) xor brev_lenm1)) + ('0' & byte_offset);
+            use_second(i) := kk(3);
+            j := to_integer(kk(2 downto 0)) * 8;
+            data_permuted(i * 8 + 7 downto i * 8) := d_in.data(j + 7 downto j);
+        end loop;
+
+        -- Work out the sign bit for sign extension.
+        -- Assumes we are not doing both sign extension and byte reversal,
+        -- in that for unaligned loads crossing two dwords we end up
+        -- using a bit from the second dword, whereas for a byte-reversed
+        -- (i.e. big-endian) load the sign bit would be in the first dword.
+        negative := (r.length(3) and data_permuted(63)) or
+                    (r.length(2) and data_permuted(31)) or
+                    (r.length(1) and data_permuted(15)) or
+                    (r.length(0) and data_permuted(7));
+
+        -- trim and sign-extend
+        for i in 0 to 7 loop
+            if i < to_integer(unsigned(r.length)) then
+                if two_dwords = '1' then
+                    trim_ctl(i) := '1' & not use_second(i);
+                else
+                    trim_ctl(i) := not use_second(i) & '0';
+                end if;
+            else
+                trim_ctl(i) := '0' & (negative and r.sign_extend);
+            end if;
+            case trim_ctl(i) is
+                when "11" =>
+                    data_trimmed(i * 8 + 7 downto i * 8) := r.load_data(i * 8 + 7 downto i * 8);
+                when "10" =>
+                    data_trimmed(i * 8 + 7 downto i * 8) := data_permuted(i * 8 + 7 downto i * 8);
+                when "01" =>
+                    data_trimmed(i * 8 + 7 downto i * 8) := x"FF";
+                when others =>
+                    data_trimmed(i * 8 + 7 downto i * 8) := x"00";
+            end case;
+        end loop;
 
         case r.state is
         when IDLE =>
             if l_in.valid = '1' then
-                v.load := l_in.load;
+                v.load := '0';
+                if l_in.op = OP_LOAD then
+                    v.load := '1';
+                end if;
                 v.addr := lsu_sum;
                 v.write_reg := l_in.write_reg;
                 v.length := l_in.length;
@@ -229,18 +231,16 @@ begin
                 v.addr := lsu_sum;
 
                 -- Do byte reversing and rotating for stores in the first cycle
-                if v.load = '0' then
-                    byte_offset := unsigned(lsu_sum(2 downto 0));
-                    brev_lenm1 := "000";
-                    if l_in.byte_reverse = '1' then
-                        brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
-                    end if;
-                    for i in 0 to 7 loop
-                        k := (to_unsigned(i, 3) xor brev_lenm1) + byte_offset;
-                        j := to_integer(k) * 8;
-                        v.store_data(j + 7 downto j) := l_in.data(i * 8 + 7 downto i * 8);
-                    end loop;
+                byte_offset := unsigned(lsu_sum(2 downto 0));
+                brev_lenm1 := "000";
+                if l_in.byte_reverse = '1' then
+                    brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
                 end if;
+                for i in 0 to 7 loop
+                    k := (to_unsigned(i, 3) xor brev_lenm1) + byte_offset;
+                    j := to_integer(k) * 8;
+                    v.store_data(j + 7 downto j) := l_in.data(i * 8 + 7 downto i * 8);
+                end loop;
 
                 req := '1';
                 stall := '1';

@@ -58,7 +58,7 @@ icache_tb.o: common.o wishbone_types.o icache.o wishbone_bram_wrapper.o
 dcache.o: utils.o common.o wishbone_types.o plru.o cache_ram.o utils.o
 dcache_tb.o: common.o wishbone_types.o dcache.o wishbone_bram_wrapper.o
 insn_helpers.o:
-loadstore1.o: common.o helpers.o
+loadstore1.o: common.o helpers.o decode_types.o
 logical.o: decode_types.o
 multiply_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o multiply.o
 multiply.o: common.o decode_types.o
