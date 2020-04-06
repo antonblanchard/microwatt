@@ -444,8 +444,14 @@ begin
                     illegal := '1';
                 end if;
 	    when OP_ATTN =>
-		terminate_out <= '1';
-		report "ATTN";
+                -- check bits 1-10 of the instruction to make sure it's attn
+                -- if not then it is illegal
+                if e_in.insn(10 downto 1) = "0100000000" then
+                    terminate_out <= '1';
+                    report "ATTN";
+                else
+                    illegal := '1';
+                end if;
 	    when OP_NOP =>
 		-- Do nothing
 	    when OP_ADD | OP_CMP | OP_TRAP =>
