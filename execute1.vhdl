@@ -726,9 +726,16 @@ begin
 		result := x"0000000000000000";
 		result_en := '1';
 
-	    when OP_TDI =>
-		-- Keep our test cases happy for now, ignore trap instructions
-		report "OP_TDI FIXME";
+	    when OP_TRAP =>
+                -- For now, generate a program interrupt if the TO field is all 1s
+                if insn_to(e_in.insn) = "11111" then
+                    exception := '1';
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
+                    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+                    -- set bit 46 to say a trap occurred
+                    ctrl_tmp.srr1(63 - 46) <= '1';
+                    report "trap";
+                end if;
 
 	    when OP_ISYNC =>
 		f_out.redirect <= '1';
