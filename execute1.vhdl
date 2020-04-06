@@ -88,6 +88,7 @@ architecture behaviour of execute1 is
         OP_MFMSR => SUPER,
         OP_MTMSRD => SUPER,
         OP_RFID => SUPER,
+        OP_TLBIE => SUPER,
         others => USER
         );
 
@@ -988,6 +989,7 @@ begin
             e_in.insn(5 downto 1) = "10101" then
             lv.ci := '1';
         end if;
+        lv.virt_mode := ctrl.msr(MSR_DR);
 
 	-- Update registers
 	rin <= v;

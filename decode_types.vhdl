@@ -16,7 +16,7 @@ package decode_types is
 			 OP_POPCNT, OP_PRTY, OP_RFID,
 			 OP_RLC, OP_RLCL, OP_RLCR, OP_SC, OP_SETB,
 			 OP_SHL, OP_SHR,
-			 OP_SYNC, OP_TRAP,
+			 OP_SYNC, OP_TLBIE, OP_TRAP,
 			 OP_XOR
 			 );
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR);

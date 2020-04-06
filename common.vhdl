@@ -216,7 +216,7 @@ package common is
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
-        op : insn_type_t;                               -- what ld/st or m[tf]spr to do
+        op : insn_type_t;                               -- what ld/st or m[tf]spr or TLB op to do
 	addr1 : std_ulogic_vector(63 downto 0);
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
@@ -231,18 +231,21 @@ package common is
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.
         spr_num : spr_num_t;                            -- SPR number for mfspr/mtspr
+        virt_mode : std_ulogic;                         -- do translation through TLB
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
-                                                                     reserve => '0', rc => '0',
+                                                                     reserve => '0', rc => '0', virt_mode => '0',
                                                                      spr_num => 0, others => (others => '0'));
 
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
-	load : std_ulogic;
+	load : std_ulogic;				-- is this a load
+        tlbie : std_ulogic;                             -- is this a tlbie
         dcbz : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
+        virt_mode : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);
         byte_sel : std_ulogic_vector(7 downto 0);
@@ -253,6 +256,7 @@ package common is
 	data : std_ulogic_vector(63 downto 0);
         store_done : std_ulogic;
         error : std_ulogic;
+        tlb_miss : std_ulogic;
     end record;
 
     type Loadstore1ToWritebackType is record

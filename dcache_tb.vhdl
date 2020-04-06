@@ -68,6 +68,7 @@ begin
 	-- Clear stuff
  	d_in.valid <= '0';
  	d_in.load <= '0';
+        d_in.tlbie <= '0';
  	d_in.nc <= '0';
  	d_in.addr <= (others => '0');
  	d_in.data <= (others => '0');

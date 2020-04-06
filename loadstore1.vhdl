@@ -43,6 +43,7 @@ architecture behave of loadstore1 is
     type reg_stage_t is record
         -- latch most of the input request
         load         : std_ulogic;
+        tlbie        : std_ulogic;
         dcbz         : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
@@ -57,6 +58,7 @@ architecture behave of loadstore1 is
         reserve      : std_ulogic;
         rc           : std_ulogic;
         nc           : std_ulogic;              -- non-cacheable access
+        virt_mode    : std_ulogic;
         state        : state_t;
         second_bytes : std_ulogic_vector(7 downto 0);
         dar          : std_ulogic_vector(63 downto 0);
@@ -207,6 +209,7 @@ begin
             if l_in.valid = '1' then
                 v.load := '0';
                 v.dcbz := '0';
+                v.tlbie := '0';
                 case l_in.op is
                 when OP_STORE =>
                     req := '1';
@@ -216,6 +219,9 @@ begin
                 when OP_DCBZ =>
                     req := '1';
                     v.dcbz := '1';
+                when OP_TLBIE =>
+                    req := '1';
+                    v.tlbie := '1';
                 when OP_MFSPR =>
                     done := '1';
                     mfspr := '1';
@@ -250,14 +256,15 @@ begin
                 v.reserve := l_in.reserve;
                 v.rc := l_in.rc;
                 v.nc := l_in.ci;
+                v.virt_mode := l_in.virt_mode;
 
                 -- XXX Temporary hack. Mark the op as non-cachable if the address
-                -- is the form 0xc-------
+                -- is the form 0xc------- for a real-mode access.
                 --
                 -- This will have to be replaced by a combination of implementing the
                 -- proper HV CI load/store instructions and having an MMU to get the I
                 -- bit otherwise.
-                if lsu_sum(31 downto 28) = "1100" then
+                if lsu_sum(31 downto 28) = "1100" and l_in.virt_mode = '0' then
                     v.nc := '1';
                 end if;
 
@@ -269,10 +276,13 @@ begin
                 v.addr := lsu_sum;
 
                 -- Do byte reversing and rotating for stores in the first cycle
-                byte_offset := unsigned(lsu_sum(2 downto 0));
+                byte_offset := "000";
                 brev_lenm1 := "000";
-                if l_in.byte_reverse = '1' then
-                    brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
+                if v.tlbie = '0' then
+                    byte_offset := unsigned(lsu_sum(2 downto 0));
+                    if l_in.byte_reverse = '1' then
+                        brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
+                    end if;
                 end if;
                 for i in 0 to 7 loop
                     k := (to_unsigned(i, 3) xor brev_lenm1) + byte_offset;
@@ -332,12 +342,14 @@ begin
         -- Update outputs to dcache
         d_out.valid <= req;
         d_out.load <= v.load;
+        d_out.tlbie <= v.tlbie;
         d_out.dcbz <= v.dcbz;
         d_out.nc <= v.nc;
         d_out.reserve <= v.reserve;
         d_out.addr <= addr;
         d_out.data <= v.store_data;
         d_out.byte_sel <= byte_sel;
+        d_out.virt_mode <= v.virt_mode;
 
         -- Update outputs to writeback
         -- Multiplex either cache data to the destination GPR or
