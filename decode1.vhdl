@@ -103,7 +103,7 @@ architecture behaviour of decode1 is
 		--                 unit     internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
 		--                               op                                            in   out   A   out  in    out  len        ext                                 pipe
                 -- mcrf; and cr logical ops
-		2#000#    =>       (ALU,    OP_MCRF,      NONE,       NONE,        NONE, NONE, '1', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'),
+		2#000#    =>       (ALU,    OP_CROP,      NONE,       NONE,        NONE, NONE, '1', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'),
 		-- addpcis not implemented yet
 		2#001#    =>       (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
                 -- bclr, bcctr, bctar

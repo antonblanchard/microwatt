@@ -581,7 +581,7 @@ begin
 		    result := b_in;
 		end if;
 		result_en := '1';
-	    when OP_MCRF =>
+	    when OP_CROP =>
 		cr_op := insn_cr(e_in.insn);
 		report "CR OP " & to_hstring(cr_op);
 		if cr_op(0) = '0' then -- MCRF
