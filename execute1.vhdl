@@ -239,6 +239,7 @@ begin
 	variable exception : std_ulogic;
         variable exception_nextpc : std_ulogic;
         variable trapval : std_ulogic_vector(4 downto 0);
+        variable illegal : std_ulogic;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -388,6 +389,7 @@ begin
 
 	ctrl_tmp.irq_state <= WRITE_SRR0;
 	exception := '0';
+        illegal := '0';
         exception_nextpc := '0';
         v.e.exc_write_enable := '0';
         v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
@@ -426,22 +428,21 @@ begin
 	    when OP_ILLEGAL =>
 		-- we need two cycles to write srr0 and 1
 		-- will need more when we have to write DSISR, DAR and HIER
-		exception := '1';
-		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
-		ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
-		-- Since we aren't doing Hypervisor emulation assist (0xe40) we
-		-- set bit 44 to indicate we have an illegal
-		ctrl_tmp.srr1(63 - 44) <= '1';
-		report "illegal";
+		illegal := '1';
 	    when OP_SC =>
-		-- FIXME Assume everything is SC (not SCV) for now
+		-- check bit 1 of the instruction is 1 so we know this is sc;
+                -- 0 would mean scv, so generate an illegal instruction interrupt
 		-- we need two cycles to write srr0 and 1
 		-- will need more when we have to write DSISR, DAR and HIER
-		exception := '1';
-                exception_nextpc := '1';
-		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#C00#, 64));
-		ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
-		report "sc";
+                if e_in.insn(1) = '1' then
+                    exception := '1';
+                    exception_nextpc := '1';
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#C00#, 64));
+                    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+                    report "sc";
+                else
+                    illegal := '1';
+                end if;
 	    when OP_ATTN =>
 		terminate_out <= '1';
 		report "ATTN";
@@ -836,6 +837,15 @@ begin
 	    end if;
 	end if;
 
+        if illegal = '1' then
+            exception := '1';
+            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
+            ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+            -- Since we aren't doing Hypervisor emulation assist (0xe40) we
+            -- set bit 44 to indicate we have an illegal
+            ctrl_tmp.srr1(63 - 44) <= '1';
+            report "illegal";
+        end if;
 	if exception = '1' then
             v.e.exc_write_enable := '1';
             if exception_nextpc = '1' then

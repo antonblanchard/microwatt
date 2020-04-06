@@ -60,6 +60,7 @@ architecture behaviour of decode1 is
 		20 =>       (ALU,    OP_RLC,       RA,         CONST_SH32,  RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- rlwimi
 		21 =>       (ALU,    OP_RLC,       NONE,       CONST_SH32,  RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- rlwinm
 		23 =>       (ALU,    OP_RLC,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- rlwnm
+                17 =>       (ALU,    OP_SC,        NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- sc
 		38 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- stb
 		39 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '0'), -- stbu
 		44 =>       (LDST,   OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- sth
@@ -344,7 +345,6 @@ architecture behaviour of decode1 is
         --                                                      op                                           in   out   A   out  in    out  len        ext                                 pipe
         constant attn_instr    : decode_rom_t := (ALU,    OP_ATTN,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1');
 	constant nop_instr     : decode_rom_t := (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
-	constant sc_instr     :  decode_rom_t := (ALU,    OP_SC,        NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
 
 begin
 	decode1_0: process(clk)
@@ -402,9 +402,6 @@ begin
                 elsif std_match(f_in.insn, "01100000000000000000000000000000") then
                         report "PPC_nop";
                         v.decode := nop_instr;
-                elsif std_match(f_in.insn, "010001--------------0000000---1-") then
-                        report "PPC_sc";
-                        v.decode := sc_instr;
                 elsif std_match(f_in.insn, "000000---------------0100000000-") then
                         report "PPC_attn";
                         v.decode := attn_instr;
