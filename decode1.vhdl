@@ -345,7 +345,6 @@ architecture behaviour of decode1 is
         constant attn_instr    : decode_rom_t := (ALU,    OP_ATTN,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1');
 	constant nop_instr     : decode_rom_t := (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
 	constant sc_instr     :  decode_rom_t := (ALU,    OP_SC,        NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
-        constant sim_cfg_instr : decode_rom_t := (ALU,    OP_SIM_CONFIG,NONE,       NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1');
 
 begin
 	decode1_0: process(clk)
@@ -406,9 +405,6 @@ begin
                 elsif std_match(f_in.insn, "010001--------------0000000---1-") then
                         report "PPC_sc";
                         v.decode := sc_instr;
-                elsif std_match(f_in.insn, "000001---------------0000000011-") then
-                        report "PPC_SIM_CONFIG";
-                        v.decode := sim_cfg_instr;
                 elsif std_match(f_in.insn, "000000---------------0100000000-") then
                         report "PPC_attn";
                         v.decode := attn_instr;

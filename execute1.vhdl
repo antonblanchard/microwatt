@@ -743,11 +743,6 @@ begin
 		    set_carry(v.e, rotator_carry, rotator_carry);
 		end if;
 		result_en := '1';
-	    when OP_SIM_CONFIG =>
-		-- bit 0 was used to select the microwatt console, which
-		-- we no longer support.
-		result := x"0000000000000000";
-		result_en := '1';
 
 	    when OP_ISYNC =>
 		f_out.redirect <= '1';
