@@ -399,13 +399,15 @@ begin
 	    ctrl_tmp.msr(63 - 48) <= '0'; -- clear EE
 	    f_out.redirect <= '1';
 	    f_out.redirect_nia <= ctrl.irq_nia;
-	    v.e.valid := '1';
+	    v.e.valid := e_in.valid;
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
 	elsif irq_valid = '1' then
 	    -- we need two cycles to write srr0 and 1
 	    -- will need more when we have to write DSISR, DAR and HIER
-	    exception := '1';
+            -- Don't deliver the interrupt until we have a valid instruction
+            -- coming in, so we have a valid NIA to put in SRR0.
+	    exception := e_in.valid;
 	    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#900#, 64));
 	    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
 
@@ -821,16 +823,12 @@ begin
 	end if;
 
 	if exception = '1' then
-	    if e_in.valid = '1' then
-		v.e.exc_write_enable := '1';
-                if exception_nextpc = '1' then
-                    v.e.exc_write_data := std_logic_vector(unsigned(e_in.nia) + 4);
-                end if;
-		ctrl_tmp.irq_state <= WRITE_SRR1;
-		stall_out <= '1';
-		v.e.valid := '0';
-                result_en := '0';
-	    end if;
+            v.e.exc_write_enable := '1';
+            if exception_nextpc = '1' then
+                v.e.exc_write_data := next_nia;
+            end if;
+            ctrl_tmp.irq_state <= WRITE_SRR1;
+            v.e.valid := '1';
 	end if;
 
 	v.e.write_data := result;
