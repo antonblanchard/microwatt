@@ -238,6 +238,7 @@ begin
 	variable irq_valid : std_ulogic;
 	variable exception : std_ulogic;
         variable exception_nextpc : std_ulogic;
+        variable trapval : std_ulogic_vector(4 downto 0);
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -446,7 +447,7 @@ begin
 		report "ATTN";
 	    when OP_NOP =>
 		-- Do nothing
-	    when OP_ADD | OP_CMP =>
+	    when OP_ADD | OP_CMP | OP_TRAP =>
 		if e_in.invert_a = '0' then
 		    a_inv := a_in;
 		else
@@ -468,18 +469,18 @@ begin
                     end if;
                     result_en := '1';
                 else
-                    -- CMP and CMPL instructions
+                    -- trap, CMP and CMPL instructions
                     -- Note, we have done RB - RA, not RA - RB
-                    bf := insn_bf(e_in.insn);
-                    l := insn_l(e_in.insn);
-                    v.e.write_cr_enable := '1';
-                    crnum := to_integer(unsigned(bf));
-                    v.e.write_cr_mask := num_to_fxm(crnum);
+                    if e_in.insn_type = OP_CMP then
+                        l := insn_l(e_in.insn);
+                    else
+                        l := not e_in.is_32bit;
+                    end if;
                     zerolo := not (or (a_in(31 downto 0) xor b_in(31 downto 0)));
                     zerohi := not (or (a_in(63 downto 32) xor b_in(63 downto 32)));
                     if zerolo = '1' and (l = '0' or zerohi = '1') then
                         -- values are equal
-                        newcrf := "001" & v.e.xerc.so;
+                        trapval := "00100";
                     else
                         if l = '1' then
                             -- 64-bit comparison
@@ -494,19 +495,41 @@ begin
                             -- Subtraction might overflow, but
                             -- comparison is clear from MSB difference.
                             -- for signed, 0 is greater; for unsigned, 1 is greater
-                            a_lt := msb_a xnor e_in.is_signed;
+                            trapval := msb_a & msb_b & '0' & msb_b & msb_a;
                         else
                             -- Subtraction cannot overflow since MSBs are equal.
                             -- carry = 1 indicates RA is smaller (signed or unsigned)
                             a_lt := (not l and carry_32) or (l and carry_64);
+                            trapval := a_lt & not a_lt & '0' & a_lt & not a_lt;
                         end if;
-                        newcrf := a_lt & not a_lt & '0' & v.e.xerc.so;
                     end if;
-                    for i in 0 to 7 loop
-                        lo := i*4;
-                        hi := lo + 3;
-                        v.e.write_cr_data(hi downto lo) := newcrf;
-                    end loop;
+                    if e_in.insn_type = OP_CMP then
+                        if e_in.is_signed = '1' then
+                            newcrf := trapval(4 downto 2) & v.e.xerc.so;
+                        else
+                            newcrf := trapval(1 downto 0) & trapval(2) & v.e.xerc.so;
+                        end if;
+                        bf := insn_bf(e_in.insn);
+                        crnum := to_integer(unsigned(bf));
+                        v.e.write_cr_enable := '1';
+                        v.e.write_cr_mask := num_to_fxm(crnum);
+                        for i in 0 to 7 loop
+                            lo := i*4;
+                            hi := lo + 3;
+                            v.e.write_cr_data(hi downto lo) := newcrf;
+                        end loop;
+                    else
+                        -- trap instructions (tw, twi, td, tdi)
+                        if or (trapval and insn_to(e_in.insn)) = '1' then
+                            -- generate trap-type program interrupt
+                            exception := '1';
+                            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
+                            ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+                            -- set bit 46 to say trap occurred
+                            ctrl_tmp.srr1(63 - 46) <= '1';
+                            report "trap";
+                        end if;
+                    end if;
                 end if;
 	    when OP_AND | OP_OR | OP_XOR =>
 		result := logical_result;
@@ -725,17 +748,6 @@ begin
 		-- we no longer support.
 		result := x"0000000000000000";
 		result_en := '1';
-
-	    when OP_TRAP =>
-                -- For now, generate a program interrupt if the TO field is all 1s
-                if insn_to(e_in.insn) = "11111" then
-                    exception := '1';
-                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
-                    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
-                    -- set bit 46 to say a trap occurred
-                    ctrl_tmp.srr1(63 - 46) <= '1';
-                    report "trap";
-                end if;
 
 	    when OP_ISYNC =>
 		f_out.redirect <= '1';
