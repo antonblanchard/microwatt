@@ -238,6 +238,10 @@ package common is
                                                                      reserve => '0', rc => '0', virt_mode => '0',
                                                                      spr_num => 0, others => (others => '0'));
 
+    type Loadstore1ToExecute1Type is record
+        exception : std_ulogic;
+    end record;
+
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
 	load : std_ulogic;				-- is this a load

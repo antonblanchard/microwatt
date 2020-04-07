@@ -147,6 +147,7 @@ architecture rtl of dcache is
     attribute ram_style of dtlb_ptes : signal is "distributed";
 
     signal r0 : Loadstore1ToDcacheType;
+    signal r0_valid : std_ulogic;
 
     -- Type of operation on a "valid" input
     type op_t is (OP_NONE,
@@ -406,6 +407,10 @@ begin
         end if;
     end process;
 
+    -- Hold off the request in r0 when stalling,
+    -- and cancel it if we get an error in a previous request.
+    r0_valid <= r0.valid and not stall_out and not r1.error_done;
+
     -- TLB
     -- Operates in the second cycle on the request latched in r0.
     -- TLB updates write the entry at the end of the second cycle.
@@ -478,7 +483,7 @@ begin
                 hit := '1';
             end if;
         end loop;
-        tlb_hit <= hit and r0.valid;
+        tlb_hit <= hit and r0_valid;
         tlb_hit_way <= hitway;
         pte <= read_tlb_pte(hitway, tlb_pte_way);
         valid_ra <= tlb_hit or not r0.virt_mode;
@@ -503,7 +508,7 @@ begin
             tlbie := '0';
             tlbia := '0';
             tlbwe := '0';
-            if r0.valid = '1' and stall_out = '0' and r0.tlbie = '1' then
+            if r0_valid = '1' and r0.tlbie = '1' then
                 if r0.addr(11 downto 10) /= "00" then
                     tlbia := '1';
                 elsif r0.addr(9) = '1' then
@@ -596,7 +601,7 @@ begin
         req_tag <= get_tag(ra);
 
         -- Only do anything if not being stalled by stage 1
-        go := r0.valid and not stall_out and not r0.tlbie;
+        go := r0_valid and not r0.tlbie;
 
         -- Calculate address of beginning of cache line, will be
         -- used for cache miss processing if needed
@@ -697,7 +702,7 @@ begin
         cancel_store <= '0';
         set_rsrv <= '0';
         clear_rsrv <= '0';
-        if stall_out = '0' and r0.valid = '1' and r0.reserve = '1' then
+        if r0_valid = '1' and r0.reserve = '1' then
             -- XXX generate alignment interrupt if address is not aligned
             -- XXX or if r0.nc = '1'
             if r0.load = '1' then
@@ -920,7 +925,7 @@ begin
             end if;
 
             -- complete tlbies in the third cycle
-            r1.tlbie_done <= r0.valid and r0.tlbie and not stall_out;
+            r1.tlbie_done <= r0_valid and r0.tlbie;
 	end if;
     end process;
 

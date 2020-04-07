@@ -23,6 +23,7 @@ entity execute1 is
 	stall_out : out std_ulogic;
 
 	e_in  : in Decode2ToExecute1Type;
+        l_in  : in Loadstore1ToExecute1Type;
 
 	i_in : in XicsToExecute1Type;
 
@@ -51,6 +52,7 @@ architecture behaviour of execute1 is
 	slow_op_rc : std_ulogic;
 	slow_op_oe : std_ulogic;
 	slow_op_xerc : xer_common_t;
+        ldst_nia : std_ulogic_vector(63 downto 0);
     end record;
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, lr_update => '0',
@@ -446,9 +448,9 @@ begin
         v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
         v.e.exc_write_data := e_in.nia;
 
-	if ctrl.irq_state = WRITE_SRR1 then
-	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
-	    v.e.exc_write_data := ctrl.srr1;
+ 	if ctrl.irq_state = WRITE_SRR1 then
+ 	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
+ 	    v.e.exc_write_data := ctrl.srr1;
             v.e.exc_write_enable := '1';
             ctrl_tmp.msr(MSR_SF) <= '1';
             ctrl_tmp.msr(MSR_EE) <= '0';
@@ -899,6 +901,7 @@ begin
 
         elsif e_in.valid = '1' then
             -- instruction for other units, i.e. LDST
+            v.ldst_nia := e_in.nia;
             v.e.valid := '0';
             if e_in.unit = LDST then
                 lv.valid := '1';
@@ -968,6 +971,17 @@ begin
 
 	v.e.write_data := result;
 	v.e.write_enable := result_en;
+
+        -- generate DSI for load/store exceptions
+        if l_in.exception = '1' then
+            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#300#, 64));
+            ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+            v.e.exc_write_enable := '1';
+            v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
+            v.e.exc_write_data := r.ldst_nia;
+            ctrl_tmp.irq_state <= WRITE_SRR1;
+            v.e.valid := '1';   -- complete the original load or store
+        end if;
 
         -- Outputs to loadstore1 (async)
         lv.op := e_in.insn_type;

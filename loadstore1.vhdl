@@ -16,6 +16,7 @@ entity loadstore1 is
         rst   : in std_ulogic;
 
         l_in  : in Execute1ToLoadstore1Type;
+        e_out : out Loadstore1ToExecute1Type;
         l_out : out Loadstore1ToWritebackType;
 
         d_out : out Loadstore1ToDcacheType;
@@ -142,6 +143,9 @@ begin
         variable mfspr : std_ulogic;
         variable sprn : std_ulogic_vector(9 downto 0);
         variable sprval : std_ulogic_vector(63 downto 0);
+        variable exception : std_ulogic;
+        variable next_addr : std_ulogic_vector(63 downto 0);
+        variable dsisr : std_ulogic_vector(31 downto 0);
     begin
         v := r;
         req := '0';
@@ -151,6 +155,8 @@ begin
         addr := lsu_sum;
         mfspr := '0';
         sprval := (others => '0');      -- avoid inferred latches
+        exception := '0';
+        dsisr := (others => '0');
 
         write_enable := '0';
         do_update := '0';
@@ -203,6 +209,9 @@ begin
                     data_trimmed(i * 8 + 7 downto i * 8) := x"00";
             end case;
         end loop;
+
+        -- compute (addr + 8) & ~7 for the second doubleword when unaligned
+        next_addr := std_ulogic_vector(unsigned(r.addr(63 downto 3)) + 1) & "000";
 
         case r.state is
         when IDLE =>
@@ -301,8 +310,7 @@ begin
             end if;
 
         when SECOND_REQ =>
-            -- compute (addr + 8) & ~7 for the second doubleword when unaligned
-            addr := std_ulogic_vector(unsigned(r.addr(63 downto 3)) + 1) & "000";
+            addr := next_addr;
             byte_sel := r.second_bytes;
             req := '1';
             stall := '1';
@@ -311,25 +319,43 @@ begin
         when FIRST_ACK_WAIT =>
             stall := '1';
             if d_in.valid = '1' then
-                v.state := LAST_ACK_WAIT;
-                if r.load = '1' then
-                    v.load_data := data_permuted;
+                if d_in.error = '1' then
+                    -- dcache will discard the second request
+                    exception := '1';
+                    dsisr(30) := d_in.tlb_miss;
+                    v.state := IDLE;
+                else
+                    v.state := LAST_ACK_WAIT;
+                    if r.load = '1' then
+                        v.load_data := data_permuted;
+                    end if;
                 end if;
             end if;
 
         when LAST_ACK_WAIT =>
             stall := '1';
             if d_in.valid = '1' then
-                write_enable := r.load;
-                if r.load = '1' and r.update = '1' then
-                    -- loads with rA update need an extra cycle
-                    v.state := LD_UPDATE;
-                else
-                    -- stores write back rA update in this cycle
-                    do_update := r.update;
-                    stall := '0';
-                    done := '1';
+                if d_in.error = '1' then
+                    if two_dwords = '1' then
+                        addr := next_addr;
+                    else
+                        addr := r.addr;
+                    end if;
+                    exception := '1';
+                    dsisr(30) := d_in.tlb_miss;
                     v.state := IDLE;
+                else
+                    write_enable := r.load;
+                    if r.load = '1' and r.update = '1' then
+                        -- loads with rA update need an extra cycle
+                        v.state := LD_UPDATE;
+                    else
+                        -- stores write back rA update in this cycle
+                        do_update := r.update;
+                        stall := '0';
+                        done := '1';
+                        v.state := IDLE;
+                    end if;
                 end if;
             end if;
 
@@ -371,6 +397,13 @@ begin
         l_out.xerc <= r.xerc;
         l_out.rc <= r.rc and done;
         l_out.store_done <= d_in.store_done;
+
+        -- update exception info back to execute1
+        e_out.exception <= exception;
+        if exception = '1' then
+            v.dar := addr;
+            v.dsisr := dsisr;
+        end if;
 
         stall_out <= stall;
 

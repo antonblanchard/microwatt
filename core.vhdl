@@ -63,6 +63,7 @@ architecture behave of core is
 
     -- load store signals
     signal execute1_to_loadstore1: Execute1ToLoadstore1Type;
+    signal loadstore1_to_execute1: Loadstore1ToExecute1Type;
     signal loadstore1_to_writeback: Loadstore1ToWritebackType;
 
     -- dcache signals
@@ -251,6 +252,7 @@ begin
 	    stall_out => ex1_stall_out,
             e_in => decode2_to_execute1,
             i_in => xics_in,
+            l_in => loadstore1_to_execute1,
             l_out => execute1_to_loadstore1,
             f_out => execute1_to_fetch1,
             e_out => execute1_to_writeback,
@@ -264,6 +266,7 @@ begin
             clk => clk,
             rst => core_rst,
             l_in => execute1_to_loadstore1,
+            e_out => loadstore1_to_execute1,
             l_out => loadstore1_to_writeback,
             d_out => loadstore1_to_dcache,
             d_in => dcache_to_loadstore1,
