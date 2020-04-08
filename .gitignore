@@ -7,3 +7,4 @@ main_ram.bin
 tests/*/*.bin
 tests/*/*.hex
 tests/*/*.elf
+TAGS
