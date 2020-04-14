@@ -35,7 +35,7 @@ begin
         y(0) := l_in.valid;
         assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
 
-        x(0) := e_in.write_enable;
+        x(0) := e_in.write_enable or e_in.exc_write_enable;
         y(0) := l_in.write_enable;
         assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
 
@@ -51,52 +51,58 @@ begin
             complete_out <= '1';
         end if;
 
-        if e_in.write_enable = '1' then
-            w_out.write_reg <= e_in.write_reg;
-            w_out.write_data <= e_in.write_data;
+        if e_in.exc_write_enable = '1' then
+            w_out.write_reg <= e_in.exc_write_reg;
+            w_out.write_data <= e_in.exc_write_data;
             w_out.write_enable <= '1';
-        end if;
+        else
+            if e_in.write_enable = '1' then
+                w_out.write_reg <= e_in.write_reg;
+                w_out.write_data <= e_in.write_data;
+                w_out.write_enable <= '1';
+            end if;
 
-        if e_in.write_cr_enable = '1' then
-            c_out.write_cr_enable <= '1';
-            c_out.write_cr_mask <= e_in.write_cr_mask;
-            c_out.write_cr_data <= e_in.write_cr_data;
-        end if;
+            if e_in.write_cr_enable = '1' then
+                c_out.write_cr_enable <= '1';
+                c_out.write_cr_mask <= e_in.write_cr_mask;
+                c_out.write_cr_data <= e_in.write_cr_data;
+            end if;
 
-	if e_in.write_xerc_enable = '1' then
-            c_out.write_xerc_enable <= '1';
-            c_out.write_xerc_data <= e_in.xerc;
-	end if;
+            if e_in.write_xerc_enable = '1' then
+                c_out.write_xerc_enable <= '1';
+                c_out.write_xerc_data <= e_in.xerc;
+            end if;
 
-	if l_in.write_enable = '1' then
-            w_out.write_reg <= gpr_to_gspr(l_in.write_reg);
-            w_out.write_data <= l_in.write_data;
-            w_out.write_enable <= '1';
-        end if;
+            if l_in.write_enable = '1' then
+                w_out.write_reg <= gpr_to_gspr(l_in.write_reg);
+                w_out.write_data <= l_in.write_data;
+                w_out.write_enable <= '1';
+            end if;
 
-        if l_in.rc = '1' then
-            -- st*cx. instructions
-            scf(3) := '0';
-            scf(2) := '0';
-            scf(1) := l_in.store_done;
-            scf(0) := l_in.xerc.so;
-            c_out.write_cr_enable <= '1';
-            c_out.write_cr_mask <= num_to_fxm(0);
-            c_out.write_cr_data(31 downto 28) <= scf;
-        end if;
+            if l_in.rc = '1' then
+                -- st*cx. instructions
+                scf(3) := '0';
+                scf(2) := '0';
+                scf(1) := l_in.store_done;
+                scf(0) := l_in.xerc.so;
+                c_out.write_cr_enable <= '1';
+                c_out.write_cr_mask <= num_to_fxm(0);
+                c_out.write_cr_data(31 downto 28) <= scf;
+            end if;
 
-        -- Perform CR0 update for RC forms
-        -- Note that loads never have a form with an RC bit, therefore this can test e_in.write_data
-        if e_in.rc = '1' and e_in.write_enable = '1' then
-            sign := e_in.write_data(63);
-            zero := not (or e_in.write_data);
-            c_out.write_cr_enable <= '1';
-            c_out.write_cr_mask <= num_to_fxm(0);
-	    cf(3) := sign;
-	    cf(2) := not sign and not zero;
-	    cf(1) := zero;
-	    cf(0) := e_in.xerc.so;
-	    c_out.write_cr_data(31 downto 28) <= cf;
+            -- Perform CR0 update for RC forms
+            -- Note that loads never have a form with an RC bit, therefore this can test e_in.write_data
+            if e_in.rc = '1' and e_in.write_enable = '1' then
+                sign := e_in.write_data(63);
+                zero := not (or e_in.write_data);
+                c_out.write_cr_enable <= '1';
+                c_out.write_cr_mask <= num_to_fxm(0);
+                cf(3) := sign;
+                cf(2) := not sign and not zero;
+                cf(1) := zero;
+                cf(0) := e_in.xerc.so;
+                c_out.write_cr_data(31 downto 28) <= cf;
+            end if;
         end if;
     end process;
 end;

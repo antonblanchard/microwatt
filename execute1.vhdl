@@ -237,6 +237,9 @@ begin
         variable lv : Execute1ToLoadstore1Type;
 	variable irq_valid : std_ulogic;
 	variable exception : std_ulogic;
+        variable exception_nextpc : std_ulogic;
+        variable trapval : std_ulogic_vector(4 downto 0);
+        variable illegal : std_ulogic;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -386,24 +389,30 @@ begin
 
 	ctrl_tmp.irq_state <= WRITE_SRR0;
 	exception := '0';
+        illegal := '0';
+        exception_nextpc := '0';
+        v.e.exc_write_enable := '0';
+        v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
+        v.e.exc_write_data := e_in.nia;
 
 	if ctrl.irq_state = WRITE_SRR1 then
-	    v.e.write_reg := fast_spr_num(SPR_SRR1);
-	    result := ctrl.srr1;
-	    result_en := '1';
+	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
+	    v.e.exc_write_data := ctrl.srr1;
+            v.e.exc_write_enable := '1';
 	    ctrl_tmp.msr(63 - 48) <= '0'; -- clear EE
 	    f_out.redirect <= '1';
 	    f_out.redirect_nia <= ctrl.irq_nia;
-	    v.e.valid := '1';
+	    v.e.valid := e_in.valid;
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
 	elsif irq_valid = '1' then
 	    -- we need two cycles to write srr0 and 1
 	    -- will need more when we have to write DSISR, DAR and HIER
-	    exception := '1';
+            -- Don't deliver the interrupt until we have a valid instruction
+            -- coming in, so we have a valid NIA to put in SRR0.
+	    exception := e_in.valid;
 	    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#900#, 64));
 	    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
-	    result := e_in.nia;
 
 	elsif e_in.valid = '1' then
 
@@ -419,29 +428,33 @@ begin
 	    when OP_ILLEGAL =>
 		-- we need two cycles to write srr0 and 1
 		-- will need more when we have to write DSISR, DAR and HIER
-		exception := '1';
-		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
-		ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
-		-- Since we aren't doing Hypervisor emulation assist (0xe40) we
-		-- set bit 44 to indicate we have an illegal
-		ctrl_tmp.srr1(63 - 44) <= '1';
-		result := e_in.nia;
-		report "illegal";
+		illegal := '1';
 	    when OP_SC =>
-		-- FIXME Assume everything is SC (not SCV) for now
+		-- check bit 1 of the instruction is 1 so we know this is sc;
+                -- 0 would mean scv, so generate an illegal instruction interrupt
 		-- we need two cycles to write srr0 and 1
 		-- will need more when we have to write DSISR, DAR and HIER
-		exception := '1';
-		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#C00#, 64));
-		ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
-		result := std_logic_vector(unsigned(e_in.nia) + 4);
-		report "sc";
+                if e_in.insn(1) = '1' then
+                    exception := '1';
+                    exception_nextpc := '1';
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#C00#, 64));
+                    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+                    report "sc";
+                else
+                    illegal := '1';
+                end if;
 	    when OP_ATTN =>
-		terminate_out <= '1';
-		report "ATTN";
+                -- check bits 1-10 of the instruction to make sure it's attn
+                -- if not then it is illegal
+                if e_in.insn(10 downto 1) = "0100000000" then
+                    terminate_out <= '1';
+                    report "ATTN";
+                else
+                    illegal := '1';
+                end if;
 	    when OP_NOP =>
 		-- Do nothing
-	    when OP_ADD | OP_CMP =>
+	    when OP_ADD | OP_CMP | OP_TRAP =>
 		if e_in.invert_a = '0' then
 		    a_inv := a_in;
 		else
@@ -463,18 +476,18 @@ begin
                     end if;
                     result_en := '1';
                 else
-                    -- CMP and CMPL instructions
+                    -- trap, CMP and CMPL instructions
                     -- Note, we have done RB - RA, not RA - RB
-                    bf := insn_bf(e_in.insn);
-                    l := insn_l(e_in.insn);
-                    v.e.write_cr_enable := '1';
-                    crnum := to_integer(unsigned(bf));
-                    v.e.write_cr_mask := num_to_fxm(crnum);
+                    if e_in.insn_type = OP_CMP then
+                        l := insn_l(e_in.insn);
+                    else
+                        l := not e_in.is_32bit;
+                    end if;
                     zerolo := not (or (a_in(31 downto 0) xor b_in(31 downto 0)));
                     zerohi := not (or (a_in(63 downto 32) xor b_in(63 downto 32)));
                     if zerolo = '1' and (l = '0' or zerohi = '1') then
                         -- values are equal
-                        newcrf := "001" & v.e.xerc.so;
+                        trapval := "00100";
                     else
                         if l = '1' then
                             -- 64-bit comparison
@@ -489,19 +502,41 @@ begin
                             -- Subtraction might overflow, but
                             -- comparison is clear from MSB difference.
                             -- for signed, 0 is greater; for unsigned, 1 is greater
-                            a_lt := msb_a xnor e_in.is_signed;
+                            trapval := msb_a & msb_b & '0' & msb_b & msb_a;
                         else
                             -- Subtraction cannot overflow since MSBs are equal.
                             -- carry = 1 indicates RA is smaller (signed or unsigned)
                             a_lt := (not l and carry_32) or (l and carry_64);
+                            trapval := a_lt & not a_lt & '0' & a_lt & not a_lt;
                         end if;
-                        newcrf := a_lt & not a_lt & '0' & v.e.xerc.so;
                     end if;
-                    for i in 0 to 7 loop
-                        lo := i*4;
-                        hi := lo + 3;
-                        v.e.write_cr_data(hi downto lo) := newcrf;
-                    end loop;
+                    if e_in.insn_type = OP_CMP then
+                        if e_in.is_signed = '1' then
+                            newcrf := trapval(4 downto 2) & v.e.xerc.so;
+                        else
+                            newcrf := trapval(1 downto 0) & trapval(2) & v.e.xerc.so;
+                        end if;
+                        bf := insn_bf(e_in.insn);
+                        crnum := to_integer(unsigned(bf));
+                        v.e.write_cr_enable := '1';
+                        v.e.write_cr_mask := num_to_fxm(crnum);
+                        for i in 0 to 7 loop
+                            lo := i*4;
+                            hi := lo + 3;
+                            v.e.write_cr_data(hi downto lo) := newcrf;
+                        end loop;
+                    else
+                        -- trap instructions (tw, twi, td, tdi)
+                        if or (trapval and insn_to(e_in.insn)) = '1' then
+                            -- generate trap-type program interrupt
+                            exception := '1';
+                            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
+                            ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+                            -- set bit 46 to say trap occurred
+                            ctrl_tmp.srr1(63 - 46) <= '1';
+                            report "trap";
+                        end if;
+                    end if;
                 end if;
 	    when OP_AND | OP_OR | OP_XOR =>
 		result := logical_result;
@@ -578,7 +613,7 @@ begin
 		    result := b_in;
 		end if;
 		result_en := '1';
-	    when OP_MCRF =>
+	    when OP_CROP =>
 		cr_op := insn_cr(e_in.insn);
 		report "CR OP " & to_hstring(cr_op);
 		if cr_op(0) = '0' then -- MCRF
@@ -715,15 +750,6 @@ begin
 		    set_carry(v.e, rotator_carry, rotator_carry);
 		end if;
 		result_en := '1';
-	    when OP_SIM_CONFIG =>
-		-- bit 0 was used to select the microwatt console, which
-		-- we no longer support.
-		result := x"0000000000000000";
-		result_en := '1';
-
-	    when OP_TDI =>
-		-- Keep our test cases happy for now, ignore trap instructions
-		report "OP_TDI FIXME";
 
 	    when OP_ISYNC =>
 		f_out.redirect <= '1';
@@ -817,14 +843,22 @@ begin
 	    end if;
 	end if;
 
+        if illegal = '1' then
+            exception := '1';
+            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
+            ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+            -- Since we aren't doing Hypervisor emulation assist (0xe40) we
+            -- set bit 44 to indicate we have an illegal
+            ctrl_tmp.srr1(63 - 44) <= '1';
+            report "illegal";
+        end if;
 	if exception = '1' then
-	    v.e.write_reg := fast_spr_num(SPR_SRR0);
-	    if e_in.valid = '1' then
-		result_en := '1';
-		ctrl_tmp.irq_state <= WRITE_SRR1;
-		stall_out <= '1';
-		v.e.valid := '0';
-	    end if;
+            v.e.exc_write_enable := '1';
+            if exception_nextpc = '1' then
+                v.e.exc_write_data := next_nia;
+            end if;
+            ctrl_tmp.irq_state <= WRITE_SRR1;
+            v.e.valid := '1';
 	end if;
 
 	v.e.write_data := result;
