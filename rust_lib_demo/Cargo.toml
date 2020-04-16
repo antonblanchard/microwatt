@@ -14,11 +14,11 @@ crate_type = ["staticlib"]
 panic = "abort"
 
 [dependencies]
-heapless = "0.5.1"
+heapless = "0.5.4"
 cty = "0.2"
 #embedded-hal = "0.2.3"
 #panic-halt = "0.2.0"
-linked_list_allocator = "0.6"
+linked_list_allocator = "0.8.2"
 
 [profile.release]
 panic = "abort"
