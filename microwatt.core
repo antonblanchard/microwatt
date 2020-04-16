@@ -164,6 +164,7 @@ parameters:
     datatype    : int
     description : On-chip memory size (bytes)
     paramtype   : generic
+    default     : 16384
 
   ram_init_file:
     datatype    : file

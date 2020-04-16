@@ -94,9 +94,9 @@ fusesoc library add microwatt /path/to/microwatt/
 - Build using FuseSoC. For hello world (Replace nexys_video with your FPGA board such as --target=arty_a7-100):
 
 ```
-fusesoc run --target=nexys_video microwatt --memory_size=8192 --ram_init_file=/path/to/microwatt/fpga/hello_world.hex
+fusesoc run --target=nexys_video microwatt --memory_size=16384 --ram_init_file=/path/to/microwatt/fpga/hello_world.hex
 ```
-You should then be able to see output via the serial port of the board (/dev/ttyUSB1, 115200 for example assuming standard clock speeds). There is a know bug where initial output may not be sent - try the reset (not programming button on your board if you don't see anything.
+You should then be able to see output via the serial port of the board (/dev/ttyUSB1, 115200 for example assuming standard clock speeds). There is a know bug where initial output may not be sent - try the reset (not programming button) on your board if you don't see anything.
 
 - To build micropython (currently requires 1MB of BRAM eg an Artix-7 A200):
 
