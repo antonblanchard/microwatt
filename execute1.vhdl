@@ -1004,6 +1004,7 @@ begin
             lv.ci := '1';
         end if;
         lv.virt_mode := ctrl.msr(MSR_DR);
+        lv.priv_mode := not ctrl.msr(MSR_PR);
 
 	-- Update registers
 	rin <= v;

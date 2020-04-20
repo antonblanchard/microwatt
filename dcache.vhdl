@@ -149,6 +149,30 @@ architecture rtl of dcache is
     signal r0 : Loadstore1ToDcacheType;
     signal r0_valid : std_ulogic;
 
+    -- Record for storing permission, attribute, etc. bits from a PTE
+    type perm_attr_t is record
+        reference : std_ulogic;
+        changed   : std_ulogic;
+        nocache   : std_ulogic;
+        priv      : std_ulogic;
+        rd_perm   : std_ulogic;
+        wr_perm   : std_ulogic;
+    end record;
+
+    function extract_perm_attr(pte : std_ulogic_vector(TLB_PTE_BITS - 1 downto 0)) return perm_attr_t is
+        variable pa : perm_attr_t;
+    begin
+        pa.reference := pte(8);
+        pa.changed := pte(7);
+        pa.nocache := pte(5);
+        pa.priv := pte(3);
+        pa.rd_perm := pte(2);
+        pa.wr_perm := pte(1);
+        return pa;
+    end;
+
+    constant real_mode_perm_attr : perm_attr_t := (nocache => '0', others => '1');
+
     -- Type of operation on a "valid" input
     type op_t is (OP_NONE,
 		  OP_LOAD_HIT,      -- Cache hit on load
@@ -208,7 +232,9 @@ architecture rtl of dcache is
 
         -- Signals to complete with error
         error_done       : std_ulogic;
-        tlb_miss         : std_ulogic;
+        tlb_miss         : std_ulogic;          -- No entry found in TLB
+        perm_error       : std_ulogic;          -- Permissions don't allow access
+        rc_error         : std_ulogic;          -- Reference or change bit clear
 
         -- completion signal for tlbie
         tlbie_done       : std_ulogic;
@@ -262,6 +288,9 @@ architecture rtl of dcache is
     signal pte : tlb_pte_t;
     signal ra : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
     signal valid_ra : std_ulogic;
+    signal perm_attr : perm_attr_t;
+    signal rc_ok : std_ulogic;
+    signal perm_ok : std_ulogic;
 
     -- TLB PLRU output interface
     type tlb_plru_out_t is array(tlb_index_t) of std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
@@ -490,8 +519,10 @@ begin
         if r0.virt_mode = '1' then
             ra <= pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
                   r0.addr(TLB_LG_PGSZ - 1 downto 0);
+            perm_attr <= extract_perm_attr(pte);
         else
             ra <= r0.addr(REAL_ADDR_BITS - 1 downto 0);
+            perm_attr <= real_mode_perm_attr;
         end if;
     end process;
 
@@ -588,6 +619,7 @@ begin
 	variable op      : op_t;
 	variable opsel   : std_ulogic_vector(2 downto 0);
         variable go      : std_ulogic;
+        variable nc      : std_ulogic;
         variable s_hit   : std_ulogic;
         variable s_tag   : cache_tag_t;
         variable s_pte   : tlb_pte_t;
@@ -655,13 +687,20 @@ begin
 	-- The way to replace on a miss
 	replace_way <= to_integer(unsigned(plru_victim(req_index)));
 
-	-- Combine the request and cache his status to decide what
+        -- work out whether we have permission for this access
+        -- NB we don't yet implement AMR, thus no KUAP
+        rc_ok <= perm_attr.reference and (r0.load or perm_attr.changed);
+        perm_ok <= (r0.priv_mode or not perm_attr.priv) and
+                   (perm_attr.wr_perm or (r0.load and perm_attr.rd_perm));
+
+	-- Combine the request and cache hit status to decide what
 	-- operation needs to be done
 	--
+        nc := r0.nc or perm_attr.nocache;
         op := OP_NONE;
         if go = '1' then
-            if valid_ra = '1' then
-                opsel := r0.load & r0.nc & is_hit;
+            if valid_ra = '1' and rc_ok = '1' and perm_ok = '1' then
+                opsel := r0.load & nc & is_hit;
                 case opsel is
                     when "101" => op := OP_LOAD_HIT;
                     when "100" => op := OP_LOAD_MISS;
@@ -742,6 +781,8 @@ begin
         d_out.store_done <= '0';
         d_out.error <= '0';
         d_out.tlb_miss <= '0';
+        d_out.perm_error <= '0';
+        d_out.rc_error <= '0';
 
 	-- We have a valid load or store hit or we just completed a slow
 	-- op such as a load miss, a NC load or a store
@@ -772,6 +813,8 @@ begin
             report "completing ld/st with error";
             d_out.error <= '1';
             d_out.tlb_miss <= r1.tlb_miss;
+            d_out.perm_error <= r1.perm_error;
+            d_out.rc_error <= r1.rc_error;
             d_out.valid <= '1';
         end if;
 
@@ -918,8 +961,12 @@ begin
 	    end if;
 
             if req_op = OP_BAD then
+                report "Signalling ld/st error valid_ra=" & " rc_ok=" & std_ulogic'image(rc_ok) &
+                    " perm_ok=" & std_ulogic'image(perm_ok);
                 r1.error_done <= '1';
                 r1.tlb_miss <= not valid_ra;
+                r1.perm_error <= valid_ra and not perm_ok;
+                r1.rc_error <= valid_ra and perm_ok and not rc_ok;
             else
                 r1.error_done <= '0';
             end if;
