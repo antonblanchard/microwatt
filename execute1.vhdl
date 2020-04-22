@@ -248,6 +248,7 @@ begin
 
 	v := r;
 	v.e := Execute1ToWritebackInit;
+        lv := Execute1ToLoadstore1Init;
 
 	-- XER forwarding. To avoid having to track XER hazards, we
 	-- use the previously latched value.
@@ -773,6 +774,7 @@ begin
             when OP_LOAD | OP_STORE =>
                 -- loadstore/dcache has its own port to writeback
                 v.e.valid := '0';
+                lv.valid := '1';
 
             when others =>
 		terminate_out <= '1';
@@ -865,10 +867,6 @@ begin
 	v.e.write_enable := result_en;
 
         -- Outputs to loadstore1 (async)
-        lv := Execute1ToLoadstore1Init;
-        if e_in.valid = '1' and (e_in.insn_type = OP_LOAD or e_in.insn_type = OP_STORE) then
-            lv.valid := '1';
-        end if;
         if e_in.insn_type = OP_LOAD then
             lv.load := '1';
         end if;
