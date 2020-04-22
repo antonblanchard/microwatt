@@ -40,6 +40,9 @@ entity dcache is
         d_in         : in Loadstore1ToDcacheType;
         d_out        : out DcacheToLoadstore1Type;
 
+        m_in         : in MmuToDcacheType;
+        m_out        : out DcacheToMmuType;
+
 	stall_out    : out std_ulogic;
 
         wishbone_out : out wishbone_master_out;
@@ -146,9 +149,6 @@ architecture rtl of dcache is
     attribute ram_style of dtlb_tags : signal is "distributed";
     attribute ram_style of dtlb_ptes : signal is "distributed";
 
-    signal r0 : Loadstore1ToDcacheType;
-    signal r0_valid : std_ulogic;
-
     -- Record for storing permission, attribute, etc. bits from a PTE
     type perm_attr_t is record
         reference : std_ulogic;
@@ -205,6 +205,15 @@ architecture rtl of dcache is
     -- first stage emits a stall for a complex op.
     --
 
+    -- Stage 0 register, basically contains just the latched request
+    type reg_stage_0_t is record
+        req   : Loadstore1ToDcacheType;
+        tlbie : std_ulogic;
+    end record;
+
+    signal r0 : reg_stage_0_t;
+    signal r0_valid : std_ulogic;
+    
     -- First stage register, contains state for stage 1 of load hits
     -- and for the state machine used by all other operations
     --
@@ -424,35 +433,61 @@ begin
     assert (64 = wishbone_data_bits)
 	report "Can't yet handle a wishbone width that isn't 64-bits" severity FAILURE;
 
-    -- Latch the request in r0 as long as we're not stalling
+    -- Latch the request in r0.req as long as we're not stalling
     stage_0 : process(clk)
     begin
         if rising_edge(clk) then
             if rst = '1' then
-                r0.valid <= '0';
+                r0.req.valid <= '0';
             elsif stall_out = '0' then
-                r0 <= d_in;
+                assert (d_in.valid and m_in.valid) = '0' report
+                    "request collision loadstore vs MMU";
+                if m_in.valid = '1' then
+                    r0.req.valid <= '1';
+                    r0.req.load <= '0';
+                    r0.req.dcbz <= '0';
+                    r0.req.nc <= '0';
+                    r0.req.reserve <= '0';
+                    r0.req.virt_mode <= '0';
+                    r0.req.priv_mode <= '1';
+                    r0.req.addr <= m_in.addr;
+                    r0.req.data <= m_in.pte;
+                    r0.req.byte_sel <= (others => '1');
+                    r0.tlbie <= m_in.tlbie;
+                    assert m_in.tlbie = '1' report "unknown request from MMU";
+                else
+                    r0.req <= d_in;
+                    r0.tlbie <= '0';
+                end if;
             end if;
         end if;
     end process;
 
+    -- we don't yet handle collisions between loadstore1 requests and MMU requests
+    m_out.stall <= '0';
+
     -- Hold off the request in r0 when stalling,
     -- and cancel it if we get an error in a previous request.
-    r0_valid <= r0.valid and not stall_out and not r1.error_done;
+    r0_valid <= r0.req.valid and not stall_out and not r1.error_done;
 
     -- TLB
-    -- Operates in the second cycle on the request latched in r0.
+    -- Operates in the second cycle on the request latched in r0.req.
     -- TLB updates write the entry at the end of the second cycle.
     tlb_read : process(clk)
         variable index : tlb_index_t;
+        variable addrbits : std_ulogic_vector(TLB_SET_BITS - 1 downto 0);
     begin
         if rising_edge(clk) then
             if stall_out = '1' then
                 -- keep reading the same thing while stalled
                 index := tlb_req_index;
             else
-                index := to_integer(unsigned(d_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1
-                                                       downto TLB_LG_PGSZ)));
+                if m_in.valid = '1' then
+                    addrbits := m_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1 downto TLB_LG_PGSZ);
+                else
+                    addrbits := d_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1 downto TLB_LG_PGSZ);
+                end if;
+                index := to_integer(unsigned(addrbits));
             end if;
             tlb_valid_way <= dtlb_valids(index);
             tlb_tag_way <= dtlb_tags(index);
@@ -500,11 +535,11 @@ begin
         variable hit : std_ulogic;
         variable eatag : tlb_tag_t;
     begin
-        tlb_req_index <= to_integer(unsigned(r0.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1
+        tlb_req_index <= to_integer(unsigned(r0.req.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1
                                                      downto TLB_LG_PGSZ)));
         hitway := 0;
         hit := '0';
-        eatag := r0.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
+        eatag := r0.req.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
         for i in tlb_way_t loop
             if tlb_valid_way(i) = '1' and
                 read_tlb_tag(i, tlb_tag_way) = eatag then
@@ -515,13 +550,13 @@ begin
         tlb_hit <= hit and r0_valid;
         tlb_hit_way <= hitway;
         pte <= read_tlb_pte(hitway, tlb_pte_way);
-        valid_ra <= tlb_hit or not r0.virt_mode;
-        if r0.virt_mode = '1' then
+        valid_ra <= tlb_hit or not r0.req.virt_mode;
+        if r0.req.virt_mode = '1' then
             ra <= pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
-                  r0.addr(TLB_LG_PGSZ - 1 downto 0);
+                  r0.req.addr(TLB_LG_PGSZ - 1 downto 0);
             perm_attr <= extract_perm_attr(pte);
         else
-            ra <= r0.addr(REAL_ADDR_BITS - 1 downto 0);
+            ra <= r0.req.addr(REAL_ADDR_BITS - 1 downto 0);
             perm_attr <= real_mode_perm_attr;
         end if;
     end process;
@@ -540,9 +575,9 @@ begin
             tlbia := '0';
             tlbwe := '0';
             if r0_valid = '1' and r0.tlbie = '1' then
-                if r0.addr(11 downto 10) /= "00" then
+                if r0.req.addr(11 downto 10) /= "00" then
                     tlbia := '1';
-                elsif r0.addr(9) = '1' then
+                elsif r0.req.addr(9) = '1' then
                     tlbwe := '1';
                 else
                     tlbie := '1';
@@ -563,15 +598,16 @@ begin
                 else
                     repl_way := to_integer(unsigned(tlb_plru_victim(tlb_req_index)));
                 end if;
-                eatag := r0.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
+                eatag := r0.req.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
                 tagset := tlb_tag_way;
                 write_tlb_tag(repl_way, tagset, eatag);
                 dtlb_tags(tlb_req_index) <= tagset;
                 pteset := tlb_pte_way;
-                write_tlb_pte(repl_way, pteset, r0.data);
+                write_tlb_pte(repl_way, pteset, r0.req.data);
                 dtlb_ptes(tlb_req_index) <= pteset;
                 dtlb_valids(tlb_req_index)(repl_way) <= '1';
             end if;
+            m_out.done <= r0_valid and r0.tlbie;
         end if;
     end process;
 
@@ -628,8 +664,8 @@ begin
         variable hit_way_set : hit_way_set_t;
     begin
 	-- Extract line, row and tag from request
-        req_index <= get_index(r0.addr);
-        req_row <= get_row(r0.addr);
+        req_index <= get_index(r0.req.addr);
+        req_row <= get_row(r0.req.addr);
         req_tag <= get_tag(ra);
 
         -- Only do anything if not being stalled by stage 1
@@ -648,13 +684,13 @@ begin
         -- the TLB, and then decide later which match to use.
         hit_way := 0;
         is_hit := '0';
-        if r0.virt_mode = '1' then
+        if r0.req.virt_mode = '1' then
             for j in tlb_way_t loop
                 hit_way_set(j) := 0;
                 s_hit := '0';
                 s_pte := read_tlb_pte(j, tlb_pte_way);
                 s_ra := s_pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
-                        r0.addr(TLB_LG_PGSZ - 1 downto 0);
+                        r0.req.addr(TLB_LG_PGSZ - 1 downto 0);
                 s_tag := get_tag(s_ra);
                 for i in way_t loop
                     if go = '1' and cache_valids(req_index)(i) = '1' and
@@ -671,7 +707,7 @@ begin
                 hit_way := hit_way_set(tlb_hit_way);
             end if;
         else
-            s_tag := get_tag(r0.addr(REAL_ADDR_BITS - 1 downto 0));
+            s_tag := get_tag(r0.req.addr(REAL_ADDR_BITS - 1 downto 0));
             for i in way_t loop
                 if go = '1' and cache_valids(req_index)(i) = '1' and
                     read_tag(i, cache_tags(req_index)) = s_tag then
@@ -689,18 +725,18 @@ begin
 
         -- work out whether we have permission for this access
         -- NB we don't yet implement AMR, thus no KUAP
-        rc_ok <= perm_attr.reference and (r0.load or perm_attr.changed);
-        perm_ok <= (r0.priv_mode or not perm_attr.priv) and
-                   (perm_attr.wr_perm or (r0.load and perm_attr.rd_perm));
+        rc_ok <= perm_attr.reference and (r0.req.load or perm_attr.changed);
+        perm_ok <= (r0.req.priv_mode or not perm_attr.priv) and
+                   (perm_attr.wr_perm or (r0.req.load and perm_attr.rd_perm));
 
 	-- Combine the request and cache hit status to decide what
 	-- operation needs to be done
 	--
-        nc := r0.nc or perm_attr.nocache;
+        nc := r0.req.nc or perm_attr.nocache;
         op := OP_NONE;
         if go = '1' then
             if valid_ra = '1' and rc_ok = '1' and perm_ok = '1' then
-                opsel := r0.load & nc & is_hit;
+                opsel := r0.req.load & nc & is_hit;
                 case opsel is
                     when "101" => op := OP_LOAD_HIT;
                     when "100" => op := OP_LOAD_MISS;
@@ -723,7 +759,11 @@ begin
         -- If we're stalling then we need to keep reading the last
         -- row requested.
         if stall_out = '0' then
-            early_req_row <= get_row(d_in.addr);
+            if m_in.valid = '1' then
+                early_req_row <= get_row(m_in.addr);
+            else
+                early_req_row <= get_row(d_in.addr);
+            end if;
         else
             early_req_row <= req_row;
         end if;
@@ -741,17 +781,17 @@ begin
         cancel_store <= '0';
         set_rsrv <= '0';
         clear_rsrv <= '0';
-        if r0_valid = '1' and r0.reserve = '1' then
+        if r0_valid = '1' and r0.req.reserve = '1' then
             -- XXX generate alignment interrupt if address is not aligned
-            -- XXX or if r0.nc = '1'
-            if r0.load = '1' then
+            -- XXX or if r0.req.nc = '1'
+            if r0.req.load = '1' then
                 -- load with reservation
                 set_rsrv <= '1';
             else
                 -- store conditional
                 clear_rsrv <= '1';
                 if reservation.valid = '0' or
-                    r0.addr(63 downto LINE_OFF_BITS) /= reservation.addr then
+                    r0.req.addr(63 downto LINE_OFF_BITS) /= reservation.addr then
                     cancel_store <= '1';
                 end if;
             end if;
@@ -765,7 +805,7 @@ begin
                 reservation.valid <= '0';
             elsif set_rsrv = '1' then
                 reservation.valid <= '1';
-                reservation.addr <= r0.addr(63 downto LINE_OFF_BITS);
+                reservation.addr <= r0.req.addr(63 downto LINE_OFF_BITS);
             end if;
         end if;
     end process;
@@ -815,12 +855,6 @@ begin
             d_out.tlb_miss <= r1.tlb_miss;
             d_out.perm_error <= r1.perm_error;
             d_out.rc_error <= r1.rc_error;
-            d_out.valid <= '1';
-        end if;
-
-        -- tlbie is handled above and doesn't go through the cache state machine
-        if r1.tlbie_done = '1' then
-            report "completing tlbie";
             d_out.valid <= '1';
         end if;
 
@@ -900,8 +934,8 @@ begin
 	    if r1.state = IDLE then
 		-- In IDLE state, the only write path is the store-hit update case
 		wr_addr  <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
-		wr_data  <= r0.data;
-		wr_sel   <= r0.byte_sel;
+		wr_data  <= r0.req.data;
+		wr_sel   <= r0.req.byte_sel;
 	    else
 		-- Otherwise, we might be doing a reload or a DCBZ
                 if r1.req.dcbz = '1' then
@@ -936,17 +970,17 @@ begin
     dcache_fast_hit : process(clk)
     begin
         if rising_edge(clk) then
-	    -- If we have a request incoming, we have to latch it as r0.valid
+	    -- If we have a request incoming, we have to latch it as r0.req.valid
 	    -- is only set for a single cycle. It's up to the control logic to
 	    -- ensure we don't override an uncompleted request (for now we are
 	    -- single issue on load/stores so we are fine, later, we can generate
 	    -- a stall output if necessary).
 
 	    if req_op /= OP_NONE and stall_out = '0' then
-		r1.req <= r0;
+		r1.req <= r0.req;
 		report "op:" & op_t'image(req_op) &
-		    " addr:" & to_hstring(r0.addr) &
-		    " nc:" & std_ulogic'image(r0.nc) &
+		    " addr:" & to_hstring(r0.req.addr) &
+		    " nc:" & std_ulogic'image(r0.req.nc) &
 		    " idx:" & integer'image(req_index) &
 		    " tag:" & to_hstring(req_tag) &
 		    " way: " & integer'image(req_hit_way);
@@ -1018,7 +1052,7 @@ begin
                     when OP_LOAD_MISS =>
 			-- Normal load cache miss, start the reload machine
 			--
-			report "cache miss addr:" & to_hstring(r0.addr) &
+			report "cache miss addr:" & to_hstring(r0.req.addr) &
 			    " idx:" & integer'image(req_index) &
 			    " way:" & integer'image(replace_way) &
 			    " tag:" & to_hstring(req_tag);
@@ -1053,7 +1087,7 @@ begin
 			r1.state <= RELOAD_WAIT_ACK;
 
 		    when OP_LOAD_NC =>
-                        r1.wb.sel <= r0.byte_sel;
+                        r1.wb.sel <= r0.req.byte_sel;
                         r1.wb.adr <= ra(r1.wb.adr'left downto 3) & "000";
                         r1.wb.cyc <= '1';
                         r1.wb.stb <= '1';
@@ -1061,10 +1095,10 @@ begin
 			r1.state <= NC_LOAD_WAIT_ACK;
 
                     when OP_STORE_HIT | OP_STORE_MISS =>
-                        if r0.dcbz = '0' then
-                            r1.wb.sel <= r0.byte_sel;
+                        if r0.req.dcbz = '0' then
+                            r1.wb.sel <= r0.req.byte_sel;
                             r1.wb.adr <= ra(r1.wb.adr'left downto 3) & "000";
-                            r1.wb.dat <= r0.data;
+                            r1.wb.dat <= r0.req.data;
                             if cancel_store = '0' then
                                 r1.wb.cyc <= '1';
                                 r1.wb.stb <= '1';

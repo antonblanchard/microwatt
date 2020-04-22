@@ -246,7 +246,6 @@ package common is
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
 	load : std_ulogic;				-- is this a load
-        tlbie : std_ulogic;                             -- is this a tlbie
         dcbz : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
@@ -265,6 +264,30 @@ package common is
         tlb_miss : std_ulogic;
         perm_error : std_ulogic;
         rc_error : std_ulogic;
+    end record;
+
+    type Loadstore1ToMmuType is record
+        valid : std_ulogic;
+        tlbie : std_ulogic;
+        addr  : std_ulogic_vector(63 downto 0);
+        rs    : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type MmuToLoadstore1Type is record
+        done  : std_ulogic;
+        error : std_ulogic;
+    end record;
+
+    type MmuToDcacheType is record
+        valid : std_ulogic;
+        tlbie : std_ulogic;
+        addr  : std_ulogic_vector(63 downto 0);
+        pte   : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type DcacheToMmuType is record
+        stall : std_ulogic;
+        done  : std_ulogic;
     end record;
 
     type Loadstore1ToWritebackType is record

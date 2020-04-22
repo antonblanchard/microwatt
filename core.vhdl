@@ -65,10 +65,14 @@ architecture behave of core is
     signal execute1_to_loadstore1: Execute1ToLoadstore1Type;
     signal loadstore1_to_execute1: Loadstore1ToExecute1Type;
     signal loadstore1_to_writeback: Loadstore1ToWritebackType;
+    signal loadstore1_to_mmu: Loadstore1ToMmuType;
+    signal mmu_to_loadstore1: MmuToLoadstore1Type;
 
     -- dcache signals
     signal loadstore1_to_dcache: Loadstore1ToDcacheType;
     signal dcache_to_loadstore1: DcacheToLoadstore1Type;
+    signal mmu_to_dcache: MmuToDcacheType;
+    signal dcache_to_mmu: DcacheToMmuType;
 
     -- local signals
     signal fetch1_stall_in : std_ulogic;
@@ -124,6 +128,7 @@ architecture behave of core is
     attribute keep_hierarchy of cr_file_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of execute1_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of loadstore1_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of mmu_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of dcache_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of writeback_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of debug_0 : label is keep_h(DISABLE_FLATTEN);
@@ -270,8 +275,20 @@ begin
             l_out => loadstore1_to_writeback,
             d_out => loadstore1_to_dcache,
             d_in => dcache_to_loadstore1,
+            m_out => loadstore1_to_mmu,
+            m_in => mmu_to_loadstore1,
             dc_stall => dcache_stall_out,
             stall_out => ls1_stall_out
+            );
+
+    mmu_0: entity work.mmu
+        port map (
+            clk => clk,
+            rst => core_rst,
+            l_in => loadstore1_to_mmu,
+            l_out => mmu_to_loadstore1,
+            d_out => mmu_to_dcache,
+            d_in => dcache_to_mmu
             );
 
     dcache_0: entity work.dcache
@@ -285,6 +302,8 @@ begin
 	    rst => core_rst,
             d_in => loadstore1_to_dcache,
             d_out => dcache_to_loadstore1,
+            m_in => mmu_to_dcache,
+            m_out => dcache_to_mmu,
             stall_out => dcache_stall_out,
             wishbone_in => wishbone_data_in,
             wishbone_out => wishbone_data_out
