@@ -24,6 +24,8 @@ package common is
     constant SPR_XER    : spr_num_t := 1;
     constant SPR_LR     : spr_num_t := 8;
     constant SPR_CTR    : spr_num_t := 9;
+    constant SPR_DSISR  : spr_num_t := 18;
+    constant SPR_DAR    : spr_num_t := 19;
     constant SPR_TB     : spr_num_t := 268;
     constant SPR_DEC    : spr_num_t := 22;
     constant SPR_SRR0   : spr_num_t := 26;
@@ -214,7 +216,7 @@ package common is
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
-        op : insn_type_t;                               -- what ld/st op to do
+        op : insn_type_t;                               -- what ld/st or m[tf]spr to do
 	addr1 : std_ulogic_vector(63 downto 0);
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
@@ -228,10 +230,12 @@ package common is
 	xerc : xer_common_t;
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.
+        spr_num : spr_num_t;                            -- SPR number for mfspr/mtspr
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
-                                                                     reserve => '0', rc => '0', others => (others => '0'));
+                                                                     reserve => '0', rc => '0',
+                                                                     spr_num => 0, others => (others => '0'));
 
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;

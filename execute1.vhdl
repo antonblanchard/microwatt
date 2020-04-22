@@ -463,7 +463,7 @@ begin
 
 	elsif irq_valid = '1' and e_in.valid = '1' then
 	    -- we need two cycles to write srr0 and 1
-	    -- will need more when we have to write DSISR, DAR and HIER
+	    -- will need more when we have to write HEIR
             -- Don't deliver the interrupt until we have a valid instruction
             -- coming in, so we have a valid NIA to put in SRR0.
 	    exception := '1';
@@ -494,13 +494,12 @@ begin
 
 	    when OP_ILLEGAL =>
 		-- we need two cycles to write srr0 and 1
-		-- will need more when we have to write DSISR, DAR and HIER
+		-- will need more when we have to write HEIR
 		illegal := '1';
 	    when OP_SC =>
 		-- check bit 1 of the instruction is 1 so we know this is sc;
                 -- 0 would mean scv, so generate an illegal instruction interrupt
 		-- we need two cycles to write srr0 and 1
-		-- will need more when we have to write DSISR, DAR and HIER
                 if e_in.insn(1) = '1' then
                     exception := '1';
                     exception_nextpc := '1';
@@ -983,6 +982,7 @@ begin
         lv.xerc := v.e.xerc;
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;
+        lv.spr_num := decode_spr_num(e_in.insn);
         -- decode l*cix and st*cix instructions here
         if e_in.insn(31 downto 26) = "011111" and e_in.insn(10 downto 9) = "11" and
             e_in.insn(5 downto 1) = "10101" then

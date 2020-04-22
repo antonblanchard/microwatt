@@ -363,6 +363,7 @@ begin
 		variable v : Decode1ToDecode2Type;
                 variable majorop : major_opcode_t;
                 variable op_19_bits: std_ulogic_vector(2 downto 0);
+                variable sprn : spr_num_t;
 	begin
 		v := r;
 
@@ -429,10 +430,17 @@ begin
 			end if;
 		    end if;
 		elsif v.decode.insn_type = OP_MFSPR or v.decode.insn_type = OP_MTSPR then
-		    v.ispr1 := fast_spr_num(decode_spr_num(f_in.insn));
+                    sprn := decode_spr_num(f_in.insn);
+		    v.ispr1 := fast_spr_num(sprn);
 		    -- Make slow SPRs single issue
 		    if is_fast_spr(v.ispr1) = '0' then
 			v.decode.sgl_pipe := '1';
+                        -- send MMU-related SPRs to loadstore1
+                        case sprn is
+                        when SPR_DAR | SPR_DSISR =>
+                            v.decode.unit := LDST;
+                        when others =>
+                        end case;
 		    end if;
 		elsif v.decode.insn_type = OP_RFID then
 		    report "PPC RFID";

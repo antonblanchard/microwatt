@@ -59,6 +59,8 @@ architecture behave of loadstore1 is
         nc           : std_ulogic;              -- non-cacheable access
         state        : state_t;
         second_bytes : std_ulogic_vector(7 downto 0);
+        dar          : std_ulogic_vector(63 downto 0);
+        dsisr        : std_ulogic_vector(31 downto 0);
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -135,6 +137,9 @@ begin
         variable use_second : byte_sel_t;
         variable trim_ctl : trim_ctl_t;
         variable negative : std_ulogic;
+        variable mfspr : std_ulogic;
+        variable sprn : std_ulogic_vector(9 downto 0);
+        variable sprval : std_ulogic_vector(63 downto 0);
     begin
         v := r;
         req := '0';
@@ -142,6 +147,8 @@ begin
         done := '0';
         byte_sel := (others => '0');
         addr := lsu_sum;
+        mfspr := '0';
+        sprval := (others => '0');      -- avoid inferred latches
 
         write_enable := '0';
         do_update := '0';
@@ -200,11 +207,38 @@ begin
             if l_in.valid = '1' then
                 v.load := '0';
                 v.dcbz := '0';
-                if l_in.op = OP_LOAD then
+                case l_in.op is
+                when OP_STORE =>
+                    req := '1';
+                when OP_LOAD =>
+                    req := '1';
                     v.load := '1';
-                elsif l_in.op = OP_DCBZ then
+                when OP_DCBZ =>
+                    req := '1';
                     v.dcbz := '1';
-                end if;
+                when OP_MFSPR =>
+                    done := '1';
+                    mfspr := '1';
+                    -- partial decode on SPR number should be adequate given
+                    -- the restricted set that get sent down this path
+                    sprn := std_ulogic_vector(to_unsigned(l_in.spr_num, 10));
+                    if sprn(0) = '0' then
+                        sprval := x"00000000" & r.dsisr;
+                    else
+                        sprval := r.dar;
+                    end if;
+                when OP_MTSPR =>
+                    done := '1';
+                    sprn := std_ulogic_vector(to_unsigned(l_in.spr_num, 10));
+                    if sprn(0) = '0' then
+                        v.dsisr := l_in.data(31 downto 0);
+                    else
+                        v.dar := l_in.data;
+                    end if;
+                when others =>
+                    assert false report "unknown op sent to loadstore1";
+                end case;
+
                 v.addr := lsu_sum;
                 v.write_reg := l_in.write_reg;
                 v.length := l_in.length;
@@ -246,12 +280,13 @@ begin
                     v.store_data(j + 7 downto j) := l_in.data(i * 8 + 7 downto i * 8);
                 end loop;
 
-                req := '1';
-                stall := '1';
-                if long_sel(15 downto 8) = "00000000" then
-                    v.state := LAST_ACK_WAIT;
-                else
-                    v.state := SECOND_REQ;
+                if req = '1' then
+                    stall := '1';
+                    if long_sel(15 downto 8) = "00000000" then
+                        v.state := LAST_ACK_WAIT;
+                    else
+                        v.state := SECOND_REQ;
+                    end if;
                 end if;
             end if;
 
@@ -308,7 +343,11 @@ begin
         -- Multiplex either cache data to the destination GPR or
         -- the address for the rA update.
         l_out.valid <= done;
-        if do_update = '1' then
+        if mfspr = '1' then
+            l_out.write_enable <= '1';
+            l_out.write_reg <= l_in.write_reg;
+            l_out.write_data <= sprval;
+        elsif do_update = '1' then
             l_out.write_enable <= '1';
             l_out.write_reg <= r.update_reg;
             l_out.write_data <= r.addr;
