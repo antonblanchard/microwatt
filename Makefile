@@ -70,7 +70,8 @@ rotator.o: common.o
 rotator_tb.o: common.o glibc_random.o ppc_fx_insns.o insn_helpers.o rotator.o
 sim_console.o:
 sim_uart.o: wishbone_types.o sim_console.o
-soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o wishbone_bram_wrapper.o dmi_dtm_xilinx.o wishbone_debug_master.o
+xics.o: wishbone_types.o common.o
+soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o wishbone_bram_wrapper.o dmi_dtm_xilinx.o wishbone_debug_master.o xics.o
 wishbone_arbiter.o: wishbone_types.o
 wishbone_types.o:
 writeback.o: common.o crhelpers.o

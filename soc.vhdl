@@ -12,6 +12,7 @@ use work.wishbone_types.all;
 
 -- 0x00000000: Main memory (1 MB)
 -- 0xc0002000: UART0 (for host communication)
+-- 0xc0004000: XICS ICP
 entity soc is
     generic (
 	MEMORY_SIZE   : positive;
@@ -55,6 +56,13 @@ architecture behaviour of soc is
     signal wb_uart0_out  : wishbone_slave_out;
     signal uart_dat8     : std_ulogic_vector(7 downto 0);
 
+    -- XICS0 signals:
+    signal wb_xics0_in   : wishbone_master_out;
+    signal wb_xics0_out  : wishbone_slave_out;
+    signal int_level_in  : std_ulogic_vector(15 downto 0);
+
+    signal xics_to_execute1 : XicsToExecute1Type;
+
     -- Main memory signals:
     signal wb_bram_in     : wishbone_master_out;
     signal wb_bram_out    : wishbone_slave_out;
@@ -95,7 +103,8 @@ begin
 	    dmi_din => dmi_dout,
 	    dmi_wr => dmi_wr,
 	    dmi_ack => dmi_core_ack,
-	    dmi_req => dmi_core_req
+	    dmi_req => dmi_core_req,
+	    xics_in => xics_to_execute1
 	    );
 
     -- Wishbone bus master arbiter & mux
@@ -122,6 +131,7 @@ begin
 	-- Selected slave
 	type slave_type is (SLAVE_UART_0,
 			    SLAVE_MEMORY,
+			    SLAVE_ICP_0,
 			    SLAVE_NONE);
 	variable slave : slave_type;
     begin
@@ -133,6 +143,9 @@ begin
 	    if wb_master_out.adr(23 downto 12) = x"002" then
 		slave := SLAVE_UART_0;
 	    end if;
+	    if wb_master_out.adr(23 downto 12) = x"004" then
+		slave := SLAVE_ICP_0;
+	    end if;
 	end if;
 
 	-- Wishbone muxing. Defaults:
@@ -140,6 +153,12 @@ begin
 	wb_bram_in.cyc  <= '0';
 	wb_uart0_in <= wb_master_out;
 	wb_uart0_in.cyc <= '0';
+
+	 -- Only give xics 8 bits of wb addr
+	wb_xics0_in <= wb_master_out;
+	wb_xics0_in.adr <= (others => '0');
+	wb_xics0_in.adr(7 downto 0) <= wb_master_out.adr(7 downto 0);
+	wb_xics0_in.cyc  <= '0';
 	case slave is
 	when SLAVE_MEMORY =>
 	    wb_bram_in.cyc <= wb_master_out.cyc;
@@ -147,6 +166,9 @@ begin
 	when SLAVE_UART_0 =>
 	    wb_uart0_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_uart0_out;
+	when SLAVE_ICP_0 =>
+	    wb_xics0_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_xics0_out;
 	when others =>
 	    wb_master_in.dat <= (others => '1');
 	    wb_master_in.ack <= wb_master_out.stb and wb_master_out.cyc;
@@ -170,6 +192,7 @@ begin
 	    reset => rst,
 	    txd => uart0_txd,
 	    rxd => uart0_rxd,
+	    irq => int_level_in(0),
 	    wb_adr_in => wb_uart0_in.adr(11 downto 0),
 	    wb_dat_in => wb_uart0_in.dat(7 downto 0),
 	    wb_dat_out => uart_dat8,
@@ -180,6 +203,19 @@ begin
 	    );
     wb_uart0_out.dat <= x"00000000000000" & uart_dat8;
     wb_uart0_out.stall <= '0' when wb_uart0_in.cyc = '0' else not wb_uart0_out.ack;
+
+    xics0: entity work.xics
+	generic map(
+	    LEVEL_NUM => 16
+	    )
+	port map(
+	    clk => system_clk,
+	    rst => rst,
+	    wb_in => wb_xics0_in,
+	    wb_out => wb_xics0_out,
+	    int_level_in => int_level_in,
+	    e_out => xics_to_execute1
+	    );
 
     -- BRAM Memory slave
     bram0: entity work.wishbone_bram_wrapper

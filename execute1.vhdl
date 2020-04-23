@@ -24,6 +24,8 @@ entity execute1 is
 
 	e_in  : in Decode2ToExecute1Type;
 
+	i_in : in XicsToExecute1Type;
+
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
 	f_out : out Execute1ToFetch1Type;
@@ -370,9 +372,16 @@ begin
 	ctrl_tmp.dec <= std_ulogic_vector(unsigned(ctrl.dec) - 1);
 
 	irq_valid := '0';
-	if ctrl.msr(63 - 48) = '1' and ctrl.dec(63) = '1' then
-	    report "IRQ valid";
-	    irq_valid := '1';
+	if ctrl.msr(63 - 48) = '1' then
+	    if ctrl.dec(63) = '1' then
+		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#900#, 64));
+		report "IRQ valid: DEC";
+		irq_valid := '1';
+	    elsif i_in.irq = '1' then
+		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#500#, 64));
+		report "IRQ valid: External";
+		irq_valid := '1';
+	    end if;
 	end if;
 
 	terminate_out <= '0';
@@ -412,10 +421,11 @@ begin
             -- Don't deliver the interrupt until we have a valid instruction
             -- coming in, so we have a valid NIA to put in SRR0.
 	    exception := e_in.valid;
-	    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#900#, 64));
 	    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
 
 	elsif e_in.valid = '1' then
+
+	    report "execute nia " & to_hstring(e_in.nia);
 
 	    v.e.valid := '1';
 	    v.e.write_reg := e_in.write_reg;
