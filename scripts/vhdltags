@@ -1,0 +1,34 @@
+#!/bin/sh
+# Etags is case sensitive so parsing VHDL is a little ugly.
+
+FILES=""
+OUTPUTFILE=TAGS
+
+while [ "$1"x != "x" ] ; do
+    case $1 in
+    -o)
+	shift
+	OUTPUTFILE=$1
+	;;
+    *)
+	FILES="$FILES $1"
+	;;
+    esac
+    shift
+done
+
+etags --language=none \
+      --regex='/[ \t]*\([Aa][Rr][Cc][Hh][Ii][Tt][Ee][Cc][Tt][Uu][Rr][Ee]\)[ \t]+\([^ \t]*\)[ \t]+\(OF\|of\)[ \t]+\([^ \t]*\)/\4-\2/' \
+      --regex='/[ \t]*\([Cc][Oo][Nn][Ff][Ii][Gg][Uu][Rr][Aa][Tt][Ii][Oo][Nn]\)[ \t]+\([^ \t]*\)[ \t]+\(OF\|of\)[ \t]+\([^ \t]*\)/\2/' \
+      --regex='/[ \t]*\('\
+'[Aa][Tt][Tt][Rr][Ii][Bb][Uu][Tt][Ee]\|'\
+'[Ee][Nn][Tt][Ii][Tt][Yy]\|'\
+'[Ff][Uu][Nn][Cc][Tt][Ii][Oo][Nn]\|'\
+'[Pp][Aa][Cc][Kk][Aa][Gg][Ee]\([ \t]+[Bb][Oo][Dd][Yy]\)?\|'\
+'[Pp][Rr][Oo][Cc][Ee][Dd][Uu][Rr][Ee]\|'\
+'[Pp][Rr][Oo][Cc][Ee][Ss][Ss]\|'\
+'[Tt][Yy][Pp][Ee]\|'\
+'[Ss][Uu][Bb][Tt][Yy][Pp][Ee]'\
+'\)[ \t]+\([^ \t(]+\)/\3/' \
+      --regex='/[ \t]*\([Cc][Oo][Nn][Ss][Tt][Aa][Nn][Tt]\)[ \t]+\([^ \t]+\)/\2/' \
+      -o "$OUTPUTFILE" $FILES

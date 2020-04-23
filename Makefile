@@ -146,10 +146,16 @@ test_micropython: core_tb
 test_micropython_long: core_tb
 	@./scripts/test_micropython_long.py
 
+TAGS:
+	find . -name '*.vhdl' | xargs ./scripts/vhdltags
+
+.PHONY: TAGS
+
 clean:
 	rm -f *.o work-*cf unisim-*cf $(all)
 	rm -f fpga/*.o fpga/work-*cf
 	rm -f sim-unisim/*.o sim-unisim/unisim-*cf
+	rm -f TAGS
 
 distclean: clean
 	rm -f *~ fpga/~
