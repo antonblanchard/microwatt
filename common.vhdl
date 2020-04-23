@@ -39,6 +39,7 @@ package common is
     constant SPR_SPRG3U : spr_num_t := 259;
     constant SPR_HSPRG0 : spr_num_t := 304;
     constant SPR_HSPRG1 : spr_num_t := 305;
+    constant SPR_PGTBL0 : spr_num_t := 720;
 
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
@@ -269,18 +270,23 @@ package common is
     type Loadstore1ToMmuType is record
         valid : std_ulogic;
         tlbie : std_ulogic;
+        mtspr : std_ulogic;
+        sprn  : std_ulogic_vector(3 downto 0);
         addr  : std_ulogic_vector(63 downto 0);
         rs    : std_ulogic_vector(63 downto 0);
     end record;
 
     type MmuToLoadstore1Type is record
-        done  : std_ulogic;
-        error : std_ulogic;
+        done    : std_ulogic;
+        invalid : std_ulogic;
+        badtree : std_ulogic;
+        sprval  : std_ulogic_vector(63 downto 0);
     end record;
 
     type MmuToDcacheType is record
         valid : std_ulogic;
         tlbie : std_ulogic;
+        tlbld : std_ulogic;
         addr  : std_ulogic_vector(63 downto 0);
         pte   : std_ulogic_vector(63 downto 0);
     end record;
@@ -288,6 +294,8 @@ package common is
     type DcacheToMmuType is record
         stall : std_ulogic;
         done  : std_ulogic;
+        err   : std_ulogic;
+        data  : std_ulogic_vector(63 downto 0);
     end record;
 
     type Loadstore1ToWritebackType is record

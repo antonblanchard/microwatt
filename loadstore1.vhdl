@@ -153,6 +153,7 @@ begin
         variable next_addr : std_ulogic_vector(63 downto 0);
         variable mmureq : std_ulogic;
         variable dsisr : std_ulogic_vector(31 downto 0);
+        variable mmu_mtspr : std_ulogic;
     begin
         v := r;
         req := '0';
@@ -161,6 +162,8 @@ begin
         byte_sel := (others => '0');
         addr := lsu_sum;
         mfspr := '0';
+        mmu_mtspr := '0';
+        sprn := std_ulogic_vector(to_unsigned(l_in.spr_num, 10));
         sprval := (others => '0');      -- avoid inferred latches
         exception := '0';
         dsisr := (others => '0');
@@ -244,19 +247,27 @@ begin
                     mfspr := '1';
                     -- partial decode on SPR number should be adequate given
                     -- the restricted set that get sent down this path
-                    sprn := std_ulogic_vector(to_unsigned(l_in.spr_num, 10));
-                    if sprn(0) = '0' then
-                        sprval := x"00000000" & r.dsisr;
+                    if sprn(9) = '0' then
+                        if sprn(0) = '0' then
+                            sprval := x"00000000" & r.dsisr;
+                        else
+                            sprval := r.dar;
+                        end if;
                     else
-                        sprval := r.dar;
+                        -- reading one of the SPRs in the MMU
+                        sprval := m_in.sprval;
                     end if;
                 when OP_MTSPR =>
                     done := '1';
-                    sprn := std_ulogic_vector(to_unsigned(l_in.spr_num, 10));
-                    if sprn(0) = '0' then
-                        v.dsisr := l_in.data(31 downto 0);
+                    if sprn(9) = '0' then
+                        if sprn(0) = '0' then
+                            v.dsisr := l_in.data(31 downto 0);
+                        else
+                            v.dar := l_in.data;
+                        end if;
                     else
-                        v.dar := l_in.data;
+                        -- writing one of the SPRs in the MMU
+                        mmu_mtspr := '1';
                     end if;
                 when others =>
                     assert false report "unknown op sent to loadstore1";
@@ -361,7 +372,7 @@ begin
                 byte_sel := r.first_bytes;
             end if;
             if m_in.done = '1' then
-                if m_in.error = '0' then
+                if m_in.invalid = '0' and m_in.badtree = '0' then
                     -- retry the request now that the MMU has installed a TLB entry
                     req := '1';
                     if r.state = MMU_LOOKUP_1ST then
@@ -371,8 +382,9 @@ begin
                     end if;
                 else
                     exception := '1';
-                    dsisr(63 - 33) := '1';
+                    dsisr(63 - 33) := m_in.invalid;
                     dsisr(63 - 38) := not r.load;
+                    dsisr(63 - 44) := m_in.badtree;
                     v.state := IDLE;
                 end if;
             end if;
@@ -440,6 +452,8 @@ begin
         -- Update outputs to MMU
         m_out.valid <= mmureq;
         m_out.tlbie <= v.tlbie;
+        m_out.mtspr <= mmu_mtspr;
+        m_out.sprn <= sprn(3 downto 0);
         m_out.addr <= addr;
         m_out.rs <= l_in.data;
 

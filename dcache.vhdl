@@ -209,6 +209,8 @@ architecture rtl of dcache is
     type reg_stage_0_t is record
         req   : Loadstore1ToDcacheType;
         tlbie : std_ulogic;
+        tlbld : std_ulogic;
+        mmu_req : std_ulogic;   -- indicates source of request
     end record;
 
     signal r0 : reg_stage_0_t;
@@ -220,6 +222,7 @@ architecture rtl of dcache is
     type reg_stage_1_t is record
 	-- Latch the complete request from ls1
 	req              : Loadstore1ToDcacheType;
+        mmu_req          : std_ulogic;
 
 	-- Cache hit state
 	hit_way          : way_t;
@@ -444,7 +447,7 @@ begin
                     "request collision loadstore vs MMU";
                 if m_in.valid = '1' then
                     r0.req.valid <= '1';
-                    r0.req.load <= '0';
+                    r0.req.load <= not (m_in.tlbie or m_in.tlbld);
                     r0.req.dcbz <= '0';
                     r0.req.nc <= '0';
                     r0.req.reserve <= '0';
@@ -454,10 +457,13 @@ begin
                     r0.req.data <= m_in.pte;
                     r0.req.byte_sel <= (others => '1');
                     r0.tlbie <= m_in.tlbie;
-                    assert m_in.tlbie = '1' report "unknown request from MMU";
+                    r0.tlbld <= m_in.tlbld;
+                    r0.mmu_req <= '1';
                 else
                     r0.req <= d_in;
                     r0.tlbie <= '0';
+                    r0.tlbld <= '0';
+                    r0.mmu_req <= '0';
                 end if;
             end if;
         end if;
@@ -549,7 +555,11 @@ begin
         end loop;
         tlb_hit <= hit and r0_valid;
         tlb_hit_way <= hitway;
-        pte <= read_tlb_pte(hitway, tlb_pte_way);
+        if tlb_hit = '1' then
+            pte <= read_tlb_pte(hitway, tlb_pte_way);
+        else
+            pte <= (others => '0');
+        end if;
         valid_ra <= tlb_hit or not r0.req.virt_mode;
         if r0.req.virt_mode = '1' then
             ra <= pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
@@ -573,7 +583,7 @@ begin
         if rising_edge(clk) then
             tlbie := '0';
             tlbia := '0';
-            tlbwe := '0';
+            tlbwe := r0_valid and r0.tlbld;
             if r0_valid = '1' and r0.tlbie = '1' then
                 if r0.req.addr(11 downto 10) /= "00" then
                     tlbia := '1';
@@ -607,7 +617,6 @@ begin
                 dtlb_ptes(tlb_req_index) <= pteset;
                 dtlb_valids(tlb_req_index)(repl_way) <= '1';
             end if;
-            m_out.done <= r0_valid and r0.tlbie;
         end if;
     end process;
 
@@ -669,7 +678,7 @@ begin
         req_tag <= get_tag(ra);
 
         -- Only do anything if not being stalled by stage 1
-        go := r0_valid and not r0.tlbie;
+        go := r0_valid and not (r0.tlbie or r0.tlbld);
 
         -- Calculate address of beginning of cache line, will be
         -- used for cache miss processing if needed
@@ -824,6 +833,11 @@ begin
         d_out.perm_error <= '0';
         d_out.rc_error <= '0';
 
+        -- Outputs to MMU
+        m_out.done <= r1.tlbie_done;
+        m_out.err <= '0';
+        m_out.data <= cache_out(r1.hit_way);
+
 	-- We have a valid load or store hit or we just completed a slow
 	-- op such as a load miss, a NC load or a store
 	--
@@ -842,40 +856,65 @@ begin
 	    "unexpected hit_load_delayed collision with slow_valid"
 	    severity FAILURE;
 
-	-- Load hit case is the standard path
-	if r1.hit_load_valid = '1' then
-            report "completing load hit";
-            d_out.valid <= '1';
-	end if;
+        if r1.mmu_req = '0' then
+            -- Request came from loadstore1...
+            -- Load hit case is the standard path
+            if r1.hit_load_valid = '1' then
+                report "completing load hit";
+                d_out.valid <= '1';
+            end if;
 
-        -- error cases complete without stalling
-        if r1.error_done = '1' then
-            report "completing ld/st with error";
-            d_out.error <= '1';
-            d_out.tlb_miss <= r1.tlb_miss;
-            d_out.perm_error <= r1.perm_error;
-            d_out.rc_error <= r1.rc_error;
-            d_out.valid <= '1';
-        end if;
+            -- error cases complete without stalling
+            if r1.error_done = '1' then
+                report "completing ld/st with error";
+                d_out.error <= '1';
+                d_out.tlb_miss <= r1.tlb_miss;
+                d_out.perm_error <= r1.perm_error;
+                d_out.rc_error <= r1.rc_error;
+                d_out.valid <= '1';
+            end if;
 
-	-- Slow ops (load miss, NC, stores)
-	if r1.slow_valid = '1' then
-	    -- If it's a load, enable register writeback and switch
-	    -- mux accordingly
-	    --
-	    if r1.req.load then
-		-- Read data comes from the slow data latch
-		d_out.data <= r1.slow_data;
-	    end if;
-            d_out.store_done <= '1';
+            -- Slow ops (load miss, NC, stores)
+            if r1.slow_valid = '1' then
+                -- If it's a load, enable register writeback and switch
+                -- mux accordingly
+                --
+                if r1.req.load then
+                    -- Read data comes from the slow data latch
+                    d_out.data <= r1.slow_data;
+                end if;
+                d_out.store_done <= '1';
 
-            report "completing store or load miss";
-            d_out.valid <= '1';
-	end if;
+                report "completing store or load miss";
+                d_out.valid <= '1';
+            end if;
 
-        if r1.stcx_fail = '1' then
-            d_out.store_done <= '0';
-            d_out.valid <= '1';
+            if r1.stcx_fail = '1' then
+                d_out.store_done <= '0';
+                d_out.valid <= '1';
+            end if;
+
+        else
+            -- Request came from MMU
+            if r1.hit_load_valid = '1' then
+                report "completing load hit to MMU, data=" & to_hstring(m_out.data);
+                m_out.done <= '1';
+            end if;
+
+            -- error cases complete without stalling
+            if r1.error_done = '1' then
+                report "completing MMU ld with error";
+                m_out.err <= '1';
+                m_out.done <= '1';
+            end if;
+
+            -- Slow ops (i.e. load miss)
+            if r1.slow_valid = '1' then
+                -- Read data comes from the slow data latch
+                m_out.data <= r1.slow_data;
+                report "completing MMU load miss, data=" & to_hstring(m_out.data);
+                m_out.done <= '1';
+            end if;
         end if;
 
     end process;
@@ -978,6 +1017,7 @@ begin
 
 	    if req_op /= OP_NONE and stall_out = '0' then
 		r1.req <= r0.req;
+                r1.mmu_req <= r0.mmu_req;
 		report "op:" & op_t'image(req_op) &
 		    " addr:" & to_hstring(r0.req.addr) &
 		    " nc:" & std_ulogic'image(r0.req.nc) &
@@ -995,8 +1035,8 @@ begin
 	    end if;
 
             if req_op = OP_BAD then
-                report "Signalling ld/st error valid_ra=" & " rc_ok=" & std_ulogic'image(rc_ok) &
-                    " perm_ok=" & std_ulogic'image(perm_ok);
+                report "Signalling ld/st error valid_ra=" & std_ulogic'image(valid_ra) &
+                    " rc_ok=" & std_ulogic'image(rc_ok) & " perm_ok=" & std_ulogic'image(perm_ok);
                 r1.error_done <= '1';
                 r1.tlb_miss <= not valid_ra;
                 r1.perm_error <= valid_ra and not perm_ok;
@@ -1005,8 +1045,8 @@ begin
                 r1.error_done <= '0';
             end if;
 
-            -- complete tlbies in the third cycle
-            r1.tlbie_done <= r0_valid and r0.tlbie;
+            -- complete tlbies and TLB loads in the third cycle
+            r1.tlbie_done <= r0_valid and (r0.tlbie or r0.tlbld);
 	end if;
     end process;
 
