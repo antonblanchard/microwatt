@@ -974,7 +974,11 @@ begin
 
         -- generate DSI for load/store exceptions
         if l_in.exception = '1' then
-            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#300#, 64));
+            if l_in.segment_fault = '0' then
+                ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#300#, 64));
+            else
+                ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#380#, 64));
+            end if;
             ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
             v.e.exc_write_enable := '1';
             v.e.exc_write_reg := fast_spr_num(SPR_SRR0);

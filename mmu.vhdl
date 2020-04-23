@@ -26,11 +26,11 @@ architecture behave of mmu is
 
     type state_t is (IDLE,
                      TLB_WAIT,
+                     SEGMENT_CHECK,
                      RADIX_LOOKUP,
                      RADIX_READ_WAIT,
                      RADIX_LOAD_TLB,
-                     RADIX_NO_TRANS,
-                     RADIX_BAD_TREE
+                     RADIX_ERROR
                      );
 
     type reg_stage_t is record
@@ -44,6 +44,9 @@ architecture behave of mmu is
         mask_size : unsigned(4 downto 0);
         pgbase    : std_ulogic_vector(55 downto 0);
         pde       : std_ulogic_vector(63 downto 0);
+        invalid   : std_ulogic;
+        badtree   : std_ulogic;
+        segerror  : std_ulogic;
     end record;
 
     signal r, rin : reg_stage_t;
@@ -155,8 +158,6 @@ begin
         variable v : reg_stage_t;
         variable dcreq : std_ulogic;
         variable done : std_ulogic;
-        variable invalid : std_ulogic;
-        variable badtree : std_ulogic;
         variable tlb_load : std_ulogic;
         variable tlbie_req : std_ulogic;
         variable rts : unsigned(5 downto 0);
@@ -164,13 +165,15 @@ begin
         variable pgtable_addr : std_ulogic_vector(63 downto 0);
         variable pte : std_ulogic_vector(63 downto 0);
         variable data : std_ulogic_vector(63 downto 0);
+        variable nonzero : std_ulogic;
     begin
         v := r;
         v.valid := '0';
         dcreq := '0';
         done := '0';
-        invalid := '0';
-        badtree := '0';
+        v.invalid := '0';
+        v.badtree := '0';
+        v.segerror := '0';
         tlb_load := '0';
         tlbie_req := '0';
 
@@ -183,10 +186,11 @@ begin
         case r.state is
         when IDLE =>
             -- rts == radix tree size, # address bits being translated
-            rts := unsigned('0' & r.pgtbl0(62 downto 61) & r.pgtbl0(7 downto 5)) + (31 - 12);
+            rts := unsigned('0' & r.pgtbl0(62 downto 61) & r.pgtbl0(7 downto 5));
             -- mbits == # address bits to index top level of tree
             mbits := unsigned('0' & r.pgtbl0(4 downto 0));
-            v.shift := rts - mbits;
+            -- set v.shift to rts so that we can use finalmask for the segment check
+            v.shift := rts;
             v.mask_size := mbits(4 downto 0);
             v.pgbase := r.pgtbl0(55 downto 8) & x"00";
 
@@ -198,13 +202,12 @@ begin
                     v.state := TLB_WAIT;
                 else
                     v.valid := '1';
-                    -- for now, take RPDS = 0 to disable radix translation
+                    -- Use RPDS = 0 to disable radix tree walks
                     if mbits = 0 then
-                        v.state := RADIX_NO_TRANS;
-                    elsif mbits < 5 or mbits > 16 or mbits > rts then
-                        v.state := RADIX_BAD_TREE;
+                        v.state := RADIX_ERROR;
+                        v.invalid := '1';
                     else
-                        v.state := RADIX_LOOKUP;
+                        v.state := SEGMENT_CHECK;
                     end if;
                 end if;
             end if;
@@ -216,6 +219,20 @@ begin
             if d_in.done = '1' then
                 done := '1';
                 v.state := IDLE;
+            end if;
+
+        when SEGMENT_CHECK =>
+            mbits := '0' & r.mask_size;
+            v.shift := r.shift + (31 - 12) - mbits;
+            nonzero := or(r.addr(61 downto 31) and not finalmask(30 downto 0));
+            if r.addr(63) /= r.addr(62) or nonzero = '1' then
+                v.state := RADIX_ERROR;
+                v.segerror := '1';
+            elsif mbits < 5 or mbits > 16 or mbits > (r.shift + (31 - 12)) then
+                v.state := RADIX_ERROR;
+                v.badtree := '1';
+            else
+                v.state := RADIX_LOOKUP;
             end if;
 
         when RADIX_LOOKUP =>
@@ -234,7 +251,8 @@ begin
                         else
                             mbits := unsigned('0' & data(4 downto 0));
                             if mbits < 5 or mbits > 16 or mbits > r.shift then
-                                v.state := RADIX_BAD_TREE;
+                                v.state := RADIX_ERROR;
+                                v.badtree := '1';
                             else
                                 v.shift := v.shift - mbits;
                                 v.mask_size := mbits(4 downto 0);
@@ -244,10 +262,12 @@ begin
                         end if;
                     else
                         -- non-present PTE, generate a DSI
-                        v.state := RADIX_NO_TRANS;
+                        v.state := RADIX_ERROR;
+                        v.invalid := '1';
                     end if;
                 else
-                    v.state := RADIX_BAD_TREE;
+                    v.state := RADIX_ERROR;
+                    v.badtree := '1';
                 end if;
             end if;
 
@@ -256,15 +276,10 @@ begin
             dcreq := '1';
             v.state := TLB_WAIT;
 
-        when RADIX_NO_TRANS =>
+        when RADIX_ERROR =>
             done := '1';
-            invalid := '1';
             v.state := IDLE;
 
-        when RADIX_BAD_TREE =>
-            done := '1';
-            badtree := '1';
-            v.state := IDLE;
         end case;
 
         pgtable_addr := x"00" & r.pgbase(55 downto 19) &
@@ -279,8 +294,9 @@ begin
 
         -- drive outputs
         l_out.done <= done;
-        l_out.invalid <= invalid;
-        l_out.badtree <= badtree;
+        l_out.invalid <= r.invalid;
+        l_out.badtree <= r.badtree;
+        l_out.segerr <= r.segerror;
 
         d_out.valid <= dcreq;
         d_out.tlbie <= tlbie_req;

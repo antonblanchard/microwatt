@@ -372,7 +372,7 @@ begin
                 byte_sel := r.first_bytes;
             end if;
             if m_in.done = '1' then
-                if m_in.invalid = '0' and m_in.badtree = '0' then
+                if m_in.invalid = '0' and m_in.badtree = '0' and m_in.segerr = '0' then
                     -- retry the request now that the MMU has installed a TLB entry
                     req := '1';
                     if r.state = MMU_LOOKUP_1ST then
@@ -480,9 +480,12 @@ begin
 
         -- update exception info back to execute1
         e_out.exception <= exception;
+        e_out.segment_fault <= m_in.segerr;
         if exception = '1' then
             v.dar := addr;
-            v.dsisr := dsisr;
+            if m_in.segerr = '0' then
+                v.dsisr := dsisr;
+            end if;
         end if;
 
         stall_out <= stall;
