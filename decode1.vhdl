@@ -449,7 +449,7 @@ begin
 			v.decode.sgl_pipe := '1';
                         -- send MMU-related SPRs to loadstore1
                         case sprn is
-                        when SPR_DAR | SPR_DSISR | SPR_PGTBL0 =>
+                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PRTBL =>
                             v.decode.unit := LDST;
                         when others =>
                         end case;

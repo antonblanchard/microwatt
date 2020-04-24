@@ -255,7 +255,7 @@ begin
                     mfspr := '1';
                     -- partial decode on SPR number should be adequate given
                     -- the restricted set that get sent down this path
-                    if sprn(9) = '0' then
+                    if sprn(9) = '0' and sprn(5) = '0' then
                         if sprn(0) = '0' then
                             sprval := x"00000000" & r.dsisr;
                         else
@@ -266,16 +266,18 @@ begin
                         sprval := m_in.sprval;
                     end if;
                 when OP_MTSPR =>
-                    done := '1';
-                    if sprn(9) = '0' then
+                    if sprn(9) = '0' and sprn(5) = '0' then
                         if sprn(0) = '0' then
                             v.dsisr := l_in.data(31 downto 0);
                         else
                             v.dar := l_in.data;
                         end if;
+                        done := '1';
                     else
                         -- writing one of the SPRs in the MMU
                         mmu_mtspr := '1';
+                        stall := '1';
+                        v.state := TLBIE_WAIT;
                     end if;
                 when OP_FETCH_FAILED =>
                     -- send it to the MMU to do the radix walk
@@ -466,7 +468,7 @@ begin
         m_out.priv <= r.priv_mode;
         m_out.tlbie <= v.tlbie;
         m_out.mtspr <= mmu_mtspr;
-        m_out.sprn <= sprn(3 downto 0);
+        m_out.sprn <= sprn;
         m_out.addr <= addr;
         m_out.slbia <= l_in.insn(7);
         m_out.rs <= l_in.data;

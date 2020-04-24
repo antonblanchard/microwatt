@@ -13,6 +13,8 @@ extern int call_with_msr(unsigned long arg, int (*fn)(unsigned long), unsigned l
 
 #define SRR0	26
 #define SRR1	27
+#define PID	48
+#define PRTBL	720
 
 static inline unsigned long mfspr(int sprnum)
 {
@@ -53,11 +55,6 @@ void print_test_number(int i)
 	putchar(48 + i/10);
 	putchar(48 + i%10);
 	putchar(':');
-}
-
-static inline void do_tlbie(unsigned long rb, unsigned long rs)
-{
-	__asm__ volatile("tlbie %0,%1" : : "r" (rb), "r" (rs) : "memory");
 }
 
 static inline void store_pte(unsigned long *p, unsigned long pte)
@@ -107,14 +104,18 @@ void zero_memory(void *ptr, unsigned long nbytes)
  * 8kB PGD level pointing to 4kB PTE pages.
  */
 unsigned long *pgdir = (unsigned long *) 0x10000;
-unsigned long free_ptr = 0x12000;
+unsigned long *proc_tbl = (unsigned long *) 0x12000;
+unsigned long free_ptr = 0x13000;
 
 void init_mmu(void)
 {
-	zero_memory(pgdir, 1024 * sizeof(unsigned long));
+	/* set up process table */
+	zero_memory(proc_tbl, 512 * sizeof(unsigned long));
 	/* RTS = 0 (2GB address space), RPDS = 10 (1024-entry top level) */
-	mtspr(720, (unsigned long) pgdir | 10);
-	do_tlbie(0xc00, 0);	/* invalidate all TLB entries */
+	store_pte(&proc_tbl[2 * 1], (unsigned long) pgdir | 10);
+	mtspr(PRTBL, (unsigned long)proc_tbl);
+	mtspr(PID, 1);
+	zero_memory(pgdir, 1024 * sizeof(unsigned long));
 }
 
 static unsigned long *read_pgd(unsigned long i)

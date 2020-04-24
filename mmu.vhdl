@@ -28,6 +28,8 @@ architecture behave of mmu is
 
     type state_t is (IDLE,
                      TLB_WAIT,
+                     PROC_TBL_READ,
+                     PROC_TBL_WAIT,
                      SEGMENT_CHECK,
                      RADIX_LOOKUP,
                      RADIX_READ_WAIT,
@@ -42,9 +44,15 @@ architecture behave of mmu is
         store     : std_ulogic;
         priv      : std_ulogic;
         addr      : std_ulogic_vector(63 downto 0);
+        -- config SPRs
+        prtbl     : std_ulogic_vector(63 downto 0);
+        pid       : std_ulogic_vector(31 downto 0);
         -- internal state
         state     : state_t;
         pgtbl0    : std_ulogic_vector(63 downto 0);
+        pt0_valid : std_ulogic;
+        pgtbl3    : std_ulogic_vector(63 downto 0);
+        pt3_valid : std_ulogic;
         shift     : unsigned(5 downto 0);
         mask_size : unsigned(4 downto 0);
         pgbase    : std_ulogic_vector(55 downto 0);
@@ -64,8 +72,8 @@ architecture behave of mmu is
 
 begin
     -- Multiplex internal SPR values back to loadstore1, selected
-    -- by l_in.sprn.  Easy when there's only one...
-    l_out.sprval <= r.pgtbl0;
+    -- by l_in.sprn.
+    l_out.sprval <= r.prtbl when l_in.sprn(9) = '1' else x"00000000" & r.pid;
 
     mmu_0: process(clk)
     begin
@@ -73,7 +81,9 @@ begin
             if rst = '1' then
                 r.state <= IDLE;
                 r.valid <= '0';
-                r.pgtbl0 <= (others => '0');
+                r.pt0_valid <= '0';
+                r.pt3_valid <= '0';
+                r.prtbl <= (others => '0');
             else
                 if rin.valid = '1' then
                     report "MMU got tlb miss for " & to_hstring(rin.addr);
@@ -169,12 +179,17 @@ begin
         variable itlb_load : std_ulogic;
         variable tlbie_req : std_ulogic;
         variable inval_all : std_ulogic;
+        variable prtbl_rd : std_ulogic;
+        variable pt_valid : std_ulogic;
+        variable effpid : std_ulogic_vector(31 downto 0);
+        variable prtable_addr : std_ulogic_vector(63 downto 0);
         variable rts : unsigned(5 downto 0);
         variable mbits : unsigned(5 downto 0);
         variable pgtable_addr : std_ulogic_vector(63 downto 0);
         variable pte : std_ulogic_vector(63 downto 0);
         variable tlb_data : std_ulogic_vector(63 downto 0);
         variable nonzero : std_ulogic;
+        variable pgtbl : std_ulogic_vector(63 downto 0);
         variable perm_ok : std_ulogic;
         variable rc_ok : std_ulogic;
         variable addr : std_ulogic_vector(63 downto 0);
@@ -193,6 +208,7 @@ begin
         itlb_load := '0';
         tlbie_req := '0';
         inval_all := '0';
+        prtbl_rd := '0';
 
         -- Radix tree data structures in memory are big-endian,
         -- so we need to byte-swap them
@@ -202,14 +218,21 @@ begin
 
         case r.state is
         when IDLE =>
+            if l_in.addr(63) = '0' then
+                pgtbl := r.pgtbl0;
+                pt_valid := r.pt0_valid;
+            else
+                pgtbl := r.pgtbl3;
+                pt_valid := r.pt3_valid;
+            end if;
             -- rts == radix tree size, # address bits being translated
-            rts := unsigned('0' & r.pgtbl0(62 downto 61) & r.pgtbl0(7 downto 5));
+            rts := unsigned('0' & pgtbl(62 downto 61) & pgtbl(7 downto 5));
             -- mbits == # address bits to index top level of tree
-            mbits := unsigned('0' & r.pgtbl0(4 downto 0));
+            mbits := unsigned('0' & pgtbl(4 downto 0));
             -- set v.shift to rts so that we can use finalmask for the segment check
             v.shift := rts;
             v.mask_size := mbits(4 downto 0);
-            v.pgbase := r.pgtbl0(55 downto 8) & x"00";
+            v.pgbase := pgtbl(55 downto 8) & x"00";
 
             if l_in.valid = '1' then
                 v.addr := l_in.addr;
@@ -223,11 +246,23 @@ begin
                     -- RB[IS] != 0 or RB[AP] != 0, or for slbia
                     inval_all := l_in.slbia or l_in.addr(11) or l_in.addr(10) or
                                  l_in.addr(7) or l_in.addr(6) or l_in.addr(5);
+                    -- The RIC field of the tlbie instruction comes across on the
+                    -- sprn bus as bits 2--3.  RIC=2 flushes process table caches.
+                    if l_in.sprn(3) = '1' then
+                        v.pt0_valid := '0';
+                        v.pt3_valid := '0';
+                    end if;
                     v.state := TLB_WAIT;
                 else
                     v.valid := '1';
-                    -- Use RPDS = 0 to disable radix tree walks
-                    if mbits = 0 then
+                    if pt_valid = '0' then
+                        -- need to fetch process table entry
+                        -- set v.shift so we can use finalmask for generating
+                        -- the process table entry address
+                        v.shift := unsigned('0' & r.prtbl(4 downto 0));
+                        v.state := PROC_TBL_READ;
+                    elsif mbits = 0 then
+                        -- Use RPDS = 0 to disable radix tree walks
                         v.state := RADIX_ERROR;
                         v.invalid := '1';
                     else
@@ -236,13 +271,61 @@ begin
                 end if;
             end if;
             if l_in.mtspr = '1' then
-                v.pgtbl0 := l_in.rs;
+                -- Move to PID needs to invalidate L1 TLBs and cached
+                -- pgtbl0 value.  Move to PRTBL does that plus
+                -- invalidating the cached pgtbl3 value as well.
+                if l_in.sprn(9) = '0' then
+                    v.pid := l_in.rs(31 downto 0);
+                else
+                    v.prtbl := l_in.rs;
+                    v.pt3_valid := '0';
+                end if;
+                v.pt0_valid := '0';
+                dcreq := '1';
+                tlbie_req := '1';
+                inval_all := '1';
+                v.state := TLB_WAIT;
             end if;
 
         when TLB_WAIT =>
             if d_in.done = '1' then
                 done := '1';
                 v.state := IDLE;
+            end if;
+
+        when PROC_TBL_READ =>
+            dcreq := '1';
+            prtbl_rd := '1';
+            v.state := PROC_TBL_WAIT;
+
+        when PROC_TBL_WAIT =>
+            if d_in.done = '1' then
+                if d_in.err = '0' then
+                    if r.addr(63) = '1' then
+                        v.pgtbl3 := data;
+                        v.pt3_valid := '1';
+                    else
+                        v.pgtbl0 := data;
+                        v.pt0_valid := '1';
+                    end if;
+                    -- rts == radix tree size, # address bits being translated
+                    rts := unsigned('0' & data(62 downto 61) & data(7 downto 5));
+                    -- mbits == # address bits to index top level of tree
+                    mbits := unsigned('0' & data(4 downto 0));
+                    -- set v.shift to rts so that we can use finalmask for the segment check
+                    v.shift := rts;
+                    v.mask_size := mbits(4 downto 0);
+                    v.pgbase := data(55 downto 8) & x"00";
+                    if mbits = 0 then
+                        v.state := RADIX_ERROR;
+                        v.invalid := '1';
+                    else
+                        v.state := SEGMENT_CHECK;
+                    end if;
+                else
+                    v.state := RADIX_ERROR;
+                    v.badtree := '1';
+                end if;
             end if;
 
         when SEGMENT_CHECK =>
@@ -331,6 +414,16 @@ begin
 
         end case;
 
+        if r.addr(63) = '1' then
+            effpid := x"00000000";
+        else
+            effpid := r.pid;
+        end if;
+        prtable_addr := x"00" & r.prtbl(55 downto 36) &
+                        ((r.prtbl(35 downto 12) and not finalmask(23 downto 0)) or
+                         (effpid(31 downto 8) and finalmask(23 downto 0))) &
+                        effpid(7 downto 0) & "0000";
+
         pgtable_addr := x"00" & r.pgbase(55 downto 19) &
                         ((r.pgbase(18 downto 3) and not mask) or (addrsh and mask)) &
                         "000";
@@ -348,6 +441,9 @@ begin
         elsif tlb_load = '1' then
             addr := r.addr(63 downto 12) & x"000";
             tlb_data := pte;
+        elsif prtbl_rd = '1' then
+            addr := prtable_addr;
+            tlb_data := (others => '0');
         else
             addr := pgtable_addr;
             tlb_data := (others => '0');
