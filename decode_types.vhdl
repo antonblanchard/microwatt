@@ -17,7 +17,8 @@ package decode_types is
 			 OP_RLC, OP_RLCL, OP_RLCR, OP_SC, OP_SETB,
 			 OP_SHL, OP_SHR,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
-			 OP_XOR
+			 OP_XOR,
+                         OP_FETCH_FAILED
 			 );
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR);
     type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD, CONST_DS, CONST_M1, CONST_SH, CONST_SH32, SPR);

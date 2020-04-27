@@ -40,6 +40,8 @@ begin
 	if rising_edge(clk) then
 	    if r /= r_next then
 		report "fetch1 rst:" & std_ulogic'image(rst) &
+                    " IR:" & std_ulogic'image(e_in.virt_mode) &
+                    " P:" & std_ulogic'image(e_in.priv_mode) &
 		    " R:" & std_ulogic'image(e_in.redirect) &
 		    " S:" & std_ulogic'image(stall_in) &
 		    " T:" & std_ulogic'image(stop_in) &
@@ -61,9 +63,13 @@ begin
 
 	if rst = '1' then
 	    v.nia :=  RESET_ADDRESS;
+            v.virt_mode := '0';
+            v.priv_mode := '1';
 	    v_int.stop_state := RUNNING;
 	elsif e_in.redirect = '1' then
 	    v.nia := e_in.redirect_nia;
+            v.virt_mode := e_in.virt_mode;
+            v.priv_mode := e_in.priv_mode;
 	elsif stall_in = '0' then
 
 	    -- For debug stop/step to work properly we need a little bit of

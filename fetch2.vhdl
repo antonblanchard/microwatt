@@ -46,6 +46,7 @@ begin
 		    " F:" & std_ulogic'image(flush_in) &
 		    " T:" & std_ulogic'image(rin.stop_mark) &
 		    " V:" & std_ulogic'image(rin.valid) &
+                    " FF:" & std_ulogic'image(rin.fetch_failed) &
 		    " nia:" & to_hstring(rin.nia);
 	    end if;
 
@@ -84,6 +85,7 @@ begin
 
 	v.valid := v_i_in.valid;
 	v.stop_mark := v_i_in.stop_mark;
+        v.fetch_failed := v_i_in.fetch_failed;
 	v.nia := v_i_in.nia;
 	v.insn := v_i_in.insn;
 
@@ -94,12 +96,14 @@ begin
 	--
 	if flush_in = '1' then
 	    v_int.stash.valid := '0';
+            v_int.stash.fetch_failed := '0';
 	end if;
 
 	-- If we are flushing or the instruction comes with a stop mark
 	-- we tag it as invalid so it doesn't get decoded and executed
 	if flush_in = '1' or v.stop_mark = '1' then
 	    v.valid := '0';
+            v.fetch_failed := '0';
 	end if;
 
 	-- Clear stash on reset

@@ -41,7 +41,8 @@ architecture behave of loadstore1 is
                      ACK_WAIT,          -- waiting for ack from dcache
                      LD_UPDATE,         -- writing rA with computed addr on load
                      MMU_LOOKUP,        -- waiting for MMU to look up translation
-                     TLBIE_WAIT         -- waiting for MMU to finish doing a tlbie
+                     TLBIE_WAIT,        -- waiting for MMU to finish doing a tlbie
+                     DO_ISI
                      );
 
     type reg_stage_t is record
@@ -70,6 +71,7 @@ architecture behave of loadstore1 is
         second_bytes : std_ulogic_vector(7 downto 0);
         dar          : std_ulogic_vector(63 downto 0);
         dsisr        : std_ulogic_vector(31 downto 0);
+        instr_fault  : std_ulogic;
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -154,6 +156,7 @@ begin
         variable mmureq : std_ulogic;
         variable dsisr : std_ulogic_vector(31 downto 0);
         variable mmu_mtspr : std_ulogic;
+        variable itlb_fault : std_ulogic;
     begin
         v := r;
         req := '0';
@@ -163,6 +166,7 @@ begin
         addr := lsu_sum;
         mfspr := '0';
         mmu_mtspr := '0';
+        itlb_fault := '0';
         sprn := std_ulogic_vector(to_unsigned(l_in.spr_num, 10));
         sprval := (others => '0');      -- avoid inferred latches
         exception := '0';
@@ -230,6 +234,7 @@ begin
                 v.load := '0';
                 v.dcbz := '0';
                 v.tlbie := '0';
+                v.instr_fault := '0';
                 v.dwords_done := '0';
                 case l_in.op is
                 when OP_STORE =>
@@ -272,6 +277,10 @@ begin
                         -- writing one of the SPRs in the MMU
                         mmu_mtspr := '1';
                     end if;
+                when OP_FETCH_FAILED =>
+                    -- for now, always signal an ISI in the next cycle
+                    v.instr_fault := '1';
+                    v.state := DO_ISI;
                 when others =>
                     assert false report "unknown op sent to loadstore1";
                 end case;
@@ -425,6 +434,10 @@ begin
             do_update := '1';
             v.state := IDLE;
             done := '1';
+
+        when DO_ISI =>
+            exception := '1';
+            v.state := IDLE;
         end case;
 
         -- Update outputs to dcache
@@ -441,6 +454,7 @@ begin
 
         -- Update outputs to MMU
         m_out.valid <= mmureq;
+        m_out.iside <= itlb_fault;
         m_out.load <= r.load;
         m_out.priv <= r.priv_mode;
         m_out.tlbie <= v.tlbie;
@@ -472,9 +486,11 @@ begin
 
         -- update exception info back to execute1
         e_out.exception <= exception;
-        e_out.segment_fault <= m_in.segerr;
-        if exception = '1' then
+        e_out.segment_fault <= '0';
+        e_out.instr_fault <= r.instr_fault;
+        if exception = '1' and r.instr_fault = '0' then
             v.dar := addr;
+            e_out.segment_fault <= m_in.segerr;
             if m_in.segerr = '0' then
                 v.dsisr := dsisr;
             end if;

@@ -42,6 +42,7 @@ architecture behave of core is
     -- icache signals
     signal fetch1_to_icache : Fetch1ToIcacheType;
     signal icache_to_fetch2 : IcacheToFetch2Type;
+    signal mmu_to_icache : MmuToIcacheType;
 
     -- decode signals
     signal decode1_to_decode2: Decode1ToDecode2Type;
@@ -164,6 +165,7 @@ begin
             rst => icache_rst,
             i_in => fetch1_to_icache,
             i_out => icache_to_fetch2,
+            m_in => mmu_to_icache,
             flush_in => flush,
 	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
@@ -288,7 +290,8 @@ begin
             l_in => loadstore1_to_mmu,
             l_out => mmu_to_loadstore1,
             d_out => mmu_to_dcache,
-            d_in => dcache_to_mmu
+            d_in => dcache_to_mmu,
+            i_out => mmu_to_icache
             );
 
     dcache_0: entity work.dcache

@@ -430,6 +430,9 @@ begin
 	icache_inval <= '0';
 	stall_out <= '0';
 	f_out <= Execute1ToFetch1TypeInit;
+        -- send MSR[IR] and ~MSR[PR] up to fetch1
+        f_out.virt_mode <= ctrl.msr(MSR_IR);
+        f_out.priv_mode <= not ctrl.msr(MSR_PR);
 
 	-- Next insn adder used in a couple of places
 	next_nia := std_ulogic_vector(unsigned(e_in.nia) + 4);
@@ -460,6 +463,8 @@ begin
             ctrl_tmp.msr(MSR_RI) <= '0';
             ctrl_tmp.msr(MSR_LE) <= '1';
 	    f_out.redirect <= '1';
+            f_out.virt_mode <= '0';
+            f_out.priv_mode <= '1';
 	    f_out.redirect_nia <= ctrl.irq_nia;
 	    v.e.valid := e_in.valid;
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
@@ -651,6 +656,8 @@ begin
 
 	    when OP_RFID =>
 		f_out.redirect <= '1';
+                f_out.virt_mode <= b_in(MSR_IR) or b_in(MSR_PR);
+                f_out.priv_mode <= not b_in(MSR_PR);
 		f_out.redirect_nia <= a_in(63 downto 2) & "00"; -- srr0
                 -- Can't use msr_copy here because the partial function MSR
                 -- bits should be left unchanged, not zeroed.
@@ -972,23 +979,35 @@ begin
 	v.e.write_data := result;
 	v.e.write_enable := result_en;
 
-        -- generate DSI for load/store exceptions
+        -- generate DSI or DSegI for load/store exceptions
+        -- or ISI or ISegI for instruction fetch exceptions
         if l_in.exception = '1' then
-            if l_in.segment_fault = '0' then
-                ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#300#, 64));
-            else
-                ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#380#, 64));
-            end if;
             ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+            if l_in.instr_fault = '0' then
+                if l_in.segment_fault = '0' then
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#300#, 64));
+                else
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#380#, 64));
+                end if;
+            else
+                if l_in.segment_fault = '0' then
+                    ctrl_tmp.srr1(63 - 33) <= '1';
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#400#, 64));
+                else
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#480#, 64));
+                end if;
+            end if;
             v.e.exc_write_enable := '1';
             v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
             v.e.exc_write_data := r.ldst_nia;
+            report "ldst exception writing srr0=" & to_hstring(r.ldst_nia);
             ctrl_tmp.irq_state <= WRITE_SRR1;
             v.e.valid := '1';   -- complete the original load or store
         end if;
 
         -- Outputs to loadstore1 (async)
         lv.op := e_in.insn_type;
+        lv.nia := e_in.nia;
         lv.addr1 := a_in;
         lv.addr2 := b_in;
         lv.data := c_in;

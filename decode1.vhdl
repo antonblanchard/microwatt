@@ -345,9 +345,10 @@ architecture behaviour of decode1 is
 		others   => decode_rom_init
         );
 
-        --                                       unit     internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
-        --                                                      op                                           in   out   A   out  in    out  len        ext                                 pipe
-	constant nop_instr     : decode_rom_t := (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
+        --                                        unit   internal         in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+        --                                                     op                                              in   out   A   out  in    out  len        ext                                 pipe
+	constant nop_instr      : decode_rom_t := (ALU,  OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
+        constant fetch_fail_inst: decode_rom_t := (LDST, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
 
 begin
 	decode1_0: process(clk)
@@ -380,7 +381,15 @@ begin
                 end if;
 
                 majorop := unsigned(f_in.insn(31 downto 26));
-                if majorop = "011111" then
+                if f_in.fetch_failed = '1' then
+                    v.valid := '1';
+                    -- Only send down a single OP_FETCH_FAILED
+                    if r.decode.insn_type = OP_FETCH_FAILED then
+                        v.valid := '0';
+                    end if;
+                    v.decode := fetch_fail_inst;
+
+                elsif majorop = "011111" then
                         -- major opcode 31, lots of things
                         v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
 

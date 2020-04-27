@@ -18,7 +18,9 @@ entity mmu is
         l_out : out MmuToLoadstore1Type;
 
         d_out : out MmuToDcacheType;
-        d_in  : in DcacheToMmuType
+        d_in  : in DcacheToMmuType;
+
+        i_out : out MmuToIcacheType
         );
 end mmu;
 
@@ -336,5 +338,11 @@ begin
             d_out.addr <= pgtable_addr;
             d_out.pte <= (others => '0');
         end if;
+
+        i_out.tlbld <= '0';
+        i_out.tlbie <= tlbie_req;
+        i_out.addr <= l_in.addr;
+        i_out.pte <= l_in.rs;
+
     end process;
 end;
