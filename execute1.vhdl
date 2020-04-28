@@ -76,6 +76,28 @@ architecture behaviour of execute1 is
     signal x_to_divider: Execute1ToDividerType;
     signal divider_to_x: DividerToExecute1Type;
 
+    type privilege_level is (USER, SUPER);
+    type op_privilege_array is array(insn_type_t) of privilege_level;
+    constant op_privilege: op_privilege_array := (
+        OP_ATTN => SUPER,
+        OP_MFMSR => SUPER,
+        OP_MTMSRD => SUPER,
+        OP_RFID => SUPER,
+        others => USER
+        );
+
+    function instr_is_privileged(op: insn_type_t; insn: std_ulogic_vector(31 downto 0))
+        return boolean is
+    begin
+        if op_privilege(op) = SUPER then
+            return true;
+        elsif op = OP_MFSPR or op = OP_MTSPR then
+            return insn(20) = '1';
+        else
+            return false;
+        end if;
+    end;
+
     procedure set_carry(e: inout Execute1ToWritebackType;
 			carry32 : in std_ulogic;
 			carry : in std_ulogic) is
@@ -432,6 +454,16 @@ begin
 	    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#900#, 64));
 	    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
 
+        elsif e_in.valid = '1' and ctrl.msr(MSR_PR) = '1' and
+            instr_is_privileged(e_in.insn_type, e_in.insn) then
+            -- generate a program interrupt
+            exception := '1';
+            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
+            ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+            -- set bit 45 to indicate privileged instruction type interrupt
+            ctrl_tmp.srr1(63 - 45) <= '1';
+            report "privileged instruction";
+            
 	elsif e_in.valid = '1' then
 
 	    v.e.valid := '1';
