@@ -581,8 +581,12 @@ begin
 		wr_data  <= r0.data;
 		wr_sel   <= r0.byte_sel;
 	    else
-		-- Otherwise, we might be doing a reload
-		wr_data <= wishbone_in.dat;
+		-- Otherwise, we might be doing a reload or a DCBZ
+                if r1.req.dcbz = '1' then
+                    wr_data <= (others => '0');
+                else
+                    wr_data <= wishbone_in.dat;
+                end if;
 		wr_sel  <= (others => '1');
 		wr_addr <= std_ulogic_vector(to_unsigned(r1.store_row, ROW_BITS));
 	    end if;
@@ -718,18 +722,54 @@ begin
 			r1.wb.we <= '0';
 			r1.state <= NC_LOAD_WAIT_ACK;
 
-		    when OP_STORE_HIT | OP_STORE_MISS =>
-                        r1.wb.sel <= r0.byte_sel;
-                        r1.wb.adr <= r0.addr(r1.wb.adr'left downto 3) & "000";
-			r1.wb.dat <= r0.data;
-                        if cancel_store = '0' then
+                    when OP_STORE_HIT | OP_STORE_MISS =>
+                        if r0.dcbz = '0' then
+                            r1.wb.sel <= r0.byte_sel;
+                            r1.wb.adr <= r0.addr(r1.wb.adr'left downto 3) & "000";
+                            r1.wb.dat <= r0.data;
+                            if cancel_store = '0' then
+                                r1.wb.cyc <= '1';
+                                r1.wb.stb <= '1';
+                                r1.wb.we <= '1';
+                                r1.state <= STORE_WAIT_ACK;
+                            else
+                                r1.stcx_fail <= '1';
+                                r1.state <= IDLE;
+                            end if;
+                        else
+                            -- dcbz is handled much like a load miss except
+                            -- that we are writing to memory instead of reading
+                            r1.store_index <= req_index;
+                            r1.store_row <= get_row(req_laddr);
+
+                            if req_op = OP_STORE_HIT then
+                                r1.store_way <= req_hit_way;
+                            else
+                                r1.store_way <= replace_way;
+
+                                -- Force misses on the victim way while zeroing
+                                cache_valids(req_index)(replace_way) <= '0';
+
+                                -- Store new tag in selected way
+                                for i in 0 to NUM_WAYS-1 loop
+                                    if i = replace_way then
+                                        tagset := cache_tags(req_index);
+                                        write_tag(i, tagset, req_tag);
+                                        cache_tags(req_index) <= tagset;
+                                    end if;
+                                end loop;
+                            end if;
+
+                            -- Set up for wishbone writes
+                            r1.wb.adr <= req_laddr(r1.wb.adr'left downto 0);
+                            r1.wb.sel <= (others => '1');
+                            r1.wb.we <= '1';
+                            r1.wb.dat <= (others => '0');
                             r1.wb.cyc <= '1';
                             r1.wb.stb <= '1';
-                            r1.wb.we <= '1';
-                            r1.state <= STORE_WAIT_ACK;
-                        else
-                            r1.stcx_fail <= '1';
-                            r1.state <= IDLE;
+
+                            -- Handle the rest like a load miss
+                            r1.state <= RELOAD_WAIT_ACK;
                         end if;
 
 		    -- OP_NONE and OP_BAD do nothing
@@ -766,7 +806,7 @@ begin
 			-- not idle, which we don't currently know how to deal
 			-- with.
 			--
-			if r1.store_row = get_row(r1.req.addr) then
+			if r1.store_row = get_row(r1.req.addr) and r1.req.dcbz = '0' then
 			    r1.slow_data <= wishbone_in.dat;
 			end if;
 

@@ -236,6 +236,7 @@ package common is
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
 	load : std_ulogic;
+        dcbz : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);

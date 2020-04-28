@@ -43,6 +43,7 @@ architecture behave of loadstore1 is
     type reg_stage_t is record
         -- latch most of the input request
         load         : std_ulogic;
+        dcbz         : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	load_data    : std_ulogic_vector(63 downto 0);
@@ -198,8 +199,11 @@ begin
         when IDLE =>
             if l_in.valid = '1' then
                 v.load := '0';
+                v.dcbz := '0';
                 if l_in.op = OP_LOAD then
                     v.load := '1';
+                elsif l_in.op = OP_DCBZ then
+                    v.dcbz := '1';
                 end if;
                 v.addr := lsu_sum;
                 v.write_reg := l_in.write_reg;
@@ -293,6 +297,7 @@ begin
         -- Update outputs to dcache
         d_out.valid <= req;
         d_out.load <= v.load;
+        d_out.dcbz <= v.dcbz;
         d_out.nc <= v.nc;
         d_out.reserve <= v.reserve;
         d_out.addr <= addr;
