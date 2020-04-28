@@ -41,8 +41,7 @@ architecture behave of loadstore1 is
                      ACK_WAIT,          -- waiting for ack from dcache
                      LD_UPDATE,         -- writing rA with computed addr on load
                      MMU_LOOKUP,        -- waiting for MMU to look up translation
-                     TLBIE_WAIT,        -- waiting for MMU to finish doing a tlbie
-                     DO_ISI
+                     TLBIE_WAIT         -- waiting for MMU to finish doing a tlbie
                      );
 
     type reg_stage_t is record
@@ -231,6 +230,7 @@ begin
         case r.state is
         when IDLE =>
             if l_in.valid = '1' then
+                v.addr := lsu_sum;
                 v.load := '0';
                 v.dcbz := '0';
                 v.tlbie := '0';
@@ -278,14 +278,17 @@ begin
                         mmu_mtspr := '1';
                     end if;
                 when OP_FETCH_FAILED =>
-                    -- for now, always signal an ISI in the next cycle
+                    -- send it to the MMU to do the radix walk
+                    addr := l_in.nia;
+                    v.addr := l_in.nia;
                     v.instr_fault := '1';
-                    v.state := DO_ISI;
+                    mmureq := '1';
+                    stall := '1';
+                    v.state := MMU_LOOKUP;
                 when others =>
                     assert false report "unknown op sent to loadstore1";
                 end case;
 
-                v.addr := lsu_sum;
                 v.write_reg := l_in.write_reg;
                 v.length := l_in.length;
                 v.byte_reverse := l_in.byte_reverse;
@@ -403,12 +406,19 @@ begin
             if m_in.done = '1' then
                 if m_in.invalid = '0' and m_in.perm_error = '0' and m_in.rc_error = '0' and
                     m_in.badtree = '0' and m_in.segerr = '0' then
-                    -- retry the request now that the MMU has installed a TLB entry
-                    req := '1';
-                    if two_dwords = '1' and r.dwords_done = '0' then
-                        v.state := SECOND_REQ;
+                    if r.instr_fault = '0' then
+                        -- retry the request now that the MMU has installed a TLB entry
+                        req := '1';
+                        if two_dwords = '1' and r.dwords_done = '0' then
+                            v.state := SECOND_REQ;
+                        else
+                            v.state := ACK_WAIT;
+                        end if;
                     else
-                        v.state := ACK_WAIT;
+                        -- nothing to do, the icache retries automatically
+                        stall := '0';
+                        done := '1';
+                        v.state := IDLE;
                     end if;
                 else
                     exception := '1';
@@ -435,9 +445,6 @@ begin
             v.state := IDLE;
             done := '1';
 
-        when DO_ISI =>
-            exception := '1';
-            v.state := IDLE;
         end case;
 
         -- Update outputs to dcache
@@ -454,7 +461,7 @@ begin
 
         -- Update outputs to MMU
         m_out.valid <= mmureq;
-        m_out.iside <= itlb_fault;
+        m_out.iside <= v.instr_fault;
         m_out.load <= r.load;
         m_out.priv <= r.priv_mode;
         m_out.tlbie <= v.tlbie;
@@ -486,11 +493,14 @@ begin
 
         -- update exception info back to execute1
         e_out.exception <= exception;
-        e_out.segment_fault <= '0';
         e_out.instr_fault <= r.instr_fault;
+        e_out.invalid <= m_in.invalid;
+        e_out.badtree <= m_in.badtree;
+        e_out.perm_error <= m_in.perm_error;
+        e_out.rc_error <= m_in.rc_error;
+        e_out.segment_fault <= m_in.segerr;
         if exception = '1' and r.instr_fault = '0' then
             v.dar := addr;
-            e_out.segment_fault <= m_in.segerr;
             if m_in.segerr = '0' then
                 v.dsisr := dsisr;
             end if;

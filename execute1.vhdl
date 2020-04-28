@@ -991,7 +991,10 @@ begin
                 end if;
             else
                 if l_in.segment_fault = '0' then
-                    ctrl_tmp.srr1(63 - 33) <= '1';
+                    ctrl_tmp.srr1(63 - 33) <= l_in.invalid;
+                    ctrl_tmp.srr1(63 - 35) <= l_in.perm_error; -- noexec fault
+                    ctrl_tmp.srr1(63 - 44) <= l_in.badtree;
+                    ctrl_tmp.srr1(63 - 45) <= l_in.rc_error;
                     ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#400#, 64));
                 else
                     ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#480#, 64));
