@@ -48,6 +48,11 @@ architecture behaviour of execute1 is
 	slow_op_oe : std_ulogic;
 	slow_op_xerc : xer_common_t;
     end record;
+    constant reg_type_init : reg_type :=
+        (e => Execute1ToWritebackInit, lr_update => '0',
+         mul_in_progress => '0', div_in_progress => '0', cntz_in_progress => '0',
+         slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
+         others => (others => '0'));
 
     signal r, rin : reg_type;
 
@@ -124,11 +129,11 @@ architecture behaviour of execute1 is
 	--  tion MSR bits are not saved or restored.
 	--  Full function MSR bits lie in the range 0:32, 37:41, and
 	--  48:63, and partial function MSR bits lie in the range
-	--  33:36 and 42:47.
+	--  33:36 and 42:47. (Note this is IBM bit numbering).
 	msr_out := (others => '0');
-	msr_out(32 downto 0) := msr(32 downto 0);
-	msr_out(41 downto 37) := msr(41 downto 37);
-	msr_out(63 downto 48) := msr(63 downto 48);
+	msr_out(63 downto 31) := msr(63 downto 31);
+	msr_out(26 downto 22) := msr(26 downto 22);
+	msr_out(15 downto 0)  := msr(15 downto 0);
 	return msr_out;
     end;
 
@@ -193,14 +198,20 @@ begin
     execute1_0: process(clk)
     begin
 	if rising_edge(clk) then
-	    r <= rin;
-	    ctrl <= ctrl_tmp;
-	    assert not (r.lr_update = '1' and e_in.valid = '1')
-		report "LR update collision with valid in EX1"
-		severity failure;
-	    if r.lr_update = '1' then
-		report "LR update to " & to_hstring(r.next_lr);
-	    end if;
+            if rst = '1' then
+                r <= reg_type_init;
+                ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
+                ctrl.irq_state <= WRITE_SRR0;
+            else
+                r <= rin;
+                ctrl <= ctrl_tmp;
+                assert not (r.lr_update = '1' and e_in.valid = '1')
+                    report "LR update collision with valid in EX1"
+                    severity failure;
+                if r.lr_update = '1' then
+                    report "LR update to " & to_hstring(r.next_lr);
+                end if;
+            end if;
 	end if;
     end process;
 
@@ -370,7 +381,7 @@ begin
 	ctrl_tmp.dec <= std_ulogic_vector(unsigned(ctrl.dec) - 1);
 
 	irq_valid := '0';
-	if ctrl.msr(63 - 48) = '1' and ctrl.dec(63) = '1' then
+	if ctrl.msr(MSR_EE) = '1' and ctrl.dec(63) = '1' then
 	    report "IRQ valid";
 	    irq_valid := '1';
 	end if;
@@ -400,7 +411,13 @@ begin
 	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
 	    v.e.exc_write_data := ctrl.srr1;
             v.e.exc_write_enable := '1';
-	    ctrl_tmp.msr(63 - 48) <= '0'; -- clear EE
+            ctrl_tmp.msr(MSR_SF) <= '1';
+            ctrl_tmp.msr(MSR_EE) <= '0';
+            ctrl_tmp.msr(MSR_PR) <= '0';
+            ctrl_tmp.msr(MSR_IR) <= '0';
+            ctrl_tmp.msr(MSR_DR) <= '0';
+            ctrl_tmp.msr(MSR_RI) <= '0';
+            ctrl_tmp.msr(MSR_LE) <= '1';
 	    f_out.redirect <= '1';
 	    f_out.redirect_nia <= ctrl.irq_nia;
 	    v.e.valid := e_in.valid;
@@ -545,7 +562,7 @@ begin
 	    when OP_B =>
 		f_out.redirect <= '1';
 		if (insn_aa(e_in.insn)) then
-		    f_out.redirect_nia <= std_ulogic_vector(signed(b_in));
+		    f_out.redirect_nia <= b_in;
 		else
 		    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
 		end if;
@@ -561,7 +578,7 @@ begin
 		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = 1 then
 		    f_out.redirect <= '1';
 		    if (insn_aa(e_in.insn)) then
-			f_out.redirect_nia <= std_ulogic_vector(signed(b_in));
+			f_out.redirect_nia <= b_in;
 		    else
 			f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
 		    end if;
@@ -584,7 +601,17 @@ begin
 	    when OP_RFID =>
 		f_out.redirect <= '1';
 		f_out.redirect_nia <= a_in(63 downto 2) & "00"; -- srr0
-		ctrl_tmp.msr <= msr_copy(std_ulogic_vector(signed(b_in))); -- srr1
+                -- Can't use msr_copy here because the partial function MSR
+                -- bits should be left unchanged, not zeroed.
+                ctrl_tmp.msr(63 downto 31) <= b_in(63 downto 31);
+                ctrl_tmp.msr(26 downto 22) <= b_in(26 downto 22);
+                ctrl_tmp.msr(15 downto 0)  <= b_in(15 downto 0);
+                if b_in(MSR_PR) = '1' then
+                    ctrl_tmp.msr(MSR_EE) <= '1';
+                    ctrl_tmp.msr(MSR_IR) <= '1';
+                    ctrl_tmp.msr(MSR_DR) <= '1';
+                end if;
+
 	    when OP_CMPB =>
 		result := ppc_cmpb(c_in, b_in);
 		result_en := '1';
@@ -658,7 +685,7 @@ begin
 		    end loop;
 		end if;
 	    when OP_MFMSR =>
-		result := msr_copy(ctrl.msr);
+		result := ctrl.msr;
 		result_en := '1';
 	    when OP_MFSPR =>
 		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
@@ -714,9 +741,23 @@ begin
 		    v.e.write_cr_mask := num_to_fxm(crnum);
 		end if;
 		v.e.write_cr_data := c_in(31 downto 0);
-	    when OP_MTMSRD =>
-		-- FIXME handle just the bits we need to.
-		ctrl_tmp.msr <= msr_copy(c_in);
+            when OP_MTMSRD =>
+                if e_in.insn(16) = '1' then
+                    -- just update EE and RI
+                    ctrl_tmp.msr(MSR_EE) <= c_in(MSR_EE);
+                    ctrl_tmp.msr(MSR_RI) <= c_in(MSR_RI);
+                else
+                    -- Architecture says to leave out bits 3 (HV), 51 (ME)
+                    -- and 63 (LE) (IBM bit numbering)
+                    ctrl_tmp.msr(63 downto 61) <= c_in(63 downto 61);
+                    ctrl_tmp.msr(59 downto 13) <= c_in(59 downto 13);
+                    ctrl_tmp.msr(11 downto 1)  <= c_in(11 downto 1);
+                    if c_in(MSR_PR) = '1' then
+                        ctrl_tmp.msr(MSR_EE) <= '1';
+                        ctrl_tmp.msr(MSR_IR) <= '1';
+                        ctrl_tmp.msr(MSR_DR) <= '1';
+                    end if;
+                end if;
 	    when OP_MTSPR =>
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(c_in);
