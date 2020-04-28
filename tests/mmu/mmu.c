@@ -4,13 +4,22 @@
 
 #include "console.h"
 
+#define MSR_DR	0x10
+#define MSR_IR	0x20
+
 extern int test_read(long *addr, long *ret, long init);
 extern int test_write(long *addr, long val);
+extern int test_exec(int testno, unsigned long pc, unsigned long msr);
 
 static inline void do_tlbie(unsigned long rb, unsigned long rs)
 {
 	__asm__ volatile("tlbie %0,%1" : : "r" (rb), "r" (rs) : "memory");
 }
+
+#define DSISR	18
+#define DAR	19
+#define SRR0	26
+#define SRR1	27
 
 static inline unsigned long mfspr(int sprnum)
 {
@@ -135,6 +144,8 @@ void map(void *ea, void *pa, unsigned long perm_attr)
 		free_ptr += 512 * sizeof(unsigned long);
 	}
 	ptep = read_pgd(i);
+	if (ptep[j])
+		do_tlbie(((unsigned long)ea & ~0xfff), 0);
 	store_pte(&ptep[j], 0xc000000000000000 | ((unsigned long)pa & 0x00fffffffffff000) | perm_attr);
 	eas_mapped[neas_mapped++] = ea;
 }
@@ -175,14 +186,14 @@ int mmu_test_1(void)
 	if (val != 0xdeadbeefd00d)
 		return 2;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != (long) ptr || mfspr(18) != 0x40000000)
+	if (mfspr(DAR) != (long) ptr || mfspr(DSISR) != 0x40000000)
 		return 3;
 	return 0;
 }
 
 int mmu_test_2(void)
 {
-	long *mem = (long *) 0x4000;
+	long *mem = (long *) 0x8000;
 	long *ptr = (long *) 0x124000;
 	long *ptr2 = (long *) 0x1124000;
 	long val;
@@ -215,8 +226,8 @@ int mmu_test_2(void)
 
 int mmu_test_3(void)
 {
-	long *mem = (long *) 0x5000;
-	long *ptr = (long *) 0x149000;
+	long *mem = (long *) 0x9000;
+	long *ptr = (long *) 0x14a000;
 	long val;
 
 	/* create PTE */
@@ -238,16 +249,16 @@ int mmu_test_3(void)
 	if (val != 0xdeadbeefd0d0)
 		return 4;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != (long) &ptr[45] || mfspr(18) != 0x40000000)
+	if (mfspr(DAR) != (long) &ptr[45] || mfspr(DSISR) != 0x40000000)
 		return 5;
 	return 0;
 }
 
 int mmu_test_4(void)
 {
-	long *mem = (long *) 0x6000;
-	long *ptr = (long *) 0x10a000;
-	long *ptr2 = (long *) 0x110a000;
+	long *mem = (long *) 0xa000;
+	long *ptr = (long *) 0x10b000;
+	long *ptr2 = (long *) 0x110b000;
 	long val;
 
 	/* create PTE */
@@ -279,7 +290,7 @@ int mmu_test_4(void)
 
 int mmu_test_5(void)
 {
-	long *mem = (long *) 0x7ffd;
+	long *mem = (long *) 0xbffd;
 	long *ptr = (long *) 0x39fffd;
 	long val;
 
@@ -292,14 +303,14 @@ int mmu_test_5(void)
 	if (val != 0xdeadbeef0dd0)
 		return 2;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != ((long)ptr & ~0xfff) + 0x1000 || mfspr(18) != 0x40000000)
+	if (mfspr(DAR) != ((long)ptr & ~0xfff) + 0x1000 || mfspr(DSISR) != 0x40000000)
 		return 3;
 	return 0;
 }
 
 int mmu_test_6(void)
 {
-	long *mem = (long *) 0x7ffd;
+	long *mem = (long *) 0xbffd;
 	long *ptr = (long *) 0x39fffd;
 
 	/* create PTE */
@@ -310,14 +321,14 @@ int mmu_test_6(void)
 	if (test_write(ptr, 0xdeadbeef0dd0))
 		return 1;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != ((long)ptr & ~0xfff) + 0x1000 || mfspr(18) != 0x42000000)
+	if (mfspr(DAR) != ((long)ptr & ~0xfff) + 0x1000 || mfspr(DSISR) != 0x42000000)
 		return 2;
 	return 0;
 }
 
 int mmu_test_7(void)
 {
-	long *mem = (long *) 0x4000;
+	long *mem = (long *) 0x8000;
 	long *ptr = (long *) 0x124000;
 	long val;
 
@@ -331,13 +342,13 @@ int mmu_test_7(void)
 	if (val != 0xdeadd00dbeef)
 		return 2;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != (long) ptr || mfspr(18) != 0x00040000)
+	if (mfspr(DAR) != (long) ptr || mfspr(DSISR) != 0x00040000)
 		return 3;
 	/* this should fail */
 	if (test_write(ptr, 0xdeadbeef0dd0))
 		return 4;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != (long)ptr || mfspr(18) != 0x02040000)
+	if (mfspr(DAR) != (long)ptr || mfspr(DSISR) != 0x02040000)
 		return 5;
 	/* memory should be unchanged */
 	if (*mem != 0x123456789abcdef0)
@@ -347,7 +358,7 @@ int mmu_test_7(void)
 
 int mmu_test_8(void)
 {
-	long *mem = (long *) 0x4000;
+	long *mem = (long *) 0x8000;
 	long *ptr = (long *) 0x124000;
 	long val;
 
@@ -361,7 +372,7 @@ int mmu_test_8(void)
 	if (test_write(ptr, 0xdeadbeef0dd1))
 		return 2;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != (long)ptr || mfspr(18) != 0x02040000)
+	if (mfspr(DAR) != (long)ptr || mfspr(DSISR) != 0x02040000)
 		return 3;
 	/* memory should be unchanged */
 	if (*mem != 0x123456789abcdef0)
@@ -371,7 +382,7 @@ int mmu_test_8(void)
 
 int mmu_test_9(void)
 {
-	long *mem = (long *) 0x4000;
+	long *mem = (long *) 0x8000;
 	long *ptr = (long *) 0x124000;
 	long val;
 
@@ -385,13 +396,13 @@ int mmu_test_9(void)
 	if (val != 0xdeadd00dbeef)
 		return 2;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != (long) ptr || mfspr(18) != 0x08000000)
+	if (mfspr(DAR) != (long) ptr || mfspr(DSISR) != 0x08000000)
 		return 3;
 	/* this should fail */
 	if (test_write(ptr, 0xdeadbeef0dd1))
 		return 4;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != (long)ptr || mfspr(18) != 0x0a000000)
+	if (mfspr(DAR) != (long)ptr || mfspr(DSISR) != 0x0a000000)
 		return 5;
 	/* memory should be unchanged */
 	if (*mem != 0x123456789abcdef0)
@@ -401,7 +412,7 @@ int mmu_test_9(void)
 
 int mmu_test_10(void)
 {
-	long *mem = (long *) 0x4000;
+	long *mem = (long *) 0x8000;
 	long *ptr = (long *) 0x124000;
 	long val;
 
@@ -415,11 +426,156 @@ int mmu_test_10(void)
 	if (test_write(ptr, 0xdeadbeef0dd1))
 		return 2;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != (long)ptr || mfspr(18) != 0x0a000000)
+	if (mfspr(DAR) != (long)ptr || mfspr(DSISR) != 0x0a000000)
 		return 3;
 	/* memory should be unchanged */
 	if (*mem != 0x123456789abcdef0)
 		return 4;
+	return 0;
+}
+
+int mmu_test_11(void)
+{
+	unsigned long ptr = 0x523000;
+
+	/* this should fail */
+	if (test_exec(0, ptr, MSR_IR))
+		return 1;
+	/* SRR0 and SRR1 should be set correctly */
+	if (mfspr(SRR0) != (long) ptr || mfspr(SRR1) != 0x40000020)
+		return 2;
+	return 0;
+}
+
+int mmu_test_12(void)
+{
+	unsigned long mem = 0x1000;
+	unsigned long ptr = 0x324000;
+	unsigned long ptr2 = 0x1324000;
+
+	/* create PTE */
+	map((void *)ptr, (void *)mem, PERM_EX | REF);
+	/* this should succeed and be a cache miss */
+	if (!test_exec(0, ptr, MSR_IR))
+		return 1;
+	/* create a second PTE */
+	map((void *)ptr2, (void *)mem, PERM_EX | REF);
+	/* this should succeed and be a cache hit */
+	if (!test_exec(0, ptr2, MSR_IR))
+		return 2;
+	return 0;
+}
+
+int mmu_test_13(void)
+{
+	unsigned long mem = 0x1000;
+	unsigned long ptr = 0x349000;
+	unsigned long ptr2 = 0x34a000;
+
+	/* create a PTE */
+	map((void *)ptr, (void *)mem, PERM_EX | REF);
+	/* this should succeed */
+	if (!test_exec(1, ptr, MSR_IR))
+		return 1;
+	/* invalidate the PTE */
+	unmap((void *)ptr);
+	/* install a second PTE */
+	map((void *)ptr2, (void *)mem, PERM_EX | REF);
+	/* this should fail */
+	if (test_exec(1, ptr, MSR_IR))
+		return 2;
+	/* SRR0 and SRR1 should be set correctly */
+	if (mfspr(SRR0) != (long) ptr || mfspr(SRR1) != 0x40000020)
+		return 3;
+	return 0;
+}
+
+int mmu_test_14(void)
+{
+	unsigned long mem = 0x1000;
+	unsigned long mem2 = 0x2000;
+	unsigned long ptr = 0x30a000;
+	unsigned long ptr2 = 0x30b000;
+
+	/* create a PTE */
+	map((void *)ptr, (void *)mem, PERM_EX | REF);
+	/* this should fail due to second page not being mapped */
+	if (test_exec(2, ptr, MSR_IR))
+		return 1;
+	/* SRR0 and SRR1 should be set correctly */
+	if (mfspr(SRR0) != ptr2 || mfspr(SRR1) != 0x40000020)
+		return 2;
+	/* create a PTE for the second page */
+	map((void *)ptr2, (void *)mem2, PERM_EX | REF);
+	/* this should succeed */
+	if (!test_exec(2, ptr, MSR_IR))
+		return 3;
+	return 0;
+}
+
+int mmu_test_15(void)
+{
+	unsigned long mem = 0x1000;
+	unsigned long ptr = 0x324000;
+
+	/* create a PTE without execute permission */
+	map((void *)ptr, (void *)mem, DFLT_PERM);
+	/* this should fail */
+	if (test_exec(0, ptr, MSR_IR))
+		return 1;
+	/* SRR0 and SRR1 should be set correctly */
+	if (mfspr(SRR0) != ptr || mfspr(SRR1) != 0x10000020)
+		return 2;
+	return 0;
+}
+
+int mmu_test_16(void)
+{
+	unsigned long mem = 0x1000;
+	unsigned long mem2 = 0x2000;
+	unsigned long ptr = 0x30a000;
+	unsigned long ptr2 = 0x30b000;
+
+	/* create a PTE */
+	map((void *)ptr, (void *)mem, PERM_EX | REF);
+	/* create a PTE for the second page without execute permission */
+	map((void *)ptr2, (void *)mem2, PERM_RD | REF);
+	/* this should fail due to second page being no-execute */
+	if (test_exec(2, ptr, MSR_IR))
+		return 1;
+	/* SRR0 and SRR1 should be set correctly */
+	if (mfspr(SRR0) != ptr2 || mfspr(SRR1) != 0x10000020)
+		return 2;
+	/* create a PTE for the second page with execute permission */
+	map((void *)ptr2, (void *)mem2, PERM_RD | PERM_EX | REF);
+	/* this should succeed */
+	if (!test_exec(2, ptr, MSR_IR))
+		return 3;
+	return 0;
+}
+
+int mmu_test_17(void)
+{
+	unsigned long mem = 0x1000;
+	unsigned long ptr = 0x349000;
+
+	/* create a PTE without the ref bit set */
+	map((void *)ptr, (void *)mem, PERM_EX);
+	/* this should fail */
+	if (test_exec(2, ptr, MSR_IR))
+		return 1;
+	/* SRR0 and SRR1 should be set correctly */
+	if (mfspr(SRR0) != (long) ptr || mfspr(SRR1) != 0x00040020)
+		return 2;
+	/* create a PTE without ref or execute permission */
+	map((void *)ptr, (void *)mem, 0);
+	/* this should fail */
+	if (test_exec(2, ptr, MSR_IR))
+		return 1;
+	/* SRR0 and SRR1 should be set correctly */
+	/* RC update fail bit should not be set */
+	if (mfspr(SRR0) != (long) ptr || mfspr(SRR1) != 0x10000020)
+		return 2;
 	return 0;
 }
 
@@ -429,8 +585,8 @@ void do_test(int num, int (*test)(void))
 {
 	int ret;
 
-	mtspr(18, 0);
-	mtspr(19, 0);
+	mtspr(DSISR, 0);
+	mtspr(DAR, 0);
 	unmap_all();
 	print_test_number(num);
 	ret = test();
@@ -440,10 +596,17 @@ void do_test(int num, int (*test)(void))
 		fail = 1;
 		print_string("FAIL ");
 		putchar(ret + '0');
-		print_string(" DAR=");
-		print_hex(mfspr(19));
-		print_string(" DSISR=");
-		print_hex(mfspr(18));
+		if (num <= 10) {
+			print_string(" DAR=");
+			print_hex(mfspr(DAR));
+			print_string(" DSISR=");
+			print_hex(mfspr(DSISR));
+		} else {
+			print_string(" SRR0=");
+			print_hex(mfspr(SRR0));
+			print_string(" SRR1=");
+			print_hex(mfspr(SRR1));
+		}
 		print_string("\r\n");
 	}
 }
@@ -463,6 +626,13 @@ int main(void)
 	do_test(8, mmu_test_8);
 	do_test(9, mmu_test_9);
 	do_test(10, mmu_test_10);
+	do_test(11, mmu_test_11);
+	do_test(12, mmu_test_12);
+	do_test(13, mmu_test_13);
+	do_test(14, mmu_test_14);
+	do_test(15, mmu_test_15);
+	do_test(16, mmu_test_16);
+	do_test(17, mmu_test_17);
 
 	return fail;
 }
