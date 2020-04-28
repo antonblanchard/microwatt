@@ -3,7 +3,7 @@
 # Script to update console related tests from source
 #
 
-for i in sc illegal decrementer ; do
+for i in sc illegal decrementer privileged ; do
     cd $i
     make
     cd -
