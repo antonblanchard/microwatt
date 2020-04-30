@@ -49,6 +49,7 @@ architecture behaviour of wishbone_debug_master is
     
     type state_t is (IDLE, WB_CYCLE, DMI_WAIT);
     signal state : state_t;
+    signal do_inc : std_ulogic;
 
 begin
 
@@ -84,16 +85,16 @@ begin
 		reg_addr <= (others => '0');
 		reg_ctrl <= (others => '0');
 	    else 	    -- Standard register writes
-		if dmi_req and dmi_wr then
+                if do_inc = '1' then
+		    -- Address register auto-increment
+		    reg_addr <= std_ulogic_vector(unsigned(reg_addr) +
+						  decode_autoinc(reg_ctrl(10 downto 9)));
+                elsif dmi_req and dmi_wr then
 		    if dmi_addr = DBG_WB_ADDR then
 			reg_addr <= dmi_din;
 		    elsif dmi_addr = DBG_WB_CTRL then
 			reg_ctrl <= dmi_din(10 downto 0);
 		    end if;
-                elsif state = WB_CYCLE and (wb_in.ack and reg_ctrl(8))= '1'  then
-		    -- Address register auto-increment
-		    reg_addr <= std_ulogic_vector(unsigned(reg_addr) +
-						  decode_autoinc(reg_ctrl(10 downto 9)));
 		end if;
 	    end if;
 	end if;
@@ -145,6 +146,7 @@ begin
 	    if (rst) then
 		state <= IDLE;
 		wb_out.stb <= '0';
+                do_inc <= '0';
 	    else
 		case state is
 		when IDLE =>
@@ -162,11 +164,13 @@ begin
 			--
 			wb_out.stb <= '0';
 			state <= DMI_WAIT;
+                        do_inc <= reg_ctrl(8);
 		    end if;
 		when DMI_WAIT =>
 		    if dmi_req = '0' then
 			state <= IDLE;
 		    end if;
+                    do_inc <= '0';
 		end case;
 	    end if;
 	end if;
