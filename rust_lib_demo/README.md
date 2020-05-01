@@ -8,7 +8,7 @@ Steps:
 $ rustup default nightly
 
 $ rustup target add powerpc64le-unknown-linux-gnu
-```
+
 $ rustup component add rust-src
 
 $ cargo install xargo
