@@ -735,6 +735,7 @@ begin
 	    when OP_MFSPR =>
 		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(a_in);
+		result_en := '1';
 		if is_fast_spr(e_in.read_reg1) then
 		    result := a_in;
 		    if decode_spr_num(e_in.insn) = SPR_XER then
@@ -753,11 +754,15 @@ begin
 			result := ctrl.tb;
 		    when SPR_DEC =>
 			result := ctrl.dec;
-		    when others =>
-			result := (others => '0');
+                    when others =>
+                        -- mfspr from unimplemented SPRs should be a nop in
+                        -- supervisor mode and a program interrupt for user mode
+			result := c_in;
+                        if ctrl.msr(MSR_PR) = '1' then
+                            illegal := '1';
+                        end if;
 		    end case;
 		end if;
-		result_en := '1';
 	    when OP_MFCR =>
 		if e_in.insn(20) = '0' then
 		    -- mfcr
@@ -823,6 +828,11 @@ begin
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;
 		    when others =>
+                        -- mtspr to unimplemented SPRs should be a nop in
+                        -- supervisor mode and a program interrupt for user mode
+                        if ctrl.msr(MSR_PR) = '1' then
+                            illegal := '1';
+                        end if;
 		    end case;
 		end if;
 	    when OP_POPCNT =>
