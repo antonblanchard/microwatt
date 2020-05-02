@@ -95,6 +95,13 @@ architecture behave of core is
     signal dbg_core_rst: std_ulogic;
     signal dbg_icache_rst: std_ulogic;
 
+    signal dbg_gpr_req : std_ulogic;
+    signal dbg_gpr_ack : std_ulogic;
+    signal dbg_gpr_addr : gspr_index_t;
+    signal dbg_gpr_data : std_ulogic_vector(63 downto 0);
+
+    signal msr : std_ulogic_vector(63 downto 0);
+
     -- Debug status
     signal dbg_core_is_stopped: std_ulogic;
 
@@ -213,6 +220,10 @@ begin
             d_in => decode2_to_register_file,
             d_out => register_file_to_decode2,
             w_in => writeback_to_register_file,
+            dbg_gpr_req => dbg_gpr_req,
+            dbg_gpr_ack => dbg_gpr_ack,
+            dbg_gpr_addr => dbg_gpr_addr,
+            dbg_gpr_data => dbg_gpr_data,
 	    sim_dump => terminate,
 	    sim_dump_done => sim_cr_dump
 	    );
@@ -244,6 +255,7 @@ begin
             f_out => execute1_to_fetch1,
             e_out => execute1_to_writeback,
 	    icache_inval => ex1_icache_inval,
+            dbg_msr_out => msr,
             terminate_out => terminate
             );
 
@@ -301,6 +313,11 @@ begin
 	    terminate => terminate,
 	    core_stopped => dbg_core_is_stopped,
 	    nia => fetch1_to_icache.nia,
+            msr => msr,
+            dbg_gpr_req => dbg_gpr_req,
+            dbg_gpr_ack => dbg_gpr_ack,
+            dbg_gpr_addr => dbg_gpr_addr,
+            dbg_gpr_data => dbg_gpr_data,
 	    terminated_out => terminated_out
 	    );
 

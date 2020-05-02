@@ -32,6 +32,8 @@ entity execute1 is
 
 	e_out : out Execute1ToWritebackType;
 
+        dbg_msr_out : out std_ulogic_vector(63 downto 0);
+
 	icache_inval : out std_ulogic;
 	terminate_out : out std_ulogic
 	);
@@ -216,6 +218,8 @@ begin
             d_in => x_to_divider,
             d_out => divider_to_x
             );
+
+    dbg_msr_out <= ctrl.msr;
 
     a_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data1 = '1' else e_in.read_data1;
     b_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data2 = '1' else e_in.read_data2;
