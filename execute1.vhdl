@@ -63,6 +63,7 @@ architecture behaviour of execute1 is
     signal ctrl: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
     signal ctrl_tmp: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
+    signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
@@ -174,6 +175,7 @@ begin
 	    arith => e_in.is_signed,
 	    clear_left => rot_clear_left,
 	    clear_right => rot_clear_right,
+            sign_ext_rs => rot_sign_ext,
 	    result => rotator_result,
 	    carry_out => rotator_carry
 	    );
@@ -429,6 +431,7 @@ begin
 	right_shift <= '1' when e_in.insn_type = OP_SHR else '0';
 	rot_clear_left <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCL else '0';
 	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
+        rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
 
 	ctrl_tmp.irq_state <= WRITE_SRR0;
 	exception := '0';
@@ -828,7 +831,7 @@ begin
 	    when OP_PRTY =>
 		result := parity_result;
 		result_en := '1';
-	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR =>
+	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR | OP_EXTSWSLI =>
 		result := rotator_result;
 		if e_in.output_carry = '1' then
 		    set_carry(v.e, rotator_carry, rotator_carry);
