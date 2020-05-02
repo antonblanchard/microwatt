@@ -33,6 +33,10 @@
 #define  DBG_CORE_STAT_TERM		(1 << 2)
 
 #define DBG_CORE_NIA		0x12
+#define DBG_CORE_MSR		0x13
+
+#define DBG_CORE_GSPR_INDEX	0x14
+#define DBG_CORE_GSPR_DATA	0x15
 
 static bool debug;
 
@@ -356,11 +360,12 @@ static int dmi_write(uint8_t addr, uint64_t data)
 
 static void core_status(void)
 {
-	uint64_t stat, nia;
+	uint64_t stat, nia, msr;
 	const char *statstr, *statstr2;
 
 	check(dmi_read(DBG_CORE_STAT, &stat), "reading core status");
 	check(dmi_read(DBG_CORE_NIA, &nia), "reading core NIA");
+	check(dmi_read(DBG_CORE_MSR, &msr), "reading core MSR");
 
 	if (debug)
 		printf("Core status = 0x%llx\n", (unsigned long long)stat);
@@ -378,6 +383,7 @@ static void core_status(void)
 		statstr = "odd state (TERM but no STOP)";
 	printf("Core: %s%s\n", statstr, statstr2);
 	printf(" NIA: %016llx\n", (unsigned long long)nia);
+	printf(" MSR: %016llx\n", msr);
 }
 
 static void core_stop(void)
@@ -392,7 +398,7 @@ static void core_start(void)
 
 static void core_reset(void)
 {
-	check(dmi_write(DBG_CORE_CTRL, DBG_CORE_CTRL_START), "resetting core");
+	check(dmi_write(DBG_CORE_CTRL, DBG_CORE_CTRL_RESET), "resetting core");
 }
 
 static void core_step(void)
@@ -413,19 +419,47 @@ static void icache_reset(void)
 	check(dmi_write(DBG_CORE_CTRL, DBG_CORE_CTRL_ICRESET), "resetting icache");
 }
 
+static const char *fast_spr_names[] =
+{
+	"lr", "ctr", "srr0", "srr1", "hsrr0", "hsrr1",
+	"sprg0", "sprg1", "sprg2", "sprg3",
+	"hsprg0", "hsprg1", "xer"
+};
+
+static void gpr_read(uint64_t reg, uint64_t count)
+{
+	uint64_t data;
+
+	reg &= 0x3f;
+	if (reg + count > 64)
+		count = 64 - reg;
+	for (; count != 0; --count, ++reg) {
+		check(dmi_write(DBG_CORE_GSPR_INDEX, reg), "setting GPR index");
+		data = 0xdeadbeef;
+		check(dmi_read(DBG_CORE_GSPR_DATA, &data), "reading GPR data");
+		if (reg <= 31)
+			printf("r%d", reg);
+		else if ((reg - 32) < sizeof(fast_spr_names) / sizeof(fast_spr_names[0]))
+			printf("%s", fast_spr_names[reg - 32]);
+		else
+			printf("gspr%d", reg);
+		printf(":\t%016llx\n", data);
+	}
+}
+
 static void mem_read(uint64_t addr, uint64_t count)
 {
 	uint64_t data;
 	int i, rc;
 
-	rc = dmi_write(2, 0x7ff);
+	rc = dmi_write(DBG_WB_CTRL, 0x7ff);
 	if (rc < 0)
 		return;
-	rc = dmi_write(0, addr);
+	rc = dmi_write(DBG_WB_ADDR, addr);
 	if (rc < 0)
 		return;
 	for (i = 0; i < count; i++) {
-		rc = dmi_read(1, &data);
+		rc = dmi_read(DBG_WB_DATA, &data);
 		if (rc < 0)
 			return;
 		printf("%016llx: %016llx\n",
@@ -433,6 +467,13 @@ static void mem_read(uint64_t addr, uint64_t count)
 		       (unsigned long long)data);
 		addr += 8;
 	}
+}
+
+static void mem_write(uint64_t addr, uint64_t data)
+{
+	check(dmi_write(DBG_WB_CTRL, 0x7ff), "writing WB_CTRL");
+	check(dmi_write(DBG_WB_ADDR, addr), "writing WB_ADDR");
+	check(dmi_write(DBG_WB_DATA, data), "writing WB_DATA");
 }
 
 static void load(const char *filename, uint64_t addr)
@@ -445,13 +486,8 @@ static void load(const char *filename, uint64_t addr)
 		fprintf(stderr, "Failed to open '%s': %s\n", filename, strerror(errno));
 		exit(1);
 	}
-	// XX dumb, do better
-	rc = dmi_write(2, 0x7ff);
-	if (rc < 0)
-		return;
-	rc = dmi_write(0, addr);
-	if (rc < 0)
-		return;
+	check(dmi_write(DBG_WB_CTRL, 0x7ff), "writing WB_CTRL");
+	check(dmi_write(DBG_WB_ADDR, addr), "writing WB_ADDR");
 	count = 0;
 	for (;;) {
 		data = 0;
@@ -459,7 +495,7 @@ static void load(const char *filename, uint64_t addr)
 		if (rc <= 0)
 			break;
 		// if (rc < 8) XXX fixup endian ?
-		dmi_write(1, data);
+		check(dmi_write(DBG_WB_DATA, data), "writing WB_DATA");
 		count += 8;
 		if (!(count % 1024))
 			printf("%x...\n", count);
@@ -544,6 +580,8 @@ int main(int argc, char *argv[])
 			dmi_write(addr, data);
 		} else if (strcmp(argv[i], "creset") == 0) {
 			core_reset();
+		} else if (strcmp(argv[i], "icreset") == 0) {
+			icache_reset();
 		} else if (strcmp(argv[i], "stop") == 0) {
 			core_stop();
 		} else if (strcmp(argv[i], "start") == 0) {
@@ -563,6 +601,14 @@ int main(int argc, char *argv[])
 			if (((i+1) < argc) && isdigit(argv[i+1][0]))
 				count = strtoul(argv[++i], NULL, 16);
 			mem_read(addr, count);
+		} else if (strcmp(argv[i], "mw") == 0) {
+			uint64_t addr, data;
+
+			if ((i+2) >= argc)
+				usage(argv[0]);
+			addr = strtoul(argv[++i], NULL, 16);
+			data = strtoul(argv[++i], NULL, 16);
+			mem_write(addr, data);
 		} else if (strcmp(argv[i], "load") == 0) {
 			const char *filename;
 			uint64_t addr = 0;
@@ -573,6 +619,15 @@ int main(int argc, char *argv[])
 			if (((i+1) < argc) && isdigit(argv[i+1][0]))
 				addr = strtoul(argv[++i], NULL, 16);
 			load(filename, addr);
+		} else if (strcmp(argv[i], "gpr") == 0) {
+			uint64_t reg, count = 1;
+
+			if ((i+1) >= argc)
+				usage(argv[0]);
+			reg = strtoul(argv[++i], NULL, 10);
+			if (((i+1) < argc) && isdigit(argv[i+1][0]))
+				count = strtoul(argv[++i], NULL, 10);
+			gpr_read(reg, count);
 		} else {
 			fprintf(stderr, "Unknown command %s\n", argv[i]);
 			exit(1);
