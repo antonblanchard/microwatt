@@ -80,6 +80,20 @@ test_write:
 	mtmsrd	%r9,0
 	blr
 
+	/* Do a dcbz with translation on */
+	.globl	test_dcbz
+test_dcbz:
+	mfmsr	%r9
+	ori	%r8,%r9,0x10	/* set MSR_DR */
+	mtmsrd	%r8,0
+	mr	%r6,%r3
+	li	%r3,0
+	dcbz	0,%r6
+	li	%r3,1
+	/* land here if DSI occurred */
+	mtmsrd	%r9,0
+	blr
+
 	.globl	test_exec
 test_exec:
 	mtsrr0	%r4

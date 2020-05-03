@@ -9,6 +9,7 @@
 
 extern int test_read(long *addr, long *ret, long init);
 extern int test_write(long *addr, long val);
+extern int test_dcbz(long *addr);
 extern int test_exec(int testno, unsigned long pc, unsigned long msr);
 
 static inline void do_tlbie(unsigned long rb, unsigned long rs)
@@ -579,6 +580,25 @@ int mmu_test_17(void)
 	return 0;
 }
 
+int mmu_test_18(void)
+{
+	long *mem = (long *) 0x8000;
+	long *ptr = (long *) 0x124000;
+	long *ptr2 = (long *) 0x1124000;
+
+	/* create PTE */
+	map(ptr, mem, DFLT_PERM);
+	/* this should succeed and be a cache miss */
+	if (!test_dcbz(&ptr[129]))
+		return 1;
+	/* create a second PTE */
+	map(ptr2, mem, DFLT_PERM);
+	/* this should succeed and be a cache hit */
+	if (!test_dcbz(&ptr2[130]))
+		return 2;
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -633,6 +653,7 @@ int main(void)
 	do_test(15, mmu_test_15);
 	do_test(16, mmu_test_16);
 	do_test(17, mmu_test_17);
+	do_test(18, mmu_test_18);
 
 	return fail;
 }
