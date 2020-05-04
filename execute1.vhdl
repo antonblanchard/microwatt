@@ -454,12 +454,12 @@ begin
 	    v.e.valid := e_in.valid;
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
-	elsif irq_valid = '1' then
+	elsif irq_valid = '1' and e_in.valid = '1' then
 	    -- we need two cycles to write srr0 and 1
 	    -- will need more when we have to write DSISR, DAR and HIER
             -- Don't deliver the interrupt until we have a valid instruction
             -- coming in, so we have a valid NIA to put in SRR0.
-	    exception := e_in.valid;
+	    exception := '1';
 	    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
 
         elsif e_in.valid = '1' and ctrl.msr(MSR_PR) = '1' and
