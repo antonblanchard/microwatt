@@ -392,7 +392,7 @@ static void core_start(void)
 
 static void core_reset(void)
 {
-	check(dmi_write(DBG_CORE_CTRL, DBG_CORE_CTRL_START), "resetting core");
+	check(dmi_write(DBG_CORE_CTRL, DBG_CORE_CTRL_RESET), "resetting core");
 }
 
 static void core_step(void)
