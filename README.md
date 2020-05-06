@@ -16,7 +16,10 @@ You can try out Microwatt/Micropython without hardware by using the ghdl simulat
 
 - Build micropython. If you aren't building on a ppc64le box you
   will need a cross compiler. If it isn't available on your distro
-  grab the powerpc64le-power8 toolchain from https://toolchains.bootlin.com
+  grab the powerpc64le-power8 toolchain from https://toolchains.bootlin.com.
+  You may need to set the CROSS_COMPILE environment variable
+  to the prefix used for your cross compilers.  The default is
+  powerpc64le-linux-gnu-.
 
 ```
 git clone https://github.com/micropython/micropython.git

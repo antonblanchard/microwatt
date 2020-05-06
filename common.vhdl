@@ -7,6 +7,15 @@ use work.decode_types.all;
 
 package common is
 
+    -- MSR bit numbers
+    constant MSR_SF  : integer := (63 - 0);     -- Sixty-Four bit mode
+    constant MSR_EE  : integer := (63 - 48);    -- External interrupt Enable
+    constant MSR_PR  : integer := (63 - 49);    -- PRoblem state
+    constant MSR_IR  : integer := (63 - 58);    -- Instruction Relocation
+    constant MSR_DR  : integer := (63 - 59);    -- Data Relocation
+    constant MSR_RI  : integer := (63 - 62);    -- Recoverable Interrupt
+    constant MSR_LE  : integer := (63 - 63);    -- Little Endian
+
     -- SPR numbers
     subtype spr_num_t is integer range 0 to 1023;
 
@@ -109,6 +118,7 @@ package common is
 
     type Decode2ToExecute1Type is record
 	valid: std_ulogic;
+        unit : unit_t;
 	insn_type: insn_type_t;
 	nia: std_ulogic_vector(63 downto 0);
 	write_reg: gspr_index_t;
@@ -141,7 +151,7 @@ package common is
         reserve : std_ulogic;                           -- set for larx/stcx
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
-	(valid => '0', insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
+	(valid => '0', unit => NONE, insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
          lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0',
@@ -204,7 +214,7 @@ package common is
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
-	load : std_ulogic;				-- is this a load or store
+        op : insn_type_t;                               -- what ld/st op to do
 	addr1 : std_ulogic_vector(63 downto 0);
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
@@ -219,13 +229,14 @@ package common is
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.
     end record;
-    constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', load => '0', ci => '0', byte_reverse => '0',
+    constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
                                                                      reserve => '0', rc => '0', others => (others => '0'));
 
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
 	load : std_ulogic;
+        dcbz : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);

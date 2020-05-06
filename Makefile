@@ -58,7 +58,7 @@ icache_tb.o: common.o wishbone_types.o icache.o wishbone_bram_wrapper.o
 dcache.o: utils.o common.o wishbone_types.o plru.o cache_ram.o utils.o
 dcache_tb.o: common.o wishbone_types.o dcache.o wishbone_bram_wrapper.o
 insn_helpers.o:
-loadstore1.o: common.o helpers.o
+loadstore1.o: common.o helpers.o decode_types.o
 logical.o: decode_types.o
 multiply_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o multiply.o
 multiply.o: common.o decode_types.o
@@ -131,7 +131,7 @@ dmi_dtm_tb: dmi_dtm_tb.o sim_vhpi_c.o sim_bram_helpers_c.o
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 tests_console = $(sort $(patsubst tests/%.console_out,%,$(wildcard tests/*.console_out)))
 
-check: $(tests) $(test_console) test_micropython test_micropython_long
+check: $(tests) $(tests_console) test_micropython test_micropython_long
 
 check_light: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 test_micropython test_micropython_long $(tests_console)
 
