@@ -36,6 +36,8 @@ architecture behave of mmu is
     type reg_stage_t is record
         -- latched request from loadstore1
         valid     : std_ulogic;
+        store     : std_ulogic;
+        priv      : std_ulogic;
         addr      : std_ulogic_vector(63 downto 0);
         -- internal state
         state     : state_t;
@@ -47,6 +49,8 @@ architecture behave of mmu is
         invalid   : std_ulogic;
         badtree   : std_ulogic;
         segerror  : std_ulogic;
+        perm_err  : std_ulogic;
+        rc_error  : std_ulogic;
     end record;
 
     signal r, rin : reg_stage_t;
@@ -166,6 +170,8 @@ begin
         variable pte : std_ulogic_vector(63 downto 0);
         variable data : std_ulogic_vector(63 downto 0);
         variable nonzero : std_ulogic;
+        variable perm_ok : std_ulogic;
+        variable rc_ok : std_ulogic;
     begin
         v := r;
         v.valid := '0';
@@ -174,6 +180,8 @@ begin
         v.invalid := '0';
         v.badtree := '0';
         v.segerror := '0';
+        v.perm_err := '0';
+        v.rc_error := '0';
         tlb_load := '0';
         tlbie_req := '0';
 
@@ -196,6 +204,8 @@ begin
 
             if l_in.valid = '1' then
                 v.addr := l_in.addr;
+                v.store := not l_in.load;
+                v.priv := l_in.priv;
                 if l_in.tlbie = '1' then
                     dcreq := '1';
                     tlbie_req := '1';
@@ -247,7 +257,20 @@ begin
                     if data(63) = '1' then
                         -- test leaf bit
                         if data(62) = '1' then
-                            v.state := RADIX_LOAD_TLB;
+                            -- check permissions and RC bits
+                            perm_ok := '0';
+                            if r.priv = '1' or data(3) = '0' then
+                                perm_ok := data(1) or (data(2) and not r.store);
+                            end if;
+                            rc_ok := data(8) and (data(7) or not r.store);
+                            if perm_ok = '1' and rc_ok = '1' then
+                                v.state := RADIX_LOAD_TLB;
+                            else
+                                v.state := RADIX_ERROR;
+                                v.perm_err := not perm_ok;
+                                -- permission error takes precedence over RC error
+                                v.rc_error := perm_ok;
+                            end if;
                         else
                             mbits := unsigned('0' & data(4 downto 0));
                             if mbits < 5 or mbits > 16 or mbits > r.shift then
@@ -297,6 +320,8 @@ begin
         l_out.invalid <= r.invalid;
         l_out.badtree <= r.badtree;
         l_out.segerr <= r.segerror;
+        l_out.perm_error <= r.perm_err;
+        l_out.rc_error <= r.rc_error;
 
         d_out.valid <= dcreq;
         d_out.tlbie <= tlbie_req;

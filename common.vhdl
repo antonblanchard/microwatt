@@ -263,26 +263,28 @@ package common is
 	data : std_ulogic_vector(63 downto 0);
         store_done : std_ulogic;
         error : std_ulogic;
-        tlb_miss : std_ulogic;
-        perm_error : std_ulogic;
-        rc_error : std_ulogic;
+        cache_paradox : std_ulogic;
     end record;
 
     type Loadstore1ToMmuType is record
         valid : std_ulogic;
         tlbie : std_ulogic;
         mtspr : std_ulogic;
+        load  : std_ulogic;
+        priv  : std_ulogic;
         sprn  : std_ulogic_vector(3 downto 0);
         addr  : std_ulogic_vector(63 downto 0);
         rs    : std_ulogic_vector(63 downto 0);
     end record;
 
     type MmuToLoadstore1Type is record
-        done    : std_ulogic;
-        invalid : std_ulogic;
-        badtree : std_ulogic;
-        segerr  : std_ulogic;
-        sprval  : std_ulogic_vector(63 downto 0);
+        done       : std_ulogic;
+        invalid    : std_ulogic;
+        badtree    : std_ulogic;
+        segerr     : std_ulogic;
+        perm_error : std_ulogic;
+        rc_error   : std_ulogic;
+        sprval     : std_ulogic_vector(63 downto 0);
     end record;
 
     type MmuToDcacheType is record

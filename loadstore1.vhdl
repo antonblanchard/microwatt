@@ -38,11 +38,10 @@ architecture behave of loadstore1 is
     -- State machine for unaligned loads/stores
     type state_t is (IDLE,              -- ready for instruction
                      SECOND_REQ,        -- send 2nd request of unaligned xfer
-                     FIRST_ACK_WAIT,    -- waiting for 1st ack from dcache
-                     LAST_ACK_WAIT,     -- waiting for last ack from dcache
+                     ACK_WAIT,          -- waiting for ack from dcache
                      LD_UPDATE,         -- writing rA with computed addr on load
-                     MMU_LOOKUP_1ST,    -- waiting for MMU to look up translation
-                     MMU_LOOKUP_LAST
+                     MMU_LOOKUP,        -- waiting for MMU to look up translation
+                     TLBIE_WAIT         -- waiting for MMU to finish doing a tlbie
                      );
 
     type reg_stage_t is record
@@ -66,6 +65,7 @@ architecture behave of loadstore1 is
         virt_mode    : std_ulogic;
         priv_mode    : std_ulogic;
         state        : state_t;
+        dwords_done  : std_ulogic;
         first_bytes  : std_ulogic_vector(7 downto 0);
         second_bytes : std_ulogic_vector(7 downto 0);
         dar          : std_ulogic_vector(63 downto 0);
@@ -230,6 +230,7 @@ begin
                 v.load := '0';
                 v.dcbz := '0';
                 v.tlbie := '0';
+                v.dwords_done := '0';
                 case l_in.op is
                 when OP_STORE =>
                     req := '1';
@@ -241,7 +242,9 @@ begin
                     v.dcbz := '1';
                 when OP_TLBIE =>
                     mmureq := '1';
+                    stall := '1';
                     v.tlbie := '1';
+                    v.state := TLBIE_WAIT;
                 when OP_MFSPR =>
                     done := '1';
                     mfspr := '1';
@@ -318,14 +321,10 @@ begin
                 if req = '1' then
                     stall := '1';
                     if long_sel(15 downto 8) = "00000000" then
-                        v.state := LAST_ACK_WAIT;
+                        v.state := ACK_WAIT;
                     else
                         v.state := SECOND_REQ;
                     end if;
-                end if;
-                if mmureq = '1' then
-                    stall := '1';
-                    v.state := LAST_ACK_WAIT;
                 end if;
             end if;
 
@@ -334,37 +333,58 @@ begin
             byte_sel := r.second_bytes;
             req := '1';
             stall := '1';
-            v.state := FIRST_ACK_WAIT;
+            v.state := ACK_WAIT;
 
-        when FIRST_ACK_WAIT =>
+        when ACK_WAIT =>
             stall := '1';
             if d_in.valid = '1' then
                 if d_in.error = '1' then
-                    -- dcache will discard the second request
-                    addr := r.addr;
-                    if d_in.tlb_miss = '1' then
-                        -- give it to the MMU to look up
-                        mmureq := '1';
-                        v.state := MMU_LOOKUP_1ST;
+                    -- dcache will discard the second request if it
+                    -- gets an error on the 1st of two requests
+                    if r.dwords_done = '1' then
+                        addr := next_addr;
                     else
+                        addr := r.addr;
+                    end if;
+                    if d_in.cache_paradox = '1' then
                         -- signal an interrupt straight away
                         exception := '1';
-                        dsisr(63 - 36) := d_in.perm_error;
                         dsisr(63 - 38) := not r.load;
-                        dsisr(63 - 45) := d_in.rc_error;
+                        -- XXX there is no architected bit for this
+                        dsisr(63 - 35) := d_in.cache_paradox;
                         v.state := IDLE;
+                    else
+                        -- Look up the translation for TLB miss
+                        -- and also for permission error and RC error
+                        -- in case the PTE has been updated.
+                        mmureq := '1';
+                        v.state := MMU_LOOKUP;
                     end if;
                 else
-                    v.state := LAST_ACK_WAIT;
-                    if r.load = '1' then
-                        v.load_data := data_permuted;
+                    if two_dwords = '1' and r.dwords_done = '0' then
+                        v.dwords_done := '1';
+                        if r.load = '1' then
+                            v.load_data := data_permuted;
+                        end if;
+                    else
+                        write_enable := r.load;
+                        if r.load = '1' and r.update = '1' then
+                            -- loads with rA update need an extra cycle
+                            v.state := LD_UPDATE;
+                        else
+                            -- stores write back rA update in this cycle
+                            do_update := r.update;
+                            stall := '0';
+                            done := '1';
+                            v.state := IDLE;
+                        end if;
                     end if;
                 end if;
             end if;
 
-        when MMU_LOOKUP_1ST | MMU_LOOKUP_LAST =>
+        when MMU_LOOKUP =>
             stall := '1';
-            if two_dwords = '1' and r.state = MMU_LOOKUP_LAST then
+            if r.dwords_done = '1' then
                 addr := next_addr;
                 byte_sel := r.second_bytes;
             else
@@ -372,58 +392,28 @@ begin
                 byte_sel := r.first_bytes;
             end if;
             if m_in.done = '1' then
-                if m_in.invalid = '0' and m_in.badtree = '0' and m_in.segerr = '0' then
+                if m_in.invalid = '0' and m_in.perm_error = '0' and m_in.rc_error = '0' and
+                    m_in.badtree = '0' and m_in.segerr = '0' then
                     -- retry the request now that the MMU has installed a TLB entry
                     req := '1';
-                    if r.state = MMU_LOOKUP_1ST then
+                    if two_dwords = '1' and r.dwords_done = '0' then
                         v.state := SECOND_REQ;
                     else
-                        v.state := LAST_ACK_WAIT;
+                        v.state := ACK_WAIT;
                     end if;
                 else
                     exception := '1';
                     dsisr(63 - 33) := m_in.invalid;
+                    dsisr(63 - 36) := m_in.perm_error;
                     dsisr(63 - 38) := not r.load;
                     dsisr(63 - 44) := m_in.badtree;
+                    dsisr(63 - 45) := m_in.rc_error;
                     v.state := IDLE;
                 end if;
             end if;
 
-        when LAST_ACK_WAIT =>
+        when TLBIE_WAIT =>
             stall := '1';
-            if d_in.valid = '1' then
-                if d_in.error = '1' then
-                    if two_dwords = '1' then
-                        addr := next_addr;
-                    else
-                        addr := r.addr;
-                    end if;
-                    if d_in.tlb_miss = '1' then
-                        -- give it to the MMU to look up
-                        mmureq := '1';
-                        v.state := MMU_LOOKUP_LAST;
-                    else
-                        -- signal an interrupt straight away
-                        exception := '1';
-                        dsisr(63 - 36) := d_in.perm_error;
-                        dsisr(63 - 38) := not r.load;
-                        dsisr(63 - 45) := d_in.rc_error;
-                        v.state := IDLE;
-                    end if;
-                else
-                    write_enable := r.load;
-                    if r.load = '1' and r.update = '1' then
-                        -- loads with rA update need an extra cycle
-                        v.state := LD_UPDATE;
-                    else
-                        -- stores write back rA update in this cycle
-                        do_update := r.update;
-                        stall := '0';
-                        done := '1';
-                        v.state := IDLE;
-                    end if;
-                end if;
-            end if;
             if m_in.done = '1' then
                 -- tlbie is finished
                 stall := '0';
@@ -451,6 +441,8 @@ begin
 
         -- Update outputs to MMU
         m_out.valid <= mmureq;
+        m_out.load <= r.load;
+        m_out.priv <= r.priv_mode;
         m_out.tlbie <= v.tlbie;
         m_out.mtspr <= mmu_mtspr;
         m_out.sprn <= sprn(3 downto 0);
