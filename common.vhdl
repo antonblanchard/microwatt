@@ -305,6 +305,11 @@ package common is
     constant WritebackToCrFileInit : WritebackToCrFileType := (write_cr_enable => '0', write_xerc_enable => '0',
 							       write_xerc_data => xerc_init,
 							       others => (others => '0'));
+
+    type XicsToExecute1Type is record
+	irq : std_ulogic;
+    end record;
+
 end common;
 
 package body common is
