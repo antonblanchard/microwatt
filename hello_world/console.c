@@ -91,6 +91,16 @@ void potato_uart_init(void)
 	potato_uart_reg_write(POTATO_CONSOLE_CLOCK_DIV, potato_uart_divisor(PROC_FREQ, UART_FREQ));
 }
 
+void potato_uart_irq_en(void)
+{
+	potato_uart_reg_write(POTATO_CONSOLE_IRQ_EN, 0xff);
+}
+
+void potato_uart_irq_dis(void)
+{
+	potato_uart_reg_write(POTATO_CONSOLE_IRQ_EN, 0x00);
+}
+
 int getchar(void)
 {
 	while (potato_uart_rx_empty())

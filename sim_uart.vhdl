@@ -43,6 +43,9 @@ entity pp_soc_uart is
 	txd : out std_logic;
 	rxd : in  std_logic;
 
+	-- Interrupt signal:
+	irq : out std_logic;
+
 	-- Wishbone ports:
 	wb_adr_in  : in  std_logic_vector(11 downto 0);
 	wb_dat_in  : in  std_logic_vector( 7 downto 0);
@@ -69,6 +72,10 @@ architecture behaviour of pp_soc_uart is
 begin
 
     wb_ack_out <= wb_ack and wb_cyc_in and wb_stb_in;
+
+    -- For the sim console, the transmit buffer is always empty, so always
+    -- interrupt if enabled. No recieve interrupt.
+    irq <= irq_tx_ready_enable;
 
     wishbone: process(clk)
 	variable sim_tmp : std_logic_vector(63 downto 0);
