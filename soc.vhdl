@@ -27,7 +27,8 @@ entity soc is
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
-	uart0_rxd    : in  std_ulogic
+	uart0_rxd    : in  std_ulogic;
+	alt_reset    : in std_ulogic
 	);
 end entity soc;
 
@@ -89,11 +90,13 @@ begin
     processor: entity work.core
 	generic map(
 	    SIM => SIM,
-	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE
+	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
+	    ALT_RESET_ADDRESS => (15 downto 0 => '0', others => '1')
 	    )
 	port map(
 	    clk => system_clk,
 	    rst => rst,
+	    alt_reset => alt_reset,
 	    wishbone_insn_in => wishbone_icore_in,
 	    wishbone_insn_out => wishbone_icore_out,
 	    wishbone_data_in => wishbone_dcore_in,

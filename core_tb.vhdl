@@ -27,7 +27,8 @@ begin
 	    rst => rst,
 	    system_clk => clk,
 	    uart0_rxd => '0',
-	    uart0_txd => open
+	    uart0_txd => open,
+	    alt_reset => '0'
 	    );
 
     clk_process: process
