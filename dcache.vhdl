@@ -586,8 +586,6 @@ begin
             if r0_valid = '1' and r0.tlbie = '1' then
                 if r0.req.addr(11 downto 10) /= "00" then
                     tlbia := '1';
-                elsif r0.req.addr(9) = '1' then
-                    tlbwe := '1';
                 else
                     tlbie := '1';
                 end if;
