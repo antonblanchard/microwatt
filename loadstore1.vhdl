@@ -166,7 +166,7 @@ begin
         mfspr := '0';
         mmu_mtspr := '0';
         itlb_fault := '0';
-        sprn := std_ulogic_vector(to_unsigned(l_in.spr_num, 10));
+        sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
         sprval := (others => '0');      -- avoid inferred latches
         exception := '0';
         dsisr := (others => '0');
@@ -468,6 +468,7 @@ begin
         m_out.mtspr <= mmu_mtspr;
         m_out.sprn <= sprn(3 downto 0);
         m_out.addr <= addr;
+        m_out.slbia <= l_in.insn(7);
         m_out.rs <= l_in.data;
 
         -- Update outputs to writeback

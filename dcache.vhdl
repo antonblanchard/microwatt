@@ -210,6 +210,7 @@ architecture rtl of dcache is
     type reg_stage_0_t is record
         req   : Loadstore1ToDcacheType;
         tlbie : std_ulogic;
+        doall : std_ulogic;
         tlbld : std_ulogic;
         mmu_req : std_ulogic;   -- indicates source of request
     end record;
@@ -456,11 +457,13 @@ begin
                     r0.req.data <= m_in.pte;
                     r0.req.byte_sel <= (others => '1');
                     r0.tlbie <= m_in.tlbie;
+                    r0.doall <= m_in.doall;
                     r0.tlbld <= m_in.tlbld;
                     r0.mmu_req <= '1';
                 else
                     r0.req <= d_in;
                     r0.tlbie <= '0';
+                    r0.doall <= '0';
                     r0.tlbld <= '0';
                     r0.mmu_req <= '0';
                 end if;
@@ -572,7 +575,6 @@ begin
 
     tlb_update : process(clk)
         variable tlbie : std_ulogic;
-        variable tlbia : std_ulogic;
         variable tlbwe : std_ulogic;
         variable repl_way : tlb_way_t;
         variable eatag : tlb_tag_t;
@@ -580,17 +582,9 @@ begin
         variable pteset : tlb_way_ptes_t;
     begin
         if rising_edge(clk) then
-            tlbie := '0';
-            tlbia := '0';
+            tlbie := r0_valid and r0.tlbie;
             tlbwe := r0_valid and r0.tlbld;
-            if r0_valid = '1' and r0.tlbie = '1' then
-                if r0.req.addr(11 downto 10) /= "00" then
-                    tlbia := '1';
-                else
-                    tlbie := '1';
-                end if;
-            end if;
-            if rst = '1' or tlbia = '1' then
+            if rst = '1' or (tlbie = '1' and r0.doall = '1') then
                 -- clear all valid bits at once
                 for i in tlb_index_t loop
                     dtlb_valids(i) <= (others => '0');

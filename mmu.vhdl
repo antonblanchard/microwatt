@@ -168,6 +168,7 @@ begin
         variable tlb_load : std_ulogic;
         variable itlb_load : std_ulogic;
         variable tlbie_req : std_ulogic;
+        variable inval_all : std_ulogic;
         variable rts : unsigned(5 downto 0);
         variable mbits : unsigned(5 downto 0);
         variable pgtable_addr : std_ulogic_vector(63 downto 0);
@@ -191,6 +192,7 @@ begin
         tlb_load := '0';
         itlb_load := '0';
         tlbie_req := '0';
+        inval_all := '0';
 
         -- Radix tree data structures in memory are big-endian,
         -- so we need to byte-swap them
@@ -217,6 +219,10 @@ begin
                 if l_in.tlbie = '1' then
                     dcreq := '1';
                     tlbie_req := '1';
+                    -- Invalidate all iTLB/dTLB entries for tlbie with
+                    -- RB[IS] != 0 or RB[AP] != 0, or for slbia
+                    inval_all := l_in.slbia or l_in.addr(11) or l_in.addr(10) or
+                                 l_in.addr(7) or l_in.addr(6) or l_in.addr(5);
                     v.state := TLB_WAIT;
                 else
                     v.valid := '1';
@@ -356,12 +362,14 @@ begin
 
         d_out.valid <= dcreq;
         d_out.tlbie <= tlbie_req;
+        d_out.doall <= inval_all;
         d_out.tlbld <= tlb_load;
         d_out.addr <= addr;
         d_out.pte <= tlb_data;
 
         i_out.tlbld <= itlb_load;
         i_out.tlbie <= tlbie_req;
+        i_out.doall <= inval_all;
         i_out.addr <= addr;
         i_out.pte <= tlb_data;
 

@@ -435,32 +435,19 @@ begin
 
     -- iTLB update
     itlb_update: process(clk)
-        variable tlbie : std_ulogic;
-        variable tlbia : std_ulogic;
-        variable tlbwe : std_ulogic;
         variable wr_index : tlb_index_t;
     begin
         if rising_edge(clk) then
-            tlbie := '0';
-            tlbia := '0';
-            tlbwe := m_in.tlbld;
-            if m_in.tlbie = '1' then
-                if m_in.addr(11 downto 10) /= "00" then
-                    tlbia := '1';
-                else
-                    tlbie := '1';
-                end if;
-            end if;
             wr_index := hash_ea(m_in.addr);
-            if rst = '1' or tlbia = '1' then
+            if rst = '1' or (m_in.tlbie = '1' and m_in.doall = '1') then
                 -- clear all valid bits
                 for i in tlb_index_t loop
                     itlb_valids(i) <= '0';
                 end loop;
-            elsif tlbie = '1' then
+            elsif m_in.tlbie = '1' then
                 -- clear entry regardless of hit or miss
                 itlb_valids(wr_index) <= '0';
-            elsif tlbwe = '1' then
+            elsif m_in.tlbld = '1' then
                 itlb_tags(wr_index) <= m_in.addr(63 downto TLB_LG_PGSZ + TLB_BITS);
                 itlb_ptes(wr_index) <= m_in.pte;
                 itlb_valids(wr_index) <= '1';

@@ -227,6 +227,7 @@ package common is
 	valid : std_ulogic;
         op : insn_type_t;                               -- what ld/st or m[tf]spr or TLB op to do
         nia : std_ulogic_vector(63 downto 0);
+        insn : std_ulogic_vector(31 downto 0);
 	addr1 : std_ulogic_vector(63 downto 0);
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
@@ -242,12 +243,11 @@ package common is
         rc : std_ulogic;                                -- set for stcx.
         virt_mode : std_ulogic;                         -- do translation through TLB
         priv_mode : std_ulogic;                         -- privileged mode (MSR[PR] = 0)
-        spr_num : spr_num_t;                            -- SPR number for mfspr/mtspr
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
                                                                      reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
-                                                                     spr_num => 0, others => (others => '0'));
+                                                                     others => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
         exception : std_ulogic;
@@ -283,6 +283,7 @@ package common is
     type Loadstore1ToMmuType is record
         valid : std_ulogic;
         tlbie : std_ulogic;
+        slbia : std_ulogic;
         mtspr : std_ulogic;
         iside : std_ulogic;
         load  : std_ulogic;
@@ -305,6 +306,7 @@ package common is
     type MmuToDcacheType is record
         valid : std_ulogic;
         tlbie : std_ulogic;
+        doall : std_ulogic;
         tlbld : std_ulogic;
         addr  : std_ulogic_vector(63 downto 0);
         pte   : std_ulogic_vector(63 downto 0);
@@ -320,6 +322,7 @@ package common is
     type MmuToIcacheType is record
         tlbld : std_ulogic;
         tlbie : std_ulogic;
+        doall : std_ulogic;
         addr  : std_ulogic_vector(63 downto 0);
         pte   : std_ulogic_vector(63 downto 0);
     end record;
