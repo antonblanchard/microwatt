@@ -145,8 +145,6 @@ void map(void *ea, void *pa, unsigned long perm_attr)
 		free_ptr += 512 * sizeof(unsigned long);
 	}
 	ptep = read_pgd(i);
-	if (ptep[j])
-		do_tlbie(((unsigned long)ea & ~0xfff), 0);
 	store_pte(&ptep[j], 0xc000000000000000 | ((unsigned long)pa & 0x00fffffffffff000) | perm_attr);
 	eas_mapped[neas_mapped++] = ea;
 }
@@ -569,6 +567,7 @@ int mmu_test_17(void)
 	if (mfspr(SRR0) != (long) ptr || mfspr(SRR1) != 0x00040020)
 		return 2;
 	/* create a PTE without ref or execute permission */
+	unmap((void *)ptr);
 	map((void *)ptr, (void *)mem, 0);
 	/* this should fail */
 	if (test_exec(2, ptr, MSR_IR))
@@ -599,6 +598,28 @@ int mmu_test_18(void)
 	return 0;
 }
 
+int mmu_test_19(void)
+{
+	long *mem = (long *) 0x8000;
+	long *ptr = (long *) 0x124000;
+
+	*mem = 0x123456789abcdef0;
+	/* create PTE with read but not write permission */
+	map(ptr, mem, REF | PERM_RD);
+	/* this should fail and create a TLB entry */
+	if (test_write(ptr, 0xdeadbeef0dd1))
+		return 1;
+	/* DAR and DSISR should be set correctly */
+	if (mfspr(DAR) != (long)ptr || mfspr(DSISR) != 0x0a000000)
+		return 2;
+	/* Update the PTE to have write permission */
+	map(ptr, mem, REF | CHG | PERM_RD | PERM_WR);
+	/* this should succeed */
+	if (!test_write(ptr, 0xdeadbeef0dd1))
+		return 3;
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -616,7 +637,7 @@ void do_test(int num, int (*test)(void))
 		fail = 1;
 		print_string("FAIL ");
 		putchar(ret + '0');
-		if (num <= 10) {
+		if (num <= 10 || num == 19) {
 			print_string(" DAR=");
 			print_hex(mfspr(DAR));
 			print_string(" DSISR=");
@@ -654,6 +675,7 @@ int main(void)
 	do_test(16, mmu_test_16);
 	do_test(17, mmu_test_17);
 	do_test(18, mmu_test_18);
+	do_test(19, mmu_test_19);
 
 	return fail;
 }
