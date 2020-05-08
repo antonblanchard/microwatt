@@ -159,6 +159,13 @@ begin
             v_int.outstanding := r_int.outstanding - 1;
         end if;
 
+        if rst = '1' then
+            v_int.state := IDLE;
+            v_int.outstanding := 0;
+            stall_tmp := '0';
+            valid_tmp := '0';
+        end if;
+
         -- Handle debugger stop
         stopped_out <= '0';
         if stop_mark_in = '1' and v_int.outstanding = 0 then
@@ -226,12 +233,6 @@ begin
         else
             gpr_write_valid <= '0';
             cr_write_valid <= '0';
-        end if;
-
-        if rst = '1' then
-            v_int.state := IDLE;
-            v_int.outstanding := 0;
-            stall_tmp := '0';
         end if;
 
         -- update outputs

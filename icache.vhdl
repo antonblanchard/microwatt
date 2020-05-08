@@ -385,7 +385,7 @@ begin
 	end loop;
 
 	-- Generate the "hit" and "miss" signals for the synchronous blocks
-	req_is_hit  <= i_in.req and is_hit and not flush_in;
+	req_is_hit  <= i_in.req and is_hit and not flush_in and not rst;
 	req_is_miss <= i_in.req and not is_hit and not flush_in;
 	req_hit_way <= hit_way;
 
