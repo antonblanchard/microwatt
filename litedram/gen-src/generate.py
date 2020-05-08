@@ -35,7 +35,7 @@ def build_init_code(build_dir):
 
     # More path fudging
     sw_dir = os.path.join(build_dir, "software");
-    sw_inc_dir = os.path.join(build_dir, "include")
+    sw_inc_dir = os.path.join(sw_dir, "include")
     gen_inc_dir = os.path.join(sw_inc_dir, "generated")
     src_dir = os.path.join(gen_src_dir, "sdram_init")
     lxbios_src_dir = os.path.join(soc_directory, "software", "bios")
@@ -59,7 +59,7 @@ def build_init_code(build_dir):
 
     add_var("BUILD_DIR", sw_dir)
     add_var("SRC_DIR", src_dir)
-    add_var("GENINC_DIR", gen_inc_dir)
+    add_var("GENINC_DIR", sw_inc_dir)
     add_var("LXSRC_DIR", lxbios_src_dir)
     add_var("LXINC_DIR", lxbios_inc_dir)
     write_to_file(os.path.join(gen_inc_dir, "variables.mak"), "".join(env_vars))
@@ -72,7 +72,7 @@ def build_init_code(build_dir):
 
     return os.path.join(sw_dir, "obj", "sdram_init.hex")
 
-def generate_one(t):
+def generate_one(t, mw_init):
 
     print("Generating target:", t)
 
@@ -101,6 +101,12 @@ def generate_one(t):
         if k == "sdram_phy":
             core_config[k] = getattr(litedram_phys, core_config[k])
 
+    # Override values for mw_init
+    if mw_init:
+        core_config["cpu"] = None
+        core_config["csr_expose"] = True
+        core_config["csr_align"] = 64
+
     # Generate core
     if core_config["sdram_phy"] in [litedram_phys.ECP5DDRPHY]:
         platform = LatticePlatform("LFE5UM5G-45F-8BG381C", io=[], toolchain="trellis")
@@ -120,8 +126,7 @@ def generate_one(t):
 
     # Generate init-cpu.txt if any and generate init code if none
     cpu = core_config["cpu"]
-    if cpu is None:
-        print("Microwatt based inits not supported yet !")
+    if mw_init:
         src_wrap_file = os.path.join(gen_src_dir, "wrapper-mw-init.vhdl")
         src_init_file = build_init_code(build_dir)
     else:
@@ -141,8 +146,10 @@ def generate_one(t):
 def main():
 
     targets = ['arty','nexys-video']
+
+    # XXX Set mw_init to False to use a local VexRiscV for memory inits
     for t in targets:
-        generate_one(t)
+        generate_one(t, mw_init = True)
 
     # XXX TODO: Remove build dir unless told not to via cmdline option
     

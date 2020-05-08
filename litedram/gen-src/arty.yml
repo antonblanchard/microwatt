@@ -39,4 +39,5 @@
     # CSR Port -----------------------------------------------------------------
     "csr_expose": "False", # expose access to CSR (I/O) ports
     "csr_align" : 32,      # CSR alignment
+    "csr_base"  : 0xc0100000 # For cpu=None only
 }

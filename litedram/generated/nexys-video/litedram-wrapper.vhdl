@@ -60,8 +60,6 @@ architecture behaviour of litedram_wrapper is
     component litedram_core port (
 	clk                    : in std_ulogic;
 	rst                    : in std_ulogic;
-	serial_tx              : out std_ulogic;
-	serial_rx              : in std_ulogic;
 	pll_locked             : out std_ulogic;
 	ddram_a                : out std_ulogic_vector(DRAM_ALINES-1 downto 0);
 	ddram_ba               : out std_ulogic_vector(2 downto 0);
@@ -82,6 +80,10 @@ architecture behaviour of litedram_wrapper is
 	init_error             : out std_ulogic;
 	user_clk               : out std_ulogic;
 	user_rst               : out std_ulogic;
+	csr_port0_adr          : in std_ulogic_vector(13 downto 0);
+	csr_port0_we           : in std_ulogic;
+	csr_port0_dat_w        : in std_ulogic_vector(7 downto 0);
+	csr_port0_dat_r        : out std_ulogic_vector(7 downto 0);
 	user_port_native_0_cmd_valid   : in std_ulogic;
 	user_port_native_0_cmd_ready   : out std_ulogic;
 	user_port_native_0_cmd_we      : in std_ulogic;
@@ -112,17 +114,84 @@ architecture behaviour of litedram_wrapper is
 
     signal dram_user_reset              : std_ulogic;
 
-    type state_t is (CMD, MWRITE, MREAD);
+    signal csr_port0_adr                : std_ulogic_vector(13 downto 0);
+    signal csr_port0_we                 : std_ulogic;
+    signal csr_port0_dat_w              : std_ulogic_vector(7 downto 0);
+    signal csr_port0_dat_r              : std_ulogic_vector(7 downto 0);
+    signal csr_port_read_comb           : std_ulogic_vector(63 downto 0);
+    signal csr_valid	                : std_ulogic;
+    signal csr_write_valid	        : std_ulogic;
+
+    signal wb_init_in                   : wishbone_master_out;
+    signal wb_init_out                  : wishbone_slave_out;
+
+    type state_t is (CMD, MWRITE, MREAD, CSR);
     signal state : state_t;
+
+    constant INIT_RAM_SIZE : integer := 16384;
+    constant INIT_RAM_ABITS :integer := 14;
+    constant INIT_RAM_FILE : string := "litedram_core.init";
+
+    type ram_t is array(0 to (INIT_RAM_SIZE / 8) - 1) of std_logic_vector(63 downto 0);
+
+    impure function init_load_ram(name : string) return ram_t is
+	file ram_file : text open read_mode is name;
+	variable temp_word : std_logic_vector(63 downto 0);
+	variable temp_ram : ram_t := (others => (others => '0'));
+	variable ram_line : line;
+    begin
+	for i in 0 to (INIT_RAM_SIZE/8)-1 loop
+	    exit when endfile(ram_file);
+	    readline(ram_file, ram_line);
+	    hread(ram_line, temp_word);
+	    temp_ram(i) := temp_word;
+	end loop;
+	return temp_ram;
+    end function;
+
+    signal init_ram : ram_t := init_load_ram(INIT_RAM_FILE);
+
+    attribute ram_style : string;
+    attribute ram_style of init_ram: signal is "block";
 
 begin
 
-    -- Address bit 3 selects the top or bottom half of the data
+    -- BRAM Memory slave
+    init_ram_0: process(system_clk)
+	variable adr : integer;
+    begin
+	if rising_edge(system_clk) then
+	    wb_init_out.ack <= '0';
+	    if (wb_init_in.cyc and wb_init_in.stb) = '1' then
+		adr := to_integer((unsigned(wb_init_in.adr(INIT_RAM_ABITS-1 downto 3))));
+		if wb_init_in.we = '0' then
+		    wb_init_out.dat <= init_ram(adr);
+		else
+		    for i in 0 to 7 loop
+			if wb_init_in.sel(i) = '1' then
+			    init_ram(adr)(((i + 1) * 8) - 1 downto i * 8) <=
+				wb_init_in.dat(((i + 1) * 8) - 1 downto i * 8);
+			end if;
+		    end loop;
+		end if;
+		wb_init_out.ack <= not wb_init_out.ack;
+	    end if;
+	end if;
+    end process;
+
+    wb_init_in.adr <= wb_in.adr;
+    wb_init_in.dat <= wb_in.dat;
+    wb_init_in.sel <= wb_in.sel;
+    wb_init_in.we <= wb_in.we;
+    wb_init_in.stb <= wb_in.stb;
+    wb_init_in.cyc <= wb_in.cyc and wb_is_init;
+
+   -- Address bit 3 selects the top or bottom half of the data
     -- bus (64-bit wishbone vs. 128-bit DRAM interface)
     --
     ad3 <= wb_in.adr(3);
 
-    -- DRAM interface signals
+    -- DRAM data interface signals
     user_port0_cmd_valid <= (wb_in.cyc and wb_in.stb and not wb_is_csr and not wb_is_init)
 			    when state = CMD else '0';
     user_port0_cmd_we <= wb_in.we when state = CMD else '0';
@@ -133,18 +202,32 @@ begin
     user_port0_wdata_we <= wb_in.sel & "00000000" when ad3 = '1' else
 			   "00000000" & wb_in.sel;
 
-    -- Wishbone out signals. CSR and init memory do nothing, just ack
-    wb_out.ack <= '1' when (wb_is_csr = '1' or wb_is_init = '1') else
+    -- DRAM CSR interface signals. We only support access to the bottom byte
+    csr_valid <= wb_in.cyc and wb_in.stb and wb_is_csr;
+    csr_write_valid <= wb_in.we and wb_in.sel(0);
+    csr_port0_adr <= wb_in.adr(13 downto 0) when wb_is_csr = '1' else (others => '0');
+    csr_port0_dat_w <= wb_in.dat(7 downto 0);
+    csr_port0_we <= (csr_valid and csr_write_valid) when state = CMD else '0';
+
+    -- Wishbone out signals
+    wb_out.ack <= '1' when state = CSR else
+		  wb_init_out.ack when wb_is_init = '1' else
 		  user_port0_wdata_ready when state = MWRITE else
 		  user_port0_rdata_valid when state = MREAD else '0';
-    wb_out.dat <= (others => '0') when (wb_is_csr = '1' or wb_is_init = '1') else
+
+    csr_port_read_comb <= x"00000000000000" & csr_port0_dat_r;
+    wb_out.dat <= csr_port_read_comb when wb_is_csr = '1' else
+		  wb_init_out.dat when wb_is_init = '1' else
 		  user_port0_rdata_data(127 downto 64) when ad3 = '1' else
 		  user_port0_rdata_data(63 downto 0);
+    -- We don't do pipelining yet.
     wb_out.stall <= '0' when wb_in.cyc = '0' else not wb_out.ack;
 
-    -- Reset, lift it when init done, no alt core reset
-    system_reset <= dram_user_reset or not init_done;
-    core_alt_reset <= '0';
+    -- Reset ignored, the reset controller use the pll lock signal,
+    -- and alternate core reset address set when DRAM is not initialized.
+    --
+    system_reset <= '0';
+    core_alt_reset <= not init_done;
 
     -- State machine
     sm: process(system_clk)
@@ -156,7 +239,9 @@ begin
 	    else
 		case state is
 		when CMD =>
-		    if (user_port0_cmd_ready and user_port0_cmd_valid) = '1' then
+		    if csr_valid = '1' then
+			state <= CSR;
+		    elsif (user_port0_cmd_ready and user_port0_cmd_valid) = '1' then
 			state <= MWRITE when wb_in.we = '1' else MREAD;
 		    end if;
 		when MWRITE =>
@@ -167,6 +252,8 @@ begin
 		    if user_port0_rdata_valid = '1' then
 			state <= CMD;
 		    end if;
+		when CSR =>
+		    state <= CMD;
 		end case;
 	    end if;
 	end if;
@@ -176,8 +263,6 @@ begin
 	port map(
 	    clk => clk_in,
 	    rst => rst,
-	    serial_tx => serial_tx,
-	    serial_rx => serial_rx,
 	    pll_locked => pll_locked,
 	    ddram_a => ddram_a,
 	    ddram_ba => ddram_ba,
@@ -198,6 +283,10 @@ begin
 	    init_error => init_error,
 	    user_clk => system_clk,
 	    user_rst => dram_user_reset,
+	    csr_port0_adr => csr_port0_adr,
+	    csr_port0_we => csr_port0_we,
+	    csr_port0_dat_w => csr_port0_dat_w,
+	    csr_port0_dat_r => csr_port0_dat_r,
 	    user_port_native_0_cmd_valid => user_port0_cmd_valid,
 	    user_port_native_0_cmd_ready => user_port0_cmd_ready,
 	    user_port_native_0_cmd_we => user_port0_cmd_we,

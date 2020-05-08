@@ -17,6 +17,7 @@ use work.wishbone_types.all;
 -- 0xc0000000: SYSCON
 -- 0xc0002000: UART0
 -- 0xc0004000: XICS ICP
+-- 0xc0100000: DRAM CSRs
 -- 0xf0000000: Block RAM (aliased & repeated)
 -- 0xffff0000: DRAM init code (if any)
 

@@ -45,8 +45,8 @@ entity litedram_wrapper is
 	ddram_cs_n    : out std_ulogic;
 	ddram_dm      : out std_ulogic_vector(1 downto 0);
 	ddram_dq      : inout std_ulogic_vector(15 downto 0);
-	ddram_dqs_p   : out std_ulogic_vector(1 downto 0);
-	ddram_dqs_n   : out std_ulogic_vector(1 downto 0);
+	ddram_dqs_p   : inout std_ulogic_vector(1 downto 0);
+	ddram_dqs_n   : inout std_ulogic_vector(1 downto 0);
 	ddram_clk_p   : out std_ulogic;
 	ddram_clk_n   : out std_ulogic;
 	ddram_cke     : out std_ulogic;
@@ -69,8 +69,8 @@ architecture behaviour of litedram_wrapper is
 	ddram_cs_n             : out std_ulogic;
 	ddram_dm               : out std_ulogic_vector(1 downto 0);
 	ddram_dq               : inout std_ulogic_vector(15 downto 0);
-	ddram_dqs_p            : out std_ulogic_vector(1 downto 0);
-	ddram_dqs_n            : out std_ulogic_vector(1 downto 0);
+	ddram_dqs_p            : inout std_ulogic_vector(1 downto 0);
+	ddram_dqs_n            : inout std_ulogic_vector(1 downto 0);
 	ddram_clk_p            : out std_ulogic;
 	ddram_clk_n            : out std_ulogic;
 	ddram_cke              : out std_ulogic;
@@ -84,17 +84,17 @@ architecture behaviour of litedram_wrapper is
 	csr_port0_we           : in std_ulogic;
 	csr_port0_dat_w        : in std_ulogic_vector(7 downto 0);
 	csr_port0_dat_r        : out std_ulogic_vector(7 downto 0);
-	user_port0_cmd_valid   : in std_ulogic;
-	user_port0_cmd_ready   : out std_ulogic;
-	user_port0_cmd_we      : in std_ulogic;
-	user_port0_cmd_addr    : in std_ulogic_vector(DRAM_ABITS-1 downto 0);
-	user_port0_wdata_valid : in std_ulogic;
-	user_port0_wdata_ready : out std_ulogic;
-	user_port0_wdata_we    : in std_ulogic_vector(15 downto 0);
-	user_port0_wdata_data  : in std_ulogic_vector(127 downto 0);
-	user_port0_rdata_valid : out std_ulogic;
-	user_port0_rdata_ready : in std_ulogic;
-	user_port0_rdata_data  : out std_ulogic_vector(127 downto 0)
+	user_port_native_0_cmd_valid   : in std_ulogic;
+	user_port_native_0_cmd_ready   : out std_ulogic;
+	user_port_native_0_cmd_we      : in std_ulogic;
+	user_port_native_0_cmd_addr    : in std_ulogic_vector(DRAM_ABITS-1 downto 0);
+	user_port_native_0_wdata_valid : in std_ulogic;
+	user_port_native_0_wdata_ready : out std_ulogic;
+	user_port_native_0_wdata_we    : in std_ulogic_vector(15 downto 0);
+	user_port_native_0_wdata_data  : in std_ulogic_vector(127 downto 0);
+	user_port_native_0_rdata_valid : out std_ulogic;
+	user_port_native_0_rdata_ready : in std_ulogic;
+	user_port_native_0_rdata_data  : out std_ulogic_vector(127 downto 0)
 	);
     end component;
     
@@ -130,7 +130,7 @@ architecture behaviour of litedram_wrapper is
 
     constant INIT_RAM_SIZE : integer := 16384;
     constant INIT_RAM_ABITS :integer := 14;
-    constant INIT_RAM_FILE : string := "sdram_init.hex";
+    constant INIT_RAM_FILE : string := "litedram_core.init";
 
     type ram_t is array(0 to (INIT_RAM_SIZE / 8) - 1) of std_logic_vector(63 downto 0);
 
@@ -176,7 +176,7 @@ begin
 		end if;
 		wb_init_out.ack <= not wb_init_out.ack;
 	    end if;
-	end if;	
+	end if;
     end process;
 
     wb_init_in.adr <= wb_in.adr;
@@ -205,7 +205,7 @@ begin
     -- DRAM CSR interface signals. We only support access to the bottom byte
     csr_valid <= wb_in.cyc and wb_in.stb and wb_is_csr;
     csr_write_valid <= wb_in.we and wb_in.sel(0);
-    csr_port0_adr <= wb_in.adr(15 downto 3) & '0' when wb_is_csr = '1' else (others => '0');
+    csr_port0_adr <= wb_in.adr(13 downto 0) when wb_is_csr = '1' else (others => '0');
     csr_port0_dat_w <= wb_in.dat(7 downto 0);
     csr_port0_we <= (csr_valid and csr_write_valid) when state = CMD else '0';
 
@@ -287,17 +287,17 @@ begin
 	    csr_port0_we => csr_port0_we,
 	    csr_port0_dat_w => csr_port0_dat_w,
 	    csr_port0_dat_r => csr_port0_dat_r,
-	    user_port0_cmd_valid => user_port0_cmd_valid,
-	    user_port0_cmd_ready => user_port0_cmd_ready,
-	    user_port0_cmd_we => user_port0_cmd_we,
-	    user_port0_cmd_addr => user_port0_cmd_addr,
-	    user_port0_wdata_valid => user_port0_wdata_valid,
-	    user_port0_wdata_ready => user_port0_wdata_ready,
-	    user_port0_wdata_we => user_port0_wdata_we,
-	    user_port0_wdata_data => user_port0_wdata_data,
-	    user_port0_rdata_valid => user_port0_rdata_valid,
-	    user_port0_rdata_ready => user_port0_rdata_ready,
-	    user_port0_rdata_data => user_port0_rdata_data
+	    user_port_native_0_cmd_valid => user_port0_cmd_valid,
+	    user_port_native_0_cmd_ready => user_port0_cmd_ready,
+	    user_port_native_0_cmd_we => user_port0_cmd_we,
+	    user_port_native_0_cmd_addr => user_port0_cmd_addr,
+	    user_port_native_0_wdata_valid => user_port0_wdata_valid,
+	    user_port_native_0_wdata_ready => user_port0_wdata_ready,
+	    user_port_native_0_wdata_we => user_port0_wdata_we,
+	    user_port_native_0_wdata_data => user_port0_wdata_data,
+	    user_port_native_0_rdata_valid => user_port0_rdata_valid,
+	    user_port_native_0_rdata_ready => user_port0_rdata_ready,
+	    user_port_native_0_rdata_data => user_port0_rdata_data
 	    );
 
 end architecture behaviour;

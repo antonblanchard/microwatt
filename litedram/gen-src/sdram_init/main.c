@@ -121,7 +121,7 @@ void main(void)
 	 * not happy otherwise. The PLL might need to settle ?
 	 */
 	potato_uart_init();
-	for (i = 0; i < 10000; i++)
+	for (i = 0; i < 100000; i++)
 		potato_uart_reg_read(POTATO_CONSOLE_STATUS);
 	printf("\n\nWelcome to Microwatt !\n\n");
 
