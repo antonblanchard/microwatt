@@ -45,6 +45,7 @@ filesets:
       - wishbone_debug_master.vhdl
       - wishbone_bram_wrapper.vhdl
       - soc.vhdl
+      - xics.vhdl
     file_type : vhdlSource-2008
 
   fpga:
