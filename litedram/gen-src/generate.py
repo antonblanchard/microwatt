@@ -115,7 +115,7 @@ def generate_one(t, mw_init):
     else:
         raise ValueError("Unsupported SDRAM PHY: {}".format(core_config["sdram_phy"]))
 
-    soc      = LiteDRAMCore(platform, core_config, integrated_rom_size=0x6000)
+    soc      = LiteDRAMCore(platform, core_config, integrated_rom_size=0x6000, csr_data_width=32)
 
     # Build into build_dir
     builder  = Builder(soc, output_dir=build_dir, compile_gateware=False)

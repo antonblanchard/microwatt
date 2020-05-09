@@ -82,8 +82,8 @@ architecture behaviour of litedram_wrapper is
 	user_rst               : out std_ulogic;
 	csr_port0_adr          : in std_ulogic_vector(13 downto 0);
 	csr_port0_we           : in std_ulogic;
-	csr_port0_dat_w        : in std_ulogic_vector(7 downto 0);
-	csr_port0_dat_r        : out std_ulogic_vector(7 downto 0);
+	csr_port0_dat_w        : in std_ulogic_vector(31 downto 0);
+	csr_port0_dat_r        : out std_ulogic_vector(31 downto 0);
 	user_port_native_0_cmd_valid   : in std_ulogic;
 	user_port_native_0_cmd_ready   : out std_ulogic;
 	user_port_native_0_cmd_we      : in std_ulogic;
@@ -116,8 +116,8 @@ architecture behaviour of litedram_wrapper is
 
     signal csr_port0_adr                : std_ulogic_vector(13 downto 0);
     signal csr_port0_we                 : std_ulogic;
-    signal csr_port0_dat_w              : std_ulogic_vector(7 downto 0);
-    signal csr_port0_dat_r              : std_ulogic_vector(7 downto 0);
+    signal csr_port0_dat_w              : std_ulogic_vector(31 downto 0);
+    signal csr_port0_dat_r              : std_ulogic_vector(31 downto 0);
     signal csr_port_read_comb           : std_ulogic_vector(63 downto 0);
     signal csr_valid	                : std_ulogic;
     signal csr_write_valid	        : std_ulogic;
@@ -205,8 +205,8 @@ begin
     -- DRAM CSR interface signals. We only support access to the bottom byte
     csr_valid <= wb_in.cyc and wb_in.stb and wb_is_csr;
     csr_write_valid <= wb_in.we and wb_in.sel(0);
-    csr_port0_adr <= wb_in.adr(13 downto 0) when wb_is_csr = '1' else (others => '0');
-    csr_port0_dat_w <= wb_in.dat(7 downto 0);
+    csr_port0_adr <= wb_in.adr(15 downto 2) when wb_is_csr = '1' else (others => '0');
+    csr_port0_dat_w <= wb_in.dat(31 downto 0);
     csr_port0_we <= (csr_valid and csr_write_valid) when state = CMD else '0';
 
     -- Wishbone out signals
@@ -215,7 +215,7 @@ begin
 		  user_port0_wdata_ready when state = MWRITE else
 		  user_port0_rdata_valid when state = MREAD else '0';
 
-    csr_port_read_comb <= x"00000000000000" & csr_port0_dat_r;
+    csr_port_read_comb <= x"00000000" & csr_port0_dat_r;
     wb_out.dat <= csr_port_read_comb when wb_is_csr = '1' else
 		  wb_init_out.dat when wb_is_init = '1' else
 		  user_port0_rdata_data(127 downto 64) when ad3 = '1' else
