@@ -511,7 +511,33 @@ static void load(const char *filename, uint64_t addr)
 
 static void usage(const char *cmd)
 {
-	fprintf(stderr, "Usage: %s <command> <args>\n", cmd);
+	fprintf(stderr, "Usage: %s -b <jtag|sim> <command> <args>\n", cmd);
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, " CPU core:\n");
+	fprintf(stderr, "  start\n");
+	fprintf(stderr, "  stop\n");
+	fprintf(stderr, "  step\n");
+	fprintf(stderr, "  creset			core reset\n");
+	fprintf(stderr, "  icreset			icache reset\n");
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, " Memory:\n");
+	fprintf(stderr, "  mr <hex addr>\n");
+	fprintf(stderr, "  mw <hex addr> <hex value>\n");
+	fprintf(stderr, "  load <file> [addr]		If omitted address is 0\n");
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, " Registers:\n");
+	fprintf(stderr, "  gpr <reg> [count]\n");
+	fprintf(stderr, "  status\n");
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, " JTAG:\n");
+	fprintf(stderr, "  dmiread <hex addr>\n");
+	fprintf(stderr, "  dmiwrite <hex addr> <hex value>\n");
+	fprintf(stderr, "  quit\n");
+
 	exit(1);
 }
 
