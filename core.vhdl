@@ -41,12 +41,9 @@ entity core is
 end core;
 
 architecture behave of core is
-    -- fetch signals
-    signal fetch2_to_decode1: Fetch2ToDecode1Type;
-
     -- icache signals
     signal fetch1_to_icache : Fetch1ToIcacheType;
-    signal icache_to_fetch2 : IcacheToFetch2Type;
+    signal icache_to_decode1 : IcacheToDecode1Type;
     signal mmu_to_icache : MmuToIcacheType;
 
     -- decode signals
@@ -83,7 +80,7 @@ architecture behave of core is
     -- local signals
     signal fetch1_stall_in : std_ulogic;
     signal icache_stall_out : std_ulogic;
-    signal fetch2_stall_in : std_ulogic;
+    signal icache_stall_in : std_ulogic;
     signal decode1_stall_in : std_ulogic;
     signal decode2_stall_in : std_ulogic;
     signal decode2_stall_out : std_ulogic;
@@ -145,7 +142,6 @@ architecture behave of core is
     attribute keep_hierarchy : string;
     attribute keep_hierarchy of fetch1_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of icache_0 : label is keep_h(DISABLE_FLATTEN);
-    attribute keep_hierarchy of fetch2_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of decode1_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of decode2_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of register_file_0 : label is keep_h(DISABLE_FLATTEN);
@@ -206,27 +202,18 @@ begin
             clk => clk,
             rst => rst_icache,
             i_in => fetch1_to_icache,
-            i_out => icache_to_fetch2,
+            i_out => icache_to_decode1,
             m_in => mmu_to_icache,
             flush_in => flush,
             inval_in => dbg_icache_rst or ex1_icache_inval,
+            stall_in => icache_stall_in,
 	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
             wishbone_in => wishbone_insn_in,
             log_out => log_data(96 downto 43)
             );
 
-    fetch2_0: entity work.fetch2
-        port map (
-            clk => clk,
-            rst => rst_fetch2,
-            stall_in => fetch2_stall_in,
-            flush_in => flush,
-            i_in => icache_to_fetch2,
-            f_out => fetch2_to_decode1
-            );
-
-    fetch2_stall_in <= decode2_stall_out;
+    icache_stall_in <= decode2_stall_out;
 
     decode1_0: entity work.decode1
         port map (
@@ -234,7 +221,7 @@ begin
             rst => rst_dec1,
             stall_in => decode1_stall_in,
             flush_in => flush,
-            f_in => fetch2_to_decode1,
+            f_in => icache_to_decode1,
             d_out => decode1_to_decode2,
             log_out => log_data(109 downto 97)
             );

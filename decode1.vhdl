@@ -14,9 +14,8 @@ entity decode1 is
         stall_in : in std_ulogic;
         flush_in : in std_ulogic;
 
-        f_in     : in Fetch2ToDecode1Type;
+        f_in     : in IcacheToDecode1Type;
         d_out    : out Decode1ToDecode2Type;
-
         log_out  : out std_ulogic_vector(12 downto 0)
 	);
 end entity decode1;

@@ -9,7 +9,6 @@ filesets:
       - wishbone_types.vhdl
       - common.vhdl
       - fetch1.vhdl
-      - fetch2.vhdl
       - decode1.vhdl
       - helpers.vhdl
       - decode2.vhdl

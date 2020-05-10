@@ -13,7 +13,7 @@ architecture behave of icache_tb is
     signal rst          : std_ulogic;
 
     signal i_out        : Fetch1ToIcacheType;
-    signal i_in         : IcacheToFetch2Type;
+    signal i_in         : IcacheToDecode1Type;
 
     signal m_out        : MmuToIcacheType;
 
@@ -33,6 +33,7 @@ begin
             i_in => i_out,
             i_out => i_in,
             m_in => m_out,
+            stall_in => '0',
 	    flush_in => '0',
             inval_in => '0',
             wishbone_out => wb_bram_in,

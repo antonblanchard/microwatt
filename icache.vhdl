@@ -48,10 +48,11 @@ entity icache is
         rst          : in std_ulogic;
 
         i_in         : in Fetch1ToIcacheType;
-        i_out        : out IcacheToFetch2Type;
+        i_out        : out IcacheToDecode1Type;
 
         m_in         : in MmuToIcacheType;
 
+        stall_in     : in std_ulogic;
 	stall_out    : out std_ulogic;
 	flush_in     : in std_ulogic;
 	inval_in     : in std_ulogic;
@@ -366,7 +367,7 @@ begin
 		);
 	process(all)
 	begin
-	    do_read <= '1';
+	    do_read <= not stall_in;
 	    do_write <= '0';
 	    if wishbone_in.ack = '1' and r.store_way = i then
 		do_write <= '1';
@@ -533,25 +534,32 @@ begin
     icache_hit : process(clk)
     begin
         if rising_edge(clk) then
-	    -- On a hit, latch the request for the next cycle, when the BRAM data
-	    -- will be available on the cache_out output of the corresponding way
-	    --
-            r.hit_valid <= req_is_hit;
-            -- Send stop marks and NIA down regardless of validity
-            r.hit_smark <= i_in.stop_mark;
-            r.hit_nia <= i_in.nia;
-	    if req_is_hit = '1' then
-		r.hit_way <= req_hit_way;
-		r.hit_smark <= i_in.stop_mark;
+            -- keep outputs to fetch2 unchanged on a stall
+            -- except that flush or reset sets valid to 0
+            if stall_in = '1' then
+                if rst = '1' or flush_in = '1' then
+                    r.hit_valid <= '0';
+                end if;
+            else
+                -- On a hit, latch the request for the next cycle, when the BRAM data
+                -- will be available on the cache_out output of the corresponding way
+                --
+                r.hit_valid <= req_is_hit;
+                -- Send stop marks and NIA down regardless of validity
+                r.hit_smark <= i_in.stop_mark;
+                r.hit_nia <= i_in.nia;
+                if req_is_hit = '1' then
+                    r.hit_way <= req_hit_way;
 
-		report "cache hit nia:" & to_hstring(i_in.nia) &
-                    " IR:" & std_ulogic'image(i_in.virt_mode) &
-		    " SM:" & std_ulogic'image(i_in.stop_mark) &
-		    " idx:" & integer'image(req_index) &
-		    " tag:" & to_hstring(req_tag) &
-		    " way:" & integer'image(req_hit_way) &
-                    " RA:" & to_hstring(real_addr);
-	    end if;
+                    report "cache hit nia:" & to_hstring(i_in.nia) &
+                        " IR:" & std_ulogic'image(i_in.virt_mode) &
+                        " SM:" & std_ulogic'image(i_in.stop_mark) &
+                        " idx:" & integer'image(req_index) &
+                        " tag:" & to_hstring(req_tag) &
+                        " way:" & integer'image(req_hit_way) &
+                        " RA:" & to_hstring(real_addr);
+                end if;
+            end if;
 	end if;
     end process;
 
@@ -674,7 +682,7 @@ begin
             -- TLB miss and protection fault processing
             if rst = '1' or flush_in = '1' or m_in.tlbld = '1' then
                 r.fetch_failed <= '0';
-            elsif i_in.req = '1' and access_ok = '0' then
+            elsif i_in.req = '1' and access_ok = '0' and stall_in = '0' then
                 r.fetch_failed <= '1';
             end if;
 	end if;

@@ -96,23 +96,13 @@ package common is
 	nia: std_ulogic_vector(63 downto 0);
     end record;
 
-    type IcacheToFetch2Type is record
+    type IcacheToDecode1Type is record
 	valid: std_ulogic;
 	stop_mark: std_ulogic;
         fetch_failed: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
     end record;
-
-    type Fetch2ToDecode1Type is record
-	valid: std_ulogic;
-	stop_mark : std_ulogic;
-        fetch_failed: std_ulogic;
-	nia: std_ulogic_vector(63 downto 0);
-	insn: std_ulogic_vector(31 downto 0);
-    end record;
-    constant Fetch2ToDecode1Init : Fetch2ToDecode1Type := (valid => '0', stop_mark => '0', fetch_failed => '0',
-                                                           nia => (others => '0'), insn => (others => '0'));
 
     type Decode1ToDecode2Type is record
 	valid: std_ulogic;
