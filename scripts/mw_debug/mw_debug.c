@@ -1,3 +1,6 @@
+#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +18,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <urjtag/urjtag.h>
+#include <inttypes.h>
 
 #define DBG_WB_ADDR		0x00
 #define DBG_WB_DATA		0x01
@@ -104,6 +108,7 @@ static int sim_init(const char *target)
 
 static int sim_reset(void)
 {
+	return 0;
 }
 
 static void add_bits(uint8_t **p, int *b, uint64_t d, int c)
@@ -152,7 +157,7 @@ static int sim_command(uint8_t op, uint8_t addr, uint64_t *data)
 {
 	uint8_t buf[16], *p;
 	uint64_t d = data ? *data : 0;
-	int r, s, b = 0;
+	int r, b = 0;
 
 	memset(buf, 0, 16);
 	p = buf+1;
@@ -280,6 +285,7 @@ static int jtag_init(const char *target)
 
 static int jtag_reset(void)
 {
+	return 0;
 }
 
 static int jtag_command(uint8_t op, uint8_t addr, uint64_t *data)
@@ -382,8 +388,8 @@ static void core_status(void)
 	else if (stat & DBG_CORE_STAT_TERM)
 		statstr = "odd state (TERM but no STOP)";
 	printf("Core: %s%s\n", statstr, statstr2);
-	printf(" NIA: %016llx\n", (unsigned long long)nia);
-	printf(" MSR: %016llx\n", msr);
+	printf(" NIA: %016" PRIx64 "\n", nia);
+	printf(" MSR: %016" PRIx64 "\n", msr);
 }
 
 static void core_stop(void)
@@ -438,12 +444,12 @@ static void gpr_read(uint64_t reg, uint64_t count)
 		data = 0xdeadbeef;
 		check(dmi_read(DBG_CORE_GSPR_DATA, &data), "reading GPR data");
 		if (reg <= 31)
-			printf("r%d", reg);
+			printf("r%"PRId64, reg);
 		else if ((reg - 32) < sizeof(fast_spr_names) / sizeof(fast_spr_names[0]))
 			printf("%s", fast_spr_names[reg - 32]);
 		else
-			printf("gspr%d", reg);
-		printf(":\t%016llx\n", data);
+			printf("gspr%"PRId64, reg);
+		printf(":\t%016"PRIx64"\n", data);
 	}
 }
 
