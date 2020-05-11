@@ -18,6 +18,8 @@ architecture behave of core_tb is
         -- Dummy DRAM
 	signal wb_dram_in : wishbone_master_out;
 	signal wb_dram_out : wishbone_slave_out;
+	signal wb_dram_ctrl_in : wb_io_master_out;
+	signal wb_dram_ctrl_out : wb_io_slave_out;
 begin
 
     soc0: entity work.soc
@@ -35,6 +37,8 @@ begin
 	    uart0_txd => open,
 	    wb_dram_in => wb_dram_in,
 	    wb_dram_out => wb_dram_out,
+	    wb_dram_ctrl_in => wb_dram_ctrl_in,
+	    wb_dram_ctrl_out => wb_dram_ctrl_out,
 	    alt_reset => '0'
 	    );
 
@@ -59,6 +63,9 @@ begin
     -- Dummy DRAM
     wb_dram_out.ack <= wb_dram_in.cyc and wb_dram_in.stb;
     wb_dram_out.dat <= x"FFFFFFFFFFFFFFFF";
-    wb_dram_out.stall <= wb_dram_in.cyc and not wb_dram_out.ack;
+    wb_dram_out.stall <= '0';
+    wb_dram_ctrl_out.ack <= wb_dram_ctrl_in.cyc and wb_dram_ctrl_in.stb;
+    wb_dram_ctrl_out.dat <= x"FFFFFFFF";
+    wb_dram_ctrl_out.stall <= '0';
 
 end;

@@ -15,18 +15,20 @@ entity litedram_wrapper is
     port(
 	-- LiteDRAM generates the system clock and reset
 	-- from the input clkin
-	clk_in        : in std_ulogic;
-	rst           : in std_ulogic;
-	system_clk    : out std_ulogic;
-	system_reset  : out std_ulogic;
-	core_alt_reset : out std_ulogic;
-	pll_locked    : out std_ulogic;
+	clk_in          : in std_ulogic;
+	rst             : in std_ulogic;
+	system_clk      : out std_ulogic;
+	system_reset    : out std_ulogic;
+	core_alt_reset  : out std_ulogic;
+	pll_locked      : out std_ulogic;
 
 	-- Wishbone ports:
-	wb_in         : in wishbone_master_out;
-	wb_out        : out wishbone_slave_out;
-	wb_is_ctrl    : in std_ulogic;
-	wb_is_init    : in std_ulogic;
+	wb_in           : in wishbone_master_out;
+	wb_out          : out wishbone_slave_out;
+	wb_ctrl_in      : in wb_io_master_out;
+	wb_ctrl_out     : out wb_io_slave_out;
+	wb_ctrl_is_csr  : in std_ulogic;
+	wb_ctrl_is_init : in std_ulogic;
 
 	-- Init core serial debug
 	serial_tx     : out std_ulogic;
@@ -128,8 +130,8 @@ architecture behaviour of litedram_wrapper is
     signal wb_ctrl_ack                  : std_ulogic;
     signal wb_ctrl_we                   : std_ulogic;
 
-    signal wb_init_in                   : wishbone_master_out;
-    signal wb_init_out                  : wishbone_slave_out;
+    signal wb_init_in                   : wb_io_master_out;
+    signal wb_init_out                  : wb_io_slave_out;
 
     type state_t is (CMD, MWRITE, MREAD);
     signal state : state_t;
@@ -138,7 +140,7 @@ architecture behaviour of litedram_wrapper is
     constant INIT_RAM_ABITS :integer := 14;
     constant INIT_RAM_FILE : string := "litedram_core.init";
 
-    type ram_t is array(0 to (INIT_RAM_SIZE / 8) - 1) of std_logic_vector(63 downto 0);
+    type ram_t is array(0 to (INIT_RAM_SIZE / 4) - 1) of std_logic_vector(31 downto 0);
 
     impure function init_load_ram(name : string) return ram_t is
 	file ram_file : text open read_mode is name;
@@ -150,7 +152,8 @@ architecture behaviour of litedram_wrapper is
 	    exit when endfile(ram_file);
 	    readline(ram_file, ram_line);
 	    hread(ram_line, temp_word);
-	    temp_ram(i) := temp_word;
+	    temp_ram(i*2) := temp_word(31 downto 0);
+	    temp_ram(i*2+1) := temp_word(63 downto 32);
 	end loop;
 	return temp_ram;
     end function;
@@ -162,79 +165,93 @@ architecture behaviour of litedram_wrapper is
 
 begin
 
-    -- BRAM Memory slave
+    -- alternate core reset address set when DRAM is not initialized.
+    core_alt_reset <= not init_done;
+
+    -- BRAM Memory slave. TODO: Pipeline it with an output buffer
+    -- to improve timing
     init_ram_0: process(system_clk)
 	variable adr : integer;
     begin
 	if rising_edge(system_clk) then
 	    wb_init_out.ack <= '0';
 	    if (wb_init_in.cyc and wb_init_in.stb) = '1' then
-		adr := to_integer((unsigned(wb_init_in.adr(INIT_RAM_ABITS-1 downto 3))));
+		adr := to_integer((unsigned(wb_init_in.adr(INIT_RAM_ABITS-1 downto 2))));
 		if wb_init_in.we = '0' then
 		    wb_init_out.dat <= init_ram(adr);
 		else
-		    for i in 0 to 7 loop
+		    for i in 0 to 3 loop
 			if wb_init_in.sel(i) = '1' then
 			    init_ram(adr)(((i + 1) * 8) - 1 downto i * 8) <=
 				wb_init_in.dat(((i + 1) * 8) - 1 downto i * 8);
 			end if;
 		    end loop;
 		end if;
-		wb_init_out.ack <= not wb_init_out.ack;
+		wb_init_out.ack <= '1';
 	    end if;
 	end if;
     end process;
 
-    wb_init_in.adr <= wb_in.adr;
-    wb_init_in.dat <= wb_in.dat;
-    wb_init_in.sel <= wb_in.sel;
-    wb_init_in.we <= wb_in.we;
-    wb_init_in.stb <= wb_in.stb;
-    wb_init_in.cyc <= wb_in.cyc and wb_is_init;
+    --
+    -- Control bus wishbone: This muxes the wishbone to the CSRs
+    -- and an internal small one to the init BRAM
+    --
 
-   -- Address bit 3 selects the top or bottom half of the data
+    -- Init DRAM wishbone IN signals
+    wb_init_in.adr <= wb_ctrl_in.adr;
+    wb_init_in.dat <= wb_ctrl_in.dat;
+    wb_init_in.sel <= wb_ctrl_in.sel;
+    wb_init_in.we  <= wb_ctrl_in.we;
+    wb_init_in.stb <= wb_ctrl_in.stb;
+    wb_init_in.cyc <= wb_ctrl_in.cyc and wb_ctrl_is_init;
+
+    -- DRAM CSR IN signals
+    wb_ctrl_adr   <= x"0000" & wb_ctrl_in.adr(15 downto 2);
+    wb_ctrl_dat_w <= wb_ctrl_in.dat;
+    wb_ctrl_sel   <= wb_ctrl_in.sel;
+    wb_ctrl_we    <= wb_ctrl_in.we;
+    wb_ctrl_cyc   <= wb_ctrl_in.cyc and wb_ctrl_is_csr;
+    wb_ctrl_stb   <= wb_ctrl_in.stb and wb_ctrl_is_csr;
+
+    -- Ctrl bus wishbone OUT signals
+    wb_ctrl_out.ack   <= wb_ctrl_ack when wb_ctrl_is_csr = '1'
+                         else wb_init_out.ack;
+    wb_ctrl_out.dat   <= wb_ctrl_dat_r when wb_ctrl_is_csr = '1'
+                         else wb_init_out.dat;
+    wb_ctrl_out.stall <= wb_init_out.stall when wb_ctrl_is_init else
+                         '0' when wb_ctrl_in.cyc = '0' else not wb_ctrl_ack;
+
+    --
+    -- Data bus wishbone to LiteDRAM native port
+    --
+    -- Address bit 3 selects the top or bottom half of the data
     -- bus (64-bit wishbone vs. 128-bit DRAM interface)
+    --
+    -- XXX TODO: Figure out how to pipeline this
     --
     ad3 <= wb_in.adr(3);
 
-    -- DRAM data interface signals
-    user_port0_cmd_valid <= (wb_in.cyc and wb_in.stb and not wb_is_ctrl and not wb_is_init)
-			    when state = CMD else '0';
-    user_port0_cmd_we <= wb_in.we when state = CMD else '0';
+    -- Wishbone port IN signals
+    user_port0_cmd_valid   <= wb_in.cyc and wb_in.stb when state = CMD else '0';
+    user_port0_cmd_we      <= wb_in.we when state = CMD else '0';
     user_port0_wdata_valid <= '1' when state = MWRITE else '0';
     user_port0_rdata_ready <= '1' when state = MREAD else '0';
-    user_port0_cmd_addr <= wb_in.adr(DRAM_ABITS+3 downto 4);
-    user_port0_wdata_data <= wb_in.dat & wb_in.dat;
-    user_port0_wdata_we <= wb_in.sel & "00000000" when ad3 = '1' else
-			   "00000000" & wb_in.sel;
+    user_port0_cmd_addr    <= wb_in.adr(DRAM_ABITS+3 downto 4);
+    user_port0_wdata_data  <= wb_in.dat & wb_in.dat;
+    user_port0_wdata_we    <= wb_in.sel & "00000000" when ad3 = '1' else
+                              "00000000" & wb_in.sel;
 
-    -- DRAM ctrl interface signals
-    wb_ctrl_adr <= x"0000" & wb_in.adr(15 downto 2);
-    wb_ctrl_dat_w <= wb_in.dat(31 downto 0);
-    wb_ctrl_sel <= wb_in.sel(3 downto 0);
-    wb_ctrl_cyc <= wb_in.cyc and wb_is_ctrl;
-    wb_ctrl_stb <= wb_in.stb and wb_is_ctrl;
-    wb_ctrl_we <= wb_in.we;
-
-    -- Wishbone out signals
-    wb_out.ack <= wb_ctrl_ack when wb_is_ctrl ='1' else
-		  wb_init_out.ack when wb_is_init = '1' else
-		  user_port0_wdata_ready when state = MWRITE else
+    -- Wishbone OUT signals
+    wb_out.ack <= user_port0_wdata_ready when state = MWRITE else
 		  user_port0_rdata_valid when state = MREAD else '0';
 
-    wb_out.dat <= (x"00000000" & wb_ctrl_dat_r) when wb_is_ctrl = '1' else
-		  wb_init_out.dat when wb_is_init = '1' else
-		  user_port0_rdata_data(127 downto 64) when ad3 = '1' else
+    wb_out.dat <= user_port0_rdata_data(127 downto 64) when ad3 = '1' else
 		  user_port0_rdata_data(63 downto 0);
+
     -- We don't do pipelining yet.
     wb_out.stall <= '0' when wb_in.cyc = '0' else not wb_out.ack;
 
-    -- Reset ignored, the reset controller use the pll lock signal,
-    -- and alternate core reset address set when DRAM is not initialized.
-    --
-    core_alt_reset <= not init_done;
-
-    -- State machine
+    -- DRAM user port State machine
     sm: process(system_clk)
     begin
 	
@@ -255,7 +272,7 @@ begin
 		    if user_port0_rdata_valid = '1' then
 			state <= CMD;
 		    end if;
-		end case;
+                end case;
 	    end if;
 	end if;
     end process;

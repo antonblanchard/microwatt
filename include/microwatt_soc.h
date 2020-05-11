@@ -7,12 +7,13 @@
 
 #define MEMORY_BASE     0x00000000  /* "Main" memory alias, either BRAM or DRAM */
 #define DRAM_BASE       0x40000000  /* DRAM if present */
+#define BRAM_BASE       0x80000000  /* Internal BRAM */
+
 #define SYSCON_BASE	0xc0000000  /* System control regs */
 #define UART_BASE	0xc0002000  /* UART */
 #define XICS_BASE   	0xc0004000  /* Interrupt controller */
 #define DRAM_CTRL_BASE	0xc0100000  /* LiteDRAM control registers */
-#define BRAM_BASE       0xf0000000  /* Internal BRAM */
-#define DRAM_INIT_BASE  0xffff0000  /* Internal DRAM init firmware */
+#define DRAM_INIT_BASE  0xf0000000  /* Internal DRAM init firmware */
 
 /*
  * Register definitions for the syscon registers

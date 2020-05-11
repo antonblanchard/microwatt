@@ -12,14 +12,17 @@ use work.wishbone_types.all;
 
 -- Memory map. *** Keep include/microwatt_soc.h updated on changes ***
 --
+-- Main bus:
 -- 0x00000000: Block RAM (MEMORY_SIZE) or DRAM depending on syscon
 -- 0x40000000: DRAM (when present)
+-- 0x80000000: Block RAM (aliased & repeated)
+
+-- IO Bus:
 -- 0xc0000000: SYSCON
 -- 0xc0002000: UART0
 -- 0xc0004000: XICS ICP
 -- 0xc0100000: LiteDRAM control (CSRs)
--- 0xf0000000: Block RAM (aliased & repeated)
--- 0xffff0000: DRAM init code (if any)
+-- 0xf0000000: DRAM init code (if any)
 
 entity soc is
     generic (
@@ -37,10 +40,12 @@ entity soc is
 	system_clk   : in  std_ulogic;
 
 	-- DRAM controller signals
-	wb_dram_in   : out wishbone_master_out;
-	wb_dram_out  : in wishbone_slave_out;
-	wb_dram_ctrl : out std_ulogic;
-	wb_dram_init : out std_ulogic;
+	wb_dram_in       : out wishbone_master_out;
+	wb_dram_out      : in wishbone_slave_out;
+	wb_dram_ctrl_in  : out wb_io_master_out;
+	wb_dram_ctrl_out : in wb_io_slave_out;
+	wb_dram_is_csr   : out std_ulogic;
+	wb_dram_is_init  : out std_ulogic;
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
@@ -71,20 +76,28 @@ architecture behaviour of soc is
     signal wb_master_in       : wishbone_slave_out;
     signal wb_master_out      : wishbone_master_out;
 
+    -- Main "IO" bus, from main slave decoder to the latch
+    signal wb_io_in     : wishbone_master_out;
+    signal wb_io_out    : wishbone_slave_out;
+
+    -- Secondary (smaller) IO bus after the IO bus latch
+    signal wb_sio_out    : wb_io_master_out;
+    signal wb_sio_in     : wb_io_slave_out;
+
     -- Syscon signals
     signal dram_at_0     : std_ulogic;
-    signal do_core_reset : std_ulogic;
-    signal wb_syscon_in  : wishbone_master_out;
-    signal wb_syscon_out : wishbone_slave_out;
+    signal do_core_reset    : std_ulogic;
+    signal wb_syscon_in  : wb_io_master_out;
+    signal wb_syscon_out : wb_io_slave_out;
 
     -- UART0 signals:
-    signal wb_uart0_in   : wishbone_master_out;
-    signal wb_uart0_out  : wishbone_slave_out;
+    signal wb_uart0_in   : wb_io_master_out;
+    signal wb_uart0_out  : wb_io_slave_out;
     signal uart_dat8     : std_ulogic_vector(7 downto 0);
 
     -- XICS0 signals:
-    signal wb_xics0_in   : wishbone_master_out;
-    signal wb_xics0_out  : wishbone_slave_out;
+    signal wb_xics0_in   : wb_io_master_out;
+    signal wb_xics0_out  : wb_io_slave_out;
     signal int_level_in  : std_ulogic_vector(15 downto 0);
 
     signal xics_to_execute1 : XicsToExecute1Type;
@@ -141,7 +154,7 @@ begin
 	generic map(
 	    SIM => SIM,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
-	    ALT_RESET_ADDRESS => (15 downto 0 => '0', others => '1')
+	    ALT_RESET_ADDRESS => (27 downto 0 => '0', others => '1')
 	    )
 	port map(
 	    clk => system_clk,
@@ -180,90 +193,271 @@ begin
 	    wb_slave_in => wb_master_in
 	    );
 
-    -- Wishbone slaves address decoder & mux
-    slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out, wb_dram_out, wb_syscon_out)
-	-- Selected slave
-	type slave_type is (SLAVE_SYSCON,
-			    SLAVE_UART,
-			    SLAVE_BRAM,
-			    SLAVE_DRAM,
-			    SLAVE_DRAM_INIT,
-			    SLAVE_DRAM_CTRL,
-			    SLAVE_ICP_0,
-			    SLAVE_NONE);
-	variable slave : slave_type;
+    -- Top level Wishbone slaves address decoder & mux
+    --
+    -- From CPU to BRAM, DRAM, IO, selected on top 3 bits and dram_at_0
+    -- 0000  - BRAM
+    -- 0001  - DRAM
+    -- 01xx  - DRAM
+    -- 10xx  - BRAM
+    -- 11xx  - IO
+    --
+    slave_top_intercon: process(wb_master_out, wb_bram_out, wb_dram_out, wb_io_out, dram_at_0)
+	type slave_top_type is (SLAVE_TOP_BRAM,
+                                SLAVE_TOP_DRAM,
+                                SLAVE_TOP_IO);
+	variable slave_top : slave_top_type;
+        variable top_decode : std_ulogic_vector(3 downto 0);
     begin
-	-- Simple address decoder.
-	slave := SLAVE_NONE;
-	-- Simple address decoder. Ignore top bits to save silicon for now
-	slave := SLAVE_NONE;
-	if    std_match(wb_master_out.adr, x"0-------") then
-	    slave := SLAVE_DRAM when HAS_DRAM and dram_at_0 = '1' else
-		     SLAVE_BRAM;
-	elsif std_match(wb_master_out.adr, x"FFFF----") then
-	    slave := SLAVE_DRAM_INIT;
-	elsif std_match(wb_master_out.adr, x"F-------") then
-	    slave := SLAVE_BRAM;
-	elsif std_match(wb_master_out.adr, x"4-------") and HAS_DRAM then
-	    slave := SLAVE_DRAM;
-	elsif std_match(wb_master_out.adr, x"C0000---") then
-	    slave := SLAVE_SYSCON;
-	elsif std_match(wb_master_out.adr, x"C0002---") then
-	    slave := SLAVE_UART;
-	elsif std_match(wb_master_out.adr, x"C01-----") then
-	    slave := SLAVE_DRAM_CTRL;
-	elsif std_match(wb_master_out.adr, x"C0004---") then
-	    slave := SLAVE_ICP_0;
+	-- Top-level address decoder
+        top_decode := wb_master_out.adr(31 downto 29) & dram_at_0;
+        slave_top := SLAVE_TOP_BRAM;
+	if    std_match(top_decode, "0000") then
+	    slave_top := SLAVE_TOP_BRAM;
+	elsif std_match(top_decode, "0001") then
+	    slave_top := SLAVE_TOP_DRAM;
+	elsif std_match(top_decode, "01--") then
+	    slave_top := SLAVE_TOP_DRAM;
+	elsif std_match(top_decode, "10--") then
+	    slave_top := SLAVE_TOP_BRAM;
+	elsif std_match(top_decode, "11--") then
+	    slave_top := SLAVE_TOP_IO;
 	end if;
 
-	-- Wishbone muxing. Defaults:
+	-- Top level wishbone muxing.
 	wb_bram_in <= wb_master_out;
 	wb_bram_in.cyc  <= '0';
-	wb_uart0_in <= wb_master_out;
+	wb_dram_in <= wb_master_out;
+	wb_dram_in.cyc  <= '0';
+	wb_io_in <= wb_master_out;
+	wb_io_in.cyc  <= '0';
+	case slave_top is
+	when SLAVE_TOP_BRAM =>
+	    wb_bram_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_bram_out;
+	when SLAVE_TOP_DRAM =>
+	    wb_dram_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_dram_out;
+	when SLAVE_TOP_IO =>
+	    wb_io_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_io_out;
+	end case;
+    end process slave_top_intercon;
+
+    -- IO wishbone slave 64->32 bits converter
+    --
+    -- For timing reasons, this adds a one cycle latch on the way both
+    -- in and out. This relaxes timing and routing pressure on the "main"
+    -- memory bus by moving all simple IOs to a slower 32-bit bus.
+    --
+    -- This implementation is rather dumb at the moment, no stash buffer,
+    -- so we stall whenever that latch is busy. This can be improved.
+    --
+    slave_io_latch: process(system_clk)
+        -- State
+        type state_t is (IDLE, WAIT_ACK_BOT, WAIT_ACK_TOP);
+        variable state : state_t;
+
+        -- Misc
+        variable has_top : boolean;
+        variable has_bot : boolean;
+    begin
+        if rising_edge(system_clk) then
+            if (rst) then
+                state := IDLE;
+                wb_io_out.ack <= '0';
+                wb_io_out.stall <= '0';
+                wb_sio_out.cyc <= '0';
+                wb_sio_out.stb <= '0';
+                has_top := false;
+                has_bot := false;
+            else
+                case state is
+                when IDLE =>
+                    -- Clear ACK in case it was set
+                    wb_io_out.ack <= '0';
+
+                    -- Do we have a cycle ?
+                    if wb_io_in.cyc = '1' and wb_io_in.stb = '1' then
+                        -- Stall master until we are done, we are't (yet) pipelining
+                        -- this, it's all slow IOs.
+                        wb_io_out.stall <= '1';
+
+                        -- Start cycle downstream
+                        wb_sio_out.cyc <= '1';
+                        wb_sio_out.stb <= '1';
+
+                        -- Copy write enable to IO out, copy address as well
+                        wb_sio_out.we <= wb_io_in.we;
+                        wb_sio_out.adr <= wb_io_in.adr(wb_sio_out.adr'left downto 3) & "000";
+
+                        -- Do we have a top word and/or a bottom word ?
+                        has_top := wb_io_in.sel(7 downto 4) /= "0000";
+                        has_bot := wb_io_in.sel(3 downto 0) /= "0000";
+
+                        -- If we have a bottom word, handle it first, otherwise
+                        -- send the top word down. XXX Split the actual mux out
+                        -- and only generate a control signal.
+                        if has_bot then
+                            if wb_io_in.we = '1' then
+                                wb_sio_out.dat <= wb_io_in.dat(31 downto 0);
+                            end if;
+                            wb_sio_out.sel <= wb_io_in.sel(3 downto 0);
+
+                            -- Wait for ack
+                            state := WAIT_ACK_BOT;
+                        else
+                            if wb_io_in.we = '1' then
+                                wb_sio_out.dat <= wb_io_in.dat(63 downto 32);
+                            end if;
+                            wb_sio_out.sel <= wb_io_in.sel(7 downto 4);
+
+                            -- Bump address
+                            wb_sio_out.adr(2) <= '1';
+
+                            -- Wait for ack
+                            state := WAIT_ACK_TOP;
+                        end if;
+                    end if;
+                when WAIT_ACK_BOT =>
+                    -- If we aren't stalled by the device, clear stb
+                    if wb_sio_in.stall = '0' then
+                        wb_sio_out.stb <= '0';
+                    end if;
+
+                    -- Handle ack
+                    if wb_sio_in.ack = '1' then
+                        -- If it's a read, latch the data
+                        if wb_sio_out.we = '0' then
+                            wb_io_out.dat(31 downto 0) <= wb_sio_in.dat;
+                        end if;
+
+                        -- Do we have a "top" part as well ?
+                        if has_top then
+                            -- Latch data & sel
+                            if wb_io_in.we = '1' then
+                                wb_sio_out.dat <= wb_io_in.dat(63 downto 32);
+                            end if;
+                            wb_sio_out.sel <= wb_io_in.sel(7 downto 4);
+
+                            -- Bump address and set STB
+                            wb_sio_out.adr(2) <= '1';
+                            wb_sio_out.stb <= '1';
+
+                            -- Wait for new ack
+                            state := WAIT_ACK_TOP;
+                        else
+                            -- We are done, ack up, clear cyc downstram
+                            wb_sio_out.cyc <= '0';
+
+                            -- And ack & unstall upstream
+                            wb_io_out.ack <= '1';
+                            wb_io_out.stall <= '0';
+
+                            -- Wait for next one
+                            state := IDLE;
+                        end if;
+                    end if;
+                when WAIT_ACK_TOP =>
+                    -- If we aren't stalled by the device, clear stb
+                    if wb_sio_in.stall = '0' then
+                        wb_sio_out.stb <= '0';
+                    end if;
+
+                    -- Handle ack
+                    if wb_sio_in.ack = '1' then
+                        -- If it's a read, latch the data
+                        if wb_sio_out.we = '0' then
+                            wb_io_out.dat(63 downto 32) <= wb_sio_in.dat;
+                        end if;
+
+                        -- We are done, ack up, clear cyc downstram
+                        wb_sio_out.cyc <= '0';
+
+                        -- And ack & unstall upstream
+                        wb_io_out.ack <= '1';
+                        wb_io_out.stall <= '0';
+
+                        -- Wait for next one
+                        state := IDLE;
+                    end if;
+                end case;
+            end if;
+        end if;
+    end process;
+            
+    -- IO wishbone slave intercon.
+    --
+    slave_io_intercon: process(wb_sio_out, wb_syscon_out, wb_uart0_out,
+                               wb_dram_ctrl_out, wb_xics0_out)
+        -- IO branch split:
+	type slave_io_type is (SLAVE_IO_SYSCON,
+                               SLAVE_IO_UART,
+                               SLAVE_IO_DRAM_INIT,
+                               SLAVE_IO_DRAM_CSR,
+                               SLAVE_IO_ICP_0,
+                               SLAVE_IO_NONE);
+	variable slave_io : slave_io_type;
+
+        variable match : std_ulogic_vector(31 downto 12);
+    begin
+
+	-- Simple address decoder.
+	slave_io := SLAVE_IO_NONE;
+        match := "11" & wb_sio_out.adr(29 downto 12);
+        if    std_match(match, x"F----") then
+	    slave_io := SLAVE_IO_DRAM_INIT;
+	elsif std_match(match, x"C0000") then
+	    slave_io := SLAVE_IO_SYSCON;
+	elsif std_match(match, x"C0002") then
+	    slave_io := SLAVE_IO_UART;
+	elsif std_match(match, x"C01--") then
+	    slave_io := SLAVE_IO_DRAM_CSR;
+	elsif std_match(match, x"C0004") then
+	    slave_io := SLAVE_IO_ICP_0;
+	end if;
+	wb_uart0_in <= wb_sio_out;
 	wb_uart0_in.cyc <= '0';
 
 	 -- Only give xics 8 bits of wb addr
-	wb_xics0_in <= wb_master_out;
+	wb_xics0_in <= wb_sio_out;
 	wb_xics0_in.adr <= (others => '0');
-	wb_xics0_in.adr(7 downto 0) <= wb_master_out.adr(7 downto 0);
+	wb_xics0_in.adr(7 downto 0) <= wb_sio_out.adr(7 downto 0);
 	wb_xics0_in.cyc  <= '0';
 
-	wb_dram_in <= wb_master_out;
-	wb_dram_in.cyc <= '0';
-	wb_dram_ctrl <= '0';
-	wb_dram_init <= '0';
-	wb_syscon_in <= wb_master_out;
+	wb_dram_ctrl_in <= wb_sio_out;
+	wb_dram_ctrl_in.cyc <= '0';
+	wb_dram_is_csr <= '0';
+	wb_dram_is_init <= '0';
+
+	wb_syscon_in <= wb_sio_out;
 	wb_syscon_in.cyc <= '0';
-	case slave is
-	when SLAVE_BRAM =>
-	    wb_bram_in.cyc <= wb_master_out.cyc;
-	    wb_master_in <= wb_bram_out;
-	when SLAVE_DRAM =>
-	    wb_dram_in.cyc <= wb_master_out.cyc;
-	    wb_master_in <= wb_dram_out;
-	when SLAVE_DRAM_INIT =>
-	    wb_dram_in.cyc <= wb_master_out.cyc;
-	    wb_master_in <= wb_dram_out;
-	    wb_dram_init <= '1';
-	when SLAVE_DRAM_CTRL =>
-	    wb_dram_in.cyc <= wb_master_out.cyc;
-	    wb_master_in <= wb_dram_out;
-	    wb_dram_ctrl <= '1';
-	when SLAVE_SYSCON =>
-	    wb_syscon_in.cyc <= wb_master_out.cyc;
-	    wb_master_in <= wb_syscon_out;
-	when SLAVE_UART =>
-	    wb_uart0_in.cyc <= wb_master_out.cyc;
-	    wb_master_in <= wb_uart0_out;
-	when SLAVE_ICP_0 =>
-	    wb_xics0_in.cyc <= wb_master_out.cyc;
-	    wb_master_in <= wb_xics0_out;
+
+	case slave_io is
+	when SLAVE_IO_DRAM_INIT =>
+	    wb_dram_ctrl_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_dram_ctrl_out;
+	    wb_dram_is_init <= '1';
+	when SLAVE_IO_DRAM_CSR =>
+	    wb_dram_ctrl_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_dram_ctrl_out;
+	    wb_dram_is_csr <= '1';
+	when SLAVE_IO_SYSCON =>
+	    wb_syscon_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_syscon_out;
+	when SLAVE_IO_UART =>
+	    wb_uart0_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_uart0_out;
+	when SLAVE_IO_ICP_0 =>
+	    wb_xics0_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_xics0_out;
 	when others =>
-	    wb_master_in.dat <= (others => '1');
-	    wb_master_in.ack <= wb_master_out.stb and wb_master_out.cyc;
-	    wb_master_in.stall <= '0';
+	    wb_sio_in.dat <= (others => '1');
+	    wb_sio_in.ack <= wb_sio_out.stb and wb_sio_out.cyc;
+	    wb_sio_in.stall <= '0';
 	end case;
-    end process slave_intercon;
+
+    end process;
 
     -- Syscon slave
     syscon0: entity work.syscon
@@ -287,10 +481,6 @@ begin
     -- Simulated memory and UART
 
     -- UART0 wishbone slave
-    -- XXX FIXME: Need a proper wb64->wb8 adapter that
-    --            converts SELs into low address bits and muxes
-    --            data accordingly (either that or rejects large
-    --            cycles).
     uart0: entity work.pp_soc_uart
 	generic map(
 	    FIFO_DEPTH => 32
@@ -309,7 +499,7 @@ begin
 	    wb_we_in => wb_uart0_in.we,
 	    wb_ack_out => wb_uart0_out.ack
 	    );
-    wb_uart0_out.dat <= x"00000000000000" & uart_dat8;
+    wb_uart0_out.dat <= x"000000" & uart_dat8;
     wb_uart0_out.stall <= '0' when wb_uart0_in.cyc = '0' else not wb_uart0_out.ack;
 
     xics0: entity work.xics
