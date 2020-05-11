@@ -1,4 +1,5 @@
 CFLAGS = -O2 -g -Wall -std=c99
+# CFLAGS +=  -I urjtag/urjtag/include/ -L urjtag/urjtag/src/.libs/
 
 all: mw_debug
 

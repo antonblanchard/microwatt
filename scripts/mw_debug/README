@@ -1,0 +1,63 @@
+mw_debug is the microwatt debugger.
+
+It can talk to the simulator using a socket.
+
+On an Arty board it uses the FTDI device via liburjtag.
+
+## Building on Fedora
+
+```
+dnf install urjtag-devel
+make
+```
+
+If you commonly use it against one target, create an alias as follows:
+```
+alias mw="$HOME/microwatt/scripts/mw_debug/mw_debug -b jtag"
+$ mw gpr 0 10
+Connected to libftdi driver.
+Found device ID: 0x0362d093
+r0:	0000000000001094
+r1:	0000000000001ed0
+r2:	000000000000a000
+r3:	0000000000000003
+r4:	000000000000000d
+r5:	00000000ffff2ca5
+r6:	00000000ffff3eb8
+r7:	0000000000000000
+r8:	00000000ffff3c33
+r9:	0000000000000003
+Core: running
+ NIA: 00000000000011d4
+ MSR: 8000000000000001
+```
+
+## Building on Debian
+
+Debian disables the library in the urjtag package. Instead, build against
+local urjtag:
+
+```
+sudo apt install libftdi-dev
+git clone https://git.code.sf.net/p/urjtag/git urjtag
+cd urjtag/urjtag
+./autogen.sh
+make
+```
+
+And then uncomment the following line in Makefile to build against that copy
+
+```
+CFLAGS +=  -I urjtag/urjtag/include/ -L urjtag/urjtag/src/.libs/
+```
+
+To run:
+```
+alias mw="LD_LIBRARY_PATH=$HOME/microwatt/scripts/mw_debug/urjtag/urjtag/src/.libs/ $HOME/microwatt/scripts/mw_debug/mw_debug -b jtag"
+$ mw
+Connected to libftdi driver.
+Found device ID: 0x0362d093
+Core: running
+ NIA: 00000000000011b8
+ MSR: 8000000000000001
+```
