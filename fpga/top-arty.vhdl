@@ -68,7 +68,7 @@ architecture behaviour of toplevel is
     -- DRAM wishbone connection
     signal wb_dram_in   : wishbone_master_out;
     signal wb_dram_out  : wishbone_slave_out;
-    signal wb_dram_csr  : std_ulogic;
+    signal wb_dram_ctrl : std_ulogic;
     signal wb_dram_init : std_ulogic;
 
     -- Control/status
@@ -104,7 +104,7 @@ begin
 	    uart0_rxd         => uart_main_rx,
 	    wb_dram_in        => wb_dram_in,
 	    wb_dram_out       => wb_dram_out,
-	    wb_dram_csr       => wb_dram_csr,
+	    wb_dram_ctrl      => wb_dram_ctrl,
 	    wb_dram_init      => wb_dram_init,
 	    alt_reset         => core_alt_reset
 	    );
@@ -194,7 +194,7 @@ begin
 
 		wb_in		=> wb_dram_in,
 		wb_out		=> wb_dram_out,
-		wb_is_csr       => wb_dram_csr,
+		wb_is_ctrl      => wb_dram_ctrl,
 		wb_is_init      => wb_dram_init,
 
 		serial_tx	=> uart_pmod_tx,

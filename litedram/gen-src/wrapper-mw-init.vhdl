@@ -25,7 +25,7 @@ entity litedram_wrapper is
 	-- Wishbone ports:
 	wb_in         : in wishbone_master_out;
 	wb_out        : out wishbone_slave_out;
-	wb_is_csr     : in std_ulogic;
+	wb_is_ctrl    : in std_ulogic;
 	wb_is_init    : in std_ulogic;
 
 	-- Init core serial debug
@@ -58,32 +58,39 @@ end entity litedram_wrapper;
 architecture behaviour of litedram_wrapper is
 
     component litedram_core port (
-	clk                    : in std_ulogic;
-	rst                    : in std_ulogic;
-	pll_locked             : out std_ulogic;
-	ddram_a                : out std_ulogic_vector(DRAM_ALINES-1 downto 0);
-	ddram_ba               : out std_ulogic_vector(2 downto 0);
-	ddram_ras_n            : out std_ulogic;
-	ddram_cas_n            : out std_ulogic;
-	ddram_we_n             : out std_ulogic;
-	ddram_cs_n             : out std_ulogic;
-	ddram_dm               : out std_ulogic_vector(1 downto 0);
-	ddram_dq               : inout std_ulogic_vector(15 downto 0);
-	ddram_dqs_p            : inout std_ulogic_vector(1 downto 0);
-	ddram_dqs_n            : inout std_ulogic_vector(1 downto 0);
-	ddram_clk_p            : out std_ulogic;
-	ddram_clk_n            : out std_ulogic;
-	ddram_cke              : out std_ulogic;
-	ddram_odt              : out std_ulogic;
-	ddram_reset_n          : out std_ulogic;
-	init_done              : out std_ulogic;
-	init_error             : out std_ulogic;
-	user_clk               : out std_ulogic;
-	user_rst               : out std_ulogic;
-	csr_port0_adr          : in std_ulogic_vector(13 downto 0);
-	csr_port0_we           : in std_ulogic;
-	csr_port0_dat_w        : in std_ulogic_vector(31 downto 0);
-	csr_port0_dat_r        : out std_ulogic_vector(31 downto 0);
+	clk                            : in std_ulogic;
+	rst                            : in std_ulogic;
+	pll_locked                     : out std_ulogic;
+	ddram_a                        : out std_ulogic_vector(DRAM_ALINES-1 downto 0);
+	ddram_ba                       : out std_ulogic_vector(2 downto 0);
+	ddram_ras_n                    : out std_ulogic;
+	ddram_cas_n                    : out std_ulogic;
+	ddram_we_n                     : out std_ulogic;
+	ddram_cs_n                     : out std_ulogic;
+	ddram_dm                       : out std_ulogic_vector(1 downto 0);
+	ddram_dq                       : inout std_ulogic_vector(15 downto 0);
+	ddram_dqs_p                    : inout std_ulogic_vector(1 downto 0);
+	ddram_dqs_n                    : inout std_ulogic_vector(1 downto 0);
+	ddram_clk_p                    : out std_ulogic;
+	ddram_clk_n                    : out std_ulogic;
+	ddram_cke                      : out std_ulogic;
+	ddram_odt                      : out std_ulogic;
+	ddram_reset_n                  : out std_ulogic;
+	init_done                      : out std_ulogic;
+	init_error                     : out std_ulogic;
+	user_clk                       : out std_ulogic;
+	user_rst                       : out std_ulogic;
+	wb_ctrl_adr                    : in std_ulogic_vector(29 downto 0);
+	wb_ctrl_dat_w                  : in std_ulogic_vector(31 downto 0);
+	wb_ctrl_dat_r                  : out std_ulogic_vector(31 downto 0);
+	wb_ctrl_sel                    : in std_ulogic_vector(3 downto 0);
+	wb_ctrl_cyc                    : in std_ulogic;
+	wb_ctrl_stb                    : in std_ulogic;
+	wb_ctrl_ack                    : out std_ulogic;
+	wb_ctrl_we                     : in std_ulogic;
+	wb_ctrl_cti                    : in std_ulogic_vector(2 downto 0);
+	wb_ctrl_bte                    : in std_ulogic_vector(1 downto 0);
+	wb_ctrl_err                    : out std_ulogic;
 	user_port_native_0_cmd_valid   : in std_ulogic;
 	user_port_native_0_cmd_ready   : out std_ulogic;
 	user_port_native_0_cmd_we      : in std_ulogic;
@@ -114,18 +121,19 @@ architecture behaviour of litedram_wrapper is
 
     signal dram_user_reset              : std_ulogic;
 
-    signal csr_port0_adr                : std_ulogic_vector(13 downto 0);
-    signal csr_port0_we                 : std_ulogic;
-    signal csr_port0_dat_w              : std_ulogic_vector(31 downto 0);
-    signal csr_port0_dat_r              : std_ulogic_vector(31 downto 0);
-    signal csr_port_read_comb           : std_ulogic_vector(63 downto 0);
-    signal csr_valid	                : std_ulogic;
-    signal csr_write_valid	        : std_ulogic;
+    signal wb_ctrl_adr                  : std_ulogic_vector(29 downto 0);
+    signal wb_ctrl_dat_w                : std_ulogic_vector(31 downto 0);
+    signal wb_ctrl_dat_r                : std_ulogic_vector(31 downto 0);
+    signal wb_ctrl_sel                  : std_ulogic_vector(3 downto 0);
+    signal wb_ctrl_cyc                  : std_ulogic;
+    signal wb_ctrl_stb                  : std_ulogic;
+    signal wb_ctrl_ack                  : std_ulogic;
+    signal wb_ctrl_we                   : std_ulogic;
 
     signal wb_init_in                   : wishbone_master_out;
     signal wb_init_out                  : wishbone_slave_out;
 
-    type state_t is (CMD, MWRITE, MREAD, CSR);
+    type state_t is (CMD, MWRITE, MREAD);
     signal state : state_t;
 
     constant INIT_RAM_SIZE : integer := 16384;
@@ -192,7 +200,7 @@ begin
     ad3 <= wb_in.adr(3);
 
     -- DRAM data interface signals
-    user_port0_cmd_valid <= (wb_in.cyc and wb_in.stb and not wb_is_csr and not wb_is_init)
+    user_port0_cmd_valid <= (wb_in.cyc and wb_in.stb and not wb_is_ctrl and not wb_is_init)
 			    when state = CMD else '0';
     user_port0_cmd_we <= wb_in.we when state = CMD else '0';
     user_port0_wdata_valid <= '1' when state = MWRITE else '0';
@@ -202,21 +210,21 @@ begin
     user_port0_wdata_we <= wb_in.sel & "00000000" when ad3 = '1' else
 			   "00000000" & wb_in.sel;
 
-    -- DRAM CSR interface signals. We only support access to the bottom byte
-    csr_valid <= wb_in.cyc and wb_in.stb and wb_is_csr;
-    csr_write_valid <= wb_in.we and wb_in.sel(0);
-    csr_port0_adr <= wb_in.adr(15 downto 2) when wb_is_csr = '1' else (others => '0');
-    csr_port0_dat_w <= wb_in.dat(31 downto 0);
-    csr_port0_we <= (csr_valid and csr_write_valid) when state = CMD else '0';
+    -- DRAM ctrl interface signals
+    wb_ctrl_adr <= x"0000" & wb_in.adr(15 downto 2);
+    wb_ctrl_dat_w <= wb_in.dat(31 downto 0);
+    wb_ctrl_sel <= wb_in.sel(3 downto 0);
+    wb_ctrl_cyc <= wb_in.cyc and wb_is_ctrl;
+    wb_ctrl_stb <= wb_in.stb and wb_is_ctrl;
+    wb_ctrl_we <= wb_in.we;
 
     -- Wishbone out signals
-    wb_out.ack <= '1' when state = CSR else
+    wb_out.ack <= wb_ctrl_ack when wb_is_ctrl ='1' else
 		  wb_init_out.ack when wb_is_init = '1' else
 		  user_port0_wdata_ready when state = MWRITE else
 		  user_port0_rdata_valid when state = MREAD else '0';
 
-    csr_port_read_comb <= x"00000000" & csr_port0_dat_r;
-    wb_out.dat <= csr_port_read_comb when wb_is_csr = '1' else
+    wb_out.dat <= (x"00000000" & wb_ctrl_dat_r) when wb_is_ctrl = '1' else
 		  wb_init_out.dat when wb_is_init = '1' else
 		  user_port0_rdata_data(127 downto 64) when ad3 = '1' else
 		  user_port0_rdata_data(63 downto 0);
@@ -239,9 +247,7 @@ begin
 	    else
 		case state is
 		when CMD =>
-		    if csr_valid = '1' then
-			state <= CSR;
-		    elsif (user_port0_cmd_ready and user_port0_cmd_valid) = '1' then
+                    if (user_port0_cmd_ready and user_port0_cmd_valid) = '1' then
 			state <= MWRITE when wb_in.we = '1' else MREAD;
 		    end if;
 		when MWRITE =>
@@ -252,8 +258,6 @@ begin
 		    if user_port0_rdata_valid = '1' then
 			state <= CMD;
 		    end if;
-		when CSR =>
-		    state <= CMD;
 		end case;
 	    end if;
 	end if;
@@ -283,10 +287,17 @@ begin
 	    init_error => init_error,
 	    user_clk => system_clk,
 	    user_rst => dram_user_reset,
-	    csr_port0_adr => csr_port0_adr,
-	    csr_port0_we => csr_port0_we,
-	    csr_port0_dat_w => csr_port0_dat_w,
-	    csr_port0_dat_r => csr_port0_dat_r,
+            wb_ctrl_adr => wb_ctrl_adr,
+            wb_ctrl_dat_w => wb_ctrl_dat_w,
+            wb_ctrl_dat_r => wb_ctrl_dat_r,
+            wb_ctrl_sel => wb_ctrl_sel,
+            wb_ctrl_cyc => wb_ctrl_cyc,
+            wb_ctrl_stb => wb_ctrl_stb,
+            wb_ctrl_ack => wb_ctrl_ack,
+            wb_ctrl_we => wb_ctrl_we,
+            wb_ctrl_cti => "000",
+            wb_ctrl_bte => "00",
+            wb_ctrl_err => open,
 	    user_port_native_0_cmd_valid => user_port0_cmd_valid,
 	    user_port_native_0_cmd_ready => user_port0_cmd_ready,
 	    user_port_native_0_cmd_we => user_port0_cmd_we,

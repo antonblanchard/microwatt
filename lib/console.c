@@ -120,6 +120,7 @@ int puts(const char *str)
 	return 0;
 }
 
+#ifndef __USE_LIBC
 size_t strlen(const char *s)
 {
 	size_t len = 0;
@@ -129,3 +130,4 @@ size_t strlen(const char *s)
 
 	return len;
 }
+#endif

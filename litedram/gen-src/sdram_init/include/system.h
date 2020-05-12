@@ -1,9 +1,18 @@
-static inline void flush_cpu_dcache(void) { }
+#ifndef __SYSTEM_H
+#define __SYSTEM_H
+
+#include "microwatt_soc.h"
+#include "io.h"
+
+#define CSR_ACCESSORS_DEFINED
+#define CSR_BASE		DRAM_CTRL_BASE
+#define CONFIG_CPU_NOP		"nop"
+
+extern void flush_cpu_dcache(void);
+extern void flush_cpu_icache(void);
 static inline void flush_l2_cache(void) { }
 
-#define CONFIG_CPU_NOP "nop"
-#define CONFIG_CLOCK_FREQUENCY 100000000
-
+/* Fake timer stuff. LiteX should abstract this */
 static inline void timer0_en_write(int e) { }
 static inline void timer0_reload_write(int r) { }
 static inline void timer0_load_write(int l) { }
@@ -15,3 +24,16 @@ static inline uint64_t timer0_value_read(void)
 	__asm__ volatile ("mfdec %0" : "=r" (val));
 	return val;
 }
+
+static inline void csr_write_simple(unsigned long v, unsigned long a)
+{
+	return writel(v, a);
+}
+
+static inline unsigned long csr_read_simple(unsigned long a)
+{
+	return readl(a);
+}
+
+#endif /* __SYSTEM_H */
+

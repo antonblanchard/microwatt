@@ -31,4 +31,7 @@
 #define POTATO_CONSOLE_CLOCK_DIV	0x18
 #define POTATO_CONSOLE_IRQ_EN		0x20
 
+/* Definition for the LiteDRAM control registers */
+#define DRAM_CTRL_BASE	0xc0100000
+
 #endif /* __MICROWATT_SOC_H */

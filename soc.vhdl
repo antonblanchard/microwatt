@@ -17,7 +17,7 @@ use work.wishbone_types.all;
 -- 0xc0000000: SYSCON
 -- 0xc0002000: UART0
 -- 0xc0004000: XICS ICP
--- 0xc0100000: DRAM CSRs
+-- 0xc0100000: LiteDRAM control (CSRs)
 -- 0xf0000000: Block RAM (aliased & repeated)
 -- 0xffff0000: DRAM init code (if any)
 
@@ -39,7 +39,7 @@ entity soc is
 	-- DRAM controller signals
 	wb_dram_in   : out wishbone_master_out;
 	wb_dram_out  : in wishbone_slave_out;
-	wb_dram_csr  : out std_ulogic;
+	wb_dram_ctrl : out std_ulogic;
 	wb_dram_init : out std_ulogic;
 
 	-- UART0 signals:
@@ -162,7 +162,7 @@ begin
 			    SLAVE_BRAM,
 			    SLAVE_DRAM,
 			    SLAVE_DRAM_INIT,
-			    SLAVE_DRAM_CSR,
+			    SLAVE_DRAM_CTRL,
 			    SLAVE_ICP_0,
 			    SLAVE_NONE);
 	variable slave : slave_type;
@@ -185,7 +185,7 @@ begin
 	elsif std_match(wb_master_out.adr, x"C0002---") then
 	    slave := SLAVE_UART;
 	elsif std_match(wb_master_out.adr, x"C01-----") then
-	    slave := SLAVE_DRAM_CSR;
+	    slave := SLAVE_DRAM_CTRL;
 	elsif std_match(wb_master_out.adr, x"C0004---") then
 	    slave := SLAVE_ICP_0;
 	end if;
@@ -204,7 +204,7 @@ begin
 
 	wb_dram_in <= wb_master_out;
 	wb_dram_in.cyc <= '0';
-	wb_dram_csr <= '0';
+	wb_dram_ctrl <= '0';
 	wb_dram_init <= '0';
 	wb_syscon_in <= wb_master_out;
 	wb_syscon_in.cyc <= '0';
@@ -219,10 +219,10 @@ begin
 	    wb_dram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_dram_out;
 	    wb_dram_init <= '1';
-	when SLAVE_DRAM_CSR =>
+	when SLAVE_DRAM_CTRL =>
 	    wb_dram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_dram_out;
-	    wb_dram_csr <= '1';
+	    wb_dram_ctrl <= '1';
 	when SLAVE_SYSCON =>
 	    wb_syscon_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_syscon_out;
