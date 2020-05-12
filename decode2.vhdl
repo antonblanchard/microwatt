@@ -67,8 +67,6 @@ architecture behaviour of decode2 is
         return decode_input_reg_t is
     begin
         if t = RA or (t = RA_OR_ZERO and insn_ra(insn_in) /= "00000") then
-            assert is_fast_spr(ispr) = '0' report "Decode A says GPR but ISPR says SPR:" &
-                to_hstring(ispr) severity failure;
             return ('1', gpr_to_gspr(insn_ra(insn_in)), reg_data);
         elsif t = SPR then
             -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
@@ -93,8 +91,6 @@ architecture behaviour of decode2 is
     begin
         case t is
             when RB =>
-                assert is_fast_spr(ispr) = '0' report "Decode B says GPR but ISPR says SPR:" &
-                    to_hstring(ispr) severity failure;
                 ret := ('1', gpr_to_gspr(insn_rb(insn_in)), reg_data);
             when CONST_UI =>
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
@@ -277,8 +273,10 @@ begin
         end if;
     end process;
 
-    r_out.read1_reg <= gpr_or_spr_to_gspr(insn_ra(d_in.insn), d_in.ispr1);
-    r_out.read2_reg <= gpr_or_spr_to_gspr(insn_rb(d_in.insn), d_in.ispr2);
+    r_out.read1_reg <= d_in.ispr1 when d_in.decode.input_reg_a = SPR
+                       else gpr_to_gspr(insn_ra(d_in.insn));
+    r_out.read2_reg <= d_in.ispr2 when d_in.decode.input_reg_b = SPR
+                       else gpr_to_gspr(insn_rb(d_in.insn));
     r_out.read3_reg <= insn_rs(d_in.insn);
 
     c_out.read <= d_in.decode.input_cr;

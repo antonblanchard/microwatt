@@ -398,6 +398,17 @@ begin
             -- major opcode 31, lots of things
             v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
 
+            -- Work out ispr1/ispr2 independent of v.decode since they seem to be critical path
+            sprn := decode_spr_num(f_in.insn);
+            v.ispr1 := fast_spr_num(sprn);
+
+        elsif majorop = "010000" then
+            -- CTR may be needed as input to bc
+            v.decode := major_decode_rom_array(to_integer(majorop));
+            if f_in.insn(23) = '0' then
+                v.ispr1 := fast_spr_num(SPR_CTR);
+            end if;
+
         elsif majorop = "010011" then
             if decode_op_19_valid(to_integer(unsigned(f_in.insn(10 downto 1)))) = '0' then
                 report "op 19 illegal subcode";
@@ -406,6 +417,27 @@ begin
                 op_19_bits := f_in.insn(5) & f_in.insn(3) & f_in.insn(2);
                 v.decode := decode_op_19_array(to_integer(unsigned(op_19_bits)));
                 report "op 19 sub " & to_hstring(op_19_bits);
+            end if;
+
+            -- Work out ispr1/ispr2 independent of v.decode since they seem to be critical path
+            if f_in.insn(2) = '0' then
+                -- Could be OP_BCREG: bclr, bcctr, bctar
+                -- Branch uses CTR as condition when BO(2) is 0. This is
+                -- also used to indicate that CTR is modified (they go
+                -- together).
+                if f_in.insn(23) = '0' then
+                    v.ispr1 := fast_spr_num(SPR_CTR);
+                end if;
+                -- TODO: Add TAR
+                if f_in.insn(10) = '0' then
+                    v.ispr2 := fast_spr_num(SPR_LR);
+                else
+                    v.ispr2 := fast_spr_num(SPR_CTR);
+                end if;
+            else
+                -- Could be OP_RFID
+                v.ispr1 := fast_spr_num(SPR_SRR0);
+                v.ispr2 := fast_spr_num(SPR_SRR1);
             end if;
 
         elsif majorop = "011110" then
@@ -423,30 +455,11 @@ begin
 
         else
             v.decode := major_decode_rom_array(to_integer(majorop));
+
         end if;
 
-        -- Set ISPR1/ISPR2 when needed
-        if v.decode.insn_type = OP_BC or v.decode.insn_type = OP_BCREG then
-            -- Branch uses CTR as condition when BO(2) is 0. This is
-            -- also used to indicate that CTR is modified (they go
-            -- together).
-            --
-            if f_in.insn(23) = '0' then
-                v.ispr1 := fast_spr_num(SPR_CTR);
-            end if;
-
-            -- Branch source register is an SPR
-            if v.decode.insn_type = OP_BCREG then
-                -- TODO: Add TAR
-                if f_in.insn(10) = '0' then
-                    v.ispr2 := fast_spr_num(SPR_LR);
-                else
-                    v.ispr2 := fast_spr_num(SPR_CTR);
-                end if;
-            end if;
-        elsif v.decode.insn_type = OP_MFSPR or v.decode.insn_type = OP_MTSPR then
+        if v.decode.insn_type = OP_MFSPR or v.decode.insn_type = OP_MTSPR then
             sprn := decode_spr_num(f_in.insn);
-            v.ispr1 := fast_spr_num(sprn);
             -- Make slow SPRs single issue
             if is_fast_spr(v.ispr1) = '0' then
                 v.decode.sgl_pipe := '1';
@@ -457,10 +470,6 @@ begin
                     when others =>
                 end case;
             end if;
-        elsif v.decode.insn_type = OP_RFID then
-            report "PPC RFID";
-            v.ispr1 := fast_spr_num(SPR_SRR0);
-            v.ispr2 := fast_spr_num(SPR_SRR1);
         end if;
 
         if flush_in = '1' then
