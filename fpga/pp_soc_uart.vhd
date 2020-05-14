@@ -111,6 +111,7 @@ architecture behaviour of pp_soc_uart is
 
     signal rxd2 : std_logic := '1';
     signal rxd3 : std_logic := '1';
+    signal txd2 : std_ulogic := '1';
 begin
 
     irq <= (irq_recv_enable and (not recv_buffer_empty))
@@ -123,9 +124,12 @@ begin
     -- Add a few FFs on the RX input to avoid metastability issues
     process (clk) is
     begin
-        rxd3 <= rxd2;
-        rxd2 <= rxd;
+	if rising_edge(clk) then
+            rxd3 <= rxd2;
+            rxd2 <= rxd;
+        end if;
     end process;
+    txd <= txd2;
 
     uart_receive: process(clk)
     begin
@@ -202,7 +206,7 @@ begin
     begin
 	if rising_edge(clk) then
 	    if reset = '1' then
-		txd <= '1';
+		txd2 <= '1';
 		tx_state <= IDLE;
 		send_buffer_pop <= '0';
 		tx_current_bit <= 0;
@@ -210,26 +214,26 @@ begin
 		case tx_state is
 		when IDLE =>
 		    if send_buffer_empty = '0' and uart_tx_clk = '1' then
-			txd <= '0';
+			txd2 <= '0';
 			send_buffer_pop <= '1';
 			tx_current_bit <= 0;
 			tx_state <= TRANSMIT;
 		    elsif uart_tx_clk = '1' then
-			txd <= '1';
+			txd2 <= '1';
 		    end if;
 		when TRANSMIT =>
 		    if send_buffer_pop = '1' then
 			send_buffer_pop <= '0';
 		    elsif uart_tx_clk = '1' and tx_current_bit = 7 then
-			txd <= tx_byte(tx_current_bit);
+			txd2 <= tx_byte(tx_current_bit);
 			tx_state <= STOPBIT;
 		    elsif uart_tx_clk = '1' then
-			txd <= tx_byte(tx_current_bit);
+			txd2 <= tx_byte(tx_current_bit);
 			tx_current_bit <= tx_current_bit + 1;
 		    end if;
 		when STOPBIT =>
 		    if uart_tx_clk = '1' then
-			txd <= '1';
+			txd2 <= '1';
 			tx_state <= IDLE;
 		    end if;
 		end case;
