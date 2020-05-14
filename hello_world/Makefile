@@ -29,3 +29,6 @@ hello_world.hex: hello_world.bin
 
 clean:
 	@rm -f *.o hello_world.elf hello_world.bin hello_world.hex
+distclean: clean
+	rm -f *~
+
