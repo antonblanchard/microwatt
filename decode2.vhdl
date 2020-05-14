@@ -32,7 +32,9 @@ entity decode2 is
         r_out : out Decode2ToRegisterFileType;
 
         c_in  : in CrFileToDecode2Type;
-        c_out : out Decode2ToCrFileType
+        c_out : out Decode2ToCrFileType;
+
+        log_out : out std_ulogic_vector(9 downto 0)
 	);
 end entity decode2;
 
@@ -42,6 +44,8 @@ architecture behaviour of decode2 is
     end record;
 
     signal r, rin : reg_type;
+
+    signal log_data : std_ulogic_vector(9 downto 0);
 
     type decode_input_reg_t is record
         reg_valid : std_ulogic;
@@ -381,4 +385,19 @@ begin
         -- Update outputs
         e_out <= r.e;
     end process;
+
+    dec2_log : process(clk)
+    begin
+        if rising_edge(clk) then
+            log_data <= r.e.nia(5 downto 2) &
+                        r.e.valid &
+                        stopped_out &
+                        stall_out &
+                        r.e.bypass_data3 &
+                        r.e.bypass_data2 &
+                        r.e.bypass_data1;
+        end if;
+    end process;
+    log_out <= log_data;
+
 end architecture behaviour;

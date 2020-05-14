@@ -18,7 +18,9 @@ entity cr_file is
         w_in  : in WritebackToCrFileType;
 
         -- debug
-        sim_dump : in std_ulogic
+        sim_dump : in std_ulogic;
+
+        log_out : out std_ulogic_vector(12 downto 0)
         );
 end entity cr_file;
 
@@ -27,6 +29,7 @@ architecture behaviour of cr_file is
     signal crs_updated : std_ulogic_vector(31 downto 0);
     signal xerc : xer_common_t := xerc_init;
     signal xerc_updated : xer_common_t;
+    signal log_data : std_ulogic_vector(12 downto 0);
 begin
     cr_create_0: process(all)
         variable hi, lo : integer := 0;
@@ -87,5 +90,15 @@ begin
             end if;
         end process;
     end generate;
+
+    cr_log: process(clk)
+    begin
+        if rising_edge(clk) then
+            log_data <= w_in.write_cr_enable &
+                        w_in.write_cr_data(31 downto 28) &
+                        w_in.write_cr_mask;
+        end if;
+    end process;
+    log_out <= log_data;
 
 end architecture behaviour;

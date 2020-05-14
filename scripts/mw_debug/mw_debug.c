@@ -42,6 +42,9 @@
 #define DBG_CORE_GSPR_INDEX	0x14
 #define DBG_CORE_GSPR_DATA	0x15
 
+#define DBG_LOG_ADDR		0x16
+#define DBG_LOG_DATA		0x17
+
 static bool debug;
 
 struct backend {
@@ -548,6 +551,73 @@ static void save(const char *filename, uint64_t addr, uint64_t size)
 	printf("%x done.\n", count);
 }
 
+#define LOG_STOP	0x80000000ull
+
+static void log_start(void)
+{
+	check(dmi_write(DBG_LOG_ADDR, 0), "writing LOG_ADDR");
+}
+
+static void log_stop(void)
+{
+	uint64_t lsize, laddr, waddr;
+
+	check(dmi_write(DBG_LOG_ADDR, LOG_STOP), "writing LOG_ADDR");
+	check(dmi_read(DBG_LOG_ADDR, &laddr), "reading LOG_ADDR");
+	waddr = laddr >> 32;
+	for (lsize = 1; lsize; lsize <<= 1)
+		if ((waddr >> 1) < lsize)
+			break;
+	waddr &= ~lsize;
+	printf("Log size = %" PRIu64 " entries, ", lsize);
+	printf("write ptr = %" PRIx64 "\n", waddr);
+}
+
+static void log_dump(const char *filename)
+{
+	FILE *f;
+	uint64_t lsize, laddr, waddr;
+	uint64_t orig_laddr;
+	uint64_t i, ldata;
+
+	f = fopen(filename, "w");
+	if (f == NULL) {
+		fprintf(stderr, "Failed to create '%s': %s\n", filename,
+			strerror(errno));
+		exit(1);
+	}
+
+	check(dmi_read(DBG_LOG_ADDR, &orig_laddr), "reading LOG_ADDR");
+	if (!(orig_laddr & LOG_STOP))
+		check(dmi_write(DBG_LOG_ADDR, LOG_STOP), "writing LOG_ADDR");
+
+	waddr = orig_laddr >> 32;
+	for (lsize = 1; lsize; lsize <<= 1)
+		if ((waddr >> 1) < lsize)
+			break;
+	waddr &= ~lsize;
+	printf("Log size = %" PRIu64 " entries\n", lsize);
+
+	laddr = LOG_STOP | (waddr << 2);
+	check(dmi_write(DBG_LOG_ADDR, laddr), "writing LOG_ADDR");
+
+	for (i = 0; i < lsize * 4; ++i) {
+		check(dmi_read(DBG_LOG_DATA, &ldata), "reading LOG_DATA");
+		if (fwrite(&ldata, sizeof(ldata), 1, f) != 1) {
+			fprintf(stderr, "Write error on %s\n", filename);
+			exit(1);
+		}
+		if (!(i % 128)) {
+			printf("%" PRIu64 "...\r", i * 8);
+			fflush(stdout);
+		}
+	}
+	fclose(f);
+	printf("%" PRIu64 " done\n", lsize * 32);
+
+	check(dmi_write(DBG_LOG_ADDR, orig_laddr), "writing LOG_ADDR");
+}
+
 static void usage(const char *cmd)
 {
 	fprintf(stderr, "Usage: %s -b <jtag|sim> <command> <args>\n", cmd);
@@ -571,6 +641,12 @@ static void usage(const char *cmd)
 	fprintf(stderr, " Registers:\n");
 	fprintf(stderr, "  gpr <reg> [count]\n");
 	fprintf(stderr, "  status\n");
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, " Core logging:\n");
+	fprintf(stderr, "  lstart			start logging\n");
+	fprintf(stderr, "  lstop			stop logging\n");
+	fprintf(stderr, "  ldump <file>			dump log to file\n");
 
 	fprintf(stderr, "\n");
 	fprintf(stderr, " JTAG:\n");
@@ -710,6 +786,17 @@ int main(int argc, char *argv[])
 			if (((i+1) < argc) && isdigit(argv[i+1][0]))
 				count = strtoul(argv[++i], NULL, 10);
 			gpr_read(reg, count);
+		} else if (strcmp(argv[i], "lstart") == 0) {
+			log_start();
+		} else if (strcmp(argv[i], "lstop") == 0) {
+			log_stop();
+		} else if (strcmp(argv[i], "ldump") == 0) {
+			const char *filename;
+
+			if ((i+1) >= argc)
+				usage(argv[0]);
+			filename = argv[++i];
+			log_dump(filename);
 		} else {
 			fprintf(stderr, "Unknown command %s\n", argv[i]);
 			exit(1);

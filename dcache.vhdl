@@ -46,7 +46,9 @@ entity dcache is
 	stall_out    : out std_ulogic;
 
         wishbone_out : out wishbone_master_out;
-        wishbone_in  : in wishbone_slave_out
+        wishbone_in  : in wishbone_slave_out;
+
+        log_out      : out std_ulogic_vector(19 downto 0)
         );
 end entity dcache;
 
@@ -418,6 +420,8 @@ architecture rtl of dcache is
         j := way * TLB_PTE_BITS;
         ptes(j + TLB_PTE_BITS - 1 downto j) := newpte;
     end;
+
+    signal log_data : std_ulogic_vector(19 downto 0);
 
 begin
 
@@ -1265,4 +1269,22 @@ begin
 	    end if;
 	end if;
     end process;
+
+    dcache_log: process(clk)
+    begin
+        if rising_edge(clk) then
+            log_data <= r1.wb.adr(5 downto 3) &
+                        wishbone_in.stall &
+                        wishbone_in.ack &
+                        r1.wb.stb & r1.wb.cyc &
+                        d_out.error &
+                        d_out.valid &
+                        std_ulogic_vector(to_unsigned(op_t'pos(req_op), 3)) &
+                        stall_out &
+                        std_ulogic_vector(to_unsigned(tlb_hit_way, 3)) &
+                        valid_ra &
+                        std_ulogic_vector(to_unsigned(state_t'pos(r1.state), 3));
+        end if;
+    end process;
+    log_out <= log_data;
 end;

@@ -57,7 +57,9 @@ entity icache is
 	inval_in     : in std_ulogic;
 
         wishbone_out : out wishbone_master_out;
-        wishbone_in  : in wishbone_slave_out
+        wishbone_in  : in wishbone_slave_out;
+
+        log_out      : out std_ulogic_vector(53 downto 0)
         );
 end entity icache;
 
@@ -197,6 +199,9 @@ architecture rtl of icache is
     signal ra_valid      : std_ulogic;
     signal priv_fault    : std_ulogic;
     signal access_ok     : std_ulogic;
+
+    -- Output data to logger
+    signal log_data    : std_ulogic_vector(53 downto 0);
 
     -- Cache RAM interface
     type cache_ram_out_t is array(way_t) of cache_row_t;
@@ -674,4 +679,36 @@ begin
             end if;
 	end if;
     end process;
+
+    data_log: process(clk)
+        variable lway: way_t;
+        variable wstate: std_ulogic;
+    begin
+        if rising_edge(clk) then
+            if req_is_hit then
+                lway := req_hit_way;
+            else
+                lway := replace_way;
+            end if;
+            wstate := '0';
+            if r.state /= IDLE then
+                wstate := '1';
+            end if;
+            log_data <= i_out.valid &
+                        i_out.insn &
+                        wishbone_in.ack &
+                        r.wb.adr(5 downto 3) &
+                        r.wb.stb & r.wb.cyc &
+                        wishbone_in.stall &
+                        stall_out &
+                        r.fetch_failed &
+                        r.hit_nia(5 downto 2) &
+                        wstate &
+                        std_ulogic_vector(to_unsigned(lway, 3)) &
+                        req_is_hit & req_is_miss &
+                        access_ok &
+                        ra_valid;
+        end if;
+    end process;
+    log_out <= log_data;
 end;

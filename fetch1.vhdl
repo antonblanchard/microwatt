@@ -24,7 +24,10 @@ entity fetch1 is
 	e_in          : in Execute1ToFetch1Type;
 
 	-- Request to icache
-	i_out         : out Fetch1ToIcacheType
+	i_out         : out Fetch1ToIcacheType;
+
+        -- outputs to logger
+        log_out       : out std_ulogic_vector(42 downto 0)
 	);
 end entity fetch1;
 
@@ -35,11 +38,13 @@ architecture behaviour of fetch1 is
     end record;
     signal r, r_next : Fetch1ToIcacheType;
     signal r_int, r_next_int : reg_internal_t;
+    signal log_nia : std_ulogic_vector(42 downto 0);
 begin
 
     regs : process(clk)
     begin
 	if rising_edge(clk) then
+            log_nia <= r.nia(63) & r.nia(43 downto 2);
 	    if r /= r_next then
 		report "fetch1 rst:" & std_ulogic'image(rst) &
                     " IR:" & std_ulogic'image(e_in.virt_mode) &
@@ -54,6 +59,7 @@ begin
 	    r_int <= r_next_int;
 	end if;
     end process;
+    log_out <= log_nia;
 
     comb : process(all)
 	variable v : Fetch1ToIcacheType;

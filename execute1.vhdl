@@ -36,7 +36,12 @@ entity execute1 is
         dbg_msr_out : out std_ulogic_vector(63 downto 0);
 
 	icache_inval : out std_ulogic;
-	terminate_out : out std_ulogic
+	terminate_out : out std_ulogic;
+
+        log_out : out std_ulogic_vector(14 downto 0);
+        log_rd_addr : out std_ulogic_vector(31 downto 0);
+        log_rd_data : in std_ulogic_vector(63 downto 0);
+        log_wr_addr : in std_ulogic_vector(31 downto 0)
 	);
 end entity execute1;
 
@@ -53,6 +58,7 @@ architecture behaviour of execute1 is
 	slow_op_oe : std_ulogic;
 	slow_op_xerc : xer_common_t;
         ldst_nia : std_ulogic_vector(63 downto 0);
+        log_addr_spr : std_ulogic_vector(31 downto 0);
     end record;
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, lr_update => '0',
@@ -82,6 +88,11 @@ architecture behaviour of execute1 is
     -- divider signals
     signal x_to_divider: Execute1ToDividerType;
     signal divider_to_x: DividerToExecute1Type;
+
+    -- signals for logging
+    signal exception_log : std_ulogic;
+    signal irq_valid_log : std_ulogic;
+    signal log_data : std_ulogic_vector(14 downto 0);
 
     type privilege_level is (USER, SUPER);
     type op_privilege_array is array(insn_type_t) of privilege_level;
@@ -223,6 +234,7 @@ begin
             );
 
     dbg_msr_out <= ctrl.msr;
+    log_rd_addr <= r.log_addr_spr;
 
     a_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data1 = '1' else e_in.read_data1;
     b_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data2 = '1' else e_in.read_data2;
@@ -767,6 +779,11 @@ begin
 			result := ctrl.tb;
 		    when SPR_DEC =>
 			result := ctrl.dec;
+                    when 724 =>     -- LOG_ADDR SPR
+                        result := log_wr_addr & r.log_addr_spr;
+                    when 725 =>     -- LOG_DATA SPR
+                        result := log_rd_data;
+                        v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
                     when others =>
                         -- mfspr from unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode
@@ -840,6 +857,8 @@ begin
 		    case decode_spr_num(e_in.insn) is
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;
+                    when 724 =>     -- LOG_ADDR SPR
+                        v.log_addr_spr := c_in(31 downto 0);
 		    when others =>
                         -- mtspr to unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode
@@ -1040,5 +1059,26 @@ begin
         l_out <= lv;
 	e_out <= r.e;
 	flush_out <= f_out.redirect;
+
+        exception_log <= exception;
+        irq_valid_log <= irq_valid;
     end process;
+
+    ex1_log : process(clk)
+    begin
+        if rising_edge(clk) then
+            log_data <= ctrl.msr(MSR_EE) & ctrl.msr(MSR_PR) &
+                        ctrl.msr(MSR_IR) & ctrl.msr(MSR_DR) &
+                        exception_log &
+                        irq_valid_log &
+                        std_ulogic_vector(to_unsigned(irq_state_t'pos(ctrl.irq_state), 1)) &
+                        "000" &
+                        r.e.write_enable &
+                        r.e.valid &
+                        f_out.redirect &
+                        stall_out &
+                        flush_out;
+        end if;
+    end process;
+    log_out <= log_data;
 end architecture behaviour;

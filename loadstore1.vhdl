@@ -25,7 +25,9 @@ entity loadstore1 is
         m_in  : in MmuToLoadstore1Type;
 
         dc_stall  : in std_ulogic;
-        stall_out : out std_ulogic
+        stall_out : out std_ulogic;
+
+        log_out : out std_ulogic_vector(9 downto 0)
         );
 end loadstore1;
 
@@ -79,6 +81,8 @@ architecture behave of loadstore1 is
 
     signal r, rin : reg_stage_t;
     signal lsu_sum : std_ulogic_vector(63 downto 0);
+
+    signal log_data : std_ulogic_vector(9 downto 0);
 
     -- Generate byte enables from sizes
     function length_to_sel(length : in std_logic_vector(3 downto 0)) return std_ulogic_vector is
@@ -516,4 +520,18 @@ begin
 
     end process;
 
+    ls1_log: process(clk)
+    begin
+        if rising_edge(clk) then
+            log_data <= stall_out &
+                        e_out.exception &
+                        l_out.valid &
+                        m_out.valid &
+                        d_out.valid &
+                        m_in.done &
+                        r.dwords_done &
+                        std_ulogic_vector(to_unsigned(state_t'pos(r.state), 3));
+        end if;
+    end process;
+    log_out <= log_data;
 end;

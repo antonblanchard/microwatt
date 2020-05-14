@@ -24,7 +24,9 @@ entity register_file is
 
         -- debug
         sim_dump      : in std_ulogic;
-        sim_dump_done : out std_ulogic
+        sim_dump_done : out std_ulogic;
+
+        log_out       : out std_ulogic_vector(70 downto 0)
         );
 end entity register_file;
 
@@ -34,6 +36,7 @@ architecture behaviour of register_file is
     signal rd_port_b : std_ulogic_vector(63 downto 0);
     signal dbg_data : std_ulogic_vector(63 downto 0);
     signal dbg_ack : std_ulogic;
+    signal log_data : std_ulogic_vector(70 downto 0);
 begin
     -- synchronous writes
     register_write_0: process(clk)
@@ -131,4 +134,13 @@ begin
         sim_dump_done <= '0';
     end generate;
 
+    reg_log: process(clk)
+    begin
+        if rising_edge(clk) then
+            log_data <= w_in.write_data &
+                        w_in.write_enable &
+                        w_in.write_reg;
+        end if;
+    end process;
+    log_out <= log_data;
 end architecture behaviour;

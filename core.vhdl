@@ -128,6 +128,12 @@ architecture behave of core is
     -- Debug status
     signal dbg_core_is_stopped: std_ulogic;
 
+    -- Logging signals
+    signal log_data    : std_ulogic_vector(255 downto 0);
+    signal log_rd_addr : std_ulogic_vector(31 downto 0);
+    signal log_wr_addr : std_ulogic_vector(31 downto 0);
+    signal log_rd_data : std_ulogic_vector(63 downto 0);
+
     function keep_h(disable : boolean) return string is
     begin
 	if disable then
@@ -183,7 +189,8 @@ begin
             flush_in => flush,
 	    stop_in => dbg_core_stop,
             e_in => execute1_to_fetch1,
-            i_out => fetch1_to_icache
+            i_out => fetch1_to_icache,
+            log_out => log_data(42 downto 0)
             );
 
     fetch1_stall_in <= icache_stall_out or decode2_stall_out;
@@ -205,7 +212,8 @@ begin
             inval_in => dbg_icache_rst or ex1_icache_inval,
 	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
-            wishbone_in => wishbone_insn_in
+            wishbone_in => wishbone_insn_in,
+            log_out => log_data(96 downto 43)
             );
 
     fetch2_0: entity work.fetch2
@@ -227,7 +235,8 @@ begin
             stall_in => decode1_stall_in,
             flush_in => flush,
             f_in => fetch2_to_decode1,
-            d_out => decode1_to_decode2
+            d_out => decode1_to_decode2,
+            log_out => log_data(109 downto 97)
             );
 
     decode1_stall_in <= decode2_stall_out;
@@ -249,7 +258,8 @@ begin
             r_in => register_file_to_decode2,
             r_out => decode2_to_register_file,
             c_in => cr_file_to_decode2,
-            c_out => decode2_to_cr_file
+            c_out => decode2_to_cr_file,
+            log_out => log_data(119 downto 110)
             );
     decode2_stall_in <= ex1_stall_out or ls1_stall_out;
 
@@ -267,7 +277,8 @@ begin
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
 	    sim_dump => terminate,
-	    sim_dump_done => sim_cr_dump
+	    sim_dump_done => sim_cr_dump,
+            log_out => log_data(255 downto 185)
 	    );
 
     cr_file_0: entity work.cr_file
@@ -279,7 +290,8 @@ begin
             d_in => decode2_to_cr_file,
             d_out => cr_file_to_decode2,
             w_in => writeback_to_cr_file,
-            sim_dump => sim_cr_dump
+            sim_dump => sim_cr_dump,
+            log_out => log_data(184 downto 172)
             );
 
     execute1_0: entity work.execute1
@@ -299,7 +311,11 @@ begin
             e_out => execute1_to_writeback,
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
-            terminate_out => terminate
+            terminate_out => terminate,
+            log_out => log_data(134 downto 120),
+            log_rd_addr => log_rd_addr,
+            log_rd_data => log_rd_data,
+            log_wr_addr => log_wr_addr
             );
 
     loadstore1_0: entity work.loadstore1
@@ -314,7 +330,8 @@ begin
             m_out => loadstore1_to_mmu,
             m_in => mmu_to_loadstore1,
             dc_stall => dcache_stall_out,
-            stall_out => ls1_stall_out
+            stall_out => ls1_stall_out,
+            log_out => log_data(149 downto 140)
             );
 
     mmu_0: entity work.mmu
@@ -343,7 +360,8 @@ begin
             m_out => dcache_to_mmu,
             stall_out => dcache_stall_out,
             wishbone_in => wishbone_data_in,
-            wishbone_out => wishbone_data_out
+            wishbone_out => wishbone_data_out,
+            log_out => log_data(171 downto 152)
             );
 
     writeback_0: entity work.writeback
@@ -355,6 +373,9 @@ begin
             c_out => writeback_to_cr_file,
             complete_out => complete
             );
+
+    log_data(151 downto 150) <= "00";
+    log_data(139 downto 135) <= "00000";
 
     debug_0: entity work.core_debug
 	port map (
@@ -377,6 +398,10 @@ begin
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
+            log_data => log_data,
+            log_read_addr => log_rd_addr,
+            log_read_data => log_rd_data,
+            log_write_addr => log_wr_addr,
 	    terminated_out => terminated_out
 	    );
 
