@@ -58,7 +58,7 @@ architecture behaviour of execute1 is
         (e => Execute1ToWritebackInit, lr_update => '0',
          mul_in_progress => '0', div_in_progress => '0', cntz_in_progress => '0',
          slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
-         others => (others => '0'));
+         next_lr => (others => '0'), ldst_nia => (others => '0'), others => (others => '0'));
 
     signal r, rin : reg_type;
 

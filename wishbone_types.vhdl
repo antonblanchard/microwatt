@@ -18,7 +18,7 @@ package wishbone_types is
         sel : wishbone_sel_type;
         we  : std_ulogic;
     end record;
-    constant wishbone_master_out_init : wishbone_master_out := (cyc => '0', stb => '0', we => '0', others => (others => '0'));
+    constant wishbone_master_out_init : wishbone_master_out := (adr => (others => '0'), dat => (others => '0'), cyc => '0', stb => '0', sel => (others => '0'), we => '0');
 
     type wishbone_slave_out is record
         dat   : wishbone_data_type;
