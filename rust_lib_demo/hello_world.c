@@ -20,14 +20,14 @@ void init_bss()
 	}
 }
 
-#define HELLO_WORLD "Hello World\r\n"
+#define HELLO_WORLD "Hello World\n"
 
 int main(void)
 {
 	init_bss();
 	potato_uart_init();
 
-	putstr(HELLO_WORLD, strlen(HELLO_WORLD));
+	puts(HELLO_WORLD);
 
 	rust_main();
 	crash();
