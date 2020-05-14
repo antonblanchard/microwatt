@@ -25,7 +25,13 @@ entity dcache is
         -- Number of lines in a set
         NUM_LINES : positive := 32;
         -- Number of ways
-        NUM_WAYS  : positive := 4
+        NUM_WAYS  : positive := 4;
+        -- L1 DTLB entries per set
+        TLB_SET_SIZE : positive := 64;
+        -- L1 DTLB number of sets
+        TLB_NUM_WAYS : positive := 2;
+        -- L1 DTLB log_2(page_size)
+        TLB_LG_PGSZ : positive := 12
         );
     port (
         clk          : in std_ulogic;
@@ -33,6 +39,9 @@ entity dcache is
 
         d_in         : in Loadstore1ToDcacheType;
         d_out        : out DcacheToLoadstore1Type;
+
+        m_in         : in MmuToDcacheType;
+        m_out        : out DcacheToMmuType;
 
 	stall_out    : out std_ulogic;
 
@@ -56,6 +65,8 @@ architecture rtl of dcache is
 
     -- Bit fields counts in the address
 
+    -- REAL_ADDR_BITS is the number of real address bits that we store
+    constant REAL_ADDR_BITS : positive := 56;
     -- ROW_BITS is the number of bits to select a row 
     constant ROW_BITS      : natural := log2(BRAM_ROWS);
     -- ROW_LINEBITS is the number of bits to select a row within a line
@@ -66,8 +77,10 @@ architecture rtl of dcache is
     constant ROW_OFF_BITS  : natural := log2(ROW_SIZE);
     -- INDEX_BITS is the number if bits to select a cache line
     constant INDEX_BITS    : natural := log2(NUM_LINES);
+    -- SET_SIZE_BITS is the log base 2 of the set size
+    constant SET_SIZE_BITS : natural := LINE_OFF_BITS + INDEX_BITS;
     -- TAG_BITS is the number of bits of the tag part of the address
-    constant TAG_BITS      : natural := 64 - LINE_OFF_BITS - INDEX_BITS;
+    constant TAG_BITS      : natural := REAL_ADDR_BITS - SET_SIZE_BITS;
     -- WAY_BITS is the number of bits to select a way
     constant WAY_BITS     : natural := log2(NUM_WAYS);
 
@@ -80,7 +93,7 @@ architecture rtl of dcache is
     -- ..         |         |- --| ROW_OFF_BITS  (3)
     -- ..         |----- ---|    | ROW_BITS      (8)
     -- ..         |-----|        | INDEX_BITS    (5)
-    -- .. --------|              | TAG_BITS      (53)
+    -- .. --------|              | TAG_BITS      (45)
 
     subtype row_t is integer range 0 to BRAM_ROWS-1;
     subtype index_t is integer range 0 to NUM_LINES-1;
@@ -110,7 +123,55 @@ architecture rtl of dcache is
     attribute ram_style : string;
     attribute ram_style of cache_tags : signal is "distributed";
 
-    signal r0 : Loadstore1ToDcacheType;
+    -- L1 TLB.
+    constant TLB_SET_BITS : natural := log2(TLB_SET_SIZE);
+    constant TLB_WAY_BITS : natural := log2(TLB_NUM_WAYS);
+    constant TLB_EA_TAG_BITS : natural := 64 - (TLB_LG_PGSZ + TLB_SET_BITS);
+    constant TLB_TAG_WAY_BITS : natural := TLB_NUM_WAYS * TLB_EA_TAG_BITS;
+    constant TLB_PTE_BITS : natural := 64;
+    constant TLB_PTE_WAY_BITS : natural := TLB_NUM_WAYS * TLB_PTE_BITS;
+
+    subtype tlb_way_t is integer range 0 to TLB_NUM_WAYS - 1;
+    subtype tlb_index_t is integer range 0 to TLB_SET_SIZE - 1;
+    subtype tlb_way_valids_t is std_ulogic_vector(TLB_NUM_WAYS-1 downto 0);
+    type tlb_valids_t is array(tlb_index_t) of tlb_way_valids_t;
+    subtype tlb_tag_t is std_ulogic_vector(TLB_EA_TAG_BITS - 1 downto 0);
+    subtype tlb_way_tags_t is std_ulogic_vector(TLB_TAG_WAY_BITS-1 downto 0);
+    type tlb_tags_t is array(tlb_index_t) of tlb_way_tags_t;
+    subtype tlb_pte_t is std_ulogic_vector(TLB_PTE_BITS - 1 downto 0);
+    subtype tlb_way_ptes_t is std_ulogic_vector(TLB_PTE_WAY_BITS-1 downto 0);
+    type tlb_ptes_t is array(tlb_index_t) of tlb_way_ptes_t;
+    type hit_way_set_t is array(tlb_way_t) of way_t;
+
+    signal dtlb_valids : tlb_valids_t;
+    signal dtlb_tags : tlb_tags_t;
+    signal dtlb_ptes : tlb_ptes_t;
+    attribute ram_style of dtlb_tags : signal is "distributed";
+    attribute ram_style of dtlb_ptes : signal is "distributed";
+
+    -- Record for storing permission, attribute, etc. bits from a PTE
+    type perm_attr_t is record
+        reference : std_ulogic;
+        changed   : std_ulogic;
+        nocache   : std_ulogic;
+        priv      : std_ulogic;
+        rd_perm   : std_ulogic;
+        wr_perm   : std_ulogic;
+    end record;
+
+    function extract_perm_attr(pte : std_ulogic_vector(TLB_PTE_BITS - 1 downto 0)) return perm_attr_t is
+        variable pa : perm_attr_t;
+    begin
+        pa.reference := pte(8);
+        pa.changed := pte(7);
+        pa.nocache := pte(5);
+        pa.priv := pte(3);
+        pa.rd_perm := pte(2);
+        pa.wr_perm := pte(1);
+        return pa;
+    end;
+
+    constant real_mode_perm_attr : perm_attr_t := (nocache => '0', others => '1');
 
     -- Type of operation on a "valid" input
     type op_t is (OP_NONE,
@@ -118,6 +179,7 @@ architecture rtl of dcache is
 		  OP_LOAD_MISS,     -- Load missing cache
 		  OP_LOAD_NC,       -- Non-cachable load
 		  OP_BAD,           -- BAD: Cache hit on NC load/store
+                  OP_TLB_ERR,       -- TLB miss or protection/RC failure
 		  OP_STORE_HIT,     -- Store hitting cache
 		  OP_STORE_MISS);   -- Store missing cache
 		      
@@ -144,12 +206,25 @@ architecture rtl of dcache is
     -- first stage emits a stall for a complex op.
     --
 
+    -- Stage 0 register, basically contains just the latched request
+    type reg_stage_0_t is record
+        req   : Loadstore1ToDcacheType;
+        tlbie : std_ulogic;
+        doall : std_ulogic;
+        tlbld : std_ulogic;
+        mmu_req : std_ulogic;   -- indicates source of request
+    end record;
+
+    signal r0 : reg_stage_0_t;
+    signal r0_valid : std_ulogic;
+    
     -- First stage register, contains state for stage 1 of load hits
     -- and for the state machine used by all other operations
     --
     type reg_stage_1_t is record
 	-- Latch the complete request from ls1
 	req              : Loadstore1ToDcacheType;
+        mmu_req          : std_ulogic;
 
 	-- Cache hit state
 	hit_way          : way_t;
@@ -168,6 +243,13 @@ architecture rtl of dcache is
 	store_way        : way_t;
 	store_row        : row_t;
         store_index      : index_t;
+
+        -- Signals to complete with error
+        error_done       : std_ulogic;
+        cache_paradox    : std_ulogic;
+
+        -- completion signal for tlbie
+        tlbie_done       : std_ulogic;
     end record;
 
     signal r1 : reg_stage_1_t;
@@ -208,6 +290,24 @@ architecture rtl of dcache is
     -- Wishbone read/write/cache write formatting signals
     signal bus_sel     : std_ulogic_vector(7 downto 0);
 
+    -- TLB signals
+    signal tlb_tag_way : tlb_way_tags_t;
+    signal tlb_pte_way : tlb_way_ptes_t;
+    signal tlb_valid_way : tlb_way_valids_t;
+    signal tlb_req_index : tlb_index_t;
+    signal tlb_hit : std_ulogic;
+    signal tlb_hit_way : tlb_way_t;
+    signal pte : tlb_pte_t;
+    signal ra : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+    signal valid_ra : std_ulogic;
+    signal perm_attr : perm_attr_t;
+    signal rc_ok : std_ulogic;
+    signal perm_ok : std_ulogic;
+
+    -- TLB PLRU output interface
+    type tlb_plru_out_t is array(tlb_index_t) of std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
+    signal tlb_plru_victim : tlb_plru_out_t;
+
     --
     -- Helper functions to decode incoming requests
     --
@@ -215,13 +315,13 @@ architecture rtl of dcache is
     -- Return the cache line index (tag index) for an address
     function get_index(addr: std_ulogic_vector(63 downto 0)) return index_t is
     begin
-        return to_integer(unsigned(addr(63-TAG_BITS downto LINE_OFF_BITS)));
+        return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto LINE_OFF_BITS)));
     end;
 
     -- Return the cache row index (data memory) for an address
     function get_row(addr: std_ulogic_vector(63 downto 0)) return row_t is
     begin
-        return to_integer(unsigned(addr(63-TAG_BITS downto ROW_OFF_BITS)));
+        return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto ROW_OFF_BITS)));
     end;
 
     -- Returns whether this is the last row of a line
@@ -269,9 +369,9 @@ architecture rtl of dcache is
     end;
 
     -- Get the tag value from the address
-    function get_tag(addr: std_ulogic_vector(63 downto 0)) return cache_tag_t is
+    function get_tag(addr: std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0)) return cache_tag_t is
     begin
-        return addr(63 downto 64-TAG_BITS);
+        return addr(REAL_ADDR_BITS - 1 downto SET_SIZE_BITS);
     end;
 
     -- Read a tag from a tag memory row
@@ -287,6 +387,38 @@ architecture rtl of dcache is
 	tagset((way+1) * TAG_BITS - 1 downto way * TAG_BITS) := tag;
     end;
 
+    -- Read a TLB tag from a TLB tag memory row
+    function read_tlb_tag(way: tlb_way_t; tags: tlb_way_tags_t) return tlb_tag_t is
+        variable j : integer;
+    begin
+        j := way * TLB_EA_TAG_BITS;
+        return tags(j + TLB_EA_TAG_BITS - 1 downto j);
+    end;
+
+    -- Write a TLB tag to a TLB tag memory row
+    procedure write_tlb_tag(way: tlb_way_t; tags: inout tlb_way_tags_t;
+                            tag: tlb_tag_t) is
+        variable j : integer;
+    begin
+        j := way * TLB_EA_TAG_BITS;
+        tags(j + TLB_EA_TAG_BITS - 1 downto j) := tag;
+    end;
+
+    -- Read a PTE from a TLB PTE memory row
+    function read_tlb_pte(way: tlb_way_t; ptes: tlb_way_ptes_t) return tlb_pte_t is
+        variable j : integer;
+    begin
+        j := way * TLB_PTE_BITS;
+        return ptes(j + TLB_PTE_BITS - 1 downto j);
+    end;
+
+    procedure write_tlb_pte(way: tlb_way_t; ptes: inout tlb_way_ptes_t; newpte: tlb_pte_t) is
+        variable j : integer;
+    begin
+        j := way * TLB_PTE_BITS;
+        ptes(j + TLB_PTE_BITS - 1 downto j) := newpte;
+    end;
+
 begin
 
     assert LINE_SIZE mod ROW_SIZE = 0 report "LINE_SIZE not multiple of ROW_SIZE" severity FAILURE;
@@ -297,13 +429,188 @@ begin
 	report "geometry bits don't add up" severity FAILURE;
     assert (LINE_OFF_BITS = ROW_OFF_BITS + ROW_LINEBITS)
 	report "geometry bits don't add up" severity FAILURE;
-    assert (64 = TAG_BITS + INDEX_BITS + LINE_OFF_BITS)
+    assert (REAL_ADDR_BITS = TAG_BITS + INDEX_BITS + LINE_OFF_BITS)
 	report "geometry bits don't add up" severity FAILURE;
-    assert (64 = TAG_BITS + ROW_BITS + ROW_OFF_BITS)
+    assert (REAL_ADDR_BITS = TAG_BITS + ROW_BITS + ROW_OFF_BITS)
 	report "geometry bits don't add up" severity FAILURE;
     assert (64 = wishbone_data_bits)
 	report "Can't yet handle a wishbone width that isn't 64-bits" severity FAILURE;
-    
+
+    -- Latch the request in r0.req as long as we're not stalling
+    stage_0 : process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' then
+                r0.req.valid <= '0';
+            elsif stall_out = '0' then
+                assert (d_in.valid and m_in.valid) = '0' report
+                    "request collision loadstore vs MMU";
+                if m_in.valid = '1' then
+                    r0.req.valid <= '1';
+                    r0.req.load <= not (m_in.tlbie or m_in.tlbld);
+                    r0.req.dcbz <= '0';
+                    r0.req.nc <= '0';
+                    r0.req.reserve <= '0';
+                    r0.req.virt_mode <= '0';
+                    r0.req.priv_mode <= '1';
+                    r0.req.addr <= m_in.addr;
+                    r0.req.data <= m_in.pte;
+                    r0.req.byte_sel <= (others => '1');
+                    r0.tlbie <= m_in.tlbie;
+                    r0.doall <= m_in.doall;
+                    r0.tlbld <= m_in.tlbld;
+                    r0.mmu_req <= '1';
+                else
+                    r0.req <= d_in;
+                    r0.tlbie <= '0';
+                    r0.doall <= '0';
+                    r0.tlbld <= '0';
+                    r0.mmu_req <= '0';
+                end if;
+            end if;
+        end if;
+    end process;
+
+    -- we don't yet handle collisions between loadstore1 requests and MMU requests
+    m_out.stall <= '0';
+
+    -- Hold off the request in r0 when stalling,
+    -- and cancel it if we get an error in a previous request.
+    r0_valid <= r0.req.valid and not stall_out and not r1.error_done;
+
+    -- TLB
+    -- Operates in the second cycle on the request latched in r0.req.
+    -- TLB updates write the entry at the end of the second cycle.
+    tlb_read : process(clk)
+        variable index : tlb_index_t;
+        variable addrbits : std_ulogic_vector(TLB_SET_BITS - 1 downto 0);
+    begin
+        if rising_edge(clk) then
+            if stall_out = '1' then
+                -- keep reading the same thing while stalled
+                index := tlb_req_index;
+            else
+                if m_in.valid = '1' then
+                    addrbits := m_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1 downto TLB_LG_PGSZ);
+                else
+                    addrbits := d_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1 downto TLB_LG_PGSZ);
+                end if;
+                index := to_integer(unsigned(addrbits));
+            end if;
+            tlb_valid_way <= dtlb_valids(index);
+            tlb_tag_way <= dtlb_tags(index);
+            tlb_pte_way <= dtlb_ptes(index);
+        end if;
+    end process;
+
+    -- Generate TLB PLRUs
+    maybe_tlb_plrus: if TLB_NUM_WAYS > 1 generate
+    begin
+	tlb_plrus: for i in 0 to TLB_SET_SIZE - 1 generate
+	    -- TLB PLRU interface
+	    signal tlb_plru_acc    : std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
+	    signal tlb_plru_acc_en : std_ulogic;
+	    signal tlb_plru_out    : std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
+	begin
+	    tlb_plru : entity work.plru
+		generic map (
+		    BITS => TLB_WAY_BITS
+		    )
+		port map (
+		    clk => clk,
+		    rst => rst,
+		    acc => tlb_plru_acc,
+		    acc_en => tlb_plru_acc_en,
+		    lru => tlb_plru_out
+		    );
+
+	    process(tlb_req_index, tlb_hit, tlb_hit_way, tlb_plru_out)
+	    begin
+		-- PLRU interface
+		if tlb_hit = '1' and tlb_req_index = i then
+		    tlb_plru_acc_en <= '1';
+		else
+		    tlb_plru_acc_en <= '0';
+		end if;
+		tlb_plru_acc <= std_ulogic_vector(to_unsigned(tlb_hit_way, TLB_WAY_BITS));
+		tlb_plru_victim(i) <= tlb_plru_out;
+	    end process;
+	end generate;
+    end generate;
+
+    tlb_search : process(all)
+        variable hitway : tlb_way_t;
+        variable hit : std_ulogic;
+        variable eatag : tlb_tag_t;
+    begin
+        tlb_req_index <= to_integer(unsigned(r0.req.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1
+                                                     downto TLB_LG_PGSZ)));
+        hitway := 0;
+        hit := '0';
+        eatag := r0.req.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
+        for i in tlb_way_t loop
+            if tlb_valid_way(i) = '1' and
+                read_tlb_tag(i, tlb_tag_way) = eatag then
+                hitway := i;
+                hit := '1';
+            end if;
+        end loop;
+        tlb_hit <= hit and r0_valid;
+        tlb_hit_way <= hitway;
+        if tlb_hit = '1' then
+            pte <= read_tlb_pte(hitway, tlb_pte_way);
+        else
+            pte <= (others => '0');
+        end if;
+        valid_ra <= tlb_hit or not r0.req.virt_mode;
+        if r0.req.virt_mode = '1' then
+            ra <= pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
+                  r0.req.addr(TLB_LG_PGSZ - 1 downto 0);
+            perm_attr <= extract_perm_attr(pte);
+        else
+            ra <= r0.req.addr(REAL_ADDR_BITS - 1 downto 0);
+            perm_attr <= real_mode_perm_attr;
+        end if;
+    end process;
+
+    tlb_update : process(clk)
+        variable tlbie : std_ulogic;
+        variable tlbwe : std_ulogic;
+        variable repl_way : tlb_way_t;
+        variable eatag : tlb_tag_t;
+        variable tagset : tlb_way_tags_t;
+        variable pteset : tlb_way_ptes_t;
+    begin
+        if rising_edge(clk) then
+            tlbie := r0_valid and r0.tlbie;
+            tlbwe := r0_valid and r0.tlbld;
+            if rst = '1' or (tlbie = '1' and r0.doall = '1') then
+                -- clear all valid bits at once
+                for i in tlb_index_t loop
+                    dtlb_valids(i) <= (others => '0');
+                end loop;
+            elsif tlbie = '1' then
+                if tlb_hit = '1' then
+                    dtlb_valids(tlb_req_index)(tlb_hit_way) <= '0';
+                end if;
+            elsif tlbwe = '1' then
+                if tlb_hit = '1' then
+                    repl_way := tlb_hit_way;
+                else
+                    repl_way := to_integer(unsigned(tlb_plru_victim(tlb_req_index)));
+                end if;
+                eatag := r0.req.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
+                tagset := tlb_tag_way;
+                write_tlb_tag(repl_way, tagset, eatag);
+                dtlb_tags(tlb_req_index) <= tagset;
+                pteset := tlb_pte_way;
+                write_tlb_pte(repl_way, pteset, r0.req.data);
+                dtlb_ptes(tlb_req_index) <= pteset;
+                dtlb_valids(tlb_req_index)(repl_way) <= '1';
+            end if;
+        end if;
+    end process;
+
     -- Generate PLRUs
     maybe_plrus: if NUM_WAYS > 1 generate
     begin
@@ -341,53 +648,74 @@ begin
 	end generate;
     end generate;
 
-    -- Latch the request in r0 as long as we're not stalling
-    stage_0 : process(clk)
-    begin
-        if rising_edge(clk) then
-            if rst = '1' then
-                r0.valid <= '0';
-            elsif stall_out = '0' then
-                r0 <= d_in;
-            end if;
-        end if;
-    end process;
-
     -- Cache request parsing and hit detection
     dcache_request : process(all)
 	variable is_hit  : std_ulogic;
 	variable hit_way : way_t;
 	variable op      : op_t;
-        variable tmp     : std_ulogic_vector(63 downto 0);
-        variable data    : std_ulogic_vector(63 downto 0);
-	variable opsel   : std_ulogic_vector(3 downto 0);
+	variable opsel   : std_ulogic_vector(2 downto 0);
         variable go      : std_ulogic;
+        variable nc      : std_ulogic;
+        variable s_hit   : std_ulogic;
+        variable s_tag   : cache_tag_t;
+        variable s_pte   : tlb_pte_t;
+        variable s_ra    : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+        variable hit_set : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
+        variable hit_way_set : hit_way_set_t;
     begin
 	-- Extract line, row and tag from request
-        req_index <= get_index(r0.addr);
-        req_row <= get_row(r0.addr);
-        req_tag <= get_tag(r0.addr);
+        req_index <= get_index(r0.req.addr);
+        req_row <= get_row(r0.req.addr);
+        req_tag <= get_tag(ra);
 
         -- Only do anything if not being stalled by stage 1
-        go := r0.valid and not stall_out;
+        go := r0_valid and not (r0.tlbie or r0.tlbld);
 
         -- Calculate address of beginning of cache line, will be
         -- used for cache miss processing if needed
         --
-        req_laddr <= r0.addr(63 downto LINE_OFF_BITS) &
+        req_laddr <= (63 downto REAL_ADDR_BITS => '0') &
+                     ra(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) &
                      (LINE_OFF_BITS-1 downto 0 => '0');
 
 	-- Test if pending request is a hit on any way
-	hit_way := 0;
-	is_hit := '0';
-	for i in way_t loop
-	    if go = '1' and cache_valids(req_index)(i) = '1' then
-		if read_tag(i, cache_tags(req_index)) = req_tag then
-		    hit_way := i;
-		    is_hit := '1';
-		end if;
-	    end if;
-	end loop;
+        -- In order to make timing in virtual mode, when we are using the TLB,
+        -- we compare each way with each of the real addresses from each way of
+        -- the TLB, and then decide later which match to use.
+        hit_way := 0;
+        is_hit := '0';
+        if r0.req.virt_mode = '1' then
+            for j in tlb_way_t loop
+                hit_way_set(j) := 0;
+                s_hit := '0';
+                s_pte := read_tlb_pte(j, tlb_pte_way);
+                s_ra := s_pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
+                        r0.req.addr(TLB_LG_PGSZ - 1 downto 0);
+                s_tag := get_tag(s_ra);
+                for i in way_t loop
+                    if go = '1' and cache_valids(req_index)(i) = '1' and
+                        read_tag(i, cache_tags(req_index)) = s_tag and
+                        tlb_valid_way(j) = '1' then
+                        hit_way_set(j) := i;
+                        s_hit := '1';
+                    end if;
+                end loop;
+                hit_set(j) := s_hit;
+            end loop;
+            if tlb_hit = '1' then
+                is_hit := hit_set(tlb_hit_way);
+                hit_way := hit_way_set(tlb_hit_way);
+            end if;
+        else
+            s_tag := get_tag(r0.req.addr(REAL_ADDR_BITS - 1 downto 0));
+            for i in way_t loop
+                if go = '1' and cache_valids(req_index)(i) = '1' and
+                    read_tag(i, cache_tags(req_index)) = s_tag then
+                    hit_way := i;
+                    is_hit := '1';
+                end if;
+            end loop;
+        end if;
 
 	-- The way that matched on a hit	       
 	req_hit_way <= hit_way;
@@ -395,22 +723,35 @@ begin
 	-- The way to replace on a miss
 	replace_way <= to_integer(unsigned(plru_victim(req_index)));
 
-	-- Combine the request and cache his status to decide what
+        -- work out whether we have permission for this access
+        -- NB we don't yet implement AMR, thus no KUAP
+        rc_ok <= perm_attr.reference and (r0.req.load or perm_attr.changed);
+        perm_ok <= (r0.req.priv_mode or not perm_attr.priv) and
+                   (perm_attr.wr_perm or (r0.req.load and perm_attr.rd_perm));
+
+	-- Combine the request and cache hit status to decide what
 	-- operation needs to be done
 	--
-	opsel := go & r0.load & r0.nc & is_hit;
-	case opsel is
-	when "1101" => op := OP_LOAD_HIT;
-	when "1100" => op := OP_LOAD_MISS;
-	when "1110" => op := OP_LOAD_NC;
-	when "1001" => op := OP_STORE_HIT;
-	when "1000" => op := OP_STORE_MISS;
-	when "1010" => op := OP_STORE_MISS;
-	when "1011" => op := OP_BAD;
-	when "1111" => op := OP_BAD;
-	when others => op := OP_NONE;
-	end case;
-
+        nc := r0.req.nc or perm_attr.nocache;
+        op := OP_NONE;
+        if go = '1' then
+            if valid_ra = '1' and rc_ok = '1' and perm_ok = '1' then
+                opsel := r0.req.load & nc & is_hit;
+                case opsel is
+                    when "101" => op := OP_LOAD_HIT;
+                    when "100" => op := OP_LOAD_MISS;
+                    when "110" => op := OP_LOAD_NC;
+                    when "001" => op := OP_STORE_HIT;
+                    when "000" => op := OP_STORE_MISS;
+                    when "010" => op := OP_STORE_MISS;
+                    when "011" => op := OP_BAD;
+                    when "111" => op := OP_BAD;
+                    when others => op := OP_NONE;
+                end case;
+            else
+                op := OP_TLB_ERR;
+            end if;
+        end if;
 	req_op <= op;
 
         -- Version of the row number that is valid one cycle earlier
@@ -418,7 +759,11 @@ begin
         -- If we're stalling then we need to keep reading the last
         -- row requested.
         if stall_out = '0' then
-            early_req_row <= get_row(d_in.addr);
+            if m_in.valid = '1' then
+                early_req_row <= get_row(m_in.addr);
+            else
+                early_req_row <= get_row(d_in.addr);
+            end if;
         else
             early_req_row <= req_row;
         end if;
@@ -426,9 +771,6 @@ begin
 
     -- Wire up wishbone request latch out of stage 1
     wishbone_out <= r1.wb;
-
-   -- TODO: Generate errors
-   -- err_nc_collision <= '1' when req_op = OP_BAD else '0';
 
     -- Generate stalls from stage 1 state machine
     stall_out <= '1' when r1.state /= IDLE else '0';
@@ -439,17 +781,17 @@ begin
         cancel_store <= '0';
         set_rsrv <= '0';
         clear_rsrv <= '0';
-        if stall_out = '0' and r0.valid = '1' and r0.reserve = '1' then
+        if r0_valid = '1' and r0.req.reserve = '1' then
             -- XXX generate alignment interrupt if address is not aligned
-            -- XXX or if r0.nc = '1'
-            if r0.load = '1' then
+            -- XXX or if r0.req.nc = '1'
+            if r0.req.load = '1' then
                 -- load with reservation
                 set_rsrv <= '1';
             else
                 -- store conditional
                 clear_rsrv <= '1';
                 if reservation.valid = '0' or
-                    r0.addr(63 downto LINE_OFF_BITS) /= reservation.addr then
+                    r0.req.addr(63 downto LINE_OFF_BITS) /= reservation.addr then
                     cancel_store <= '1';
                 end if;
             end if;
@@ -463,7 +805,7 @@ begin
                 reservation.valid <= '0';
             elsif set_rsrv = '1' then
                 reservation.valid <= '1';
-                reservation.addr <= r0.addr(63 downto LINE_OFF_BITS);
+                reservation.addr <= r0.req.addr(63 downto LINE_OFF_BITS);
             end if;
         end if;
     end process;
@@ -477,6 +819,13 @@ begin
 	d_out.valid <= '0';
 	d_out.data <= cache_out(r1.hit_way);
         d_out.store_done <= '0';
+        d_out.error <= '0';
+        d_out.cache_paradox <= '0';
+
+        -- Outputs to MMU
+        m_out.done <= r1.tlbie_done;
+        m_out.err <= '0';
+        m_out.data <= cache_out(r1.hit_way);
 
 	-- We have a valid load or store hit or we just completed a slow
 	-- op such as a load miss, a NC load or a store
@@ -496,30 +845,63 @@ begin
 	    "unexpected hit_load_delayed collision with slow_valid"
 	    severity FAILURE;
 
-	-- Load hit case is the standard path
-	if r1.hit_load_valid = '1' then
-            report "completing load hit";
-            d_out.valid <= '1';
-	end if;
+        if r1.mmu_req = '0' then
+            -- Request came from loadstore1...
+            -- Load hit case is the standard path
+            if r1.hit_load_valid = '1' then
+                report "completing load hit";
+                d_out.valid <= '1';
+            end if;
 
-	-- Slow ops (load miss, NC, stores)
-	if r1.slow_valid = '1' then
-	    -- If it's a load, enable register writeback and switch
-	    -- mux accordingly
-	    --
-	    if r1.req.load then
-		-- Read data comes from the slow data latch
-		d_out.data <= r1.slow_data;
-	    end if;
-            d_out.store_done <= '1';
+            -- error cases complete without stalling
+            if r1.error_done = '1' then
+                report "completing ld/st with error";
+                d_out.error <= '1';
+                d_out.cache_paradox <= r1.cache_paradox;
+                d_out.valid <= '1';
+            end if;
 
-            report "completing store or load miss";
-            d_out.valid <= '1';
-	end if;
+            -- Slow ops (load miss, NC, stores)
+            if r1.slow_valid = '1' then
+                -- If it's a load, enable register writeback and switch
+                -- mux accordingly
+                --
+                if r1.req.load then
+                    -- Read data comes from the slow data latch
+                    d_out.data <= r1.slow_data;
+                end if;
+                d_out.store_done <= '1';
 
-        if r1.stcx_fail = '1' then
-            d_out.store_done <= '0';
-            d_out.valid <= '1';
+                report "completing store or load miss";
+                d_out.valid <= '1';
+            end if;
+
+            if r1.stcx_fail = '1' then
+                d_out.store_done <= '0';
+                d_out.valid <= '1';
+            end if;
+
+        else
+            -- Request came from MMU
+            if r1.hit_load_valid = '1' then
+                report "completing load hit to MMU, data=" & to_hstring(m_out.data);
+                m_out.done <= '1';
+            end if;
+
+            -- error cases complete without stalling
+            if r1.error_done = '1' then
+                report "completing MMU ld with error";
+                m_out.err <= '1';
+                m_out.done <= '1';
+            end if;
+
+            -- Slow ops (i.e. load miss)
+            if r1.slow_valid = '1' then
+                -- Read data comes from the slow data latch
+                m_out.data <= r1.slow_data;
+                report "completing MMU load miss, data=" & to_hstring(m_out.data);
+                m_out.done <= '1';
+            end if;
         end if;
 
     end process;
@@ -578,8 +960,8 @@ begin
 	    if r1.state = IDLE then
 		-- In IDLE state, the only write path is the store-hit update case
 		wr_addr  <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
-		wr_data  <= r0.data;
-		wr_sel   <= r0.byte_sel;
+		wr_data  <= r0.req.data;
+		wr_sel   <= r0.req.byte_sel;
 	    else
 		-- Otherwise, we might be doing a reload or a DCBZ
                 if r1.req.dcbz = '1' then
@@ -609,21 +991,23 @@ begin
 
     --
     -- Cache hit synchronous machine for the easy case. This handles load hits.
+    -- It also handles error cases (TLB miss, cache paradox)
     --
     dcache_fast_hit : process(clk)
     begin
         if rising_edge(clk) then
-	    -- If we have a request incoming, we have to latch it as r0.valid
+	    -- If we have a request incoming, we have to latch it as r0.req.valid
 	    -- is only set for a single cycle. It's up to the control logic to
 	    -- ensure we don't override an uncompleted request (for now we are
 	    -- single issue on load/stores so we are fine, later, we can generate
 	    -- a stall output if necessary).
 
 	    if req_op /= OP_NONE and stall_out = '0' then
-		r1.req <= r0;
+		r1.req <= r0.req;
+                r1.mmu_req <= r0.mmu_req;
 		report "op:" & op_t'image(req_op) &
-		    " addr:" & to_hstring(r0.addr) &
-		    " nc:" & std_ulogic'image(r0.nc) &
+		    " addr:" & to_hstring(r0.req.addr) &
+		    " nc:" & std_ulogic'image(r0.req.nc) &
 		    " idx:" & integer'image(req_index) &
 		    " tag:" & to_hstring(req_tag) &
 		    " way: " & integer'image(req_hit_way);
@@ -636,6 +1020,23 @@ begin
 	    else
 		r1.hit_load_valid <= '0';
 	    end if;
+
+            if req_op = OP_TLB_ERR then
+                report "Signalling ld/st error valid_ra=" & std_ulogic'image(valid_ra) &
+                    " rc_ok=" & std_ulogic'image(rc_ok) & " perm_ok=" & std_ulogic'image(perm_ok);
+                r1.error_done <= '1';
+                r1.cache_paradox <= '0';
+            elsif req_op = OP_BAD then
+                report "Signalling cache paradox";
+                r1.error_done <= '1';
+                r1.cache_paradox <= '1';
+            else
+                r1.error_done <= '0';
+                r1.cache_paradox <= '0';
+            end if;
+
+            -- complete tlbies and TLB loads in the third cycle
+            r1.tlbie_done <= r0_valid and (r0.tlbie or r0.tlbld);
 	end if;
     end process;
 
@@ -681,7 +1082,7 @@ begin
                     when OP_LOAD_MISS =>
 			-- Normal load cache miss, start the reload machine
 			--
-			report "cache miss addr:" & to_hstring(r0.addr) &
+			report "cache miss addr:" & to_hstring(r0.req.addr) &
 			    " idx:" & integer'image(req_index) &
 			    " way:" & integer'image(replace_way) &
 			    " tag:" & to_hstring(req_tag);
@@ -716,18 +1117,18 @@ begin
 			r1.state <= RELOAD_WAIT_ACK;
 
 		    when OP_LOAD_NC =>
-                        r1.wb.sel <= r0.byte_sel;
-                        r1.wb.adr <= r0.addr(r1.wb.adr'left downto 3) & "000";
+                        r1.wb.sel <= r0.req.byte_sel;
+                        r1.wb.adr <= ra(r1.wb.adr'left downto 3) & "000";
                         r1.wb.cyc <= '1';
                         r1.wb.stb <= '1';
 			r1.wb.we <= '0';
 			r1.state <= NC_LOAD_WAIT_ACK;
 
                     when OP_STORE_HIT | OP_STORE_MISS =>
-                        if r0.dcbz = '0' then
-                            r1.wb.sel <= r0.byte_sel;
-                            r1.wb.adr <= r0.addr(r1.wb.adr'left downto 3) & "000";
-                            r1.wb.dat <= r0.data;
+                        if r0.req.dcbz = '0' then
+                            r1.wb.sel <= r0.req.byte_sel;
+                            r1.wb.adr <= ra(r1.wb.adr'left downto 3) & "000";
+                            r1.wb.dat <= r0.req.data;
                             if cancel_store = '0' then
                                 r1.wb.cyc <= '1';
                                 r1.wb.stb <= '1';
@@ -774,8 +1175,10 @@ begin
                         end if;
 
 		    -- OP_NONE and OP_BAD do nothing
+                    -- OP_BAD was handled above already
 		    when OP_NONE =>
-		    when OP_BAD =>
+                    when OP_BAD =>
+                    when OP_TLB_ERR =>
 		    end case;
 
 		when RELOAD_WAIT_ACK =>

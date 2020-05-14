@@ -19,6 +19,7 @@ architecture behave of rotator_tb is
     signal is_32bit, right_shift, arith, clear_left, clear_right: std_ulogic := '0';
     signal result: std_ulogic_vector(63 downto 0);
     signal carry_out: std_ulogic;
+    signal extsw: std_ulogic;
 
 begin
     rotator_0: entity work.rotator
@@ -32,6 +33,7 @@ begin
 	    arith => arith,
 	    clear_left => clear_left,
 	    clear_right => clear_right,
+            sign_ext_rs => extsw,
 	    result => result,
 	    carry_out => carry_out
 	);
@@ -48,6 +50,7 @@ begin
 	arith <= '0';
 	clear_left <= '1';
 	clear_right <= '1';
+        extsw <= '0';
         rlwnm_loop : for i in 0 to 1000 loop
 	    rs <= pseudorand(64);
 	    shift <= pseudorand(7);
@@ -261,6 +264,31 @@ begin
 	    --report "result = " & to_hstring(carry_out & result);
 	    assert behave_ca_ra(63 downto 0) = result and behave_ca_ra(64) = carry_out
 		report "bad srad expected " & to_hstring(behave_ca_ra) & " got " & to_hstring(carry_out & result);
+        end loop;
+
+        -- extswsli
+        report "test extswsli";
+        ra <= (others => '0');
+	is_32bit <= '0';
+	right_shift <= '0';
+	arith <= '0';
+	clear_left <= '0';
+	clear_right <= '0';
+        extsw <= '1';
+        extswsli_loop : for i in 0 to 1000 loop
+	    rs <= pseudorand(64);
+	    shift <= '0' & pseudorand(6);
+	    wait for clk_period;
+	    behave_ra := rs;
+            behave_ra(63 downto 32) := (others => rs(31));
+            behave_ra := std_ulogic_vector(shift_left(unsigned(behave_ra),
+                                                      to_integer(unsigned(shift))));
+	    --report "rs = " & to_hstring(rs);
+	    --report "ra = " & to_hstring(ra);
+	    --report "shift = " & to_hstring(shift);
+	    --report "result = " & to_hstring(carry_out & result);
+	    assert behave_ra = result
+		report "bad extswsli expected " & to_hstring(behave_ra) & " got " & to_hstring(result);
         end loop;
 
         assert false report "end of test" severity failure;
