@@ -98,12 +98,13 @@ int getchar(void)
 	return potato_uart_read();
 }
 
-void putchar(unsigned char c)
+int putchar(int c)
 {
 	while (potato_uart_tx_full())
 		/* Do Nothing */;
 
 	potato_uart_write(c);
+	return c;
 }
 
 void putstr(const char *str, unsigned long len)
@@ -111,6 +112,19 @@ void putstr(const char *str, unsigned long len)
 	for (unsigned long i = 0; i < len; i++) {
 		putchar(str[i]);
 	}
+}
+
+int puts(const char *str)
+{
+	unsigned int i;
+
+	for (i = 0; *str; i++) {
+		char c = *(str++);
+		if (c == 10)
+			putchar(13);
+		putchar(c);
+	}
+	return 0;
 }
 
 size_t strlen(const char *s)
