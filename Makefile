@@ -71,7 +71,8 @@ rotator_tb.o: common.o glibc_random.o ppc_fx_insns.o insn_helpers.o rotator.o
 sim_console.o:
 sim_uart.o: wishbone_types.o sim_console.o
 xics.o: wishbone_types.o common.o
-soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o wishbone_bram_wrapper.o dmi_dtm_xilinx.o wishbone_debug_master.o xics.o
+soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o wishbone_bram_wrapper.o dmi_dtm_xilinx.o wishbone_debug_master.o xics.o syscon.o
+syscon.o: wishbone_types.o
 wishbone_arbiter.o: wishbone_types.o
 wishbone_types.o:
 writeback.o: common.o crhelpers.o
@@ -152,11 +153,21 @@ TAGS:
 
 .PHONY: TAGS
 
-clean:
+_clean:
 	rm -f *.o work-*cf unisim-*cf $(all)
 	rm -f fpga/*.o fpga/work-*cf
 	rm -f sim-unisim/*.o sim-unisim/unisim-*cf
 	rm -f TAGS
+	rm -f scripts/mw_debug/*.o
+	rm -f scripts/mw_debug/mw_debug
 
-distclean: clean
+clean: _clean
+	make -f scripts/mw_debug/Makefile clean
+
+distclean: _clean
 	rm -f *~ fpga/~
+	rm -rf litedram/build
+	rm -f litedram/extras/*~
+	rm -f litedram/gen-src/*~
+	rm -f litedram/gen-src/sdram_init/*~
+	make -f scripts/mw_debug/Makefile distclean

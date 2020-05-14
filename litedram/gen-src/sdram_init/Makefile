@@ -1,0 +1,75 @@
+#### Directories
+
+include variables.mak
+OBJ = $(BUILD_DIR)/obj
+
+PROGRAM = sdram_init
+OBJECTS = $(OBJ)/head.o $(OBJ)/main.o $(OBJ)/sdram.o
+
+#### Compiler
+
+ARCH = $(shell uname -m)
+ifneq ("$(ARCH)", "ppc64")
+ifneq ("$(ARCH)", "ppc64le")
+        CROSS_COMPILE = powerpc64le-linux-gnu-
+        endif
+        endif
+
+CC = $(CROSS_COMPILE)gcc
+LD = $(CROSS_COMPILE)ld
+OBJCOPY = $(CROSS_COMPILE)objcopy
+
+#### Flags
+
+CPPFLAGS = -nostdinc
+CPPFLAGS += -I$(SRC_DIR)/libc/include -I$(LXSRC_DIR) -I$(LXINC_DIR) -I$(GENINC_DIR) -I$(SRC_DIR)/include -I$(SRC_DIR)/../../../include
+CPPFLAGS += -isystem $(shell $(CC) -print-file-name=include)
+CFLAGS = -Os -g -Wall -std=c99 -m64 -mabi=elfv2 -msoft-float -mno-string -mno-multiple -mno-vsx -mno-altivec -mlittle-endian -fno-stack-protector -mstrict-align -ffreestanding -fdata-sections -ffunction-sections -fno-delete-null-pointer-checks 
+ASFLAGS = $(CPPFLAGS) $(CFLAGS)
+LDFLAGS = -static -nostdlib -Ttext-segment=0xffff0000 -T $(SRC_DIR)/$(PROGRAM).lds --gc-sections
+
+#### Pretty print
+
+ifeq ($(V),1)
+define Q
+  $(2)
+endef
+else
+define Q
+  @echo "	[$1] $(3)"
+  @$(2)
+endef
+endif
+
+#### Rules. This is a bit crappy, I'm sure we can do better with the
+####        handling of the various path, but this will have to do
+####        until I can be bothered getting my head around the finer
+####        points of Makefiles
+
+all: objdir $(OBJ)/$(PROGRAM).hex
+
+$(OBJ)/sdram.o: $(LXSRC_DIR)/sdram.c
+	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)
+$(OBJ)/%.o : $(SRC_DIR)/%.S
+	$(call Q,AS, $(CC) $(ASFLAGS) -c $< -o $@, $@)
+$(OBJ)/%.o : $(SRC_DIR)/%.c
+	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)
+$(OBJ)/%.o : $(SRC_DIR)/libc/src/%.c
+	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)
+
+LIBC_SRC := $(wildcard $(SRC_DIR)/libc/src/*.c)
+LIBC_OBJ := $(patsubst $(SRC_DIR)/libc/src/%.c, $(OBJ)/%.o,$(LIBC_SRC))
+$(OBJ)/libc.o: $(LIBC_OBJ)
+	$(call Q,LD, $(LD) -r -o $@ $^, $@)
+
+$(OBJ)/$(PROGRAM).elf: $(OBJECTS) $(OBJ)/libc.o
+	$(call Q,LD, $(LD) $(LDFLAGS) -o $@ $^, $@)
+
+$(OBJ)/$(PROGRAM).bin: $(OBJ)/$(PROGRAM).elf
+	$(call Q,OC, $(OBJCOPY) -O binary -S $^ $@, $@)
+
+$(OBJ)/$(PROGRAM).hex: $(OBJ)/$(PROGRAM).bin
+	$(call Q,HX, $(SRC_DIR)/bin2hex.py $^ > $@, $@)
+
+objdir:
+	@mkdir -p $(OBJ)

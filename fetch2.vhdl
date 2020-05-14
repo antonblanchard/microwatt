@@ -105,6 +105,7 @@ begin
 	-- Clear stash on reset
 	if rst = '1' then
 	    v_int.stash_valid := '0';
+            v.valid := '0';
 	end if;
 
 	-- Update registers

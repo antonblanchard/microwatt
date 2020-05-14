@@ -30,6 +30,10 @@ architecture behaviour of toplevel is
     signal system_clk : std_ulogic;
     signal system_clk_locked : std_ulogic;
 
+    -- Dummy DRAM
+    signal wb_dram_in : wishbone_master_out;
+    signal wb_dram_out : wishbone_slave_out;
+
 begin
 
     reset_controller: entity work.soc_reset
@@ -72,5 +76,10 @@ begin
 	    uart0_txd         => uart0_txd,
 	    uart0_rxd         => uart0_rxd
 	    );
+
+    -- Dummy DRAM
+    wb_dram_out.ack <= wb_dram_in.cyc and wb_dram_in.stb;
+    wb_dram_out.dat <= x"FFFFFFFFFFFFFFFF";
+    wb_dram_out.stall <= wb_dram_in.cyc and not wb_dram_out.ack;
 
 end architecture behaviour;
