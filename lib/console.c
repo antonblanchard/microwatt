@@ -107,13 +107,6 @@ int putchar(int c)
 	return c;
 }
 
-void putstr(const char *str, unsigned long len)
-{
-	for (unsigned long i = 0; i < len; i++) {
-		putchar(str[i]);
-	}
-}
-
 int puts(const char *str)
 {
 	unsigned int i;
