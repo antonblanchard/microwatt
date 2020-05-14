@@ -1,1 +1,1 @@
-../hello_world/console.c
+../lib/console.c

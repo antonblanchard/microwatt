@@ -4,7 +4,7 @@ include variables.mak
 OBJ = $(BUILD_DIR)/obj
 
 PROGRAM = sdram_init
-OBJECTS = $(OBJ)/head.o $(OBJ)/main.o $(OBJ)/sdram.o
+OBJECTS = $(OBJ)/head.o $(OBJ)/main.o $(OBJ)/sdram.o $(OBJ)/console.o
 
 #### Compiler
 
@@ -50,10 +50,12 @@ all: objdir $(OBJ)/$(PROGRAM).hex
 
 $(OBJ)/sdram.o: $(LXSRC_DIR)/sdram.c
 	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)
-$(OBJ)/%.o : $(SRC_DIR)/%.S
-	$(call Q,AS, $(CC) $(ASFLAGS) -c $< -o $@, $@)
+$(OBJ)/console.o: $(SRC_DIR)/../../../lib/console.c
+	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)
 $(OBJ)/%.o : $(SRC_DIR)/%.c
 	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)
+$(OBJ)/%.o : $(SRC_DIR)/%.S
+	$(call Q,AS, $(CC) $(ASFLAGS) -c $< -o $@, $@)
 $(OBJ)/%.o : $(SRC_DIR)/libc/src/%.c
 	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)
 
