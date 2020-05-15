@@ -119,8 +119,6 @@ architecture behaviour of litedram_wrapper is
 
     signal ad3                          : std_ulogic;
 
-    signal dram_user_reset              : std_ulogic;
-
     signal wb_ctrl_adr                  : std_ulogic_vector(29 downto 0);
     signal wb_ctrl_dat_w                : std_ulogic_vector(31 downto 0);
     signal wb_ctrl_dat_r                : std_ulogic_vector(31 downto 0);
@@ -234,7 +232,6 @@ begin
     -- Reset ignored, the reset controller use the pll lock signal,
     -- and alternate core reset address set when DRAM is not initialized.
     --
-    system_reset <= '0';
     core_alt_reset <= not init_done;
 
     -- State machine
@@ -242,7 +239,7 @@ begin
     begin
 	
 	if rising_edge(system_clk) then
-	    if dram_user_reset = '1' then
+	    if system_reset = '1' then
 		state <= CMD;
 	    else
 		case state is
@@ -286,7 +283,7 @@ begin
 	    init_done => init_done,
 	    init_error => init_error,
 	    user_clk => system_clk,
-	    user_rst => dram_user_reset,
+	    user_rst => system_reset,
             wb_ctrl_adr => wb_ctrl_adr,
             wb_ctrl_dat_w => wb_ctrl_dat_w,
             wb_ctrl_dat_r => wb_ctrl_dat_r,
