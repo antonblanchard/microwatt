@@ -37,17 +37,10 @@ void flush_cpu_icache(void)
 void main(void)
 {
 	unsigned long long ftr, val;
-	int i;
 
 	/* Init the UART */
 	potato_uart_init();
 
-	/*
-	 * Let things settle ... not sure why but the UART is
-	 * not happy otherwise. The PLL might need to settle ?
-	 */
-	for (i = 0; i < 10000; i++)
-		readb(UART_BASE + POTATO_CONSOLE_STATUS);
 	printf("\n\nWelcome to Microwatt !\n\n");
 
 	/* TODO: Add core version information somewhere in syscon, possibly
