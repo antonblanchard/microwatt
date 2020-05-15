@@ -10,7 +10,7 @@ use work.common.all;
 use work.wishbone_types.all;
 
 
--- Memory map:
+-- Memory map. *** Keep include/microwatt_soc.h updated on changes ***
 --
 -- 0x00000000: Block RAM (MEMORY_SIZE) or DRAM depending on syscon
 -- 0x40000000: DRAM (when present)
