@@ -980,7 +980,7 @@ begin
 		do_write <= '1';
 	    end if;
 	    if req_op = OP_STORE_HIT and req_hit_way = i and cancel_store = '0' and
-                r1.req.dcbz = '0' then
+                r0.req.dcbz = '0' then
 		assert not reloading report "Store hit while in state:" &
 		    state_t'image(r1.state)
 		    severity FAILURE;
