@@ -140,8 +140,7 @@ begin
     has_dram: if USE_LITEDRAM generate
 	signal dram_init_done  : std_ulogic;
 	signal dram_init_error : std_ulogic;
-	signal soc_rst_0       : std_ulogic;
-	signal soc_rst_1       : std_ulogic;
+	signal dram_sys_rst    : std_ulogic;
     begin
 
 	-- Eventually dig out the frequency from the generator
@@ -150,15 +149,17 @@ begin
 
 	reset_controller: entity work.soc_reset
 	    generic map(
-		RESET_LOW => RESET_LOW
+		RESET_LOW => RESET_LOW,
+                PLL_RESET_BITS => 18,
+                SOC_RESET_BITS => 1
 		)
 	    port map(
 		ext_clk => ext_clk,
 		pll_clk => system_clk,
-		pll_locked_in => system_clk_locked,
+		pll_locked_in => '1',
 		ext_rst_in => ext_rst,
 		pll_rst_out => pll_rst,
-		rst_out => soc_rst_0
+		rst_out => open
 		);
 
 	dram: entity work.litedram_wrapper
@@ -170,7 +171,7 @@ begin
 		clk_in		=> ext_clk,
 		rst             => pll_rst,
 		system_clk	=> system_clk,
-		system_reset	=> soc_rst_1,
+		system_reset	=> soc_rst,
 		pll_locked	=> system_clk_locked,
 
 		wb_in		=> wb_dram_in,
@@ -203,7 +204,6 @@ begin
 
 	led0 <= dram_init_done and not dram_init_error;
 	led1 <= dram_init_error; -- Make it blink ?
-	soc_rst <= soc_rst_0 or soc_rst_1;
 
     end generate;
 end architecture behaviour;
