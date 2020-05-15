@@ -109,7 +109,32 @@ architecture behaviour of soc is
     signal dmi_core_dout  : std_ulogic_vector(63 downto 0);
     signal dmi_core_req   : std_ulogic;
     signal dmi_core_ack   : std_ulogic;
+
+    -- Delayed/latched resets and alt_reset
+    signal rst_core    : std_ulogic := '1';
+    signal rst_uart    : std_ulogic := '1';
+    signal rst_xics    : std_ulogic := '1';
+    signal rst_bram    : std_ulogic := '1';
+    signal rst_dtm     : std_ulogic := '1';
+    signal rst_wbar    : std_ulogic := '1';
+    signal rst_wbdb    : std_ulogic := '1';
+    signal alt_reset_d : std_ulogic;
+
 begin
+
+    resets: process(system_clk)
+    begin
+        if rising_edge(system_clk) then
+            rst_core    <= rst or core_reset;
+            rst_uart    <= rst;
+            rst_xics    <= rst;
+            rst_bram    <= rst;
+            rst_dtm     <= rst;
+            rst_wbar    <= rst;
+            rst_wbdb    <= rst;
+            alt_reset_d <= alt_reset;
+        end if;
+    end process;
 
     -- Processor core
     processor: entity work.core
@@ -120,8 +145,8 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    rst => rst or core_reset,
-	    alt_reset => alt_reset,
+	    rst => rst_core,
+	    alt_reset => alt_reset_d,
 	    wishbone_insn_in => wishbone_icore_in,
 	    wishbone_insn_out => wishbone_icore_out,
 	    wishbone_data_in => wishbone_dcore_in,
@@ -147,7 +172,8 @@ begin
 	    NUM_MASTERS => NUM_WB_MASTERS
 	    )
 	port map(
-	    clk => system_clk, rst => rst,
+	    clk => system_clk,
+            rst => rst_wbar,
 	    wb_masters_in => wb_masters_out,
 	    wb_masters_out => wb_masters_in,
 	    wb_slave_out => wb_master_out,
@@ -271,7 +297,7 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    reset => rst,
+	    reset => rst_uart,
 	    txd => uart0_txd,
 	    rxd => uart0_rxd,
 	    irq => int_level_in(0),
@@ -292,7 +318,7 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    rst => rst,
+	    rst => rst_xics,
 	    wb_in => wb_xics0_in,
 	    wb_out => wb_xics0_out,
 	    int_level_in => int_level_in,
@@ -307,7 +333,7 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    rst => rst,
+	    rst => rst_bram,
 	    wishbone_in => wb_bram_in,
 	    wishbone_out => wb_bram_out
 	    );
@@ -320,7 +346,7 @@ begin
 	    )
 	port map(
 	    sys_clk	=> system_clk,
-	    sys_reset	=> rst,
+	    sys_reset	=> rst_dtm,
 	    dmi_addr	=> dmi_addr,
 	    dmi_din	=> dmi_din,
 	    dmi_dout	=> dmi_dout,
@@ -378,7 +404,8 @@ begin
 
     -- Wishbone debug master (TODO: Add a DMI address decoder)
     wishbone_debug: entity work.wishbone_debug_master
-	port map(clk => system_clk, rst => rst,
+	port map(clk => system_clk,
+                 rst => rst_wbdb,
 		 dmi_addr => dmi_addr(1 downto 0),
 		 dmi_dout => dmi_wb_dout,
 		 dmi_din => dmi_dout,

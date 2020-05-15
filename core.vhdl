@@ -91,7 +91,19 @@ architecture behave of core is
     signal complete: std_ulogic;
     signal terminate: std_ulogic;
     signal core_rst: std_ulogic;
-    signal icache_rst: std_ulogic;
+    signal icache_inv: std_ulogic;
+
+    -- Delayed/Latched resets and alt_reset
+    signal rst_fetch1  : std_ulogic := '1';
+    signal rst_fetch2  : std_ulogic := '1';
+    signal rst_icache  : std_ulogic := '1';
+    signal rst_dcache  : std_ulogic := '1';
+    signal rst_dec1    : std_ulogic := '1';
+    signal rst_dec2    : std_ulogic := '1';
+    signal rst_ex1     : std_ulogic := '1';
+    signal rst_ls1     : std_ulogic := '1';
+    signal rst_dbg     : std_ulogic := '1';
+    signal alt_reset_d : std_ulogic;
 
     signal sim_cr_dump: std_ulogic;
 
@@ -128,6 +140,22 @@ begin
 
     core_rst <= dbg_core_rst or rst;
 
+    resets: process(clk)
+    begin
+        if rising_edge(clk) then
+            rst_fetch1  <= core_rst;
+            rst_fetch2  <= core_rst;
+            rst_icache  <= core_rst or dbg_icache_rst or ex1_icache_inval;
+            rst_dcache  <= core_rst;
+            rst_dec1    <= core_rst;
+            rst_dec2    <= core_rst;
+            rst_ex1     <= core_rst;
+            rst_ls1     <= core_rst;
+            rst_dbg     <= rst;
+            alt_reset_d <= alt_reset;
+        end if;
+    end process;
+
     fetch1_0: entity work.fetch1
         generic map (
             RESET_ADDRESS => (others => '0'),
@@ -135,8 +163,8 @@ begin
             )
         port map (
             clk => clk,
-            rst => core_rst,
-	    alt_reset_in => alt_reset,
+            rst => rst_fetch1,
+	    alt_reset_in => alt_reset_d,
             stall_in => fetch1_stall_in,
             flush_in => flush,
 	    stop_in => dbg_core_stop,
@@ -155,7 +183,7 @@ begin
             )
         port map(
             clk => clk,
-            rst => icache_rst,
+            rst => rst_icache,
             i_in => fetch1_to_icache,
             i_out => icache_to_fetch2,
             flush_in => flush,
@@ -164,12 +192,10 @@ begin
             wishbone_in => wishbone_insn_in
             );
 
-    icache_rst <= rst or dbg_icache_rst or ex1_icache_inval;
-
     fetch2_0: entity work.fetch2
         port map (
             clk => clk,
-            rst => core_rst,
+            rst => rst_fetch2,
             stall_in => fetch2_stall_in,
             flush_in => flush,
             i_in => icache_to_fetch2,
@@ -181,7 +207,7 @@ begin
     decode1_0: entity work.decode1
         port map (
             clk => clk,
-            rst => core_rst,
+            rst => rst_dec1,
             stall_in => decode1_stall_in,
             flush_in => flush,
             f_in => fetch2_to_decode1,
@@ -196,7 +222,7 @@ begin
             )
         port map (
             clk => clk,
-            rst => core_rst,
+            rst => rst_dec2,
 	    stall_in => decode2_stall_in,
             stall_out => decode2_stall_out,
             flush_in => flush,
@@ -242,7 +268,7 @@ begin
             )
         port map (
             clk => clk,
-            rst => core_rst,
+            rst => rst_ex1,
             flush_out => flush,
 	    stall_out => ex1_stall_out,
             e_in => decode2_to_execute1,
@@ -257,7 +283,7 @@ begin
     loadstore1_0: entity work.loadstore1
         port map (
             clk => clk,
-            rst => core_rst,
+            rst => rst_ls1,
             l_in => execute1_to_loadstore1,
             l_out => loadstore1_to_writeback,
             d_out => loadstore1_to_dcache,
@@ -274,7 +300,7 @@ begin
             )
         port map (
             clk => clk,
-	    rst => core_rst,
+	    rst => rst_dcache,
             d_in => loadstore1_to_dcache,
             d_out => dcache_to_loadstore1,
             stall_out => dcache_stall_out,
@@ -295,7 +321,7 @@ begin
     debug_0: entity work.core_debug
 	port map (
 	    clk => clk,
-	    rst => rst,
+	    rst => rst_dbg,
 	    dmi_addr => dmi_addr,
 	    dmi_din => dmi_din,
 	    dmi_dout => dmi_dout,
