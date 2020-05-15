@@ -229,7 +229,9 @@ begin
     -- We don't do pipelining yet.
     wb_out.stall <= '0' when wb_in.cyc = '0' else not wb_out.ack;
 
-    -- Use alternate core reset address set when DRAM is not initialized.
+    -- Reset ignored, the reset controller use the pll lock signal,
+    -- and alternate core reset address set when DRAM is not initialized.
+    --
     core_alt_reset <= not init_done;
 
     -- State machine
