@@ -100,7 +100,7 @@ architecture behaviour of soc is
     signal wb_xics0_out  : wb_io_slave_out;
     signal int_level_in  : std_ulogic_vector(15 downto 0);
 
-    signal xics_to_execute1 : XicsToExecute1Type;
+    signal core_ext_irq  : std_ulogic;
 
     -- Main memory signals:
     signal wb_bram_in     : wishbone_master_out;
@@ -170,7 +170,7 @@ begin
 	    dmi_wr => dmi_wr,
 	    dmi_ack => dmi_core_ack,
 	    dmi_req => dmi_core_req,
-	    xics_in => xics_to_execute1
+	    ext_irq => core_ext_irq
 	    );
 
     -- Wishbone bus master arbiter & mux
@@ -512,7 +512,7 @@ begin
 	    wb_in => wb_xics0_in,
 	    wb_out => wb_xics0_out,
 	    int_level_in => int_level_in,
-	    e_out => xics_to_execute1
+	    core_irq_out => core_ext_irq
 	    );
 
     -- BRAM Memory slave

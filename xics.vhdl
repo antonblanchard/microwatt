@@ -35,7 +35,7 @@ entity xics is
 
 	int_level_in : in std_ulogic_vector(LEVEL_NUM - 1 downto 0);
 
-	e_out : out XicsToExecute1Type
+	core_irq_out : out std_ulogic
         );
 end xics;
 
@@ -80,7 +80,7 @@ begin
     wb_out.dat <= r.wb_rd_data;
     wb_out.ack <= r.wb_ack;
     wb_out.stall <= '0'; -- never stall wishbone
-    e_out.irq <= r.irq;
+    core_irq_out <= r.irq;
 
     comb : process(all)
 	variable v : reg_internal_t;

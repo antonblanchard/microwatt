@@ -399,10 +399,6 @@ package common is
 							       write_cr_mask => (others => '0'),
 							       write_cr_data => (others => '0'));
 
-    type XicsToExecute1Type is record
-	irq : std_ulogic;
-    end record;
-
 end common;
 
 package body common is
