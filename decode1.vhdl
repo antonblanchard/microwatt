@@ -181,11 +181,13 @@ architecture behaviour of decode1 is
 		2#1111101001#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- divdo
 		2#0111101011#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0'), -- divw
 		2#1111101011#  =>       (ALU,    OP_DIV,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0'), -- divwo
+                2#1101010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- eieio
 		2#0100011100#  =>       (ALU,    OP_XOR,       NONE,       RB,          RS,   RA,   '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- eqv
 		2#1110111010#  =>       (ALU,    OP_EXTS,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- extsb
 		2#1110011010#  =>       (ALU,    OP_EXTS,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- extsh
 		2#1111011010#  =>       (ALU,    OP_EXTS,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- extsw
-		-- 2#110111101-# extswsli
+                2#1101111010#  =>       (ALU,    OP_EXTSWSLI,  NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- extswsli
+                2#1101111011#  =>       (ALU,    OP_EXTSWSLI,  NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- extswsli
 		2#1111010110#  =>       (ALU,    OP_ICBI,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- icbi
 		2#0000010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- icbt
 		2#0000001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
@@ -247,7 +249,7 @@ architecture behaviour of decode1 is
 		-- 2#1001000000# mcrxrx
 		2#0000010011#  =>       (ALU,    OP_MFCR,      NONE,       NONE,        NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mfcr/mfocrf
 		2#0001010011#  =>       (ALU,    OP_MFMSR,     NONE,       NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- mfmsr
-		2#0101010011#  =>       (ALU,    OP_MFSPR,     SPR,        NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mfspr
+		2#0101010011#  =>       (ALU,    OP_MFSPR,     SPR,        NONE,        RS,   RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- mfspr
 		2#0100001001#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- modud
 		2#0100001011#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0'), -- moduw
 		2#1100001001#  =>       (ALU,    OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0'), -- modsd
@@ -280,6 +282,7 @@ architecture behaviour of decode1 is
 		2#0010111010#  =>       (ALU,    OP_PRTY,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- prtyd
 		2#0010011010#  =>       (ALU,    OP_PRTY,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- prtyw
 		-- 2#0010000000# setb
+                2#0111110010#  =>       (LDST,   OP_TLBIE,     NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- slbia
 		2#0000011011#  =>       (ALU,    OP_SHL,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- sld
 		2#0000011000#  =>       (ALU,    OP_SHL,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- slw
 		2#1100011010#  =>       (ALU,    OP_SHR,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- srad
@@ -321,6 +324,8 @@ architecture behaviour of decode1 is
 		2#1001010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- sync
 		2#0001000100#  =>       (ALU,    OP_TRAP,      RA,         RB,          NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- td
 		2#0000000100#  =>       (ALU,    OP_TRAP,      RA,         RB,          NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '1'), -- tw
+                2#0100110010#  =>       (LDST,   OP_TLBIE,     NONE,       RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- tlbie
+                2#0100010010#  =>       (LDST,   OP_TLBIE,     NONE,       RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- tlbiel
 		2#0100111100#  =>       (ALU,    OP_XOR,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- xor
 		others => illegal_inst
 	);
@@ -342,9 +347,10 @@ architecture behaviour of decode1 is
 		others   => decode_rom_init
         );
 
-        --                                       unit     internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
-        --                                                      op                                           in   out   A   out  in    out  len        ext                                 pipe
-	constant nop_instr     : decode_rom_t := (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
+        --                                        unit   internal         in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+        --                                                     op                                              in   out   A   out  in    out  len        ext                                 pipe
+	constant nop_instr      : decode_rom_t := (ALU,  OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
+        constant fetch_fail_inst: decode_rom_t := (LDST, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
 
 begin
 	decode1_0: process(clk)
@@ -361,6 +367,7 @@ begin
 		variable v : Decode1ToDecode2Type;
                 variable majorop : major_opcode_t;
                 variable op_19_bits: std_ulogic_vector(2 downto 0);
+                variable sprn : spr_num_t;
 	begin
 		v := r;
 
@@ -376,7 +383,15 @@ begin
                 end if;
 
                 majorop := unsigned(f_in.insn(31 downto 26));
-                if majorop = "011111" then
+                if f_in.fetch_failed = '1' then
+                    v.valid := '1';
+                    -- Only send down a single OP_FETCH_FAILED
+                    if r.decode.insn_type = OP_FETCH_FAILED then
+                        v.valid := '0';
+                    end if;
+                    v.decode := fetch_fail_inst;
+
+                elsif majorop = "011111" then
                         -- major opcode 31, lots of things
                         v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
 
@@ -427,10 +442,17 @@ begin
 			end if;
 		    end if;
 		elsif v.decode.insn_type = OP_MFSPR or v.decode.insn_type = OP_MTSPR then
-		    v.ispr1 := fast_spr_num(decode_spr_num(f_in.insn));
+                    sprn := decode_spr_num(f_in.insn);
+		    v.ispr1 := fast_spr_num(sprn);
 		    -- Make slow SPRs single issue
 		    if is_fast_spr(v.ispr1) = '0' then
 			v.decode.sgl_pipe := '1';
+                        -- send MMU-related SPRs to loadstore1
+                        case sprn is
+                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PRTBL =>
+                            v.decode.unit := LDST;
+                        when others =>
+                        end case;
 		    end if;
 		elsif v.decode.insn_type = OP_RFID then
 		    report "PPC RFID";

@@ -74,6 +74,7 @@ architecture behaviour of soc is
     -- Syscon signals
     signal dram_at_0     : std_ulogic;
     signal core_reset    : std_ulogic;
+    signal do_core_reset : std_ulogic;
     signal wb_syscon_in  : wishbone_master_out;
     signal wb_syscon_out : wishbone_slave_out;
 
@@ -112,6 +113,7 @@ architecture behaviour of soc is
 begin
 
     -- Processor core
+    core_reset <= rst or do_core_reset;
     processor: entity work.core
 	generic map(
 	    SIM => SIM,
@@ -120,7 +122,7 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    rst => rst or core_reset,
+	    rst => core_reset,
 	    alt_reset => alt_reset,
 	    wishbone_insn_in => wishbone_icore_in,
 	    wishbone_insn_out => wishbone_icore_out,
@@ -254,7 +256,7 @@ begin
 	    wishbone_in => wb_syscon_in,
 	    wishbone_out => wb_syscon_out,
 	    dram_at_0 => dram_at_0,
-	    core_reset => core_reset,
+	    core_reset => do_core_reset,
 	    soc_reset => open -- XXX TODO
 	    );
 

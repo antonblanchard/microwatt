@@ -31,7 +31,7 @@ common.o: decode_types.o
 control.o: gpr_hazard.o cr_hazard.o common.o
 sim_jtag.o: sim_jtag_socket.o
 core_tb.o: common.o wishbone_types.o core.o soc.o sim_jtag.o
-core.o: common.o wishbone_types.o fetch1.o fetch2.o icache.o decode1.o decode2.o register_file.o cr_file.o execute1.o loadstore1.o dcache.o writeback.o core_debug.o
+core.o: common.o wishbone_types.o fetch1.o fetch2.o icache.o decode1.o decode2.o register_file.o cr_file.o execute1.o loadstore1.o mmu.o dcache.o writeback.o core_debug.o
 core_debug.o: common.o
 countzero.o:
 countzero_tb.o: common.o glibc_random.o countzero.o
@@ -58,10 +58,11 @@ icache_tb.o: common.o wishbone_types.o icache.o wishbone_bram_wrapper.o
 dcache.o: utils.o common.o wishbone_types.o plru.o cache_ram.o utils.o
 dcache_tb.o: common.o wishbone_types.o dcache.o wishbone_bram_wrapper.o
 insn_helpers.o:
-loadstore1.o: common.o helpers.o decode_types.o
+loadstore1.o: common.o decode_types.o
 logical.o: decode_types.o
 multiply_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o multiply.o
 multiply.o: common.o decode_types.o
+mmu.o: common.o
 divider_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o divider.o
 divider.o: common.o decode_types.o
 ppc_fx_insns.o: helpers.o

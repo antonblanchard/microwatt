@@ -23,6 +23,7 @@ entity execute1 is
 	stall_out : out std_ulogic;
 
 	e_in  : in Decode2ToExecute1Type;
+        l_in  : in Loadstore1ToExecute1Type;
 
 	i_in : in XicsToExecute1Type;
 
@@ -31,6 +32,8 @@ entity execute1 is
 	f_out : out Execute1ToFetch1Type;
 
 	e_out : out Execute1ToWritebackType;
+
+        dbg_msr_out : out std_ulogic_vector(63 downto 0);
 
 	icache_inval : out std_ulogic;
 	terminate_out : out std_ulogic
@@ -49,6 +52,7 @@ architecture behaviour of execute1 is
 	slow_op_rc : std_ulogic;
 	slow_op_oe : std_ulogic;
 	slow_op_xerc : xer_common_t;
+        ldst_nia : std_ulogic_vector(63 downto 0);
     end record;
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, lr_update => '0',
@@ -63,6 +67,7 @@ architecture behaviour of execute1 is
     signal ctrl: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
     signal ctrl_tmp: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
+    signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
@@ -85,6 +90,7 @@ architecture behaviour of execute1 is
         OP_MFMSR => SUPER,
         OP_MTMSRD => SUPER,
         OP_RFID => SUPER,
+        OP_TLBIE => SUPER,
         others => USER
         );
 
@@ -174,6 +180,7 @@ begin
 	    arith => e_in.is_signed,
 	    clear_left => rot_clear_left,
 	    clear_right => rot_clear_right,
+            sign_ext_rs => rot_sign_ext,
 	    result => rotator_result,
 	    carry_out => rotator_carry
 	    );
@@ -214,6 +221,8 @@ begin
             d_in => x_to_divider,
             d_out => divider_to_x
             );
+
+    dbg_msr_out <= ctrl.msr;
 
     a_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data1 = '1' else e_in.read_data1;
     b_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data2 = '1' else e_in.read_data2;
@@ -421,6 +430,9 @@ begin
 	icache_inval <= '0';
 	stall_out <= '0';
 	f_out <= Execute1ToFetch1TypeInit;
+        -- send MSR[IR] and ~MSR[PR] up to fetch1
+        f_out.virt_mode <= ctrl.msr(MSR_IR);
+        f_out.priv_mode <= not ctrl.msr(MSR_PR);
 
 	-- Next insn adder used in a couple of places
 	next_nia := std_ulogic_vector(unsigned(e_in.nia) + 4);
@@ -429,6 +441,7 @@ begin
 	right_shift <= '1' when e_in.insn_type = OP_SHR else '0';
 	rot_clear_left <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCL else '0';
 	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
+        rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
 
 	ctrl_tmp.irq_state <= WRITE_SRR0;
 	exception := '0';
@@ -438,9 +451,9 @@ begin
         v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
         v.e.exc_write_data := e_in.nia;
 
-	if ctrl.irq_state = WRITE_SRR1 then
-	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
-	    v.e.exc_write_data := ctrl.srr1;
+ 	if ctrl.irq_state = WRITE_SRR1 then
+ 	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
+ 	    v.e.exc_write_data := ctrl.srr1;
             v.e.exc_write_enable := '1';
             ctrl_tmp.msr(MSR_SF) <= '1';
             ctrl_tmp.msr(MSR_EE) <= '0';
@@ -450,13 +463,15 @@ begin
             ctrl_tmp.msr(MSR_RI) <= '0';
             ctrl_tmp.msr(MSR_LE) <= '1';
 	    f_out.redirect <= '1';
+            f_out.virt_mode <= '0';
+            f_out.priv_mode <= '1';
 	    f_out.redirect_nia <= ctrl.irq_nia;
 	    v.e.valid := e_in.valid;
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
 	elsif irq_valid = '1' and e_in.valid = '1' then
 	    -- we need two cycles to write srr0 and 1
-	    -- will need more when we have to write DSISR, DAR and HIER
+	    -- will need more when we have to write HEIR
             -- Don't deliver the interrupt until we have a valid instruction
             -- coming in, so we have a valid NIA to put in SRR0.
 	    exception := '1';
@@ -487,13 +502,12 @@ begin
 
 	    when OP_ILLEGAL =>
 		-- we need two cycles to write srr0 and 1
-		-- will need more when we have to write DSISR, DAR and HIER
+		-- will need more when we have to write HEIR
 		illegal := '1';
 	    when OP_SC =>
 		-- check bit 1 of the instruction is 1 so we know this is sc;
                 -- 0 would mean scv, so generate an illegal instruction interrupt
 		-- we need two cycles to write srr0 and 1
-		-- will need more when we have to write DSISR, DAR and HIER
                 if e_in.insn(1) = '1' then
                     exception := '1';
                     exception_nextpc := '1';
@@ -642,6 +656,8 @@ begin
 
 	    when OP_RFID =>
 		f_out.redirect <= '1';
+                f_out.virt_mode <= b_in(MSR_IR) or b_in(MSR_PR);
+                f_out.priv_mode <= not b_in(MSR_PR);
 		f_out.redirect_nia <= a_in(63 downto 2) & "00"; -- srr0
                 -- Can't use msr_copy here because the partial function MSR
                 -- bits should be left unchanged, not zeroed.
@@ -732,6 +748,7 @@ begin
 	    when OP_MFSPR =>
 		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(a_in);
+		result_en := '1';
 		if is_fast_spr(e_in.read_reg1) then
 		    result := a_in;
 		    if decode_spr_num(e_in.insn) = SPR_XER then
@@ -750,11 +767,15 @@ begin
 			result := ctrl.tb;
 		    when SPR_DEC =>
 			result := ctrl.dec;
-		    when others =>
-			result := (others => '0');
+                    when others =>
+                        -- mfspr from unimplemented SPRs should be a nop in
+                        -- supervisor mode and a program interrupt for user mode
+			result := c_in;
+                        if ctrl.msr(MSR_PR) = '1' then
+                            illegal := '1';
+                        end if;
 		    end case;
 		end if;
-		result_en := '1';
 	    when OP_MFCR =>
 		if e_in.insn(20) = '0' then
 		    -- mfcr
@@ -820,6 +841,11 @@ begin
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;
 		    when others =>
+                        -- mtspr to unimplemented SPRs should be a nop in
+                        -- supervisor mode and a program interrupt for user mode
+                        if ctrl.msr(MSR_PR) = '1' then
+                            illegal := '1';
+                        end if;
 		    end case;
 		end if;
 	    when OP_POPCNT =>
@@ -828,7 +854,7 @@ begin
 	    when OP_PRTY =>
 		result := parity_result;
 		result_en := '1';
-	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR =>
+	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR | OP_EXTSWSLI =>
 		result := rotator_result;
 		if e_in.output_carry = '1' then
 		    set_carry(v.e, rotator_carry, rotator_carry);
@@ -882,6 +908,7 @@ begin
 
         elsif e_in.valid = '1' then
             -- instruction for other units, i.e. LDST
+            v.ldst_nia := e_in.nia;
             v.e.valid := '0';
             if e_in.unit = LDST then
                 lv.valid := '1';
@@ -952,8 +979,38 @@ begin
 	v.e.write_data := result;
 	v.e.write_enable := result_en;
 
+        -- generate DSI or DSegI for load/store exceptions
+        -- or ISI or ISegI for instruction fetch exceptions
+        if l_in.exception = '1' then
+            ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+            if l_in.instr_fault = '0' then
+                if l_in.segment_fault = '0' then
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#300#, 64));
+                else
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#380#, 64));
+                end if;
+            else
+                if l_in.segment_fault = '0' then
+                    ctrl_tmp.srr1(63 - 33) <= l_in.invalid;
+                    ctrl_tmp.srr1(63 - 35) <= l_in.perm_error; -- noexec fault
+                    ctrl_tmp.srr1(63 - 44) <= l_in.badtree;
+                    ctrl_tmp.srr1(63 - 45) <= l_in.rc_error;
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#400#, 64));
+                else
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#480#, 64));
+                end if;
+            end if;
+            v.e.exc_write_enable := '1';
+            v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
+            v.e.exc_write_data := r.ldst_nia;
+            report "ldst exception writing srr0=" & to_hstring(r.ldst_nia);
+            ctrl_tmp.irq_state <= WRITE_SRR1;
+            v.e.valid := '1';   -- complete the original load or store
+        end if;
+
         -- Outputs to loadstore1 (async)
         lv.op := e_in.insn_type;
+        lv.nia := e_in.nia;
         lv.addr1 := a_in;
         lv.addr2 := b_in;
         lv.data := c_in;
@@ -966,11 +1023,14 @@ begin
         lv.xerc := v.e.xerc;
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;
+        lv.insn := e_in.insn;
         -- decode l*cix and st*cix instructions here
         if e_in.insn(31 downto 26) = "011111" and e_in.insn(10 downto 9) = "11" and
             e_in.insn(5 downto 1) = "10101" then
             lv.ci := '1';
         end if;
+        lv.virt_mode := ctrl.msr(MSR_DR);
+        lv.priv_mode := not ctrl.msr(MSR_PR);
 
 	-- Update registers
 	rin <= v;

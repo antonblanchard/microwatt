@@ -5,7 +5,6 @@ use ieee.numeric_std.all;
 library work;
 use work.decode_types.all;
 use work.common.all;
-use work.helpers.all;
 
 -- 2 cycle LSU
 -- We calculate the address in the first cycle
@@ -16,10 +15,14 @@ entity loadstore1 is
         rst   : in std_ulogic;
 
         l_in  : in Execute1ToLoadstore1Type;
+        e_out : out Loadstore1ToExecute1Type;
         l_out : out Loadstore1ToWritebackType;
 
         d_out : out Loadstore1ToDcacheType;
         d_in  : in DcacheToLoadstore1Type;
+
+        m_out : out Loadstore1ToMmuType;
+        m_in  : in MmuToLoadstore1Type;
 
         dc_stall  : in std_ulogic;
         stall_out : out std_ulogic
@@ -35,14 +38,16 @@ architecture behave of loadstore1 is
     -- State machine for unaligned loads/stores
     type state_t is (IDLE,              -- ready for instruction
                      SECOND_REQ,        -- send 2nd request of unaligned xfer
-                     FIRST_ACK_WAIT,    -- waiting for 1st ack from dcache
-                     LAST_ACK_WAIT,     -- waiting for last ack from dcache
-                     LD_UPDATE          -- writing rA with computed addr on load
+                     ACK_WAIT,          -- waiting for ack from dcache
+                     LD_UPDATE,         -- writing rA with computed addr on load
+                     MMU_LOOKUP,        -- waiting for MMU to look up translation
+                     TLBIE_WAIT         -- waiting for MMU to finish doing a tlbie
                      );
 
     type reg_stage_t is record
         -- latch most of the input request
         load         : std_ulogic;
+        tlbie        : std_ulogic;
         dcbz         : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
@@ -57,8 +62,15 @@ architecture behave of loadstore1 is
         reserve      : std_ulogic;
         rc           : std_ulogic;
         nc           : std_ulogic;              -- non-cacheable access
+        virt_mode    : std_ulogic;
+        priv_mode    : std_ulogic;
         state        : state_t;
+        dwords_done  : std_ulogic;
+        first_bytes  : std_ulogic_vector(7 downto 0);
         second_bytes : std_ulogic_vector(7 downto 0);
+        dar          : std_ulogic_vector(63 downto 0);
+        dsisr        : std_ulogic_vector(31 downto 0);
+        instr_fault  : std_ulogic;
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -135,6 +147,15 @@ begin
         variable use_second : byte_sel_t;
         variable trim_ctl : trim_ctl_t;
         variable negative : std_ulogic;
+        variable mfspr : std_ulogic;
+        variable sprn : std_ulogic_vector(9 downto 0);
+        variable sprval : std_ulogic_vector(63 downto 0);
+        variable exception : std_ulogic;
+        variable next_addr : std_ulogic_vector(63 downto 0);
+        variable mmureq : std_ulogic;
+        variable dsisr : std_ulogic_vector(31 downto 0);
+        variable mmu_mtspr : std_ulogic;
+        variable itlb_fault : std_ulogic;
     begin
         v := r;
         req := '0';
@@ -142,6 +163,14 @@ begin
         done := '0';
         byte_sel := (others => '0');
         addr := lsu_sum;
+        mfspr := '0';
+        mmu_mtspr := '0';
+        itlb_fault := '0';
+        sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
+        sprval := (others => '0');      -- avoid inferred latches
+        exception := '0';
+        dsisr := (others => '0');
+        mmureq := '0';
 
         write_enable := '0';
         do_update := '0';
@@ -195,17 +224,73 @@ begin
             end case;
         end loop;
 
+        -- compute (addr + 8) & ~7 for the second doubleword when unaligned
+        next_addr := std_ulogic_vector(unsigned(r.addr(63 downto 3)) + 1) & "000";
+
         case r.state is
         when IDLE =>
             if l_in.valid = '1' then
+                v.addr := lsu_sum;
                 v.load := '0';
                 v.dcbz := '0';
-                if l_in.op = OP_LOAD then
+                v.tlbie := '0';
+                v.instr_fault := '0';
+                v.dwords_done := '0';
+                case l_in.op is
+                when OP_STORE =>
+                    req := '1';
+                when OP_LOAD =>
+                    req := '1';
                     v.load := '1';
-                elsif l_in.op = OP_DCBZ then
+                when OP_DCBZ =>
+                    req := '1';
                     v.dcbz := '1';
-                end if;
-                v.addr := lsu_sum;
+                when OP_TLBIE =>
+                    mmureq := '1';
+                    stall := '1';
+                    v.tlbie := '1';
+                    v.state := TLBIE_WAIT;
+                when OP_MFSPR =>
+                    done := '1';
+                    mfspr := '1';
+                    -- partial decode on SPR number should be adequate given
+                    -- the restricted set that get sent down this path
+                    if sprn(9) = '0' and sprn(5) = '0' then
+                        if sprn(0) = '0' then
+                            sprval := x"00000000" & r.dsisr;
+                        else
+                            sprval := r.dar;
+                        end if;
+                    else
+                        -- reading one of the SPRs in the MMU
+                        sprval := m_in.sprval;
+                    end if;
+                when OP_MTSPR =>
+                    if sprn(9) = '0' and sprn(5) = '0' then
+                        if sprn(0) = '0' then
+                            v.dsisr := l_in.data(31 downto 0);
+                        else
+                            v.dar := l_in.data;
+                        end if;
+                        done := '1';
+                    else
+                        -- writing one of the SPRs in the MMU
+                        mmu_mtspr := '1';
+                        stall := '1';
+                        v.state := TLBIE_WAIT;
+                    end if;
+                when OP_FETCH_FAILED =>
+                    -- send it to the MMU to do the radix walk
+                    addr := l_in.nia;
+                    v.addr := l_in.nia;
+                    v.instr_fault := '1';
+                    mmureq := '1';
+                    stall := '1';
+                    v.state := MMU_LOOKUP;
+                when others =>
+                    assert false report "unknown op sent to loadstore1";
+                end case;
+
                 v.write_reg := l_in.write_reg;
                 v.length := l_in.length;
                 v.byte_reverse := l_in.byte_reverse;
@@ -216,23 +301,24 @@ begin
                 v.reserve := l_in.reserve;
                 v.rc := l_in.rc;
                 v.nc := l_in.ci;
+                v.virt_mode := l_in.virt_mode;
+                v.priv_mode := l_in.priv_mode;
 
                 -- XXX Temporary hack. Mark the op as non-cachable if the address
-                -- is the form 0xc-------
+                -- is the form 0xc------- for a real-mode access.
                 --
                 -- This will have to be replaced by a combination of implementing the
                 -- proper HV CI load/store instructions and having an MMU to get the I
                 -- bit otherwise.
-                if lsu_sum(31 downto 28) = "1100" then
+                if lsu_sum(31 downto 28) = "1100" and l_in.virt_mode = '0' then
                     v.nc := '1';
                 end if;
 
                 -- Do length_to_sel and work out if we are doing 2 dwords
                 long_sel := xfer_data_sel(l_in.length, v.addr(2 downto 0));
                 byte_sel := long_sel(7 downto 0);
+                v.first_bytes := byte_sel;
                 v.second_bytes := long_sel(15 downto 8);
-
-                v.addr := lsu_sum;
 
                 -- Do byte reversing and rotating for stores in the first cycle
                 byte_offset := unsigned(lsu_sum(2 downto 0));
@@ -246,52 +332,121 @@ begin
                     v.store_data(j + 7 downto j) := l_in.data(i * 8 + 7 downto i * 8);
                 end loop;
 
-                req := '1';
-                stall := '1';
-                if long_sel(15 downto 8) = "00000000" then
-                    v.state := LAST_ACK_WAIT;
-                else
-                    v.state := SECOND_REQ;
+                if req = '1' then
+                    stall := '1';
+                    if long_sel(15 downto 8) = "00000000" then
+                        v.state := ACK_WAIT;
+                    else
+                        v.state := SECOND_REQ;
+                    end if;
                 end if;
             end if;
 
         when SECOND_REQ =>
-            -- compute (addr + 8) & ~7 for the second doubleword when unaligned
-            addr := std_ulogic_vector(unsigned(r.addr(63 downto 3)) + 1) & "000";
+            addr := next_addr;
             byte_sel := r.second_bytes;
             req := '1';
             stall := '1';
-            v.state := FIRST_ACK_WAIT;
+            v.state := ACK_WAIT;
 
-        when FIRST_ACK_WAIT =>
+        when ACK_WAIT =>
             stall := '1';
             if d_in.valid = '1' then
-                v.state := LAST_ACK_WAIT;
-                if r.load = '1' then
-                    v.load_data := data_permuted;
+                if d_in.error = '1' then
+                    -- dcache will discard the second request if it
+                    -- gets an error on the 1st of two requests
+                    if r.dwords_done = '1' then
+                        addr := next_addr;
+                    else
+                        addr := r.addr;
+                    end if;
+                    if d_in.cache_paradox = '1' then
+                        -- signal an interrupt straight away
+                        exception := '1';
+                        dsisr(63 - 38) := not r.load;
+                        -- XXX there is no architected bit for this
+                        dsisr(63 - 35) := d_in.cache_paradox;
+                        v.state := IDLE;
+                    else
+                        -- Look up the translation for TLB miss
+                        -- and also for permission error and RC error
+                        -- in case the PTE has been updated.
+                        mmureq := '1';
+                        v.state := MMU_LOOKUP;
+                    end if;
+                else
+                    if two_dwords = '1' and r.dwords_done = '0' then
+                        v.dwords_done := '1';
+                        if r.load = '1' then
+                            v.load_data := data_permuted;
+                        end if;
+                    else
+                        write_enable := r.load;
+                        if r.load = '1' and r.update = '1' then
+                            -- loads with rA update need an extra cycle
+                            v.state := LD_UPDATE;
+                        else
+                            -- stores write back rA update in this cycle
+                            do_update := r.update;
+                            stall := '0';
+                            done := '1';
+                            v.state := IDLE;
+                        end if;
+                    end if;
                 end if;
             end if;
 
-        when LAST_ACK_WAIT =>
+        when MMU_LOOKUP =>
             stall := '1';
-            if d_in.valid = '1' then
-                write_enable := r.load;
-                if r.load = '1' and r.update = '1' then
-                    -- loads with rA update need an extra cycle
-                    v.state := LD_UPDATE;
+            if r.dwords_done = '1' then
+                addr := next_addr;
+                byte_sel := r.second_bytes;
+            else
+                addr := r.addr;
+                byte_sel := r.first_bytes;
+            end if;
+            if m_in.done = '1' then
+                if m_in.invalid = '0' and m_in.perm_error = '0' and m_in.rc_error = '0' and
+                    m_in.badtree = '0' and m_in.segerr = '0' then
+                    if r.instr_fault = '0' then
+                        -- retry the request now that the MMU has installed a TLB entry
+                        req := '1';
+                        if two_dwords = '1' and r.dwords_done = '0' then
+                            v.state := SECOND_REQ;
+                        else
+                            v.state := ACK_WAIT;
+                        end if;
+                    else
+                        -- nothing to do, the icache retries automatically
+                        stall := '0';
+                        done := '1';
+                        v.state := IDLE;
+                    end if;
                 else
-                    -- stores write back rA update in this cycle
-                    do_update := r.update;
-                    stall := '0';
-                    done := '1';
+                    exception := '1';
+                    dsisr(63 - 33) := m_in.invalid;
+                    dsisr(63 - 36) := m_in.perm_error;
+                    dsisr(63 - 38) := not r.load;
+                    dsisr(63 - 44) := m_in.badtree;
+                    dsisr(63 - 45) := m_in.rc_error;
                     v.state := IDLE;
                 end if;
+            end if;
+
+        when TLBIE_WAIT =>
+            stall := '1';
+            if m_in.done = '1' then
+                -- tlbie is finished
+                stall := '0';
+                done := '1';
+                v.state := IDLE;
             end if;
 
         when LD_UPDATE =>
             do_update := '1';
             v.state := IDLE;
             done := '1';
+
         end case;
 
         -- Update outputs to dcache
@@ -303,12 +458,30 @@ begin
         d_out.addr <= addr;
         d_out.data <= v.store_data;
         d_out.byte_sel <= byte_sel;
+        d_out.virt_mode <= v.virt_mode;
+        d_out.priv_mode <= v.priv_mode;
+
+        -- Update outputs to MMU
+        m_out.valid <= mmureq;
+        m_out.iside <= v.instr_fault;
+        m_out.load <= r.load;
+        m_out.priv <= r.priv_mode;
+        m_out.tlbie <= v.tlbie;
+        m_out.mtspr <= mmu_mtspr;
+        m_out.sprn <= sprn;
+        m_out.addr <= addr;
+        m_out.slbia <= l_in.insn(7);
+        m_out.rs <= l_in.data;
 
         -- Update outputs to writeback
         -- Multiplex either cache data to the destination GPR or
         -- the address for the rA update.
         l_out.valid <= done;
-        if do_update = '1' then
+        if mfspr = '1' then
+            l_out.write_enable <= '1';
+            l_out.write_reg <= l_in.write_reg;
+            l_out.write_data <= sprval;
+        elsif do_update = '1' then
             l_out.write_enable <= '1';
             l_out.write_reg <= r.update_reg;
             l_out.write_data <= r.addr;
@@ -320,6 +493,21 @@ begin
         l_out.xerc <= r.xerc;
         l_out.rc <= r.rc and done;
         l_out.store_done <= d_in.store_done;
+
+        -- update exception info back to execute1
+        e_out.exception <= exception;
+        e_out.instr_fault <= r.instr_fault;
+        e_out.invalid <= m_in.invalid;
+        e_out.badtree <= m_in.badtree;
+        e_out.perm_error <= m_in.perm_error;
+        e_out.rc_error <= m_in.rc_error;
+        e_out.segment_fault <= m_in.segerr;
+        if exception = '1' and r.instr_fault = '0' then
+            v.dar := addr;
+            if m_in.segerr = '0' then
+                v.dsisr := dsisr;
+            end if;
+        end if;
 
         stall_out <= stall;
 
