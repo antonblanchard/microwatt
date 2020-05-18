@@ -52,8 +52,8 @@ VHDL_FILES += ppc_fx_insns.vhdl execute1.vhdl decode1.vhdl cr_file.vhdl
 VHDL_FILES += writeback.vhdl loadstore1.vhdl icache.vhdl cr_hazard.vhdl
 VHDL_FILES += gpr_hazard.vhdl control.vhdl decode2.vhdl core.vhdl
 VHDL_FILES += fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd dmi_dtm_dummy.vhdl
-VHDL_FILES += fpga/main_bram.vhdl wishbone_bram_wrapper.vhdl soc.vhdl
-VHDL_FILES += fpga/toplevel.vhdl
+VHDL_FILES += fpga/main_bram.vhdl wishbone_bram_wrapper.vhdl syscon.vhdl
+VHDL_FILES += xics.vhdl soc.vhdl fpga/top-generic.vhdl
 
 all: microwatt.bit
 
