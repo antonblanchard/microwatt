@@ -78,7 +78,7 @@ begin
                 prev_op <= FIFO_POP;
             else
                 if push = '1' and pop = '1' then
-                    prev_op <= FIFO_POP;
+                    -- Keep the same value for prev_op
                 elsif push = '1' then
                     prev_op <= FIFO_PUSH;
                 elsif pop = '1' then

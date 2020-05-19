@@ -21,7 +21,7 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 
 #### Flags
 
-CPPFLAGS = -nostdinc
+CPPFLAGS = -nostdinc -D__USE_LIBC
 CPPFLAGS += -I$(SRC_DIR)/libc/include -I$(LXSRC_DIR) -I$(LXINC_DIR) -I$(GENINC_DIR) -I$(SRC_DIR)/include -I$(SRC_DIR)/../../../include
 CPPFLAGS += -isystem $(shell $(CC) -print-file-name=include)
 CFLAGS = -Os -g -Wall -std=c99 -m64 -mabi=elfv2 -msoft-float -mno-string -mno-multiple -mno-vsx -mno-altivec -mlittle-endian -fno-stack-protector -mstrict-align -ffreestanding -fdata-sections -ffunction-sections -fno-delete-null-pointer-checks 
@@ -36,7 +36,7 @@ define Q
 endef
 else
 define Q
-  @echo "	[$1] $(3)"
+  @echo "	[$1] " $(shell basename $3)
   @$(2)
 endef
 endif

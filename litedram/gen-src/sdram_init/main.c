@@ -10,89 +10,7 @@
 #include "microwatt_soc.h"
 #include "io.h"
 #include "sdram.h"
-
-/*
- * Core UART functions to implement for a port
- */
-
-static uint64_t potato_uart_base;
-
-#define PROC_FREQ 100000000
-#define UART_FREQ 115200
-
-static uint8_t potato_uart_reg_read(int offset)
-{
-	return readb(potato_uart_base + offset);
-}
-
-static void potato_uart_reg_write(int offset, uint8_t val)
-{
-	writeb(val, potato_uart_base + offset);
-}
-
-static bool potato_uart_rx_empty(void)
-{
-	uint8_t val = potato_uart_reg_read(POTATO_CONSOLE_STATUS);
-
-	return (val & POTATO_CONSOLE_STATUS_RX_EMPTY) != 0;
-}
-
-static int potato_uart_tx_full(void)
-{
-	uint8_t val = potato_uart_reg_read(POTATO_CONSOLE_STATUS);
-
-	return (val & POTATO_CONSOLE_STATUS_TX_FULL) != 0;
-}
-
-static char potato_uart_read(void)
-{
-	return potato_uart_reg_read(POTATO_CONSOLE_RX);
-}
-
-static void potato_uart_write(char c)
-{
-	potato_uart_reg_write(POTATO_CONSOLE_TX, c);
-}
-
-static unsigned long potato_uart_divisor(unsigned long proc_freq,
-					 unsigned long uart_freq)
-{
-	return proc_freq / (uart_freq * 16) - 1;
-}
-
-void potato_uart_init(void)
-{
-	potato_uart_base = UART_BASE;
-
-	potato_uart_reg_write(POTATO_CONSOLE_CLOCK_DIV,
-			      potato_uart_divisor(PROC_FREQ, UART_FREQ));
-}
-
-int getchar(void)
-{
-	while (potato_uart_rx_empty())
-		/* Do nothing */ ;
-
-	return potato_uart_read();
-}
-
-int putchar(int c)
-{
-	while (potato_uart_tx_full())
-		/* Do Nothing */;
-
-	potato_uart_write(c);
-	return c;
-}
-
-void putstr(const char *str, unsigned long len)
-{
-	for (unsigned long i = 0; i < len; i++) {
-		if (str[i] == '\n')
-			putchar('\r');
-		putchar(str[i]);
-	}
-}
+#include "console.h"
 
 int _printf(const char *fmt, ...)
 {
@@ -103,26 +21,26 @@ int _printf(const char *fmt, ...)
 	va_start(ap, fmt);
 	count = vsnprintf(buffer, sizeof(buffer), fmt, ap);
 	va_end(ap);
-	putstr(buffer, count);
+	puts(buffer);
 	return count;
 }
 
-void flush_cpu_dcache(void) { }
-void flush_cpu_icache(void) { }
-void flush_l2_cache(void) { }
+void flush_cpu_dcache(void)
+{
+}
+
+void flush_cpu_icache(void)
+{
+	__asm__ volatile ("icbi 0,0; isync" : : : "memory");
+}
 
 void main(void)
 {
 	unsigned long long ftr, val;
-	int i;
 
-	/*
-	 * Let things settle ... not sure why but the UART is
-	 * not happy otherwise. The PLL might need to settle ?
-	 */
+	/* Init the UART */
 	potato_uart_init();
-	for (i = 0; i < 100000; i++)
-		potato_uart_reg_read(POTATO_CONSOLE_STATUS);
+
 	printf("\n\nWelcome to Microwatt !\n\n");
 
 	/* TODO: Add core version information somewhere in syscon, possibly

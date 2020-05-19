@@ -17,7 +17,7 @@ use work.wishbone_types.all;
 -- 0xc0000000: SYSCON
 -- 0xc0002000: UART0
 -- 0xc0004000: XICS ICP
--- 0xc0100000: DRAM CSRs
+-- 0xc0100000: LiteDRAM control (CSRs)
 -- 0xf0000000: Block RAM (aliased & repeated)
 -- 0xffff0000: DRAM init code (if any)
 
@@ -39,7 +39,7 @@ entity soc is
 	-- DRAM controller signals
 	wb_dram_in   : out wishbone_master_out;
 	wb_dram_out  : in wishbone_slave_out;
-	wb_dram_csr  : out std_ulogic;
+	wb_dram_ctrl : out std_ulogic;
 	wb_dram_init : out std_ulogic;
 
 	-- UART0 signals:
@@ -73,7 +73,6 @@ architecture behaviour of soc is
 
     -- Syscon signals
     signal dram_at_0     : std_ulogic;
-    signal core_reset    : std_ulogic;
     signal do_core_reset : std_ulogic;
     signal wb_syscon_in  : wishbone_master_out;
     signal wb_syscon_out : wishbone_slave_out;
@@ -110,10 +109,34 @@ architecture behaviour of soc is
     signal dmi_core_dout  : std_ulogic_vector(63 downto 0);
     signal dmi_core_req   : std_ulogic;
     signal dmi_core_ack   : std_ulogic;
+
+    -- Delayed/latched resets and alt_reset
+    signal rst_core    : std_ulogic := '1';
+    signal rst_uart    : std_ulogic := '1';
+    signal rst_xics    : std_ulogic := '1';
+    signal rst_bram    : std_ulogic := '1';
+    signal rst_dtm     : std_ulogic := '1';
+    signal rst_wbar    : std_ulogic := '1';
+    signal rst_wbdb    : std_ulogic := '1';
+    signal alt_reset_d : std_ulogic;
+
 begin
 
+    resets: process(system_clk)
+    begin
+        if rising_edge(system_clk) then
+            rst_core    <= rst or do_core_reset;
+            rst_uart    <= rst;
+            rst_xics    <= rst;
+            rst_bram    <= rst;
+            rst_dtm     <= rst;
+            rst_wbar    <= rst;
+            rst_wbdb    <= rst;
+            alt_reset_d <= alt_reset;
+        end if;
+    end process;
+
     -- Processor core
-    core_reset <= rst or do_core_reset;
     processor: entity work.core
 	generic map(
 	    SIM => SIM,
@@ -122,8 +145,8 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    rst => core_reset,
-	    alt_reset => alt_reset,
+	    rst => rst_core,
+	    alt_reset => alt_reset_d,
 	    wishbone_insn_in => wishbone_icore_in,
 	    wishbone_insn_out => wishbone_icore_out,
 	    wishbone_data_in => wishbone_dcore_in,
@@ -149,7 +172,8 @@ begin
 	    NUM_MASTERS => NUM_WB_MASTERS
 	    )
 	port map(
-	    clk => system_clk, rst => rst,
+	    clk => system_clk,
+            rst => rst_wbar,
 	    wb_masters_in => wb_masters_out,
 	    wb_masters_out => wb_masters_in,
 	    wb_slave_out => wb_master_out,
@@ -164,7 +188,7 @@ begin
 			    SLAVE_BRAM,
 			    SLAVE_DRAM,
 			    SLAVE_DRAM_INIT,
-			    SLAVE_DRAM_CSR,
+			    SLAVE_DRAM_CTRL,
 			    SLAVE_ICP_0,
 			    SLAVE_NONE);
 	variable slave : slave_type;
@@ -187,7 +211,7 @@ begin
 	elsif std_match(wb_master_out.adr, x"C0002---") then
 	    slave := SLAVE_UART;
 	elsif std_match(wb_master_out.adr, x"C01-----") then
-	    slave := SLAVE_DRAM_CSR;
+	    slave := SLAVE_DRAM_CTRL;
 	elsif std_match(wb_master_out.adr, x"C0004---") then
 	    slave := SLAVE_ICP_0;
 	end if;
@@ -206,7 +230,7 @@ begin
 
 	wb_dram_in <= wb_master_out;
 	wb_dram_in.cyc <= '0';
-	wb_dram_csr <= '0';
+	wb_dram_ctrl <= '0';
 	wb_dram_init <= '0';
 	wb_syscon_in <= wb_master_out;
 	wb_syscon_in.cyc <= '0';
@@ -221,10 +245,10 @@ begin
 	    wb_dram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_dram_out;
 	    wb_dram_init <= '1';
-	when SLAVE_DRAM_CSR =>
+	when SLAVE_DRAM_CTRL =>
 	    wb_dram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_dram_out;
-	    wb_dram_csr <= '1';
+	    wb_dram_ctrl <= '1';
 	when SLAVE_SYSCON =>
 	    wb_syscon_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_syscon_out;
@@ -273,7 +297,7 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    reset => rst,
+	    reset => rst_uart,
 	    txd => uart0_txd,
 	    rxd => uart0_rxd,
 	    irq => int_level_in(0),
@@ -294,7 +318,7 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    rst => rst,
+	    rst => rst_xics,
 	    wb_in => wb_xics0_in,
 	    wb_out => wb_xics0_out,
 	    int_level_in => int_level_in,
@@ -309,7 +333,7 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    rst => rst,
+	    rst => rst_bram,
 	    wishbone_in => wb_bram_in,
 	    wishbone_out => wb_bram_out
 	    );
@@ -322,7 +346,7 @@ begin
 	    )
 	port map(
 	    sys_clk	=> system_clk,
-	    sys_reset	=> rst,
+	    sys_reset	=> rst_dtm,
 	    dmi_addr	=> dmi_addr,
 	    dmi_din	=> dmi_din,
 	    dmi_dout	=> dmi_dout,
@@ -380,7 +404,8 @@ begin
 
     -- Wishbone debug master (TODO: Add a DMI address decoder)
     wishbone_debug: entity work.wishbone_debug_master
-	port map(clk => system_clk, rst => rst,
+	port map(clk => system_clk,
+                 rst => rst_wbdb,
 		 dmi_addr => dmi_addr(1 downto 0),
 		 dmi_dout => dmi_wb_dout,
 		 dmi_din => dmi_dout,

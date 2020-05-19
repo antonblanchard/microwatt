@@ -164,11 +164,13 @@ _clean:
 
 clean: _clean
 	make -f scripts/mw_debug/Makefile clean
+	make -f hello_world/Makefile clean
 
 distclean: _clean
-	rm -f *~ fpga/~
+	rm -f *~ fpga/*~ lib/*~ console/*~ include/*~
 	rm -rf litedram/build
 	rm -f litedram/extras/*~
 	rm -f litedram/gen-src/*~
 	rm -f litedram/gen-src/sdram_init/*~
 	make -f scripts/mw_debug/Makefile distclean
+	make -f hello_world/Makefile distclean

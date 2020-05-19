@@ -25,7 +25,7 @@ entity litedram_wrapper is
 	-- Wishbone ports:
 	wb_in         : in wishbone_master_out;
 	wb_out        : out wishbone_slave_out;
-	wb_is_csr     : in std_ulogic;
+	wb_is_ctrl    : in std_ulogic;
 	wb_is_init    : in std_ulogic;
 
 	-- Init core serial debug
@@ -123,7 +123,7 @@ begin
     ad3 <= wb_in.adr(3);
 
     -- DRAM interface signals
-    user_port0_cmd_valid <= (wb_in.cyc and wb_in.stb and not wb_is_csr and not wb_is_init)
+    user_port0_cmd_valid <= (wb_in.cyc and wb_in.stb and not wb_is_ctrl and not wb_is_init)
 			    when state = CMD else '0';
     user_port0_cmd_we <= wb_in.we when state = CMD else '0';
     user_port0_wdata_valid <= '1' when state = MWRITE else '0';
@@ -134,10 +134,10 @@ begin
 			   "00000000" & wb_in.sel;
 
     -- Wishbone out signals. CSR and init memory do nothing, just ack
-    wb_out.ack <= '1' when (wb_is_csr = '1' or wb_is_init = '1') else
+    wb_out.ack <= '1' when (wb_is_ctrl = '1' or wb_is_init = '1') else
 		  user_port0_wdata_ready when state = MWRITE else
 		  user_port0_rdata_valid when state = MREAD else '0';
-    wb_out.dat <= (others => '0') when (wb_is_csr = '1' or wb_is_init = '1') else
+    wb_out.dat <= (others => '0') when (wb_is_ctrl = '1' or wb_is_init = '1') else
 		  user_port0_rdata_data(127 downto 64) when ad3 = '1' else
 		  user_port0_rdata_data(63 downto 0);
     wb_out.stall <= '0' when wb_in.cyc = '0' else not wb_out.ack;
