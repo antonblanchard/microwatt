@@ -60,6 +60,15 @@ all: microwatt.bit
 microwatt.json: $(VHDL_FILES)
 	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(VHDL_FILES) -e toplevel; synth_ecp5 -json $@"
 
+microwatt.v: $(VHDL_FILES)
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(VHDL_FILES) -e toplevel; write_verilog $@"
+
+microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
+	#verilator -O3 -Wall --assert --cc microwatt.v --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
+	verilator -O3 --assert --cc microwatt.v --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
+	make -C obj_dir -f Vmicrowatt.mk
+	@cp -f obj_dir/microwatt-verilator microwatt-verilator
+
 microwatt_out.config: microwatt.json $(LPF)
 	$(NEXTPNR) --json $< --lpf $(LPF) --textcfg $@ $(NEXTPNR_FLAGS) --package $(PACKAGE)
 
@@ -72,7 +81,8 @@ prog: microwatt.svf
 	$(OPENOCD) -f $(OPENOCD_JTAG_CONFIG) -f $(OPENOCD_DEVICE_CONFIG) -c "transport select jtag; init; svf $<; exit"
 
 clean:
-	@rm -f work-obj08.cf *.bit *.json *.svf *.config
+	@rm -f work-obj08.cf *.bit *.json *.svf *.config microwatt.v microwatt-verilator
+	@rm -rf obj_dir/
 
 .PHONY: clean prog
 .PRECIOUS: microwatt.json microwatt_out.config microwatt.bit
