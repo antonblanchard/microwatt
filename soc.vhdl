@@ -73,7 +73,7 @@ architecture behaviour of soc is
 
     -- Syscon signals
     signal dram_at_0     : std_ulogic;
-    signal core_reset    : std_ulogic;
+    signal do_core_reset : std_ulogic;
     signal wb_syscon_in  : wishbone_master_out;
     signal wb_syscon_out : wishbone_slave_out;
 
@@ -125,7 +125,7 @@ begin
     resets: process(system_clk)
     begin
         if rising_edge(system_clk) then
-            rst_core    <= rst or core_reset;
+            rst_core    <= rst or do_core_reset;
             rst_uart    <= rst;
             rst_xics    <= rst;
             rst_bram    <= rst;
@@ -280,7 +280,7 @@ begin
 	    wishbone_in => wb_syscon_in,
 	    wishbone_out => wb_syscon_out,
 	    dram_at_0 => dram_at_0,
-	    core_reset => core_reset,
+	    core_reset => do_core_reset,
 	    soc_reset => open -- XXX TODO
 	    );
 

@@ -1,6 +1,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
+library work;
+use work.wishbone_types.all;
+
 entity toplevel is
     generic (
 	MEMORY_SIZE   : positive := (384*1024);
@@ -68,13 +71,16 @@ begin
 	    RAM_INIT_FILE => RAM_INIT_FILE,
 	    RESET_LOW     => RESET_LOW,
 	    SIM           => false,
+	    CLK_FREQ      => CLK_FREQUENCY,
 	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
 	    )
 	port map (
 	    system_clk        => system_clk,
 	    rst               => soc_rst,
 	    uart0_txd         => uart0_txd,
-	    uart0_rxd         => uart0_rxd
+	    uart0_rxd         => uart0_rxd,
+	    wb_dram_out       => wb_dram_out,
+	    alt_reset         => '0'
 	    );
 
     -- Dummy DRAM

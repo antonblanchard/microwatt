@@ -15,6 +15,7 @@ entity rotator is
 	  arith: in std_ulogic;
 	  clear_left: in std_ulogic;
 	  clear_right: in std_ulogic;
+          sign_ext_rs: in std_ulogic;
 	  result: out std_ulogic_vector(63 downto 0);
 	  carry_out: out std_ulogic
       );
@@ -57,13 +58,18 @@ architecture behaviour of rotator is
 
 begin
     rotator_0: process(all)
+        variable hi32: std_ulogic_vector(31 downto 0);
     begin
 	-- First replicate bottom 32 bits to both halves if 32-bit
 	if is_32bit = '1' then
-	    repl32 <= rs(31 downto 0) & rs(31 downto 0);
-	else
-	    repl32 <= rs;
+            hi32 := rs(31 downto 0);
+	elsif sign_ext_rs = '1' then
+            -- sign extend bottom 32 bits
+            hi32 := (others => rs(31));
+        else
+	    hi32 := rs(63 downto 32);
 	end if;
+        repl32 <= hi32 & rs(31 downto 0);
 
 	-- Negate shift count for right shifts
 	if right_shift = '1' then

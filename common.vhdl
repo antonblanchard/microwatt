@@ -24,6 +24,8 @@ package common is
     constant SPR_XER    : spr_num_t := 1;
     constant SPR_LR     : spr_num_t := 8;
     constant SPR_CTR    : spr_num_t := 9;
+    constant SPR_DSISR  : spr_num_t := 18;
+    constant SPR_DAR    : spr_num_t := 19;
     constant SPR_TB     : spr_num_t := 268;
     constant SPR_DEC    : spr_num_t := 22;
     constant SPR_SRR0   : spr_num_t := 26;
@@ -37,6 +39,8 @@ package common is
     constant SPR_SPRG3U : spr_num_t := 259;
     constant SPR_HSPRG0 : spr_num_t := 304;
     constant SPR_HSPRG1 : spr_num_t := 305;
+    constant SPR_PID    : spr_num_t := 48;
+    constant SPR_PRTBL  : spr_num_t := 720;
 
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
@@ -86,6 +90,8 @@ package common is
 
     type Fetch1ToIcacheType is record
 	req: std_ulogic;
+        virt_mode : std_ulogic;
+        priv_mode : std_ulogic;
 	stop_mark: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
     end record;
@@ -93,6 +99,7 @@ package common is
     type IcacheToFetch2Type is record
 	valid: std_ulogic;
 	stop_mark: std_ulogic;
+        fetch_failed: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
     end record;
@@ -100,10 +107,12 @@ package common is
     type Fetch2ToDecode1Type is record
 	valid: std_ulogic;
 	stop_mark : std_ulogic;
+        fetch_failed: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
     end record;
-    constant Fetch2ToDecode1Init : Fetch2ToDecode1Type := (valid => '0', stop_mark => '0', others => (others => '0'));
+    constant Fetch2ToDecode1Init : Fetch2ToDecode1Type := (valid => '0', stop_mark => '0', fetch_failed => '0',
+                                                           others => (others => '0'));
 
     type Decode1ToDecode2Type is record
 	valid: std_ulogic;
@@ -208,13 +217,18 @@ package common is
 
     type Execute1ToFetch1Type is record
 	redirect: std_ulogic;
+        virt_mode: std_ulogic;
+        priv_mode: std_ulogic;
 	redirect_nia: std_ulogic_vector(63 downto 0);
     end record;
-    constant Execute1ToFetch1TypeInit : Execute1ToFetch1Type := (redirect => '0', others => (others => '0'));
+    constant Execute1ToFetch1TypeInit : Execute1ToFetch1Type := (redirect => '0', virt_mode => '0',
+                                                                 priv_mode => '0', others => (others => '0'));
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
-        op : insn_type_t;                               -- what ld/st op to do
+        op : insn_type_t;                               -- what ld/st or m[tf]spr or TLB op to do
+        nia : std_ulogic_vector(63 downto 0);
+        insn : std_ulogic_vector(31 downto 0);
 	addr1 : std_ulogic_vector(63 downto 0);
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
@@ -228,17 +242,32 @@ package common is
 	xerc : xer_common_t;
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.
+        virt_mode : std_ulogic;                         -- do translation through TLB
+        priv_mode : std_ulogic;                         -- privileged mode (MSR[PR] = 0)
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
-                                                                     reserve => '0', rc => '0', others => (others => '0'));
+                                                                     reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
+                                                                     others => (others => '0'));
+
+    type Loadstore1ToExecute1Type is record
+        exception : std_ulogic;
+        invalid : std_ulogic;
+        perm_error : std_ulogic;
+        rc_error : std_ulogic;
+        badtree : std_ulogic;
+        segment_fault : std_ulogic;
+        instr_fault : std_ulogic;
+    end record;
 
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
-	load : std_ulogic;
+	load : std_ulogic;				-- is this a load
         dcbz : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
+        virt_mode : std_ulogic;
+        priv_mode : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);
         byte_sel : std_ulogic_vector(7 downto 0);
@@ -249,6 +278,54 @@ package common is
 	data : std_ulogic_vector(63 downto 0);
         store_done : std_ulogic;
         error : std_ulogic;
+        cache_paradox : std_ulogic;
+    end record;
+
+    type Loadstore1ToMmuType is record
+        valid : std_ulogic;
+        tlbie : std_ulogic;
+        slbia : std_ulogic;
+        mtspr : std_ulogic;
+        iside : std_ulogic;
+        load  : std_ulogic;
+        priv  : std_ulogic;
+        sprn  : std_ulogic_vector(9 downto 0);
+        addr  : std_ulogic_vector(63 downto 0);
+        rs    : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type MmuToLoadstore1Type is record
+        done       : std_ulogic;
+        invalid    : std_ulogic;
+        badtree    : std_ulogic;
+        segerr     : std_ulogic;
+        perm_error : std_ulogic;
+        rc_error   : std_ulogic;
+        sprval     : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type MmuToDcacheType is record
+        valid : std_ulogic;
+        tlbie : std_ulogic;
+        doall : std_ulogic;
+        tlbld : std_ulogic;
+        addr  : std_ulogic_vector(63 downto 0);
+        pte   : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type DcacheToMmuType is record
+        stall : std_ulogic;
+        done  : std_ulogic;
+        err   : std_ulogic;
+        data  : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type MmuToIcacheType is record
+        tlbld : std_ulogic;
+        tlbie : std_ulogic;
+        doall : std_ulogic;
+        addr  : std_ulogic_vector(63 downto 0);
+        pte   : std_ulogic_vector(63 downto 0);
     end record;
 
     type Loadstore1ToWritebackType is record

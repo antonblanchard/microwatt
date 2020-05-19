@@ -15,6 +15,8 @@ architecture behave of icache_tb is
     signal i_out        : Fetch1ToIcacheType;
     signal i_in         : IcacheToFetch2Type;
 
+    signal m_out        : MmuToIcacheType;
+
     signal wb_bram_in   : wishbone_master_out;
     signal wb_bram_out  : wishbone_slave_out;
 
@@ -30,6 +32,7 @@ begin
             rst => rst,
             i_in => i_out,
             i_out => i_in,
+            m_in => m_out,
 	    flush_in => '0',
             wishbone_out => wb_bram_in,
             wishbone_in => wb_bram_out
@@ -69,6 +72,11 @@ begin
         i_out.req <= '0';
         i_out.nia <= (others => '0');
 	i_out.stop_mark <= '0';
+
+        m_out.tlbld <= '0';
+        m_out.tlbie <= '0';
+        m_out.addr <= (others => '0');
+        m_out.pte <= (others => '0');
 
         wait until rising_edge(clk);
         wait until rising_edge(clk);

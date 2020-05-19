@@ -15,6 +15,9 @@ architecture behave of dcache_tb is
     signal d_in         : Loadstore1ToDcacheType;
     signal d_out        : DcacheToLoadstore1Type;
 
+    signal m_in         : MmuToDcacheType;
+    signal m_out        : DcacheToMmuType;
+
     signal wb_bram_in   : wishbone_master_out;
     signal wb_bram_out  : wishbone_slave_out;
 
@@ -30,6 +33,8 @@ begin
             rst => rst,
             d_in => d_in,
             d_out => d_out,
+            m_in => m_in,
+            m_out => m_out,
             wishbone_out => wb_bram_in,
             wishbone_in => wb_bram_out
             );
@@ -71,6 +76,9 @@ begin
  	d_in.nc <= '0';
  	d_in.addr <= (others => '0');
  	d_in.data <= (others => '0');
+        m_in.valid <= '0';
+        m_in.addr <= (others => '0');
+        m_in.pte <= (others => '0');
 
         wait for 4*clk_period;
 	wait until rising_edge(clk);

@@ -47,6 +47,7 @@ architecture behave of core is
     -- icache signals
     signal fetch1_to_icache : Fetch1ToIcacheType;
     signal icache_to_fetch2 : IcacheToFetch2Type;
+    signal mmu_to_icache : MmuToIcacheType;
 
     -- decode signals
     signal decode1_to_decode2: Decode1ToDecode2Type;
@@ -68,11 +69,16 @@ architecture behave of core is
 
     -- load store signals
     signal execute1_to_loadstore1: Execute1ToLoadstore1Type;
+    signal loadstore1_to_execute1: Loadstore1ToExecute1Type;
     signal loadstore1_to_writeback: Loadstore1ToWritebackType;
+    signal loadstore1_to_mmu: Loadstore1ToMmuType;
+    signal mmu_to_loadstore1: MmuToLoadstore1Type;
 
     -- dcache signals
     signal loadstore1_to_dcache: Loadstore1ToDcacheType;
     signal dcache_to_loadstore1: DcacheToLoadstore1Type;
+    signal mmu_to_dcache: MmuToDcacheType;
+    signal dcache_to_mmu: DcacheToMmuType;
 
     -- local signals
     signal fetch1_stall_in : std_ulogic;
@@ -112,6 +118,13 @@ architecture behave of core is
     signal dbg_core_rst: std_ulogic;
     signal dbg_icache_rst: std_ulogic;
 
+    signal dbg_gpr_req : std_ulogic;
+    signal dbg_gpr_ack : std_ulogic;
+    signal dbg_gpr_addr : gspr_index_t;
+    signal dbg_gpr_data : std_ulogic_vector(63 downto 0);
+
+    signal msr : std_ulogic_vector(63 downto 0);
+
     -- Debug status
     signal dbg_core_is_stopped: std_ulogic;
 
@@ -133,6 +146,7 @@ architecture behave of core is
     attribute keep_hierarchy of cr_file_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of execute1_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of loadstore1_0 : label is keep_h(DISABLE_FLATTEN);
+    attribute keep_hierarchy of mmu_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of dcache_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of writeback_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of debug_0 : label is keep_h(DISABLE_FLATTEN);
@@ -186,6 +200,7 @@ begin
             rst => rst_icache,
             i_in => fetch1_to_icache,
             i_out => icache_to_fetch2,
+            m_in => mmu_to_icache,
             flush_in => flush,
 	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
@@ -246,6 +261,10 @@ begin
             d_in => decode2_to_register_file,
             d_out => register_file_to_decode2,
             w_in => writeback_to_register_file,
+            dbg_gpr_req => dbg_gpr_req,
+            dbg_gpr_ack => dbg_gpr_ack,
+            dbg_gpr_addr => dbg_gpr_addr,
+            dbg_gpr_data => dbg_gpr_data,
 	    sim_dump => terminate,
 	    sim_dump_done => sim_cr_dump
 	    );
@@ -273,10 +292,12 @@ begin
 	    stall_out => ex1_stall_out,
             e_in => decode2_to_execute1,
             i_in => xics_in,
+            l_in => loadstore1_to_execute1,
             l_out => execute1_to_loadstore1,
             f_out => execute1_to_fetch1,
             e_out => execute1_to_writeback,
 	    icache_inval => ex1_icache_inval,
+            dbg_msr_out => msr,
             terminate_out => terminate
             );
 
@@ -285,11 +306,25 @@ begin
             clk => clk,
             rst => rst_ls1,
             l_in => execute1_to_loadstore1,
+            e_out => loadstore1_to_execute1,
             l_out => loadstore1_to_writeback,
             d_out => loadstore1_to_dcache,
             d_in => dcache_to_loadstore1,
+            m_out => loadstore1_to_mmu,
+            m_in => mmu_to_loadstore1,
             dc_stall => dcache_stall_out,
             stall_out => ls1_stall_out
+            );
+
+    mmu_0: entity work.mmu
+        port map (
+            clk => clk,
+            rst => core_rst,
+            l_in => loadstore1_to_mmu,
+            l_out => mmu_to_loadstore1,
+            d_out => mmu_to_dcache,
+            d_in => dcache_to_mmu,
+            i_out => mmu_to_icache
             );
 
     dcache_0: entity work.dcache
@@ -303,6 +338,8 @@ begin
 	    rst => rst_dcache,
             d_in => loadstore1_to_dcache,
             d_out => dcache_to_loadstore1,
+            m_in => mmu_to_dcache,
+            m_out => dcache_to_mmu,
             stall_out => dcache_stall_out,
             wishbone_in => wishbone_data_in,
             wishbone_out => wishbone_data_out
@@ -334,6 +371,11 @@ begin
 	    terminate => terminate,
 	    core_stopped => dbg_core_is_stopped,
 	    nia => fetch1_to_icache.nia,
+            msr => msr,
+            dbg_gpr_req => dbg_gpr_req,
+            dbg_gpr_ack => dbg_gpr_ack,
+            dbg_gpr_addr => dbg_gpr_addr,
+            dbg_gpr_data => dbg_gpr_data,
 	    terminated_out => terminated_out
 	    );
 
