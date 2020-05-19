@@ -112,7 +112,7 @@ package common is
 	insn: std_ulogic_vector(31 downto 0);
     end record;
     constant Fetch2ToDecode1Init : Fetch2ToDecode1Type := (valid => '0', stop_mark => '0', fetch_failed => '0',
-                                                           others => (others => '0'));
+                                                           nia => (others => '0'), insn => (others => '0'));
 
     type Decode1ToDecode2Type is record
 	valid: std_ulogic;
@@ -123,7 +123,7 @@ package common is
 	ispr2: gspr_index_t; -- (G)SPR used for branch target (CTR, LR, TAR)
 	decode: decode_rom_t;
     end record;
-    constant Decode1ToDecode2Init : Decode1ToDecode2Type := (valid => '0', stop_mark => '0', decode => decode_rom_init, others => (others => '0'));
+    constant Decode1ToDecode2Init : Decode1ToDecode2Type := (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'), ispr1 => (others => '0'), ispr2 => (others => '0'), decode => decode_rom_init);
 
     type Decode2ToExecute1Type is record
 	valid: std_ulogic;
@@ -164,7 +164,7 @@ package common is
          lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0',
-         byte_reverse => '0', sign_extend => '0', update => '0', others => (others => '0'));
+         byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'), read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'), cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'), others => (others => '0'));
 
     type Execute1ToMultiplyType is record
 	valid: std_ulogic;
@@ -248,6 +248,8 @@ package common is
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
                                                                      reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
+                                                                     nia => (others => '0'), insn => (others => '0'),
+                                                                     addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'), length => (others => '0'),
                                                                      others => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
@@ -338,7 +340,7 @@ package common is
         store_done : std_ulogic;
     end record;
     constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType := (valid => '0', write_enable => '0', xerc => xerc_init,
-                                                                       rc => '0', store_done => '0', others => (others => '0'));
+                                                                       rc => '0', store_done => '0', write_data => (others => '0'), others => (others => '0'));
 
     type Execute1ToWritebackType is record
 	valid: std_ulogic;
@@ -358,7 +360,9 @@ package common is
     constant Execute1ToWritebackInit : Execute1ToWritebackType := (valid => '0', rc => '0', write_enable => '0',
 								   write_cr_enable => '0', exc_write_enable => '0',
 								   write_xerc_enable => '0', xerc => xerc_init,
-								   others => (others => '0'));
+                                   write_data => (others => '0'), write_cr_mask => (others => '0'),
+                                   write_cr_data => (others => '0'), write_reg => (others => '0'),
+                                   exc_write_reg => (others => '0'), exc_write_data => (others => '0'));
 
     type MultiplyToExecute1Type is record
 	valid: std_ulogic;
@@ -381,7 +385,7 @@ package common is
 	write_data : std_ulogic_vector(63 downto 0);
 	write_enable : std_ulogic;
     end record;
-    constant WritebackToRegisterFileInit : WritebackToRegisterFileType := (write_enable => '0', others => (others => '0'));
+    constant WritebackToRegisterFileInit : WritebackToRegisterFileType := (write_enable => '0', write_data => (others => '0'), others => (others => '0'));
 
     type WritebackToCrFileType is record
 	write_cr_enable : std_ulogic;
@@ -392,7 +396,8 @@ package common is
     end record;
     constant WritebackToCrFileInit : WritebackToCrFileType := (write_cr_enable => '0', write_xerc_enable => '0',
 							       write_xerc_data => xerc_init,
-							       others => (others => '0'));
+							       write_cr_mask => (others => '0'),
+							       write_cr_data => (others => '0'));
 
     type XicsToExecute1Type is record
 	irq : std_ulogic;
@@ -407,6 +412,10 @@ package body common is
     end;
     function fast_spr_num(spr: spr_num_t) return gspr_index_t is
        variable n : integer range 0 to 31;
+       -- tmp variable introduced as workaround for VCS compilation
+       -- simulation was failing with subtype constraint mismatch error
+       -- see GitHub PR #173
+       variable tmp : std_ulogic_vector(4 downto 0);
     begin
        case spr is
        when SPR_LR =>
@@ -439,7 +448,8 @@ package body common is
            n := 0;
            return "000000";
        end case;
-       return "1" & std_ulogic_vector(to_unsigned(n, 5));
+       tmp := std_ulogic_vector(to_unsigned(n, 5));
+       return "1" & tmp;
     end;
 
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t is
