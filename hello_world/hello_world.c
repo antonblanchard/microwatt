@@ -3,13 +3,13 @@
 
 #include "console.h"
 
-#define HELLO_WORLD "Hello World\r\n"
+#define HELLO_WORLD "Hello World\n"
 
 int main(void)
 {
 	potato_uart_init();
 
-	putstr(HELLO_WORLD, strlen(HELLO_WORLD));
+	puts(HELLO_WORLD);
 
 	while (1) {
 		unsigned char c = getchar();

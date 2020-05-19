@@ -5,18 +5,18 @@
 #include "console.h"
 
 #define TEST "Test "
-#define PASS "PASS\r\n"
-#define FAIL "FAIL\r\n"
+#define PASS "PASS\n"
+#define FAIL "FAIL\n"
 
 extern int sc_test_1(void);
 
 // i < 100
 void print_test_number(int i)
 {
-	putstr(TEST, strlen(TEST));
+	puts(TEST);
 	putchar(48 + i/10);
 	putchar(48 + i%10);
-	putstr(":", 1);
+	putchar(':');
 }
 
 int main(void)
@@ -28,9 +28,9 @@ int main(void)
 	print_test_number(1);
 	if (sc_test_1() != 0) {
 		fail = 1;
-		putstr(FAIL, strlen(FAIL));
+		puts(FAIL);
 	} else
-		putstr(PASS, strlen(PASS));
+		puts(PASS);
 
 	return fail;
 }

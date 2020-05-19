@@ -29,29 +29,29 @@ void print_number(unsigned int i) // only for i = 0-999
 }
 
 #ifdef DEBUG
-#define DEBUG_STR "\r\nDEBUG: "
+#define DEBUG_STR "\nDEBUG: "
 void debug_print(int i)
 {
-	putstr(DEBUG_STR, strlen(DEBUG_STR));
+	puts(DEBUG_STR);
 	print_number(i);
-	putstr("\r\n", 2);
+	puts("\n");
 }
 
-#define debug_putstr(a, b) putstr(a,b)
+#define debug_puts(a) puts(a)
 #else
-#define debug_putstr(a, b)
+#define debug_puts(a)
 #define debug_print(i)
 #endif
 
-#define ASSERT_FAIL "() ASSERT_FAILURE!\r\n "
+#define ASSERT_FAIL "() ASSERT_FAILURE!\n "
 #define assert(cond)	\
 	if (!(cond))  { \
-		putstr(__FILE__, strlen(__FILE__)); \
-		putstr(":", 1);	    \
+		puts(__FILE__); \
+		putchar(':');	    \
 		print_number(__LINE__);	\
-		putstr(":", 1);	    \
-		putstr(__FUNCTION__, strlen(__FUNCTION__));\
-		putstr(ASSERT_FAIL, strlen(ASSERT_FAIL)); \
+		putchar(':');	    \
+		puts(__FUNCTION__);\
+		puts(ASSERT_FAIL); \
 		__asm__ ("attn"); \
 	}
 
@@ -62,17 +62,17 @@ volatile uint64_t isrs_run;
 #define ISR_UART     0x0000000000000002
 #define ISR_SPURIOUS 0x0000000000000004
 
-#define IPI "IPI\r\n"
+#define IPI "IPI\n"
 void ipi_isr(void) {
-	debug_putstr(IPI, strlen(IPI));
+	debug_puts(IPI);
 
 	isrs_run |= ISR_IPI;
 }
 
 
-#define UART "UART\r\n"
+#define UART "UART\n"
 void uart_isr(void) {
-	debug_putstr(UART, strlen(UART));
+	debug_puts(UART);
 
 	potato_uart_irq_dis(); // disable interrupt to ack it
 
@@ -80,9 +80,9 @@ void uart_isr(void) {
 }
 
 // The hardware doesn't support this but it's part of XICS so add it.
-#define SPURIOUS "SPURIOUS\r\n"
+#define SPURIOUS "SPURIOUS\n"
 void spurious_isr(void) {
-	debug_putstr(SPURIOUS, strlen(SPURIOUS));
+	debug_puts(SPURIOUS);
 
 	isrs_run |= ISR_SPURIOUS;
 }
@@ -113,9 +113,9 @@ void isr(void)
 	xirr = xics_read32(XICS_XIRR); // read hardware irq source
 
 #ifdef DEBUG
-	putstr(ISR, strlen(ISR));
+	puts(ISR);
 	print_number(xirr & 0xff);
-	putstr("\r\n", 2);
+	puts("\n");
 #endif
 
 	op = isr_table;
@@ -221,8 +221,8 @@ int xics_test_2(void)
 }
 
 #define TEST "Test "
-#define PASS "PASS\r\n"
-#define FAIL "FAIL\r\n"
+#define PASS "PASS\n"
+#define FAIL "FAIL\n"
 
 int (*tests[])(void) = {
 	xics_test_0,
@@ -246,14 +246,14 @@ int main(void)
 		if (!t)
 			break;
 
-		putstr(TEST, strlen(TEST));
+		puts(TEST);
 		print_number(i);
-		putstr(": ", 1);
+		putchar(':');
 		if (t() != 0) {
 			fail = 1;
-			putstr(FAIL, strlen(FAIL));
+			puts(FAIL);
 		} else
-			putstr(PASS, strlen(PASS));
+			puts(PASS);
 
 		i++;
 	}
