@@ -81,7 +81,8 @@ prog: microwatt.svf
 	$(OPENOCD) -f $(OPENOCD_JTAG_CONFIG) -f $(OPENOCD_DEVICE_CONFIG) -c "transport select jtag; init; svf $<; exit"
 
 clean:
-	@rm -f work-obj08.cf *.bit *.json *.svf *.config
+	@rm -f work-obj08.cf *.bit *.json *.svf *.config microwatt.v microwatt-verilator
+	@rm -rf obj_dir/
 
 .PHONY: clean prog
 .PRECIOUS: microwatt.json microwatt_out.config microwatt.bit
