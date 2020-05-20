@@ -291,7 +291,6 @@ begin
 		report "bad extswsli expected " & to_hstring(behave_ra) & " got " & to_hstring(result);
         end loop;
 
-        assert false report "end of test" severity failure;
-        wait;
+        std.env.finish;
     end process;
 end behave;

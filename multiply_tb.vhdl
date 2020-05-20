@@ -247,7 +247,7 @@ begin
                 report "bad mulli expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.write_reg_data);
         end loop;
 
-        assert false report "end of test" severity failure;
+        std.env.finish;
         wait;
     end process;
 end behave;

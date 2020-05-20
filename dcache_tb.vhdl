@@ -133,8 +133,6 @@ begin
 	wait until rising_edge(clk);
 	wait until rising_edge(clk);
 
-        assert false report "end of test" severity failure;
-        wait;
-
+	std.env.finish;
     end process;
 end;
