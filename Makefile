@@ -41,37 +41,37 @@ all = core_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb \
 
 all: $(all)
 
-CORE_FILES=decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl
-CORE_FILES+=fetch2.vhdl utils.vhdl plru.vhdl cache_ram.vhdl icache.vhdl
-CORE_FILES+=decode1.vhdl helpers.vhdl insn_helpers.vhdl gpr_hazard.vhdl
-CORE_FILES+=cr_hazard.vhdl control.vhdl decode2.vhdl register_file.vhdl
-CORE_FILES+=cr_file.vhdl crhelpers.vhdl ppc_fx_insns.vhdl rotator.vhdl
-CORE_FILES+=logical.vhdl countzero.vhdl multiply.vhdl divider.vhdl
-CORE_FILES+=execute1.vhdl loadstore1.vhdl mmu.vhdl dcache.vhdl
-CORE_FILES+=writeback.vhdl core_debug.vhdl core.vhdl
+core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
+	fetch2.vhdl utils.vhdl plru.vhdl cache_ram.vhdl icache.vhdl \
+	decode1.vhdl helpers.vhdl insn_helpers.vhdl gpr_hazard.vhdl \
+	cr_hazard.vhdl control.vhdl decode2.vhdl register_file.vhdl \
+	cr_file.vhdl crhelpers.vhdl ppc_fx_insns.vhdl rotator.vhdl \
+	logical.vhdl countzero.vhdl multiply.vhdl divider.vhdl execute1.vhdl \
+	loadstore1.vhdl mmu.vhdl dcache.vhdl writeback.vhdl core_debug.vhdl \
+	core.vhdl
 
-SOC_FILES=wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl
-SOC_FILES+=wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl
+soc_files = wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl \
+	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl
 
-SOC_SIM_FILES=sim_console.vhdl sim_uart.vhdl sim_bram_helpers.vhdl
-SOC_SIM_FILES+=sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl
-SOC_SIM_FILES+=sim-unisim/BSCANE2.vhdl sim-unisim/BUFG.vhdl sim-unisim/unisim_vcomponents.vhdl
-SOC_SIM_FILES+=dmi_dtm_xilinx.vhdl
+soc_sim_files = sim_console.vhdl sim_uart.vhdl sim_bram_helpers.vhdl \
+	sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl \
+	sim-unisim/BSCANE2.vhdl sim-unisim/BUFG.vhdl \
+	sim-unisim/unisim_vcomponents.vhdl dmi_dtm_xilinx.vhdl
 
-SOC_SIM_C_FILES=sim_vhpi_c.o sim_bram_helpers_c.o sim_console_c.o
-SOC_SIM_C_FILES+=sim_jtag_socket_c.o
-SOC_SIM_OBJ_FILES=$(SOC_SIM_C_FILES:.c=.o)
+soc_sim_c_files = sim_vhpi_c.c sim_bram_helpers_c.c sim_console_c.c \
+	sim_jtag_socket_c.c
+soc_sim_obj_files=$(soc_sim_c_files:.c=.o)
 comma := ,
-SOC_SIM_LINK=$(patsubst %,-Wl$(comma)%,$(SOC_SIM_OBJ_FILES))
+soc_sim_link=$(patsubst %,-Wl$(comma)%,$(soc_sim_obj_files))
 
-CORE_TBS=multiply_tb divider_tb rotator_tb countzero_tb
-SOC_TBS=core_tb icache_tb dcache_tb dmi_dtm_tb wishbone_bram_tb
+core_tbs = multiply_tb divider_tb rotator_tb countzero_tb
+soc_tbs = core_tb icache_tb dcache_tb dmi_dtm_tb wishbone_bram_tb
 
-$(SOC_TBS): %: $(CORE_FILES) $(SOC_FILES) $(SOC_SIM_FILES) $(SOC_SIM_OBJ_FILES) %.vhdl
-	$(GHDL) -c $(GHDLFLAGS) $(SOC_SIM_LINK) $(CORE_FILES) $(SOC_FILES) $(SOC_SIM_FILES) $@.vhdl -e $@
+$(soc_tbs): %: $(core_files) $(soc_files) $(soc_sim_files) $(soc_sim_obj_files) %.vhdl
+	$(GHDL) -c $(GHDLFLAGS) $(soc_sim_link) $(core_files) $(soc_files) $(soc_sim_files) $@.vhdl -e $@
 
-$(CORE_TBS): %: $(CORE_FILES) glibc_random.vhdl glibc_random_helpers.vhdl %.vhdl
-	$(GHDL) -c $(GHDLFLAGS) $(CORE_FILES) glibc_random.vhdl glibc_random_helpers.vhdl $@.vhdl -e $@
+$(core_tbs): %: $(core_files) glibc_random.vhdl glibc_random_helpers.vhdl %.vhdl
+	$(GHDL) -c $(GHDLFLAGS) $(core_files) glibc_random.vhdl glibc_random_helpers.vhdl $@.vhdl -e $@
 
 soc_reset_tb: fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl
 	$(GHDL) -c $(GHDLFLAGS) fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl -e $@
@@ -98,21 +98,20 @@ OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
 #OPENOCD_JTAG_CONFIG=openocd/ecp5-evn.cfg
 #OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
 
-CLKGEN=fpga/clk_gen_bypass.vhd
-TOPLEVEL=fpga/top-generic.vhdl
-DMI_DTM=dmi_dtm_dummy.vhdl
+clkgen=fpga/clk_gen_bypass.vhd
+toplevel=fpga/top-generic.vhdl
+dmi_dtm=dmi_dtm_dummy.vhdl
 
-FPGA_FILES  = $(CORE_FILES) $(SOC_FILES)
-FPGA_FILES += fpga/soc_reset.vhdl fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd
-FPGA_FILES += fpga/main_bram.vhdl
+fpga_files = $(core_files) $(soc_files) fpga/soc_reset.vhdl \
+	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram.vhdl
 
-SYNTH_FILES = $(CORE_FILES) $(SOC_FILES) $(FPGA_FILES) $(CLKGEN) $(TOPLEVEL) $(DMI_DTM)
+synth_files = $(core_files) $(soc_files) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
 
-microwatt.json: $(SYNTH_FILES)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(SYNTH_FILES) -e toplevel; synth_ecp5 -json $@"
+microwatt.json: $(synth_files)
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; synth_ecp5 -json $@"
 
-microwatt.v: $(SYNTH_FILES)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(SYNTH_FILES) -e toplevel; write_verilog $@"
+microwatt.v: $(synth_files)
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
 
 # Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
