@@ -55,7 +55,7 @@ SOC_FILES+=wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl
 
 SOC_SIM_FILES=sim_console.vhdl sim_uart.vhdl sim_bram_helpers.vhdl
 SOC_SIM_FILES+=sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl
-SOC_SIM_FILES+=sim-unisim/BUFG.vhdl sim-unisim/unisim_vcomponents.vhdl
+SOC_SIM_FILES+=sim-unisim/BSCANE2.vhdl sim-unisim/BUFG.vhdl sim-unisim/unisim_vcomponents.vhdl
 SOC_SIM_FILES+=dmi_dtm_xilinx.vhdl
 
 SOC_SIM_C_FILES=sim_vhpi_c.o sim_bram_helpers_c.o sim_console_c.o
