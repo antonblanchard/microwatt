@@ -1,134 +1,62 @@
 GHDL=ghdl
-GHDLFLAGS=--std=08 -Psim-unisim
+GHDLFLAGS=--std=08 --work=unisim
 CFLAGS=-O2 -Wall
 
 # We need a version of GHDL built with either the LLVM or gcc backend.
-# Fedora provides this, but other distros may not. Another option, although
-# rather slow, is to use the Docker image.
+# Fedora provides this, but other distros may not. Another option is to use
+# the Docker image.
 #
 # Uncomment one of these to build with Docker or podman
 #DOCKER=docker
-#DOCKER=podman
+DOCKER=podman
 #
 # Uncomment these lines to build with Docker/podman
-#PWD = $(shell pwd)
-#DOCKERARGS = run --rm -v $(PWD):/src:z -w /src
-#GHDL = $(DOCKER) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 ghdl
-#CC = $(DOCKER) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 gcc
+PWD = $(shell pwd)
+DOCKERARGS = run --rm -v $(PWD):/src:z -w /src
+GHDL = $(DOCKER) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 ghdl
+CC = $(DOCKER) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 gcc
 
-all = core_tb soc_reset_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb \
-	rotator_tb countzero_tb wishbone_bram_tb
-
-# XXX
-# loadstore_tb fetch_tb
+all = core_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb \
+	rotator_tb countzero_tb wishbone_bram_tb soc_reset_tb
 
 all: $(all)
 
-%.o : %.vhdl
-	$(GHDL) -a $(GHDLFLAGS) --workdir=$(shell dirname $@) $<
+CORE_FILES=decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl
+CORE_FILES+=fetch2.vhdl utils.vhdl plru.vhdl cache_ram.vhdl icache.vhdl
+CORE_FILES+=decode1.vhdl helpers.vhdl insn_helpers.vhdl gpr_hazard.vhdl
+CORE_FILES+=cr_hazard.vhdl control.vhdl decode2.vhdl register_file.vhdl
+CORE_FILES+=cr_file.vhdl crhelpers.vhdl ppc_fx_insns.vhdl rotator.vhdl
+CORE_FILES+=logical.vhdl countzero.vhdl multiply.vhdl divider.vhdl
+CORE_FILES+=execute1.vhdl loadstore1.vhdl mmu.vhdl dcache.vhdl
+CORE_FILES+=writeback.vhdl core_debug.vhdl core.vhdl
 
-common.o: decode_types.o
-control.o: gpr_hazard.o cr_hazard.o common.o
-sim_jtag.o: sim_jtag_socket.o
-core_tb.o: common.o wishbone_types.o core.o soc.o sim_jtag.o
-core.o: common.o wishbone_types.o fetch1.o fetch2.o icache.o decode1.o decode2.o register_file.o cr_file.o execute1.o loadstore1.o mmu.o dcache.o writeback.o core_debug.o
-core_debug.o: common.o
-countzero.o:
-countzero_tb.o: common.o glibc_random.o countzero.o
-cr_file.o: common.o
-crhelpers.o: common.o
-decode1.o: common.o decode_types.o
-decode2.o: decode_types.o common.o helpers.o insn_helpers.o control.o
-decode_types.o:
-execute1.o: decode_types.o common.o helpers.o crhelpers.o insn_helpers.o ppc_fx_insns.o rotator.o logical.o countzero.o multiply.o divider.o
-fetch1.o: common.o
-fetch2.o: common.o wishbone_types.o
-glibc_random_helpers.o:
-glibc_random.o: glibc_random_helpers.o
-helpers.o:
-cache_ram.o:
-plru.o:
-plru_tb.o: plru.o
-utils.o:
-sim_bram.o: sim_bram_helpers.o utils.o
-wishbone_bram_wrapper.o: wishbone_types.o sim_bram.o utils.o
-wishbone_bram_tb.o: wishbone_bram_wrapper.o
-icache.o: utils.o common.o wishbone_types.o plru.o cache_ram.o utils.o
-icache_tb.o: common.o wishbone_types.o icache.o wishbone_bram_wrapper.o
-dcache.o: utils.o common.o wishbone_types.o plru.o cache_ram.o utils.o
-dcache_tb.o: common.o wishbone_types.o dcache.o wishbone_bram_wrapper.o
-insn_helpers.o:
-loadstore1.o: common.o decode_types.o
-logical.o: decode_types.o
-multiply_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o multiply.o
-multiply.o: common.o decode_types.o
-mmu.o: common.o
-divider_tb.o: decode_types.o common.o glibc_random.o ppc_fx_insns.o divider.o
-divider.o: common.o decode_types.o
-ppc_fx_insns.o: helpers.o
-register_file.o: common.o
-rotator.o: common.o
-rotator_tb.o: common.o glibc_random.o ppc_fx_insns.o insn_helpers.o rotator.o
-sim_console.o:
-sim_uart.o: wishbone_types.o sim_console.o
-xics.o: wishbone_types.o common.o
-soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o wishbone_bram_wrapper.o dmi_dtm_xilinx.o wishbone_debug_master.o xics.o syscon.o
-syscon.o: wishbone_types.o
-wishbone_arbiter.o: wishbone_types.o
-wishbone_types.o:
-writeback.o: common.o crhelpers.o
-dmi_dtm_tb.o: dmi_dtm_xilinx.o wishbone_debug_master.o
-dmi_dtm_xilinx.o: wishbone_types.o sim-unisim/unisim_vcomponents.o
-wishbone_debug_master.o: wishbone_types.o
+SOC_FILES=wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl
+SOC_FILES+=wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl
 
-UNISIM_BITS = sim-unisim/unisim_vcomponents.vhdl sim-unisim/BSCANE2.vhdl sim-unisim/BUFG.vhdl
-sim-unisim/unisim_vcomponents.o: $(UNISIM_BITS)
-	$(GHDL) -a $(GHDLFLAGS) --work=unisim --workdir=sim-unisim $^
+SOC_SIM_FILES=sim_console.vhdl sim_uart.vhdl sim_bram_helpers.vhdl
+SOC_SIM_FILES+=sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl
+SOC_SIM_FILES+=sim-unisim/BUFG.vhdl sim-unisim/unisim_vcomponents.vhdl
+SOC_SIM_FILES+=dmi_dtm_xilinx.vhdl
 
+SOC_SIM_C_FILES=sim_vhpi_c.o sim_bram_helpers_c.o sim_console_c.o
+SOC_SIM_C_FILES+=sim_jtag_socket_c.o
+SOC_SIM_OBJ_FILES=$(SOC_SIM_C_FILES:.c=.o)
+comma := ,
+SOC_SIM_LINK=$(patsubst %,-Wl$(comma)%,$(SOC_SIM_OBJ_FILES))
 
-fpga/soc_reset_tb.o: fpga/soc_reset.o
+CORE_TBS=multiply_tb divider_tb rotator_tb countzero_tb
+SOC_TBS=core_tb icache_tb dcache_tb dmi_dtm_tb wishbone_bram_tb
 
-soc_reset_tb: fpga/soc_reset_tb.o fpga/soc_reset.o
-	$(GHDL) -e $(GHDLFLAGS) --workdir=fpga soc_reset_tb
+$(processes): %_processes: tests/%.o main.c
 
-core_tb: core_tb.o sim_vhpi_c.o sim_bram_helpers_c.o sim_console_c.o sim_jtag_socket_c.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o -Wl,sim_console_c.o -Wl,sim_jtag_socket_c.o $@
+$(SOC_TBS): %: $(CORE_FILES) $(SOC_FILES) $(SOC_SIM_FILES) $(SOC_SIM_OBJ_FILES) %.vhdl
+	$(GHDL) -c $(GHDLFLAGS) $(SOC_SIM_LINK) $(CORE_FILES) $(SOC_FILES) $(SOC_SIM_FILES) $@.vhdl -e $@
 
-fetch_tb: fetch_tb.o
-	$(GHDL) -e $(GHDLFLAGS) $@
+$(CORE_TBS): %: $(CORE_FILES) glibc_random.vhdl glibc_random_helpers.vhdl %.vhdl
+	$(GHDL) -c $(GHDLFLAGS) $(CORE_FILES) glibc_random.vhdl glibc_random_helpers.vhdl $@.vhdl -e $@
 
-icache_tb: icache_tb.o sim_vhpi_c.o sim_bram_helpers_c.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o $@
-
-dcache_tb: dcache_tb.o sim_vhpi_c.o sim_bram_helpers_c.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o $@
-
-plru_tb: plru_tb.o
-	$(GHDL) -e $(GHDLFLAGS) $@
-
-loadstore_tb: loadstore_tb.o
-	$(GHDL) -e $(GHDLFLAGS) $@
-
-multiply_tb: multiply_tb.o
-	$(GHDL) -e $(GHDLFLAGS) $@
-
-divider_tb: divider_tb.o
-	$(GHDL) -e $(GHDLFLAGS) $@
-
-rotator_tb: rotator_tb.o
-	$(GHDL) -e $(GHDLFLAGS) $@
-
-countzero_tb: countzero_tb.o
-	$(GHDL) -e $(GHDLFLAGS) $@
-
-simple_ram_tb: simple_ram_tb.o
-	$(GHDL) -e $(GHDLFLAGS) $@
-
-wishbone_bram_tb: sim_vhpi_c.o sim_bram_helpers_c.o wishbone_bram_tb.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o $@
-
-dmi_dtm_tb: dmi_dtm_tb.o sim_vhpi_c.o sim_bram_helpers_c.o
-	$(GHDL) -e $(GHDLFLAGS) -Wl,sim_vhpi_c.o -Wl,sim_bram_helpers_c.o $@
+soc_reset_tb: fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl
+	$(GHDL) -c $(GHDLFLAGS) fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl -e $@
 
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 tests_console = $(sort $(patsubst tests/%.console_out,%,$(wildcard tests/*.console_out)))
