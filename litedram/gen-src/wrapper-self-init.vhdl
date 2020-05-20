@@ -5,7 +5,6 @@ use std.textio.all;
 
 library work;
 use work.wishbone_types.all;
-use work.sim_console.all;
 
 entity litedram_wrapper is
     generic (

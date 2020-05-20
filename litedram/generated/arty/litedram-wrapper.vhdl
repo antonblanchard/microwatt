@@ -5,7 +5,6 @@ use std.textio.all;
 
 library work;
 use work.wishbone_types.all;
-use work.sim_console.all;
 
 entity litedram_wrapper is
     generic (
@@ -136,61 +135,18 @@ architecture behaviour of litedram_wrapper is
     type state_t is (CMD, MWRITE, MREAD);
     signal state : state_t;
 
-    constant INIT_RAM_SIZE : integer := 16384;
-    constant INIT_RAM_ABITS :integer := 14;
-    constant INIT_RAM_FILE : string := "litedram_core.init";
-
-    type ram_t is array(0 to (INIT_RAM_SIZE / 4) - 1) of std_logic_vector(31 downto 0);
-
-    impure function init_load_ram(name : string) return ram_t is
-	file ram_file : text open read_mode is name;
-	variable temp_word : std_logic_vector(63 downto 0);
-	variable temp_ram : ram_t := (others => (others => '0'));
-	variable ram_line : line;
-    begin
-	for i in 0 to (INIT_RAM_SIZE/8)-1 loop
-	    exit when endfile(ram_file);
-	    readline(ram_file, ram_line);
-	    hread(ram_line, temp_word);
-	    temp_ram(i*2) := temp_word(31 downto 0);
-	    temp_ram(i*2+1) := temp_word(63 downto 32);
-	end loop;
-	return temp_ram;
-    end function;
-
-    signal init_ram : ram_t := init_load_ram(INIT_RAM_FILE);
-
-    attribute ram_style : string;
-    attribute ram_style of init_ram: signal is "block";
-
 begin
 
     -- alternate core reset address set when DRAM is not initialized.
     core_alt_reset <= not init_done;
 
-    -- BRAM Memory slave. TODO: Pipeline it with an output buffer
-    -- to improve timing
-    init_ram_0: process(system_clk)
-	variable adr : integer;
-    begin
-	if rising_edge(system_clk) then
-	    wb_init_out.ack <= '0';
-	    if (wb_init_in.cyc and wb_init_in.stb) = '1' then
-		adr := to_integer((unsigned(wb_init_in.adr(INIT_RAM_ABITS-1 downto 2))));
-		if wb_init_in.we = '0' then
-		    wb_init_out.dat <= init_ram(adr);
-		else
-		    for i in 0 to 3 loop
-			if wb_init_in.sel(i) = '1' then
-			    init_ram(adr)(((i + 1) * 8) - 1 downto i * 8) <=
-				wb_init_in.dat(((i + 1) * 8) - 1 downto i * 8);
-			end if;
-		    end loop;
-		end if;
-		wb_init_out.ack <= '1';
-	    end if;
-	end if;
-    end process;
+    -- Init code BRAM memory slave 
+    init_ram_0: entity work.dram_init_mem
+        port map(
+            clk => system_clk,
+            wb_in => wb_init_in,
+            wb_out => wb_init_out
+            );
 
     --
     -- Control bus wishbone: This muxes the wishbone to the CSRs
