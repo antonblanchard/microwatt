@@ -2,6 +2,12 @@ GHDL ?= ghdl
 GHDLFLAGS=--std=08 --work=unisim
 CFLAGS=-O2 -Wall
 
+GHDLSYNTH ?= ghdl.so
+YOSYS     ?= yosys
+NEXTPNR   ?= nextpnr-ecp5
+ECPPACK   ?= ecppack
+OPENOCD   ?= openocd
+
 # We need a version of GHDL built with either the LLVM or gcc backend.
 # Fedora provides this, but other distros may not. Another option is to use
 # the Docker image.
@@ -21,8 +27,13 @@ endif
 ifeq ($(USE_DOCKER), 1)
 PWD = $(shell pwd)
 DOCKERARGS = run --rm -v $(PWD):/src:z -w /src
-GHDL = $(DOCKERBIN) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 ghdl
-CC = $(DOCKERBIN) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 gcc
+GHDL      = $(DOCKERBIN) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 ghdl
+CC        = $(DOCKERBIN) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 gcc
+GHDLSYNTH = ghdl
+YOSYS     = $(DOCKERBIN) $(DOCKERARGS) ghdl/synth:beta yosys
+NEXTPNR   = $(DOCKERBIN) $(DOCKERARGS) ghdl/synth:nextpnr-ecp5 nextpnr-ecp5
+ECPPACK   = $(DOCKERBIN) $(DOCKERARGS) ghdl/synth:trellis ecppack
+OPENOCD   = $(DOCKERBIN) $(DOCKERARGS) --device /dev/bus/usb ghdl/synth:prog openocd
 endif
 
 all = core_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb \
@@ -56,8 +67,6 @@ SOC_SIM_LINK=$(patsubst %,-Wl$(comma)%,$(SOC_SIM_OBJ_FILES))
 CORE_TBS=multiply_tb divider_tb rotator_tb countzero_tb
 SOC_TBS=core_tb icache_tb dcache_tb dmi_dtm_tb wishbone_bram_tb
 
-$(processes): %_processes: tests/%.o main.c
-
 $(SOC_TBS): %: $(CORE_FILES) $(SOC_FILES) $(SOC_SIM_FILES) $(SOC_SIM_OBJ_FILES) %.vhdl
 	$(GHDL) -c $(GHDLFLAGS) $(SOC_SIM_LINK) $(CORE_FILES) $(SOC_FILES) $(SOC_SIM_FILES) $@.vhdl -e $@
 
@@ -66,6 +75,61 @@ $(CORE_TBS): %: $(CORE_FILES) glibc_random.vhdl glibc_random_helpers.vhdl %.vhdl
 
 soc_reset_tb: fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl
 	$(GHDL) -c $(GHDLFLAGS) fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl -e $@
+
+# Hello world
+GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=8192 -gRAM_INIT_FILE=hello_world/hello_world.hex
+
+# Micropython
+#GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=393216 -gRAM_INIT_FILE=micropython/firmware.hex
+
+# OrangeCrab with ECP85
+GHDL_TARGET_GENERICS=-gRESET_LOW=true -gCLK_INPUT=50000000 -gCLK_FREQUENCY=50000000
+LPF=constraints/orange-crab.lpf
+PACKAGE=CSFBGA285
+NEXTPNR_FLAGS=--um5g-85k --freq 50
+OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
+OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+
+# ECP5-EVN
+#GHDL_TARGET_GENERICS=-gRESET_LOW=true -gCLK_INPUT=12000000 -gCLK_FREQUENCY=12000000
+#LPF=constraints/ecp5-evn.lpf
+#PACKAGE=CABGA381
+#NEXTPNR_FLAGS=--um5g-85k --freq 12
+#OPENOCD_JTAG_CONFIG=openocd/ecp5-evn.cfg
+#OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+
+CLKGEN=fpga/clk_gen_bypass.vhd
+TOPLEVEL=fpga/top-generic.vhdl
+DMI_DTM=dmi_dtm_dummy.vhdl
+
+FPGA_FILES  = $(CORE_FILES) $(SOC_FILES)
+FPGA_FILES += fpga/soc_reset.vhdl fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd
+FPGA_FILES += fpga/main_bram.vhdl
+
+SYNTH_FILES = $(CORE_FILES) $(SOC_FILES) $(FPGA_FILES) $(CLKGEN) $(TOPLEVEL) $(DMI_DTM)
+
+microwatt.json: $(SYNTH_FILES)
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(SYNTH_FILES) -e toplevel; synth_ecp5 -json $@"
+
+microwatt.v: $(SYNTH_FILES)
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(SYNTH_FILES) -e toplevel; write_verilog $@"
+
+# Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
+microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
+	verilator -O3 --assert --cc microwatt.v --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
+	make -C obj_dir -f Vmicrowatt.mk
+	@cp -f obj_dir/microwatt-verilator microwatt-verilator
+
+microwatt_out.config: microwatt.json $(LPF)
+	$(NEXTPNR) --json $< --lpf $(LPF) --textcfg $@ $(NEXTPNR_FLAGS) --package $(PACKAGE)
+
+microwatt.bit: microwatt_out.config
+	$(ECPPACK) --svf microwatt.svf $< $@
+
+microwatt.svf: microwatt.bit
+
+prog: microwatt.svf
+	$(OPENOCD) -f $(OPENOCD_JTAG_CONFIG) -f $(OPENOCD_DEVICE_CONFIG) -c "transport select jtag; init; svf $<; exit"
 
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 tests_console = $(sort $(patsubst tests/%.console_out,%,$(wildcard tests/*.console_out)))
@@ -98,6 +162,9 @@ _clean:
 	rm -f TAGS
 	rm -f scripts/mw_debug/*.o
 	rm -f scripts/mw_debug/mw_debug
+	rm -f microwatt.bin microwatt.json microwatt.svf microwatt_out.config
+	rm -f microwatt.v microwatt-verilator
+	rm -rf obj_dir/
 
 clean: _clean
 	make -f scripts/mw_debug/Makefile clean
@@ -111,3 +178,6 @@ distclean: _clean
 	rm -f litedram/gen-src/sdram_init/*~
 	make -f scripts/mw_debug/Makefile distclean
 	make -f hello_world/Makefile distclean
+
+.PHONY: all prog check check_light clean distclean
+.PRECIOUS: microwatt.json microwatt_out.config microwatt.bit
