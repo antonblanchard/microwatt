@@ -1,20 +1,29 @@
-GHDL=ghdl
+GHDL ?= ghdl
 GHDLFLAGS=--std=08 --work=unisim
 CFLAGS=-O2 -Wall
 
 # We need a version of GHDL built with either the LLVM or gcc backend.
 # Fedora provides this, but other distros may not. Another option is to use
 # the Docker image.
-#
-# Uncomment one of these to build with Docker or podman
-#DOCKER=docker
-DOCKER=podman
-#
-# Uncomment these lines to build with Docker/podman
+DOCKER ?= 0
+PODMAN ?= 0
+
+ifeq ($(DOCKER), 1)
+DOCKERBIN=docker
+USE_DOCKER=1
+endif
+
+ifeq ($(PODMAN), 1)
+DOCKERBIN=podman
+USE_DOCKER=1
+endif
+
+ifeq ($(USE_DOCKER), 1)
 PWD = $(shell pwd)
 DOCKERARGS = run --rm -v $(PWD):/src:z -w /src
-GHDL = $(DOCKER) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 ghdl
-CC = $(DOCKER) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 gcc
+GHDL = $(DOCKERBIN) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 ghdl
+CC = $(DOCKERBIN) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 gcc
+endif
 
 all = core_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb \
 	rotator_tb countzero_tb wishbone_bram_tb soc_reset_tb
