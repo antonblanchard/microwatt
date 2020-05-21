@@ -169,7 +169,6 @@ begin
         wait until rising_edge(clk);
         assert w_in.ack = '0';
 
-        assert false report "end of test" severity failure;
-        wait;
+        std.env.finish;
     end process;
 end behave;
