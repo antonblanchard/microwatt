@@ -53,6 +53,7 @@ architecture behaviour of execute1 is
 	mul_in_progress : std_ulogic;
         div_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
+        slow_op_insn : insn_type_t;
 	slow_op_dest : gpr_index_t;
 	slow_op_rc : std_ulogic;
 	slow_op_oe : std_ulogic;
@@ -63,7 +64,7 @@ architecture behaviour of execute1 is
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, lr_update => '0',
          mul_in_progress => '0', div_in_progress => '0', cntz_in_progress => '0',
-         slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
+         slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
          next_lr => (others => '0'), ldst_nia => (others => '0'), others => (others => '0'));
 
     signal r, rin : reg_type;
@@ -346,32 +347,7 @@ begin
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
 
-	-- signals to multiply unit
-	x_to_multiply <= Execute1ToMultiplyInit;
-	x_to_multiply.insn_type <= e_in.insn_type;
-	x_to_multiply.is_32bit <= e_in.is_32bit;
-
-	if e_in.is_32bit = '1' then
-	    if e_in.is_signed = '1' then
-		x_to_multiply.data1 <= (others => a_in(31));
-		x_to_multiply.data1(31 downto 0) <= a_in(31 downto 0);
-		x_to_multiply.data2 <= (others => b_in(31));
-		x_to_multiply.data2(31 downto 0) <= b_in(31 downto 0);
-	    else
-		x_to_multiply.data1 <= '0' & x"00000000" & a_in(31 downto 0);
-		x_to_multiply.data2 <= '0' & x"00000000" & b_in(31 downto 0);
-	    end if;
-	else
-	    if e_in.is_signed = '1' then
-		x_to_multiply.data1 <= a_in(63) & a_in;
-		x_to_multiply.data2 <= b_in(63) & b_in;
-	    else
-		x_to_multiply.data1 <= '0' & a_in;
-		x_to_multiply.data2 <= '0' & b_in;
-	    end if;
-	end if;
-
-        -- signals to divide unit
+        -- signals to multiply and divide units
         sign1 := '0';
         sign2 := '0';
         if e_in.is_signed = '1' then
@@ -395,15 +371,22 @@ begin
             abs2 := - signed(b_in);
         end if;
 
+	x_to_multiply <= Execute1ToMultiplyInit;
+	x_to_multiply.is_32bit <= e_in.is_32bit;
+
         x_to_divider <= Execute1ToDividerInit;
         x_to_divider.is_signed <= e_in.is_signed;
 	x_to_divider.is_32bit <= e_in.is_32bit;
         if e_in.insn_type = OP_MOD then
             x_to_divider.is_modulus <= '1';
         end if;
+
+        x_to_multiply.neg_result <= sign1 xor sign2;
         x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
         if e_in.is_32bit = '0' then
             -- 64-bit forms
+            x_to_multiply.data1 <= std_ulogic_vector(abs1);
+            x_to_multiply.data2 <= std_ulogic_vector(abs2);
             if e_in.insn_type = OP_DIVE then
                 x_to_divider.is_extended <= '1';
             end if;
@@ -411,6 +394,8 @@ begin
             x_to_divider.divisor <= std_ulogic_vector(abs2);
         else
             -- 32-bit forms
+            x_to_multiply.data1 <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
+            x_to_multiply.data2 <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
             x_to_divider.is_extended <= '0';
             if e_in.insn_type = OP_DIVE then   -- extended forms
                 x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
@@ -505,6 +490,7 @@ begin
 
 	    v.e.valid := '1';
 	    v.e.write_reg := e_in.write_reg;
+            v.slow_op_insn := e_in.insn_type;
 	    v.slow_op_dest := gspr_to_gpr(e_in.write_reg);
 	    v.slow_op_rc := e_in.rc;
 	    v.slow_op_oe := e_in.oe;
@@ -950,8 +936,18 @@ begin
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
 	       (r.div_in_progress = '1' and divider_to_x.valid = '1') then
 		if r.mul_in_progress = '1' then
-		    result := multiply_to_x.write_reg_data;
-		    overflow := multiply_to_x.overflow;
+                    overflow := '0';
+                    case r.slow_op_insn is
+                        when OP_MUL_H32 =>
+                            result := multiply_to_x.result(63 downto 32) &
+                                      multiply_to_x.result(63 downto 32);
+                        when OP_MUL_H64 =>
+                            result := multiply_to_x.result(127 downto 64);
+                        when others =>
+                            -- i.e. OP_MUL_L64
+                            result := multiply_to_x.result(63 downto 0);
+                            overflow := multiply_to_x.overflow;
+                    end case;
 		else
 		    result := divider_to_x.write_reg_data;
 		    overflow := divider_to_x.overflow;

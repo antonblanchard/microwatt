@@ -158,13 +158,13 @@ package common is
 
     type Execute1ToMultiplyType is record
 	valid: std_ulogic;
-	insn_type: insn_type_t;
-	data1: std_ulogic_vector(64 downto 0);
-	data2: std_ulogic_vector(64 downto 0);
+	data1: std_ulogic_vector(63 downto 0);
+	data2: std_ulogic_vector(63 downto 0);
 	is_32bit: std_ulogic;
+        neg_result: std_ulogic;
     end record;
-    constant Execute1ToMultiplyInit : Execute1ToMultiplyType := (valid => '0', insn_type => OP_ILLEGAL,
-								 is_32bit => '0',
+    constant Execute1ToMultiplyInit : Execute1ToMultiplyType := (valid => '0',
+								 is_32bit => '0', neg_result => '0',
 								 others => (others => '0'));
 
     type Execute1ToDividerType is record
@@ -356,7 +356,7 @@ package common is
 
     type MultiplyToExecute1Type is record
 	valid: std_ulogic;
-	write_reg_data: std_ulogic_vector(63 downto 0);
+	result: std_ulogic_vector(127 downto 0);
         overflow : std_ulogic;
     end record;
     constant MultiplyToExecute1Init : MultiplyToExecute1Type := (valid => '0', overflow => '0',
