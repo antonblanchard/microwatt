@@ -21,14 +21,14 @@ class LiteDRAMGenerator(Generator):
         if os.path.exists(cpu_file):
             cpu = pathlib.Path(cpu_file).read_text()
         else:
-            cpu = None
+            cpu = "none"
+
+        print("CPU is ", cpu)
 
         # Add files to fusesoc
         files = []
         f = os.path.join(gen_dir, "litedram_core.v")
         files.append({f : {'file_type' : 'verilogSource'}})
-        f = os.path.join(gen_dir, "litedram-wrapper.vhdl")
-        files.append({f : {'file_type' : 'vhdlSource-2008'}})
         f = os.path.join(gen_dir, "litedram-initmem.vhdl")
         files.append({f : {'file_type' : 'vhdlSource-2008'}})
         f = os.path.join(gen_dir, "litedram_core.init")
@@ -36,8 +36,15 @@ class LiteDRAMGenerator(Generator):
 
         # Look for init CPU types and add corresponding files
         if cpu == "vexriscv":
-            f = os.path.join(base_dir, "extras", "VexRiscv.v")
+            print("Adding VexRiscv files and wrapper")
+            f = os.path.join(extras_dir, "VexRiscv.v")
             files.append({f : {'file_type' : 'verilogSource'}})
+            f = os.path.join(extras_dir, "wrapper-self-init.vhdl")
+            files.append({f : {'file_type' : 'vhdlSource-2008'}})
+        else:
+            print("Adding wrapper")
+            f = os.path.join(extras_dir, "wrapper-mw-init.vhdl")
+            files.append({f : {'file_type' : 'vhdlSource-2008'}})
 
         self.add_files(files)
 

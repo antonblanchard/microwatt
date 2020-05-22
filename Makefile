@@ -1,6 +1,6 @@
 GHDL ?= ghdl
 GHDLFLAGS=--std=08 --work=unisim
-CFLAGS=-O2 -Wall
+CFLAGS=-O3 -Wall
 
 GHDLSYNTH ?= ghdl.so
 YOSYS     ?= yosys
@@ -66,6 +66,7 @@ soc_sim_link=$(patsubst %,-Wl$(comma)%,$(soc_sim_obj_files))
 
 core_tbs = multiply_tb divider_tb rotator_tb countzero_tb
 soc_tbs = core_tb icache_tb dcache_tb dmi_dtm_tb wishbone_bram_tb
+soc_dram_tbs = core_dram_tb
 
 $(soc_tbs): %: $(core_files) $(soc_files) $(soc_sim_files) $(soc_sim_obj_files) %.vhdl
 	$(GHDL) -c $(GHDLFLAGS) $(soc_sim_link) $(core_files) $(soc_files) $(soc_sim_files) $@.vhdl -e $@
@@ -75,6 +76,34 @@ $(core_tbs): %: $(core_files) glibc_random.vhdl glibc_random_helpers.vhdl %.vhdl
 
 soc_reset_tb: fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl
 	$(GHDL) -c $(GHDLFLAGS) fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl -e $@
+
+# LiteDRAM sim
+VERILATOR_ROOT=$(shell verilator -getenv VERILATOR_ROOT 2>/dev/null)
+ifeq (, $(VERILATOR_ROOT))
+$(soc_dram_tbs):
+	$(error "Verilator is required to make this target !")
+else
+
+VERILATOR_CFLAGS=-O3
+VERILATOR_FLAGS=-O3
+verilated_dram: litedram/generated/sim/litedram_core.v
+	verilator $(VERILATOR_FLAGS) -CFLAGS $(VERILATOR_CFLAGS) -Wno-fatal --cc $< --trace
+	make -C obj_dir -f ../litedram/extras/sim_dram_verilate.mk VERILATOR_ROOT=$(VERILATOR_ROOT)
+
+SIM_DRAM_CFLAGS  = -I. -Iobj_dir -Ilitedram/generated/sim -I$(VERILATOR_ROOT)/include -I$(VERILATOR_ROOT)/include/vltstd
+SIM_DRAM_CFLAGS += -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=1 -DVL_PRINTF=printf -faligned-new
+sim_litedram_c.o: litedram/extras/sim_litedram_c.cpp verilated_dram
+	$(CC)  $(CPPFLAGS) $(SIM_DRAM_CFLAGS) $(CFLAGS) -c $< -o $@
+
+soc_dram_files = $(soc_files) litedram/extras/wrapper-mw-init.vhdl litedram/generated/sim/litedram-initmem.vhdl
+soc_dram_sim_files = $(soc_sim_files) litedram/extras/sim_litedram.vhdl
+soc_dram_sim_obj_files = $(soc_sim_obj_files) sim_litedram_c.o
+dram_link_files=-Wl,obj_dir/Vlitedram_core__ALL.a -Wl,obj_dir/verilated.o -Wl,obj_dir/verilated_vcd_c.o -Wl,-lstdc++
+soc_dram_sim_link=$(patsubst %,-Wl$(comma)%,$(soc_dram_sim_obj_files)) $(dram_link_files)
+
+$(soc_dram_tbs): %: $(core_files) $(soc_dram_files) $(soc_dram_sim_files) $(soc_dram_sim_obj_files) %.vhdl
+	$(GHDL) -c $(GHDLFLAGS) $(soc_dram_sim_link) $(core_files) $(soc_dram_files) $(soc_dram_sim_files) $@.vhdl -e $@
+endif
 
 # Hello world
 MEMORY_SIZE=8192
@@ -167,6 +196,7 @@ _clean:
 	rm -f *.o work-*cf unisim-*cf $(all)
 	rm -f fpga/*.o fpga/work-*cf
 	rm -f sim-unisim/*.o sim-unisim/unisim-*cf
+	rm -f litedram/extras/*.o
 	rm -f TAGS
 	rm -f scripts/mw_debug/*.o
 	rm -f scripts/mw_debug/mw_debug

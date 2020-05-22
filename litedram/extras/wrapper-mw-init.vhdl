@@ -9,7 +9,9 @@ use work.wishbone_types.all;
 entity litedram_wrapper is
     generic (
 	DRAM_ABITS     : positive;
-	DRAM_ALINES    : positive
+	DRAM_ALINES    : positive;
+        -- Debug
+        LITEDRAM_TRACE    : boolean  := false
 	);
     port(
 	-- LiteDRAM generates the system clock and reset
@@ -233,6 +235,13 @@ begin
 	end if;
     end process;
 
+    may_trace: if LITEDRAM_TRACE generate
+        component litedram_trace_stub
+        end component;
+    begin
+        litedram_trace: litedram_trace_stub;
+    end generate;
+    
     litedram: litedram_core
 	port map(
 	    clk => clk_in,
