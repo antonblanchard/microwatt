@@ -9,10 +9,9 @@
 /* Should we exit simulation on ctrl-c or pass it through? */
 #define EXIT_ON_CTRL_C
 
-#define CLOCK 50000000L
 #define BAUD 115200
 /* Round to nearest */
-#define BITWIDTH ((CLOCK+(BAUD/2))/BAUD)
+#define BITWIDTH ((CLK_FREQUENCY+(BAUD/2))/BAUD)
 
 /*
  * Our UART uses 16x oversampling, so at 50 MHz and 115200 baud

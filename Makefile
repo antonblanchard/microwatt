@@ -77,13 +77,17 @@ soc_reset_tb: fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl
 	$(GHDL) -c $(GHDLFLAGS) fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl -e $@
 
 # Hello world
-GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=8192 -gRAM_INIT_FILE=hello_world/hello_world.hex
+MEMORY_SIZE=8192
+RAM_INIT_FILE=hello_world/hello_world.hex
 
 # Micropython
-#GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=393216 -gRAM_INIT_FILE=micropython/firmware.hex
+#MEMORY_SIZE=393216
+#RAM_INIT_FILE=micropython/firmware.hex
 
 # OrangeCrab with ECP85
-GHDL_TARGET_GENERICS=-gRESET_LOW=true -gCLK_INPUT=50000000 -gCLK_FREQUENCY=50000000
+RESET_LOW=true
+CLK_INPUT=50000000
+CLK_FREQUENCY=50000000
 LPF=constraints/orange-crab.lpf
 PACKAGE=CSFBGA285
 NEXTPNR_FLAGS=--um5g-85k --freq 50
@@ -91,12 +95,17 @@ OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
 
 # ECP5-EVN
-#GHDL_TARGET_GENERICS=-gRESET_LOW=true -gCLK_INPUT=12000000 -gCLK_FREQUENCY=12000000
+#RESET_LOW=true
+#CLK_INPUT=12000000
+#CLK_FREQUENCY=12000000
 #LPF=constraints/ecp5-evn.lpf
 #PACKAGE=CABGA381
 #NEXTPNR_FLAGS=--um5g-85k --freq 12
 #OPENOCD_JTAG_CONFIG=openocd/ecp5-evn.cfg
 #OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+
+GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=$(MEMORY_SIZE) -gRAM_INIT_FILE=$(RAM_INIT_FILE) \
+	-gRESET_LOW=$(RESET_LOW) -gCLK_INPUT=$(CLK_INPUT) -gCLK_FREQUENCY=$(CLK_FREQUENCY)
 
 clkgen=fpga/clk_gen_bypass.vhd
 toplevel=fpga/top-generic.vhdl
@@ -115,7 +124,7 @@ microwatt.v: $(synth_files)
 
 # Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
-	verilator -O3 --assert --cc microwatt.v --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
+	verilator -O3 -CFLAGS "-DCLK_FREQUENCY=$(CLK_FREQUENCY)" --assert --cc microwatt.v --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
 	make -C obj_dir -f Vmicrowatt.mk
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
 
