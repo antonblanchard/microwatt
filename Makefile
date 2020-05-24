@@ -173,9 +173,9 @@ tests_console = $(sort $(patsubst tests/%.console_out,%,$(wildcard tests/*.conso
 
 tests_console: $(tests_console)
 
-check: $(tests) tests_console test_micropython test_micropython_long
+check: $(tests) tests_console test_micropython test_micropython_long tests_unit
 
-check_light: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 test_micropython test_micropython_long tests_console
+check_light: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 test_micropython test_micropython_long tests_console tests_unit
 
 $(tests): core_tb
 	@./scripts/run_test.sh $@
