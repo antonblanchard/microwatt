@@ -189,6 +189,20 @@ test_micropython: core_tb
 test_micropython_long: core_tb
 	@./scripts/test_micropython_long.py
 
+tests_core_tb = $(patsubst %_tb,%_tb_test,$(core_tbs))
+tests_soc_tb = $(patsubst %_tb,%_tb_test,$(soc_tbs))
+
+%_test: %
+	./$< --assert-level=error > /dev/null
+
+tests_core: $(tests_core_tb)
+
+tests_soc: $(tests_soc_tb)
+
+# FIXME SOC tests have bit rotted, so disable for now
+#tests_unit: tests_core tests_soc
+tests_unit: tests_core
+
 TAGS:
 	find . -name '*.vhdl' | xargs ./scripts/vhdltags
 
