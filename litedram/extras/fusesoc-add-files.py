@@ -6,7 +6,8 @@ import pathlib
 
 class LiteDRAMGenerator(Generator):
     def run(self):
-        board    = self.config.get('board')
+        board = self.config.get('board')
+        payload = self.config.get('payload')
 
         # Collect a bunch of directory path
         script_dir = os.path.dirname(sys.argv[0])

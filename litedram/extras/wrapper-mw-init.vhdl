@@ -10,6 +10,9 @@ entity litedram_wrapper is
     generic (
 	DRAM_ABITS     : positive;
 	DRAM_ALINES    : positive;
+        -- Pseudo-ROM payload
+        PAYLOAD_SIZE      : natural;    
+        PAYLOAD_FILE      : string;
         -- Debug
         LITEDRAM_TRACE    : boolean  := false
 	);
@@ -144,6 +147,10 @@ begin
 
     -- Init code BRAM memory slave 
     init_ram_0: entity work.dram_init_mem
+        generic map(
+            EXTRA_PAYLOAD_FILE => PAYLOAD_FILE,
+            EXTRA_PAYLOAD_SIZE => PAYLOAD_SIZE
+            )
         port map(
             clk => system_clk,
             wb_in => wb_init_in,

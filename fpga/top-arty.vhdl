@@ -10,11 +10,12 @@ use work.wishbone_types.all;
 
 entity toplevel is
     generic (
-	MEMORY_SIZE   : positive := 16384;
+	MEMORY_SIZE   : integer  := 16384;
 	RAM_INIT_FILE : string   := "firmware.hex";
 	RESET_LOW     : boolean  := true;
 	CLK_FREQUENCY : positive := 100000000;
 	USE_LITEDRAM  : boolean  := false;
+	NO_BRAM       : boolean  := false;
 	DISABLE_FLATTEN_CORE : boolean := false
 	);
     port(
@@ -85,6 +86,28 @@ architecture behaviour of toplevel is
 
     -- Dumb PWM for the LEDs, those RGB LEDs are too bright otherwise
     signal pwm_counter  : std_ulogic_vector(8 downto 0);
+
+    -- Fixup various memory sizes based on generics
+    function get_bram_size return natural is
+    begin
+        if USE_LITEDRAM and NO_BRAM then
+            return 0;
+        else
+            return MEMORY_SIZE;
+        end if;
+    end function;
+
+    function get_payload_size return natural is
+    begin
+        if USE_LITEDRAM and NO_BRAM then
+            return MEMORY_SIZE;
+        else
+            return 0;
+        end if;
+    end function;
+    
+    constant BRAM_SIZE    : natural := get_bram_size;
+    constant PAYLOAD_SIZE : natural := get_payload_size;
 begin
 
     uart_pmod_rts_n <= '0';
@@ -92,13 +115,14 @@ begin
     -- Main SoC
     soc0: entity work.soc
 	generic map(
-	    MEMORY_SIZE   => MEMORY_SIZE,
+	    MEMORY_SIZE   => BRAM_SIZE,
 	    RAM_INIT_FILE => RAM_INIT_FILE,
 	    RESET_LOW     => RESET_LOW,
 	    SIM           => false,
 	    CLK_FREQ      => CLK_FREQUENCY,
 	    HAS_DRAM      => USE_LITEDRAM,
 	    DRAM_SIZE     => 256 * 1024 * 1024,
+            DRAM_INIT_SIZE => PAYLOAD_SIZE,
 	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
 	    )
 	port map (
@@ -159,7 +183,7 @@ begin
                 );
         ddram_clk_dummy <= '0';
 
-   end generate;
+    end generate;
 
     has_dram: if USE_LITEDRAM generate
         signal dram_init_done  : std_ulogic;
@@ -189,7 +213,9 @@ begin
 	dram: entity work.litedram_wrapper
 	    generic map(
 		DRAM_ABITS => 24,
-		DRAM_ALINES => 14
+		DRAM_ALINES => 14,
+                PAYLOAD_FILE => RAM_INIT_FILE,
+                PAYLOAD_SIZE => PAYLOAD_SIZE
 		)
 	    port map(
 		clk_in		=> ext_clk,

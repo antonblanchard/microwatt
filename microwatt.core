@@ -130,6 +130,7 @@ targets:
       - ram_init_file
       - use_litedram=true
       - disable_flatten_core
+      - no_bram
     generate: [dram_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
@@ -156,6 +157,7 @@ targets:
       - ram_init_file
       - use_litedram=true
       - disable_flatten_core
+      - no_bram
     generate: [dram_arty]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -182,6 +184,7 @@ targets:
       - ram_init_file
       - use_litedram=true
       - disable_flatten_core
+      - no_bram
     generate: [dram_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
@@ -219,7 +222,7 @@ generate:
 parameters:
   memory_size:
     datatype    : int
-    description : On-chip memory size (bytes)
+    description : On-chip memory size (bytes). If no_bram is set, this is the size carved out for the DRAM payload
     paramtype   : generic
     default     : 16384
 
@@ -254,5 +257,11 @@ parameters:
   use_litedram:
     datatype    : bool
     description : Use liteDRAM
+    paramtype   : generic
+    default     : false
+
+  no_bram:
+    datatype    : bool
+    description : No internal block RAM (only DRAM and init code carrying payload)
     paramtype   : generic
     default     : false

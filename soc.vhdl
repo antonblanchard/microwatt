@@ -26,14 +26,15 @@ use work.wishbone_types.all;
 
 entity soc is
     generic (
-	MEMORY_SIZE   : positive;
-	RAM_INIT_FILE : string;
-	RESET_LOW     : boolean;
-	CLK_FREQ      : positive;
-	SIM           : boolean;
+	MEMORY_SIZE    : natural;
+	RAM_INIT_FILE  : string;
+	RESET_LOW      : boolean;
+	CLK_FREQ       : positive;
+	SIM            : boolean;
 	DISABLE_FLATTEN_CORE : boolean := false;
-	HAS_DRAM      : boolean  := false;
-	DRAM_SIZE     : integer := 0
+	HAS_DRAM       : boolean  := false;
+	DRAM_SIZE      : integer := 0;
+        DRAM_INIT_SIZE : integer := 0
 	);
     port(
 	rst          : in  std_ulogic;
@@ -105,7 +106,6 @@ architecture behaviour of soc is
     -- Main memory signals:
     signal wb_bram_in     : wishbone_master_out;
     signal wb_bram_out    : wishbone_slave_out;
-    constant mem_adr_bits : positive := positive(ceil(log2(real(MEMORY_SIZE))));
 
     -- DMI debug bus signals
     signal dmi_addr	: std_ulogic_vector(7 downto 0);
@@ -466,6 +466,7 @@ begin
 	    HAS_DRAM => HAS_DRAM,
 	    BRAM_SIZE => MEMORY_SIZE,
 	    DRAM_SIZE => DRAM_SIZE,
+	    DRAM_INIT_SIZE => DRAM_INIT_SIZE,
 	    CLK_FREQ => CLK_FREQ
 	)
 	port map(
@@ -516,17 +517,25 @@ begin
 	    );
 
     -- BRAM Memory slave
-    bram0: entity work.wishbone_bram_wrapper
-	generic map(
-	    MEMORY_SIZE   => MEMORY_SIZE,
-	    RAM_INIT_FILE => RAM_INIT_FILE
-	    )
-	port map(
-	    clk => system_clk,
-	    rst => rst_bram,
-	    wishbone_in => wb_bram_in,
-	    wishbone_out => wb_bram_out
-	    );
+    bram: if MEMORY_SIZE /= 0 generate
+        bram0: entity work.wishbone_bram_wrapper
+            generic map(
+                MEMORY_SIZE   => MEMORY_SIZE,
+                RAM_INIT_FILE => RAM_INIT_FILE
+                )
+            port map(
+                clk => system_clk,
+                rst => rst_bram,
+                wishbone_in => wb_bram_in,
+                wishbone_out => wb_bram_out
+                );
+    end generate;
+
+    no_bram: if MEMORY_SIZE = 0 generate
+        wb_bram_out.ack <= wb_bram_in.cyc and wb_bram_in.stb;
+        wb_bram_out.dat <= x"FFFFFFFFFFFFFFFF";
+        wb_bram_out.stall <= wb_bram_in.cyc and not wb_bram_out.ack;
+    end generate;
 
     -- DMI(debug bus) <-> JTAG bridge
     dtm: entity work.dmi_dtm
