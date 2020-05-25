@@ -340,6 +340,7 @@ begin
 	signal rd_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
 	signal wr_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
 	signal dout     : cache_row_t;
+	signal wr_sel   : std_ulogic_vector(ROW_SIZE-1 downto 0);
     begin
 	way: entity work.cache_ram
 	    generic map (
@@ -351,8 +352,7 @@ begin
 		rd_en   => do_read,
 		rd_addr => rd_addr,
 		rd_data => dout,
-		wr_en   => do_write,
-		wr_sel  => (others => '1'),
+		wr_sel  => wr_sel,
 		wr_addr => wr_addr,
 		wr_data => wishbone_in.dat
 		);
@@ -366,6 +366,9 @@ begin
 	    cache_out(i) <= dout;
 	    rd_addr <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
 	    wr_addr <= std_ulogic_vector(to_unsigned(r.store_row, ROW_BITS));
+            for i in 0 to ROW_SIZE-1 loop
+                wr_sel(i) <= do_write;
+            end loop;
 	end process;
     end generate;
     
