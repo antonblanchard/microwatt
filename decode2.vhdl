@@ -100,6 +100,8 @@ architecture behaviour of decode2 is
 			ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64)));
 		when CONST_DS =>
 			ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64)));
+		when CONST_DX_HI =>
+			ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dx(insn_in)) & x"0000", 64)));
                 when CONST_M1 =>
 			ret := ('0', (others => '0'), x"FFFFFFFFFFFFFFFF");
 		when CONST_SH =>

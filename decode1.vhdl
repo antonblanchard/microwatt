@@ -106,8 +106,8 @@ architecture behaviour of decode1 is
 		--                               op                                            in   out   A   out  in    out  len        ext                                 pipe
                 -- mcrf; and cr logical ops
 		2#000#    =>       (ALU,    OP_CROP,      NONE,       NONE,        NONE, NONE, '1', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'),
-		-- addpcis not implemented yet
-		2#001#    =>       (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1'),
+		-- addpcis
+		2#001#    =>       (ALU,    OP_ADDPCIS,   NONE,       CONST_DX_HI, NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'),
                 -- bclr, bcctr, bctar
 		2#100#    =>       (ALU,    OP_BCREG,     SPR,        SPR,         NONE, SPR,  '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0'),
                 -- isync
