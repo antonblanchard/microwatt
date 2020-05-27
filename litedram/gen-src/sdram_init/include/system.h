@@ -9,9 +9,9 @@
 #define CONFIG_CPU_NOP		"nop"
 
 #ifdef __SIM__
-#define MEMTEST_BUS_SIZE	16
-#define MEMTEST_DATA_SIZE	16
-#define MEMTEST_ADDR_SIZE	16
+#define MEMTEST_BUS_SIZE	512//16
+#define MEMTEST_DATA_SIZE	1024//16
+#define MEMTEST_ADDR_SIZE	128//16
 #define CONFIG_SIM_DISABLE_DELAYS
 #endif
 

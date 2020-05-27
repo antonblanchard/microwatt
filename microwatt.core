@@ -48,6 +48,7 @@ filesets:
       - soc.vhdl
       - xics.vhdl
       - syscon.vhdl
+      - sync_fifo.vhdl
     file_type : vhdlSource-2008
 
   fpga:
