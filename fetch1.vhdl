@@ -68,6 +68,7 @@ begin
     begin
 	v := r;
 	v_int := r_int;
+        v.sequential := '0';
 
 	if rst = '1' then
 	    if alt_reset_in = '1' then
@@ -128,6 +129,7 @@ begin
 
 	    if increment then
 		v.nia := std_logic_vector(unsigned(v.nia) + 4);
+                v.sequential := '1';
 	    end if;
 	end if;
 
