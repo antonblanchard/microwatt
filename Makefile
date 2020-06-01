@@ -1,5 +1,5 @@
 GHDL ?= ghdl
-GHDLFLAGS=--std=08 --work=unisim
+GHDLFLAGS=--std=08 --work=unisim -frelaxed
 CFLAGS=-O3 -Wall
 
 GHDLSYNTH ?= ghdl.so
@@ -66,7 +66,7 @@ soc_sim_link=$(patsubst %,-Wl$(comma)%,$(soc_sim_obj_files))
 
 core_tbs = multiply_tb divider_tb rotator_tb countzero_tb
 soc_tbs = core_tb icache_tb dcache_tb dmi_dtm_tb wishbone_bram_tb
-soc_dram_tbs = core_dram_tb
+soc_dram_tbs = dram_tb core_dram_tb
 
 $(soc_tbs): %: $(core_files) $(soc_files) $(soc_sim_files) $(soc_sim_obj_files) %.vhdl
 	$(GHDL) -c $(GHDLFLAGS) $(soc_sim_link) $(core_files) $(soc_files) $(soc_sim_files) $@.vhdl -e $@
