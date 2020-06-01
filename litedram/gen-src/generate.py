@@ -38,7 +38,7 @@ def build_init_code(build_dir, is_sim):
     sw_inc_dir = os.path.join(sw_dir, "include")
     gen_inc_dir = os.path.join(sw_inc_dir, "generated")
     src_dir = os.path.join(gen_src_dir, "sdram_init")
-    lxbios_src_dir = os.path.join(soc_directory, "software", "bios")
+    lxbios_src_dir = os.path.join(soc_directory, "software", "liblitedram")
     lxbios_inc_dir = os.path.join(soc_directory, "software", "include")
     print("     sw dir:", sw_dir)
     print("gen_inc_dir:", gen_inc_dir)
@@ -109,6 +109,7 @@ def generate_one(t, mw_init):
     # Override values for mw_init
     if mw_init:
         core_config["cpu"] = None
+        core_config["cpu_variant"] = "standard"
         core_config["csr_alignment"] = 64
 
     # Generate core
@@ -121,7 +122,7 @@ def generate_one(t, mw_init):
     else:
         raise ValueError("Unsupported SDRAM PHY: {}".format(core_config["sdram_phy"]))
 
-    soc      = LiteDRAMCore(platform, core_config, is_sim = is_sim, integrated_rom_size=0x6000, csr_data_width=32)
+    soc      = LiteDRAMCore(platform, core_config, is_sim = is_sim, integrated_rom_size=0x6000)
 
     # Build into build_dir
     builder  = Builder(soc, output_dir=build_dir, compile_gateware=False)

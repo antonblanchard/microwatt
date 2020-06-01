@@ -48,7 +48,6 @@ architecture rtl of dram_init_mem is
 
     impure function init_load_ram(name : string) return ram_t is
         file ram_file : text open read_mode is name;
-        file payload_file : text open read_mode is EXTRA_PAYLOAD_FILE;
         variable temp_word : std_logic_vector(63 downto 0);
         variable temp_ram : ram_t := (others => (others => '0'));
         variable ram_line : line;
@@ -66,7 +65,7 @@ architecture rtl of dram_init_mem is
             temp_ram(i*2+1) := temp_word(63 downto 32);
         end loop;
         if RND_PAYLOAD_SIZE /= 0 then
-            procedure init_load_payload(ram: inout ram_t; filename: string) is
+            init_load_payload(temp_ram, EXTRA_PAYLOAD_FILE);
         end if;
         return temp_ram;
     end function;
