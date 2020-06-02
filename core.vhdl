@@ -34,7 +34,7 @@ entity core is
 	dmi_wr		: in std_ulogic;
 	dmi_ack	        : out std_ulogic;
 
-	xics_in		: in XicsToExecute1Type;
+	ext_irq		: in std_ulogic;
 
 	terminated_out   : out std_logic
         );
@@ -291,8 +291,8 @@ begin
             flush_out => flush,
 	    stall_out => ex1_stall_out,
             e_in => decode2_to_execute1,
-            i_in => xics_in,
             l_in => loadstore1_to_execute1,
+            ext_irq_in => ext_irq,
             l_out => execute1_to_loadstore1,
             f_out => execute1_to_fetch1,
             e_out => execute1_to_writeback,

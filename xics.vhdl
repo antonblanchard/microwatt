@@ -30,12 +30,12 @@ entity xics is
         clk          : in std_logic;
         rst          : in std_logic;
 
-        wb_in   : in wishbone_master_out;
-        wb_out  : out wishbone_slave_out;
+        wb_in   : in wb_io_master_out;
+        wb_out  : out wb_io_slave_out;
 
 	int_level_in : in std_ulogic_vector(LEVEL_NUM - 1 downto 0);
 
-	e_out : out XicsToExecute1Type
+	core_irq_out : out std_ulogic
         );
 end xics;
 
@@ -47,7 +47,7 @@ architecture behaviour of xics is
 	mfrr : std_ulogic_vector(7 downto 0);
 	mfrr_pending : std_ulogic;
 	irq : std_ulogic;
-	wb_rd_data : wishbone_data_type;
+	wb_rd_data : std_ulogic_vector(31 downto 0);
 	wb_ack : std_ulogic;
     end record;
     constant reg_internal_init : reg_internal_t :=
@@ -62,11 +62,11 @@ architecture behaviour of xics is
     -- hardwire the hardware IRQ priority
     constant HW_PRIORITY : std_ulogic_vector(7 downto 0) := x"80";
 
-    -- 32 bit offsets for each presentation
-    constant XIRR_POLL : std_ulogic_vector(31 downto 0) := x"00000000";
-    constant XIRR      : std_ulogic_vector(31 downto 0) := x"00000004";
-    constant RESV0     : std_ulogic_vector(31 downto 0) := x"00000008";
-    constant MFRR      : std_ulogic_vector(31 downto 0) := x"0000000c";
+    -- 8 bit offsets for each presentation
+    constant XIRR_POLL : std_ulogic_vector(7 downto 0) := x"00";
+    constant XIRR      : std_ulogic_vector(7 downto 0) := x"04";
+    constant RESV0     : std_ulogic_vector(7 downto 0) := x"08";
+    constant MFRR      : std_ulogic_vector(7 downto 0) := x"0c";
 
 begin
 
@@ -80,7 +80,7 @@ begin
     wb_out.dat <= r.wb_rd_data;
     wb_out.ack <= r.wb_ack;
     wb_out.stall <= '0'; -- never stall wishbone
-    e_out.irq <= r.irq;
+    core_irq_out <= r.irq;
 
     comb : process(all)
 	variable v : reg_internal_t;
@@ -95,62 +95,73 @@ begin
 	irq_eoi := '0';
 
 	if wb_in.cyc = '1' and wb_in.stb = '1' then
-	    -- wishbone addresses we get are 64 bit alligned, so we
-	    -- need to use the sel bits to get 32 bit chunks.
 	    v.wb_ack := '1'; -- always ack
 	    if wb_in.we = '1' then -- write
 		-- writes to both XIRR are the same
-		if wb_in.adr = XIRR_POLL then
-		    report "XICS XIRR_POLL/XIRR write";
-		    if wb_in.sel = x"0f" then -- 4 bytes
+		case wb_in.adr(7 downto 0) is
+                when XIRR_POLL =>
+		    report "XICS XIRR_POLL write";
+		    if wb_in.sel = x"f" then -- 4 bytes
 			v.cppr := wb_in.dat(31 downto 24);
-		    elsif wb_in.sel = x"f0"  then -- 4 byte
-			v.cppr := wb_in.dat(63 downto 56);
-			irq_eoi := '1';
-		    elsif wb_in.sel = x"01"  then -- 1 byte
+		    elsif wb_in.sel = x"1"  then -- 1 byte
 			v.cppr := wb_in.dat(7 downto 0);
-		    elsif wb_in.sel = x"10"  then -- 1 byte
-			v.cppr := wb_in.dat(39 downto 32);
+                    end if;
+                when XIRR =>
+		    if wb_in.sel = x"f"  then -- 4 byte
+                        report "XICS XIRR write word:" & to_hstring(wb_in.dat);
+			v.cppr := wb_in.dat(31 downto 24);
+			irq_eoi := '1';
+		    elsif wb_in.sel = x"1"  then -- 1 byte
+                        report "XICS XIRR write byte:" & to_hstring(wb_in.dat(7 downto 0));
+			v.cppr := wb_in.dat(7 downto 0);
+                    else
+                        report "XICS XIRR UNSUPPORTED write ! sel=" & to_hstring(wb_in.sel);
 		    end if;
-
-		elsif wb_in.adr = RESV0 then
-		    report "XICS MFRR write";
-		    if wb_in.sel = x"f0" then -- 4 bytes
+		when MFRR =>
+		    if wb_in.sel = x"f" then -- 4 bytes
+                        report "XICS MFRR write word:" & to_hstring(wb_in.dat);
 			v.mfrr_pending := '1';
-			v.mfrr := wb_in.dat(63 downto 56);
-		    elsif wb_in.sel = x"10" then -- 1 byte
+			v.mfrr := wb_in.dat(31 downto 24);
+		    elsif wb_in.sel = x"1" then -- 1 byte
+                        report "XICS MFRR write byte:" & to_hstring(wb_in.dat(7 downto 0));
 			v.mfrr_pending := '1';
-			v.mfrr := wb_in.dat(39 downto 32);
+			v.mfrr := wb_in.dat(7 downto 0);
+                    else
+                        report "XICS MFRR UNSUPPORTED write ! sel=" & to_hstring(wb_in.sel);
 		    end if;
-
-		end if;
+                when others =>                        
+		end case;
 
 	    else -- read
 		v.wb_rd_data := (others => '0');
 
-		if wb_in.adr = XIRR_POLL then
-		    report "XICS XIRR_POLL/XIRR read";
-		    if wb_in.sel = x"0f" then
+		case wb_in.adr(7 downto 0) is
+                when XIRR_POLL =>
+                    report "XICS XIRR_POLL read";
+		    if wb_in.sel = x"f" then
 			v.wb_rd_data(23 downto  0) := r.xisr;
 			v.wb_rd_data(31 downto 24) := r.cppr;
-		    elsif wb_in.sel = x"f0" then
-			v.wb_rd_data(55 downto 32) := r.xisr;
-			v.wb_rd_data(63 downto 56) := r.cppr;
-			xirr_accept_rd := '1';
-		    elsif wb_in.sel = x"01" then
+		    elsif wb_in.sel = x"1" then
 			v.wb_rd_data(7 downto  0) := r.cppr;
-		    elsif wb_in.sel = x"10" then
-			v.wb_rd_data(39 downto 32) := r.cppr;
+                    end if;
+                when XIRR =>
+                    report "XICS XIRR read";
+		    if wb_in.sel = x"f" then
+			v.wb_rd_data(23 downto 0) := r.xisr;
+			v.wb_rd_data(31 downto 24) := r.cppr;
+			xirr_accept_rd := '1';
+		    elsif wb_in.sel = x"1" then
+			v.wb_rd_data(7 downto 0) := r.cppr;
 		    end if;
-
-		elsif wb_in.adr = RESV0 then
+		when MFRR =>
 		    report "XICS MFRR read";
-		    if wb_in.sel = x"f0" then -- 4 bytes
-			v.wb_rd_data(63 downto 56) := r.mfrr;
-		    elsif wb_in.sel = x"10" then -- 1 byte
+		    if wb_in.sel = x"f" then -- 4 bytes
+			v.wb_rd_data(31 downto 24) := r.mfrr;
+		    elsif wb_in.sel = x"1" then -- 1 byte
 			v.wb_rd_data( 7 downto  0) := r.mfrr;
 		    end if;
-		end if;
+                when others =>                        
+		end case;
 	    end if;
 	end if;
 

@@ -33,9 +33,15 @@ architecture behaviour of toplevel is
     signal system_clk : std_ulogic;
     signal system_clk_locked : std_ulogic;
 
-    -- Dummy DRAM
-    signal wb_dram_in : wishbone_master_out;
-    signal wb_dram_out : wishbone_slave_out;
+    -- DRAM main data wishbone connection
+    signal wb_dram_in       : wishbone_master_out;
+    signal wb_dram_out      : wishbone_slave_out;
+
+    -- DRAM control wishbone connection
+    signal wb_dram_ctrl_in  : wb_io_master_out;
+    signal wb_dram_ctrl_out : wb_io_slave_out;
+    signal wb_dram_is_csr   : std_ulogic;
+    signal wb_dram_is_init  : std_ulogic;
 
 begin
 
@@ -79,7 +85,12 @@ begin
 	    rst               => soc_rst,
 	    uart0_txd         => uart0_txd,
 	    uart0_rxd         => uart0_rxd,
+	    wb_dram_in        => wb_dram_in,
 	    wb_dram_out       => wb_dram_out,
+	    wb_dram_ctrl_in   => wb_dram_ctrl_in,
+	    wb_dram_ctrl_out  => wb_dram_ctrl_out,
+	    wb_dram_is_csr    => wb_dram_is_csr,
+	    wb_dram_is_init   => wb_dram_is_init,
 	    alt_reset         => '0'
 	    );
 
@@ -87,5 +98,8 @@ begin
     wb_dram_out.ack <= wb_dram_in.cyc and wb_dram_in.stb;
     wb_dram_out.dat <= x"FFFFFFFFFFFFFFFF";
     wb_dram_out.stall <= wb_dram_in.cyc and not wb_dram_out.ack;
+    wb_dram_ctrl_out.ack <= wb_dram_in.cyc and wb_dram_in.stb;
+    wb_dram_ctrl_out.dat <= x"FFFFFFFF";
+    wb_dram_ctrl_out.stall <= wb_dram_in.cyc and not wb_dram_out.ack;
 
 end architecture behaviour;

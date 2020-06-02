@@ -128,19 +128,23 @@ def generate_one(t, mw_init):
     if mw_init:
         src_wrap_file = os.path.join(gen_src_dir, "wrapper-mw-init.vhdl")
         src_init_file = build_init_code(build_dir)
+        src_initram_file = os.path.join(gen_src_dir, "dram-init-mem.vhdl")
     else:
         write_to_file(os.path.join(t_dir, "init-cpu.txt"), cpu)
         src_wrap_file = os.path.join(gen_src_dir, "wrapper-self-init.vhdl")
         src_init_file = os.path.join(gw_dir, "mem.init")
+        src_initram_file = os.path.join(gen_src_dir, "no-init-mem.vhdl")
 
     # Copy generated files to target dir, amend them if necessary
     core_file = os.path.join(gw_dir, "litedram_core.v")
     dst_init_file = os.path.join(t_dir, "litedram_core.init")
     dst_wrap_file = os.path.join(t_dir, "litedram-wrapper.vhdl")
+    dst_initram_file = os.path.join(t_dir, "litedram-initmem.vhdl")
     replace_in_file(core_file, "mem.init", "litedram_core.init")
     shutil.copy(core_file, t_dir)
     shutil.copyfile(src_init_file, dst_init_file)    
     shutil.copyfile(src_wrap_file, dst_wrap_file)
+    shutil.copyfile(src_initram_file, dst_initram_file)
 
 def main():
 

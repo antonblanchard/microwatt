@@ -25,7 +25,7 @@ entity execute1 is
 	e_in  : in Decode2ToExecute1Type;
         l_in  : in Loadstore1ToExecute1Type;
 
-	i_in : in XicsToExecute1Type;
+	ext_irq_in : std_ulogic;
 
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
@@ -419,7 +419,7 @@ begin
 		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#900#, 64));
 		report "IRQ valid: DEC";
 		irq_valid := '1';
-	    elsif i_in.irq = '1' then
+	    elsif ext_irq_in = '1' then
 		ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#500#, 64));
 		report "IRQ valid: External";
 		irq_valid := '1';

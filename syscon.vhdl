@@ -20,8 +20,8 @@ entity syscon is
 	rst : in std_ulogic;
 
 	-- Wishbone ports:
-	wishbone_in : in wishbone_master_out;
-	wishbone_out : out wishbone_slave_out;
+	wishbone_in : in wb_io_master_out;
+	wishbone_out : out wb_io_slave_out;
 
 	-- System control ports
 	dram_at_0  : out std_ulogic;
@@ -42,6 +42,9 @@ architecture behaviour of syscon is
     constant SYS_REG_DRAMINFO	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "011";
     constant SYS_REG_CLKINFO	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "100";
     constant SYS_REG_CTRL	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "101";
+
+    -- Muxed reg read signal
+    signal reg_out	: std_ulogic_vector(63 downto 0);
 
     -- INFO register bits
     constant SYS_REG_INFO_HAS_UART    : integer := 0;
@@ -99,7 +102,7 @@ begin
 		    SYS_REG_CTRL_BITS-1 downto 0 => reg_ctrl);
 
     -- Register read mux
-    with wishbone_in.adr(SYS_REG_BITS+2 downto 3) select wishbone_out.dat <=
+    with wishbone_in.adr(SYS_REG_BITS+2 downto 3) select reg_out <=
 	SIG_VALUE	when SYS_REG_SIG,
 	reg_info        when SYS_REG_INFO,
 	reg_braminfo    when SYS_REG_BRAMINFO,
@@ -107,6 +110,8 @@ begin
 	reg_clkinfo     when SYS_REG_CLKINFO,
 	reg_ctrl_out	when SYS_REG_CTRL,
 	(others => '0') when others;
+    wishbone_out.dat <= reg_out(63 downto 32) when wishbone_in.adr(2) = '1' else
+                        reg_out(31 downto 0);
 
     -- Register writes
     regs_write: process(clk)
@@ -116,7 +121,9 @@ begin
 		reg_ctrl <= (others => '0');
 	    else
 		if wishbone_in.cyc and wishbone_in.stb and wishbone_in.we then
-		    if wishbone_in.adr(SYS_REG_BITS+2 downto 3) = SYS_REG_CTRL then
+                    -- Change this if CTRL ever has more than 32 bits
+		    if wishbone_in.adr(SYS_REG_BITS+2 downto 3) = SYS_REG_CTRL and
+                        wishbone_in.adr(2) = '0' then
 			reg_ctrl(SYS_REG_CTRL_BITS-1 downto 0) <=
 			    wishbone_in.dat(SYS_REG_CTRL_BITS-1 downto 0);
 		    end if;

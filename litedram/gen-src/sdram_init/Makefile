@@ -26,7 +26,7 @@ CPPFLAGS += -I$(SRC_DIR)/libc/include -I$(LXSRC_DIR) -I$(LXINC_DIR) -I$(GENINC_D
 CPPFLAGS += -isystem $(shell $(CC) -print-file-name=include)
 CFLAGS = -Os -g -Wall -std=c99 -m64 -mabi=elfv2 -msoft-float -mno-string -mno-multiple -mno-vsx -mno-altivec -mlittle-endian -fno-stack-protector -mstrict-align -ffreestanding -fdata-sections -ffunction-sections -fno-delete-null-pointer-checks 
 ASFLAGS = $(CPPFLAGS) $(CFLAGS)
-LDFLAGS = -static -nostdlib -Ttext-segment=0xffff0000 -T $(SRC_DIR)/$(PROGRAM).lds --gc-sections
+LDFLAGS = -static -nostdlib -T $(OBJ)/$(PROGRAM).lds --gc-sections
 
 #### Pretty print
 
@@ -58,13 +58,15 @@ $(OBJ)/%.o : $(SRC_DIR)/%.S
 	$(call Q,AS, $(CC) $(ASFLAGS) -c $< -o $@, $@)
 $(OBJ)/%.o : $(SRC_DIR)/libc/src/%.c
 	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)
+$(OBJ)/%.lds : $(SRC_DIR)/%.lds.S
+	$(call Q,CC, $(CC) $(CPPFLAGS) -P -E $< -o $@, $@)
 
 LIBC_SRC := $(wildcard $(SRC_DIR)/libc/src/*.c)
 LIBC_OBJ := $(patsubst $(SRC_DIR)/libc/src/%.c, $(OBJ)/%.o,$(LIBC_SRC))
 $(OBJ)/libc.o: $(LIBC_OBJ)
 	$(call Q,LD, $(LD) -r -o $@ $^, $@)
 
-$(OBJ)/$(PROGRAM).elf: $(OBJECTS) $(OBJ)/libc.o
+$(OBJ)/$(PROGRAM).elf: $(OBJECTS) $(OBJ)/libc.o $(OBJ)/$(PROGRAM).lds
 	$(call Q,LD, $(LD) $(LDFLAGS) -o $@ $^, $@)
 
 $(OBJ)/$(PROGRAM).bin: $(OBJ)/$(PROGRAM).elf

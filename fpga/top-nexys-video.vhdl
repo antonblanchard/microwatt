@@ -57,11 +57,15 @@ architecture behaviour of toplevel is
     signal system_clk : std_ulogic;
     signal system_clk_locked : std_ulogic;
 
-    -- DRAM wishbone connection
-    signal wb_dram_in   : wishbone_master_out;
-    signal wb_dram_out  : wishbone_slave_out;
-    signal wb_dram_ctrl : std_ulogic;
-    signal wb_dram_init : std_ulogic;
+    -- DRAM main data wishbone connection
+    signal wb_dram_in       : wishbone_master_out;
+    signal wb_dram_out      : wishbone_slave_out;
+
+    -- DRAM control wishbone connection
+    signal wb_dram_ctrl_in  : wb_io_master_out;
+    signal wb_dram_ctrl_out : wb_io_slave_out;
+    signal wb_dram_is_csr   : std_ulogic;
+    signal wb_dram_is_init  : std_ulogic;
 
     -- Control/status
     signal core_alt_reset : std_ulogic;
@@ -87,8 +91,10 @@ begin
 	    uart0_rxd         => uart_main_rx,
 	    wb_dram_in        => wb_dram_in,
 	    wb_dram_out       => wb_dram_out,
-	    wb_dram_ctrl      => wb_dram_ctrl,
-	    wb_dram_init      => wb_dram_init,
+	    wb_dram_ctrl_in   => wb_dram_ctrl_in,
+	    wb_dram_ctrl_out  => wb_dram_ctrl_out,
+	    wb_dram_is_csr    => wb_dram_is_csr,
+	    wb_dram_is_init   => wb_dram_is_init,
 	    alt_reset         => core_alt_reset
 	    );
 
@@ -176,8 +182,10 @@ begin
 
 		wb_in		=> wb_dram_in,
 		wb_out		=> wb_dram_out,
-		wb_is_ctrl      => wb_dram_ctrl,
-		wb_is_init      => wb_dram_init,
+		wb_ctrl_in	=> wb_dram_ctrl_in,
+		wb_ctrl_out	=> wb_dram_ctrl_out,
+		wb_ctrl_is_csr  => wb_dram_is_csr,
+		wb_ctrl_is_init => wb_dram_is_init,
 
 		serial_tx	=> open,
 		serial_rx	=> '0',
