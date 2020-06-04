@@ -22,27 +22,33 @@ end entity writeback;
 
 architecture behaviour of writeback is
 begin
-    writeback_1: process(all)
+    writeback_0: process(clk)
         variable x : std_ulogic_vector(0 downto 0);
         variable y : std_ulogic_vector(0 downto 0);
         variable w : std_ulogic_vector(0 downto 0);
+    begin
+        if rising_edge(clk) then
+            -- Do consistency checks only on the clock edge
+            x(0) := e_in.valid;
+            y(0) := l_in.valid;
+            assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
+
+            x(0) := e_in.write_enable or e_in.exc_write_enable;
+            y(0) := l_in.write_enable;
+            assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
+
+            w(0) := e_in.write_cr_enable;
+            x(0) := (e_in.write_enable and e_in.rc);
+            assert (to_integer(unsigned(w)) + to_integer(unsigned(x))) <= 1 severity failure;
+        end if;
+    end process;
+
+    writeback_1: process(all)
 	variable cf: std_ulogic_vector(3 downto 0);
         variable zero : std_ulogic;
         variable sign : std_ulogic;
 	variable scf  : std_ulogic_vector(3 downto 0);
     begin
-        x(0) := e_in.valid;
-        y(0) := l_in.valid;
-        assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
-
-        x(0) := e_in.write_enable or e_in.exc_write_enable;
-        y(0) := l_in.write_enable;
-        assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
-
-        w(0) := e_in.write_cr_enable;
-        x(0) := (e_in.write_enable and e_in.rc);
-        assert (to_integer(unsigned(w)) + to_integer(unsigned(x))) <= 1 severity failure;
-
         w_out <= WritebackToRegisterFileInit;
         c_out <= WritebackToCrFileInit;
 

@@ -17,7 +17,7 @@ entity decode2 is
         rst   : in std_ulogic;
 
         complete_in : in std_ulogic;
-        stall_in : in std_ulogic;
+        busy_in   : in std_ulogic;
         stall_out : out std_ulogic;
 
         stopped_out : out std_ulogic;
@@ -44,6 +44,8 @@ architecture behaviour of decode2 is
     end record;
 
     signal r, rin : reg_type;
+
+    signal deferred : std_ulogic;
 
     signal log_data : std_ulogic_vector(9 downto 0);
 
@@ -200,6 +202,9 @@ architecture behaviour of decode2 is
     signal gpr_write : gspr_index_t;
     signal gpr_bypassable  : std_ulogic;
 
+    signal update_gpr_write_valid : std_ulogic;
+    signal update_gpr_write_reg : gspr_index_t;
+
     signal gpr_a_read_valid : std_ulogic;
     signal gpr_a_read :gspr_index_t;
     signal gpr_a_bypass : std_ulogic;
@@ -224,7 +229,8 @@ begin
 
             complete_in => complete_in,
             valid_in    => control_valid_in,
-            stall_in    => stall_in,
+            busy_in     => busy_in,
+            deferred    => deferred,
             flush_in    => flush_in,
             sgl_pipe_in => control_sgl_pipe,
             stop_mark_in => d_in.stop_mark,
@@ -232,6 +238,9 @@ begin
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write,
             gpr_bypassable     => gpr_bypassable,
+
+            update_gpr_write_valid => update_gpr_write_valid,
+            update_gpr_write_reg => update_gpr_write_reg,
 
             gpr_a_read_valid_in  => gpr_a_read_valid,
             gpr_a_read_in        => gpr_a_read,
@@ -254,13 +263,17 @@ begin
             gpr_bypass_c => gpr_c_bypass
             );
 
+    deferred <= r.e.valid and busy_in;
+
     decode2_0: process(clk)
     begin
         if rising_edge(clk) then
-            if rin.e.valid = '1' then
-                report "execute " & to_hstring(rin.e.nia);
+            if rst = '1' or flush_in = '1' or deferred = '0' then
+                if rin.e.valid = '1' then
+                    report "execute " & to_hstring(rin.e.nia);
+                end if;
+                r <= rin;
             end if;
-            r <= rin;
         end if;
     end process;
 
@@ -358,6 +371,8 @@ begin
         if EX1_BYPASS and d_in.decode.unit = ALU then
             gpr_bypassable <= '1';
         end if;
+        update_gpr_write_valid <= d_in.decode.update;
+        update_gpr_write_reg <= decoded_reg_a.reg;
 
         gpr_a_read_valid <= decoded_reg_a.reg_valid;
         gpr_a_read <= decoded_reg_a.reg;
@@ -375,7 +390,7 @@ begin
             v.e.insn_type := OP_ILLEGAL;
         end if;
 
-        if rst = '1' then
+        if rst = '1' or flush_in = '1' then
             v.e := Decode2ToExecute1Init;
         end if;
 

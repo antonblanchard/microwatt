@@ -25,7 +25,6 @@ entity loadstore1 is
         m_in  : in MmuToLoadstore1Type;
 
         dc_stall  : in std_ulogic;
-        stall_out : out std_ulogic;
 
         log_out : out std_ulogic_vector(9 downto 0)
         );
@@ -47,6 +46,7 @@ architecture behave of loadstore1 is
                      );
 
     type reg_stage_t is record
+        busy         : std_ulogic;
         -- latch most of the input request
         load         : std_ulogic;
         tlbie        : std_ulogic;
@@ -123,6 +123,7 @@ begin
         if rising_edge(clk) then
             if rst = '1' then
                 r.state <= IDLE;
+                r.busy <= '0';
             else
                 r <= rin;
             end if;
@@ -499,6 +500,7 @@ begin
         l_out.store_done <= d_in.store_done;
 
         -- update exception info back to execute1
+        e_out.busy <= r.busy;
         e_out.exception <= exception;
         e_out.instr_fault <= r.instr_fault;
         e_out.invalid <= m_in.invalid;
@@ -513,7 +515,7 @@ begin
             end if;
         end if;
 
-        stall_out <= stall;
+        v.busy := stall;
 
         -- Update registers
         rin <= v;
@@ -523,7 +525,7 @@ begin
     ls1_log: process(clk)
     begin
         if rising_edge(clk) then
-            log_data <= stall_out &
+            log_data <= r.busy &
                         e_out.exception &
                         l_out.valid &
                         m_out.valid &

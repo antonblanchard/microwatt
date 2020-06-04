@@ -82,11 +82,10 @@ architecture behave of core is
     signal icache_stall_out : std_ulogic;
     signal icache_stall_in : std_ulogic;
     signal decode1_stall_in : std_ulogic;
-    signal decode2_stall_in : std_ulogic;
+    signal decode2_busy_in : std_ulogic;
     signal decode2_stall_out : std_ulogic;
     signal ex1_icache_inval: std_ulogic;
-    signal ex1_stall_out: std_ulogic;
-    signal ls1_stall_out: std_ulogic;
+    signal ex1_busy_out: std_ulogic;
     signal dcache_stall_out: std_ulogic;
 
     signal flush: std_ulogic;
@@ -235,7 +234,7 @@ begin
         port map (
             clk => clk,
             rst => rst_dec2,
-	    stall_in => decode2_stall_in,
+	    busy_in => decode2_busy_in,
             stall_out => decode2_stall_out,
             flush_in => flush,
             complete_in => complete,
@@ -248,7 +247,7 @@ begin
             c_out => decode2_to_cr_file,
             log_out => log_data(119 downto 110)
             );
-    decode2_stall_in <= ex1_stall_out or ls1_stall_out;
+    decode2_busy_in <= ex1_busy_out;
 
     register_file_0: entity work.register_file
         generic map (
@@ -289,7 +288,7 @@ begin
             clk => clk,
             rst => rst_ex1,
             flush_out => flush,
-	    stall_out => ex1_stall_out,
+	    busy_out => ex1_busy_out,
             e_in => decode2_to_execute1,
             l_in => loadstore1_to_execute1,
             ext_irq_in => ext_irq,
@@ -317,7 +316,6 @@ begin
             m_out => loadstore1_to_mmu,
             m_in => mmu_to_loadstore1,
             dc_stall => dcache_stall_out,
-            stall_out => ls1_stall_out,
             log_out => log_data(149 downto 140)
             );
 

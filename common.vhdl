@@ -244,6 +244,7 @@ package common is
                                                                      others => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
+        busy : std_ulogic;
         exception : std_ulogic;
         invalid : std_ulogic;
         perm_error : std_ulogic;

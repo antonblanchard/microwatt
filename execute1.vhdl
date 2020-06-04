@@ -20,7 +20,7 @@ entity execute1 is
 
 	-- asynchronous
 	flush_out : out std_ulogic;
-	stall_out : out std_ulogic;
+	busy_out : out std_ulogic;
 
 	e_in  : in Decode2ToExecute1Type;
         l_in  : in Loadstore1ToExecute1Type;
@@ -48,6 +48,8 @@ end entity execute1;
 architecture behaviour of execute1 is
     type reg_type is record
 	e : Execute1ToWritebackType;
+        busy: std_ulogic;
+        terminate: std_ulogic;
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
 	mul_in_progress : std_ulogic;
@@ -62,7 +64,7 @@ architecture behaviour of execute1 is
         log_addr_spr : std_ulogic_vector(31 downto 0);
     end record;
     constant reg_type_init : reg_type :=
-        (e => Execute1ToWritebackInit, lr_update => '0',
+        (e => Execute1ToWritebackInit, busy => '0', lr_update => '0', terminate => '0',
          mul_in_progress => '0', div_in_progress => '0', cntz_in_progress => '0',
          slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
          next_lr => (others => '0'), ldst_nia => (others => '0'), others => (others => '0'));
@@ -71,6 +73,7 @@ architecture behaviour of execute1 is
 
     signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
 
+    signal valid_in : std_ulogic;
     signal ctrl: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
     signal ctrl_tmp: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
@@ -241,6 +244,11 @@ begin
     b_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data2 = '1' else e_in.read_data2;
     c_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data3 = '1' else e_in.read_data3;
 
+    busy_out <= l_in.busy or r.busy;
+    valid_in <= e_in.valid and not busy_out;
+
+    terminate_out <= r.terminate;
+
     execute1_0: process(clk)
     begin
 	if rising_edge(clk) then
@@ -251,7 +259,7 @@ begin
             else
                 r <= rin;
                 ctrl <= ctrl_tmp;
-                assert not (r.lr_update = '1' and e_in.valid = '1')
+                assert not (r.lr_update = '1' and valid_in = '1')
                     report "LR update collision with valid in EX1"
                     severity failure;
                 if r.lr_update = '1' then
@@ -423,9 +431,9 @@ begin
 	    end if;
 	end if;
 
-	terminate_out <= '0';
+	v.terminate := '0';
 	icache_inval <= '0';
-	stall_out <= '0';
+	v.busy := '0';
 	f_out <= Execute1ToFetch1TypeInit;
         -- send MSR[IR] and ~MSR[PR] up to fetch1
         f_out.virt_mode <= ctrl.msr(MSR_IR);
@@ -463,10 +471,10 @@ begin
             f_out.virt_mode <= '0';
             f_out.priv_mode <= '1';
 	    f_out.redirect_nia <= ctrl.irq_nia;
-	    v.e.valid := e_in.valid;
+            v.e.valid := '1';
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
-	elsif irq_valid = '1' and e_in.valid = '1' then
+	elsif irq_valid = '1' and valid_in = '1' then
 	    -- we need two cycles to write srr0 and 1
 	    -- will need more when we have to write HEIR
             -- Don't deliver the interrupt until we have a valid instruction
@@ -474,7 +482,7 @@ begin
 	    exception := '1';
 	    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
 
-        elsif e_in.valid = '1' and ctrl.msr(MSR_PR) = '1' and
+        elsif valid_in = '1' and ctrl.msr(MSR_PR) = '1' and
             instr_is_privileged(e_in.insn_type, e_in.insn) then
             -- generate a program interrupt
             exception := '1';
@@ -484,7 +492,7 @@ begin
             ctrl_tmp.srr1(63 - 45) <= '1';
             report "privileged instruction";
             
-	elsif e_in.valid = '1' and e_in.unit = ALU then
+	elsif valid_in = '1' and e_in.unit = ALU then
 
 	    report "execute nia " & to_hstring(e_in.nia);
 
@@ -519,7 +527,7 @@ begin
                 -- check bits 1-10 of the instruction to make sure it's attn
                 -- if not then it is illegal
                 if e_in.insn(10 downto 1) = "0100000000" then
-                    terminate_out <= '1';
+                    v.terminate := '1';
                     report "ATTN";
                 else
                     illegal := '1';
@@ -674,7 +682,7 @@ begin
             when OP_CNTZ =>
                 v.e.valid := '0';
                 v.cntz_in_progress := '1';
-                stall_out <= '1';
+                v.busy := '1';
             when OP_EXTS =>
                 -- note data_len is a 1-hot encoding
 		negative := (e_in.data_len(0) and c_in(7)) or
@@ -876,21 +884,21 @@ begin
 	    when OP_MUL_L64 | OP_MUL_H64 | OP_MUL_H32 =>
 		v.e.valid := '0';
 		v.mul_in_progress := '1';
-		stall_out <= '1';
+		v.busy := '1';
 		x_to_multiply.valid <= '1';
 
 	    when OP_DIV | OP_DIVE | OP_MOD =>
 		v.e.valid := '0';
 		v.div_in_progress := '1';
-		stall_out <= '1';
+		v.busy := '1';
 		x_to_divider.valid <= '1';
 
             when others =>
-		terminate_out <= '1';
+		v.terminate := '1';
 		report "illegal";
 	    end case;
 
-	    v.e.rc := e_in.rc and e_in.valid;
+	    v.e.rc := e_in.rc and valid_in;
 
 	    -- Update LR on the next cycle after a branch link
 	    --
@@ -908,10 +916,10 @@ begin
 		v.next_lr := next_nia;
 		v.e.valid := '0';
 		report "Delayed LR update to " & to_hstring(next_nia);
-		stall_out <= '1';
+		v.busy := '1';
 	    end if;
 
-        elsif e_in.valid = '1' then
+        elsif valid_in = '1' then
             -- instruction for other units, i.e. LDST
             v.ldst_nia := e_in.nia;
             v.e.valid := '0';
@@ -967,7 +975,7 @@ begin
 		end if;
 		v.e.valid := '1';
 	    else
-		stall_out <= '1';
+		v.busy := '1';
 		v.mul_in_progress := r.mul_in_progress;
 		v.div_in_progress := r.div_in_progress;
 	    end if;
@@ -988,7 +996,8 @@ begin
                 v.e.exc_write_data := next_nia;
             end if;
             ctrl_tmp.irq_state <= WRITE_SRR1;
-            v.e.valid := '1';
+            v.busy := '1';
+            v.e.valid := '0';
 	end if;
 
 	v.e.write_data := result;
@@ -1020,7 +1029,6 @@ begin
             v.e.exc_write_data := r.ldst_nia;
             report "ldst exception writing srr0=" & to_hstring(r.ldst_nia);
             ctrl_tmp.irq_state <= WRITE_SRR1;
-            v.e.valid := '1';   -- complete the original load or store
         end if;
 
         -- Outputs to loadstore1 (async)
@@ -1072,7 +1080,7 @@ begin
                         r.e.write_enable &
                         r.e.valid &
                         f_out.redirect &
-                        stall_out &
+                        r.busy &
                         flush_out;
         end if;
     end process;
