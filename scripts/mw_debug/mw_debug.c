@@ -176,7 +176,7 @@ static int sim_command(uint8_t op, uint8_t addr, uint64_t *data)
 		printf("\n");
 	}
 	write(sim_fd, buf, p - buf);
-	r = read(sim_fd, buf, 127);
+	r = read(sim_fd, buf, sizeof(buf));
 	if (0 && r > 0) {
 		int i;
 

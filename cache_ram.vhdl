@@ -16,7 +16,6 @@ entity cache_ram is
 	rd_en   : in  std_logic;
 	rd_addr : in  std_logic_vector(ROW_BITS - 1 downto 0);
 	rd_data : out std_logic_vector(WIDTH - 1 downto 0);
-	wr_en   : in  std_logic;
 	wr_sel  : in  std_logic_vector(WIDTH/8 - 1 downto 0);
 	wr_addr : in  std_logic_vector(ROW_BITS - 1 downto 0);
 	wr_data : in  std_logic_vector(WIDTH - 1 downto 0)
@@ -31,8 +30,6 @@ architecture rtl of cache_ram is
     signal ram : ram_type;
     attribute ram_style : string;
     attribute ram_style of ram : signal is "block";
-    attribute ram_decomp : string;
-    attribute ram_decomp of ram : signal is "power";
 
     signal rd_data0 : std_logic_vector(WIDTH - 1 downto 0);
 
@@ -41,23 +38,25 @@ begin
 	variable lbit : integer range 0 to WIDTH - 1;
 	variable mbit : integer range 0 to WIDTH - 1;
 	variable widx : integer range 0 to SIZE - 1;
+	constant sel0 : std_logic_vector(WIDTH/8 - 1 downto 0)
+            := (others => '0');
     begin
 	if rising_edge(clk) then
-	    if wr_en = '1' then
-		if TRACE then
-		    report "write a:" & to_hstring(wr_addr) &
-			" sel:" & to_hstring(wr_sel) &
-			" dat:" & to_hstring(wr_data);
-		end if;
-		for i in 0 to WIDTH/8-1 loop
-		    lbit := i * 8;
-		    mbit := lbit + 7;
-		    widx := to_integer(unsigned(wr_addr));
-		    if wr_sel(i) = '1' then
-			ram(widx)(mbit downto lbit) <= wr_data(mbit downto lbit);
-		    end if;
-		end loop;
-	    end if;
+            if TRACE then
+                if wr_sel /= sel0 then
+                    report "write a:" & to_hstring(wr_addr) &
+                        " sel:" & to_hstring(wr_sel) &
+                        " dat:" & to_hstring(wr_data);
+                end if;
+            end if;
+            for i in 0 to WIDTH/8-1 loop
+                lbit := i * 8;
+                mbit := lbit + 7;
+                widx := to_integer(unsigned(wr_addr));
+                if wr_sel(i) = '1' then
+                    ram(widx)(mbit downto lbit) <= wr_data(mbit downto lbit);
+                end if;
+            end loop;
 	    if rd_en = '1' then
 		rd_data0 <= ram(to_integer(unsigned(rd_addr)));
 		if TRACE then

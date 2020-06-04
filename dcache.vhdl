@@ -923,6 +923,7 @@ begin
 	signal wr_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
 	signal wr_data  : std_ulogic_vector(wishbone_data_bits-1 downto 0);
 	signal wr_sel   : std_ulogic_vector(ROW_SIZE-1 downto 0);
+	signal wr_sel_m : std_ulogic_vector(ROW_SIZE-1 downto 0);
 	signal dout     : cache_row_t;
     begin
 	way: entity work.cache_ram
@@ -936,8 +937,7 @@ begin
 		rd_en   => do_read,
 		rd_addr => rd_addr,
 		rd_data => dout,
-		wr_en   => do_write,
-		wr_sel  => wr_sel,
+		wr_sel  => wr_sel_m,
 		wr_addr => wr_addr,
 		wr_data => wr_data
 		);
@@ -986,7 +986,14 @@ begin
 		    severity FAILURE;
 		do_write <= '1';
 	    end if;
-	end process;
+
+            -- Mask write selects with do_write since BRAM doesn't
+            -- have a global write-enable
+            for i in 0 to ROW_SIZE-1 loop
+                wr_sel_m(i) <= wr_sel(i) and do_write;
+            end loop;
+
+        end process;
     end generate;
 
     --
