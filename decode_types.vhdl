@@ -3,7 +3,7 @@ use ieee.std_logic_1164.all;
 
 package decode_types is
     type insn_type_t is (OP_ILLEGAL, OP_NOP, OP_ADD,
-			 OP_ADDPCIS, OP_AND, OP_ATTN, OP_B, OP_BC, OP_BCREG,
+			 OP_AND, OP_ATTN, OP_B, OP_BC, OP_BCREG,
 			 OP_BPERM, OP_CMP, OP_CMPB, OP_CMPEQB, OP_CMPRB,
 			 OP_CNTZ, OP_CROP,
 			 OP_DARN, OP_DCBF, OP_DCBST, OP_DCBT, OP_DCBTST,
@@ -20,8 +20,9 @@ package decode_types is
 			 OP_XOR,
                          OP_FETCH_FAILED
 			 );
-    type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR);
-    type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD, CONST_DX_HI, CONST_DS, CONST_M1, CONST_SH, CONST_SH32, SPR);
+    type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA);
+    type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
+                           CONST_DXHI4, CONST_DS, CONST_M1, CONST_SH, CONST_SH32, SPR);
     type input_reg_c_t is (NONE, RS);
     type output_reg_a_t is (NONE, RT, RA, SPR);
     type rc_t is (NONE, ONE, RC);
