@@ -21,7 +21,7 @@ def flash(config, flash_proxy, address, data, set_qe=False):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("file", help="file to write to flash")
-parser.add_argument("-a", "--address", help="offset in flash", type=int, default=0)
+parser.add_argument("-a", "--address", help="offset in flash", type=lambda x: int(x,0), default=0)
 parser.add_argument("-f", "--fpga", help="a35 or a100", default="a35")
 args = parser.parse_args()
 
