@@ -58,16 +58,16 @@ void main(void)
 		printf("BRAM ");
 	printf("\n");
 	if (ftr & SYS_REG_INFO_HAS_BRAM) {
-		val = readq(SYSCON_BASE + SYS_REG_BRAMINFO);
+		val = readq(SYSCON_BASE + SYS_REG_BRAMINFO) & SYS_REG_BRAMINFO_SIZE_MASK;
 		printf("          BRAM: %lld KB\n", val / 1024);
 	}
 	if (ftr & SYS_REG_INFO_HAS_DRAM) {
-		val = readq(SYSCON_BASE + SYS_REG_DRAMINFO);
+		val = readq(SYSCON_BASE + SYS_REG_DRAMINFO) & SYS_REG_DRAMINFO_SIZE_MASK;
 		printf("          DRAM: %lld MB\n", val / (1024 * 1024));
 		val = readq(SYSCON_BASE + SYS_REG_DRAMINITINFO);
 		printf("     DRAM INIT: %lld KB\n", val / 1024);
 	}
-	val = readq(SYSCON_BASE + SYS_REG_CLKINFO);
+	val = readq(SYSCON_BASE + SYS_REG_CLKINFO) & SYS_REG_CLKINFO_FREQ_MASK;
 	printf("           CLK: %lld MHz\n", val / 1000000);
 
 	printf("\n");
