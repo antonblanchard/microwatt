@@ -74,7 +74,7 @@ def build_init_code(build_dir, is_sim):
 
     return os.path.join(sw_dir, "obj", "sdram_init.hex")
 
-def generate_one(t, mw_init):
+def generate_one(t):
 
     print("Generating target:", t)
 
@@ -106,12 +106,6 @@ def generate_one(t, mw_init):
         if k == "sdram_phy":
             core_config[k] = getattr(litedram_phys, core_config[k])
 
-    # Override values for mw_init
-    if mw_init:
-        core_config["cpu"] = None
-        core_config["cpu_variant"] = "standard"
-        core_config["csr_alignment"] = 64
-
     # Generate core
     if is_sim:
         platform = SimPlatform("", io=[])
@@ -131,24 +125,15 @@ def generate_one(t, mw_init):
     # Grab generated gatewar dir
     gw_dir = os.path.join(build_dir, "gateware")
 
-    # Generate init-cpu.txt and generate init code
-    cpu = core_config["cpu"]
-    if mw_init:
-        write_to_file(os.path.join(t_dir, "init-cpu.txt"), "none")
-        src_init_file = build_init_code(build_dir, is_sim)
-        src_initram_file = os.path.join(gen_src_dir, "dram-init-mem.vhdl")
-    else:
-        write_to_file(os.path.join(t_dir, "init-cpu.txt"), cpu)
-        src_init_file = os.path.join(gw_dir, "mem.init")
-        src_initram_file = os.path.join(gen_src_dir, "no-init-mem.vhdl")
+    # Generate init code
+    src_init_file = build_init_code(build_dir, is_sim)
+    src_initram_file = os.path.join(gen_src_dir, "dram-init-mem.vhdl")
 
     # Copy generated files to target dir, amend them if necessary
     initfile_name = "litedram_core.init"
     core_file = os.path.join(gw_dir, "litedram_core.v")
     dst_init_file = os.path.join(t_dir, initfile_name)
     dst_initram_file = os.path.join(t_dir, "litedram-initmem.vhdl")
-    if not mw_init:
-        replace_in_file(core_file, "mem.init", initfile_name)
     shutil.copyfile(src_init_file, dst_init_file)    
     shutil.copyfile(src_initram_file, dst_initram_file)
     if is_sim:
@@ -159,13 +144,8 @@ def generate_one(t, mw_init):
 def main():
 
     targets = ['arty','nexys-video', 'sim']
-#    targets = ['sim']
-
-    # XXX Set mw_init to False to use a local VexRiscV for memory inits
     for t in targets:
-        generate_one(t, mw_init = True)
-
-    # XXX TODO: Remove build dir unless told not to via cmdline option
+        generate_one(t)
     
 if __name__ == "__main__":
     main()

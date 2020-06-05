@@ -95,7 +95,7 @@ SIM_DRAM_CFLAGS += -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=1 -DVL_PRINTF=printf -fa
 sim_litedram_c.o: litedram/extras/sim_litedram_c.cpp verilated_dram
 	$(CC)  $(CPPFLAGS) $(SIM_DRAM_CFLAGS) $(CFLAGS) -c $< -o $@
 
-soc_dram_files = $(soc_files) litedram/extras/wrapper-mw-init.vhdl litedram/generated/sim/litedram-initmem.vhdl
+soc_dram_files = $(soc_files) litedram/extras/litedram-wrapper-l2.vhdl litedram/generated/sim/litedram-initmem.vhdl
 soc_dram_sim_files = $(soc_sim_files) litedram/extras/sim_litedram.vhdl
 soc_dram_sim_obj_files = $(soc_sim_obj_files) sim_litedram_c.o
 dram_link_files=-Wl,obj_dir/Vlitedram_core__ALL.a -Wl,obj_dir/verilated.o -Wl,obj_dir/verilated_vcd_c.o -Wl,-lstdc++

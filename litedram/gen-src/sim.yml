@@ -4,10 +4,10 @@
 {
     # General ------------------------------------------------------------------
     "cpu":        "None",  # Type of CPU used for init/calib (vexriscv, lm32)
-    "cpu_variant":"minimal",
+    "cpu_variant":"standard",
     "speedgrade": -1,          # FPGA speedgrade
     "memtype":    "DDR3",      # DRAM type
-     "sim" : "True",
+    "sim" : "True",
 
     # PHY ----------------------------------------------------------------------
     "cmd_delay":       0,             # Command additional delay (in taps)
@@ -36,4 +36,8 @@
             "type": "native",
         },
     },
+
+    # CSR Port -----------------------------------------------------------------
+    "csr_alignment"  : 32,
+    "csr_data_width" : 32,
 }
