@@ -42,7 +42,8 @@ architecture behave of loadstore1 is
                      ACK_WAIT,          -- waiting for ack from dcache
                      LD_UPDATE,         -- writing rA with computed addr on load
                      MMU_LOOKUP,        -- waiting for MMU to look up translation
-                     TLBIE_WAIT         -- waiting for MMU to finish doing a tlbie
+                     TLBIE_WAIT,        -- waiting for MMU to finish doing a tlbie
+                     SPR_CMPLT          -- complete a mf/tspr operation
                      );
 
     type reg_stage_t is record
@@ -51,6 +52,7 @@ architecture behave of loadstore1 is
         load         : std_ulogic;
         tlbie        : std_ulogic;
         dcbz         : std_ulogic;
+        mfspr        : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	load_data    : std_ulogic_vector(63 downto 0);
@@ -73,6 +75,7 @@ architecture behave of loadstore1 is
         dar          : std_ulogic_vector(63 downto 0);
         dsisr        : std_ulogic_vector(31 downto 0);
         instr_fault  : std_ulogic;
+        sprval       : std_ulogic_vector(63 downto 0);
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -152,9 +155,7 @@ begin
         variable use_second : byte_sel_t;
         variable trim_ctl : trim_ctl_t;
         variable negative : std_ulogic;
-        variable mfspr : std_ulogic;
         variable sprn : std_ulogic_vector(9 downto 0);
-        variable sprval : std_ulogic_vector(63 downto 0);
         variable exception : std_ulogic;
         variable next_addr : std_ulogic_vector(63 downto 0);
         variable mmureq : std_ulogic;
@@ -168,11 +169,10 @@ begin
         done := '0';
         byte_sel := (others => '0');
         addr := lsu_sum;
-        mfspr := '0';
+        v.mfspr := '0';
         mmu_mtspr := '0';
         itlb_fault := '0';
         sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
-        sprval := (others => '0');      -- avoid inferred latches
         exception := '0';
         dsisr := (others => '0');
         mmureq := '0';
@@ -256,20 +256,20 @@ begin
                     v.tlbie := '1';
                     v.state := TLBIE_WAIT;
                 when OP_MFSPR =>
-                    done := '1';
-                    mfspr := '1';
+                    v.mfspr := '1';
                     -- partial decode on SPR number should be adequate given
                     -- the restricted set that get sent down this path
                     if sprn(9) = '0' and sprn(5) = '0' then
                         if sprn(0) = '0' then
-                            sprval := x"00000000" & r.dsisr;
+                            v.sprval := x"00000000" & r.dsisr;
                         else
-                            sprval := r.dar;
+                            v.sprval := r.dar;
                         end if;
                     else
                         -- reading one of the SPRs in the MMU
-                        sprval := m_in.sprval;
+                        v.sprval := m_in.sprval;
                     end if;
+                    v.state := SPR_CMPLT;
                 when OP_MTSPR =>
                     if sprn(9) = '0' and sprn(5) = '0' then
                         if sprn(0) = '0' then
@@ -277,7 +277,7 @@ begin
                         else
                             v.dar := l_in.data;
                         end if;
-                        done := '1';
+                        v.state := SPR_CMPLT;
                     else
                         -- writing one of the SPRs in the MMU
                         mmu_mtspr := '1';
@@ -452,6 +452,10 @@ begin
             v.state := IDLE;
             done := '1';
 
+        when SPR_CMPLT =>
+            done := '1';
+            v.state := IDLE;
+
         end case;
 
         -- Update outputs to dcache
@@ -482,10 +486,10 @@ begin
         -- Multiplex either cache data to the destination GPR or
         -- the address for the rA update.
         l_out.valid <= done;
-        if mfspr = '1' then
+        if r.mfspr = '1' then
             l_out.write_enable <= '1';
-            l_out.write_reg <= l_in.write_reg;
-            l_out.write_data <= sprval;
+            l_out.write_reg <= r.write_reg;
+            l_out.write_data <= r.sprval;
         elsif do_update = '1' then
             l_out.write_enable <= '1';
             l_out.write_reg <= r.update_reg;
