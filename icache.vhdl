@@ -54,6 +54,7 @@ entity icache is
 
 	stall_out    : out std_ulogic;
 	flush_in     : in std_ulogic;
+	inval_in     : in std_ulogic;
 
         wishbone_out : out wishbone_master_out;
         wishbone_in  : in wishbone_slave_out
@@ -173,6 +174,7 @@ architecture rtl of icache is
 	store_way        : way_t;
         store_index      : index_t;
 	store_row        : row_t;
+        store_valid      : std_ulogic;
 
         -- TLB miss state
         fetch_failed     : std_ulogic;
@@ -570,6 +572,14 @@ begin
 		-- Not useful normally but helps avoiding tons of sim warnings
 		r.wb.adr <= (others => '0');
             else
+                -- Process cache invalidations
+                if inval_in = '1' then
+                    for i in index_t loop
+                        cache_valids(i) <= (others => '0');
+                    end loop;
+                    r.store_valid <= '0';
+                end if;
+
 		-- Main state machine
 		case r.state is
 		when IDLE =>
@@ -599,6 +609,7 @@ begin
 			r.store_index <= req_index;
 			r.store_way <= replace_way;
 			r.store_row <= get_row(req_laddr);
+                        r.store_valid <= '1';
 
 			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line and start the WB cycle.
@@ -638,7 +649,7 @@ begin
 			    r.wb.cyc <= '0';
 
 			    -- Cache line is now valid
-			    cache_valids(r.store_index)(r.store_way) <= '1';
+			    cache_valids(r.store_index)(r.store_way) <= r.store_valid and not inval_in;
 
 			    -- We are done
 			    r.state <= IDLE;

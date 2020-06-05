@@ -159,7 +159,7 @@ begin
         if rising_edge(clk) then
             rst_fetch1  <= core_rst;
             rst_fetch2  <= core_rst;
-            rst_icache  <= core_rst or dbg_icache_rst or ex1_icache_inval;
+            rst_icache  <= core_rst;
             rst_dcache  <= core_rst;
             rst_dec1    <= core_rst;
             rst_dec2    <= core_rst;
@@ -202,6 +202,7 @@ begin
             i_out => icache_to_fetch2,
             m_in => mmu_to_icache,
             flush_in => flush,
+            inval_in => dbg_icache_rst or ex1_icache_inval,
 	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
             wishbone_in => wishbone_insn_in
