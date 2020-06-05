@@ -21,20 +21,27 @@ use work.wishbone_types.all;
 -- 0xc0000000: SYSCON
 -- 0xc0002000: UART0
 -- 0xc0004000: XICS ICP
+-- 0xc0006000: SPI Flash controller
 -- 0xc0100000: LiteDRAM control (CSRs)
--- 0xf0000000: DRAM init code (if any)
+-- 0xf0000000: Flash "ROM" mapping
+-- 0xff000000: DRAM init code (if any) or flash ROM
 
 entity soc is
     generic (
-	MEMORY_SIZE    : natural;
-	RAM_INIT_FILE  : string;
-	RESET_LOW      : boolean;
-	CLK_FREQ       : positive;
-	SIM            : boolean;
+	MEMORY_SIZE        : natural;
+	RAM_INIT_FILE      : string;
+	RESET_LOW          : boolean;
+	CLK_FREQ           : positive;
+	SIM                : boolean;
 	DISABLE_FLATTEN_CORE : boolean := false;
-	HAS_DRAM       : boolean  := false;
-	DRAM_SIZE      : integer := 0;
-        DRAM_INIT_SIZE : integer := 0
+	HAS_DRAM           : boolean  := false;
+	DRAM_SIZE          : integer := 0;
+        DRAM_INIT_SIZE     : integer := 0;
+        HAS_SPI_FLASH      : boolean := false;
+        SPI_FLASH_DLINES   : positive := 1;
+        SPI_FLASH_OFFSET   : integer := 0;
+        SPI_FLASH_DEF_CKDV : natural := 2;
+        SPI_FLASH_DEF_QUAD : boolean := false
 	);
     port(
 	rst          : in  std_ulogic;
@@ -51,6 +58,13 @@ entity soc is
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
 	uart0_rxd    : in  std_ulogic;
+
+        -- SPI Flash signals
+        spi_flash_sck     : out std_ulogic;
+        spi_flash_cs_n    : out std_ulogic;
+        spi_flash_sdat_o  : out std_ulogic_vector(SPI_FLASH_DLINES-1 downto 0);
+        spi_flash_sdat_oe : out std_ulogic_vector(SPI_FLASH_DLINES-1 downto 0);
+        spi_flash_sdat_i  : in  std_ulogic_vector(SPI_FLASH_DLINES-1 downto 0);
 
 	-- DRAM controller signals
 	alt_reset    : in std_ulogic
@@ -96,6 +110,12 @@ architecture behaviour of soc is
     signal wb_uart0_out  : wb_io_slave_out;
     signal uart_dat8     : std_ulogic_vector(7 downto 0);
 
+    -- SPI Flash controller signals:
+    signal wb_spiflash_in     : wb_io_master_out;
+    signal wb_spiflash_out    : wb_io_slave_out;
+    signal wb_spiflash_is_reg : std_ulogic;
+    signal wb_spiflash_is_map : std_ulogic;
+
     -- XICS0 signals:
     signal wb_xics0_in   : wb_io_master_out;
     signal wb_xics0_out  : wb_io_slave_out;
@@ -127,12 +147,23 @@ architecture behaviour of soc is
     signal rst_core    : std_ulogic := '1';
     signal rst_uart    : std_ulogic := '1';
     signal rst_xics    : std_ulogic := '1';
+    signal rst_spi     : std_ulogic := '1';
     signal rst_bram    : std_ulogic := '1';
     signal rst_dtm     : std_ulogic := '1';
     signal rst_wbar    : std_ulogic := '1';
     signal rst_wbdb    : std_ulogic := '1';
     signal alt_reset_d : std_ulogic;
 
+        -- IO branch split:
+	type slave_io_type is (SLAVE_IO_SYSCON,
+                               SLAVE_IO_UART,
+                               SLAVE_IO_DRAM_INIT,
+                               SLAVE_IO_DRAM_CSR,
+                               SLAVE_IO_ICP_0,
+                               SLAVE_IO_SPI_FLASH_REG,
+                               SLAVE_IO_SPI_FLASH_MAP,
+                               SLAVE_IO_NONE);
+    signal slave_io_dbg : slave_io_type;
 begin
 
     resets: process(system_clk)
@@ -140,6 +171,7 @@ begin
         if rising_edge(system_clk) then
             rst_core    <= rst or do_core_reset;
             rst_uart    <= rst;
+            rst_spi     <= rst;
             rst_xics    <= rst;
             rst_bram    <= rst;
             rst_dtm     <= rst;
@@ -154,7 +186,7 @@ begin
 	generic map(
 	    SIM => SIM,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
-	    ALT_RESET_ADDRESS => (27 downto 0 => '0', others => '1')
+	    ALT_RESET_ADDRESS => (23 downto 0 => '0', others => '1')
 	    )
 	port map(
 	    clk => system_clk,
@@ -389,14 +421,7 @@ begin
     -- IO wishbone slave intercon.
     --
     slave_io_intercon: process(wb_sio_out, wb_syscon_out, wb_uart0_out,
-                               wb_dram_ctrl_out, wb_xics0_out)
-        -- IO branch split:
-	type slave_io_type is (SLAVE_IO_SYSCON,
-                               SLAVE_IO_UART,
-                               SLAVE_IO_DRAM_INIT,
-                               SLAVE_IO_DRAM_CSR,
-                               SLAVE_IO_ICP_0,
-                               SLAVE_IO_NONE);
+                               wb_dram_ctrl_out, wb_xics0_out, wb_spiflash_out)
 	variable slave_io : slave_io_type;
 
         variable match : std_ulogic_vector(31 downto 12);
@@ -405,8 +430,10 @@ begin
 	-- Simple address decoder.
 	slave_io := SLAVE_IO_NONE;
         match := "11" & wb_sio_out.adr(29 downto 12);
-        if    std_match(match, x"F----") then
+        if    std_match(match, x"FF---") and HAS_DRAM then
 	    slave_io := SLAVE_IO_DRAM_INIT;
+        elsif std_match(match, x"F----") then
+	    slave_io := SLAVE_IO_SPI_FLASH_MAP;
 	elsif std_match(match, x"C0000") then
 	    slave_io := SLAVE_IO_SYSCON;
 	elsif std_match(match, x"C0002") then
@@ -415,9 +442,16 @@ begin
 	    slave_io := SLAVE_IO_DRAM_CSR;
 	elsif std_match(match, x"C0004") then
 	    slave_io := SLAVE_IO_ICP_0;
+	elsif std_match(match, x"C0006") then
+	    slave_io := SLAVE_IO_SPI_FLASH_REG;
 	end if;
+        slave_io_dbg <= slave_io;
 	wb_uart0_in <= wb_sio_out;
 	wb_uart0_in.cyc <= '0';
+	wb_spiflash_in <= wb_sio_out;
+	wb_spiflash_in.cyc <= '0';
+        wb_spiflash_is_reg <= '0';
+        wb_spiflash_is_map <= '0';
 
 	 -- Only give xics 8 bits of wb addr
 	wb_xics0_in <= wb_sio_out;
@@ -451,6 +485,17 @@ begin
 	when SLAVE_IO_ICP_0 =>
 	    wb_xics0_in.cyc <= wb_sio_out.cyc;
 	    wb_sio_in <= wb_xics0_out;
+	when SLAVE_IO_SPI_FLASH_MAP =>
+            -- Clear top bits so they don't make their way to the
+            -- fash chip.
+            wb_spiflash_in.adr(29 downto 28) <= "00";
+	    wb_spiflash_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_spiflash_out;
+            wb_spiflash_is_map <= '1';
+	when SLAVE_IO_SPI_FLASH_REG =>
+	    wb_spiflash_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_spiflash_out;
+            wb_spiflash_is_reg <= '1';
 	when others =>
 	    wb_sio_in.dat <= (others => '1');
 	    wb_sio_in.ack <= wb_sio_out.stb and wb_sio_out.cyc;
@@ -467,7 +512,9 @@ begin
 	    BRAM_SIZE => MEMORY_SIZE,
 	    DRAM_SIZE => DRAM_SIZE,
 	    DRAM_INIT_SIZE => DRAM_INIT_SIZE,
-	    CLK_FREQ => CLK_FREQ
+	    CLK_FREQ => CLK_FREQ,
+	    HAS_SPI_FLASH => HAS_SPI_FLASH,
+	    SPI_FLASH_OFFSET => SPI_FLASH_OFFSET
 	)
 	port map(
 	    clk => system_clk,
@@ -502,6 +549,34 @@ begin
 	    );
     wb_uart0_out.dat <= x"000000" & uart_dat8;
     wb_uart0_out.stall <= '0' when wb_uart0_in.cyc = '0' else not wb_uart0_out.ack;
+
+    spiflash_gen: if HAS_SPI_FLASH generate        
+        spiflash: entity work.spi_flash_ctrl
+            generic map (
+                DATA_LINES    => SPI_FLASH_DLINES,
+                DEF_CLK_DIV   => SPI_FLASH_DEF_CKDV,
+                DEF_QUAD_READ => SPI_FLASH_DEF_QUAD
+                )
+            port map(
+                rst => rst_spi,
+                clk => system_clk,
+                wb_in => wb_spiflash_in,
+                wb_out => wb_spiflash_out,
+                wb_sel_reg => wb_spiflash_is_reg,
+                wb_sel_map => wb_spiflash_is_map,
+                sck => spi_flash_sck,
+                cs_n => spi_flash_cs_n,
+                sdat_o => spi_flash_sdat_o,
+                sdat_oe => spi_flash_sdat_oe,
+                sdat_i => spi_flash_sdat_i
+                );
+    end generate;
+
+    no_spi0_gen: if not HAS_SPI_FLASH generate        
+        wb_spiflash_out.dat   <= (others => '1');
+        wb_spiflash_out.ack   <= wb_spiflash_in.cyc and wb_spiflash_in.stb;
+        wb_spiflash_out.stall <= wb_spiflash_in.cyc and not wb_spiflash_out.ack;
+    end generate;
 
     xics0: entity work.xics
 	generic map(

@@ -12,8 +12,10 @@
 #define SYSCON_BASE	0xc0000000  /* System control regs */
 #define UART_BASE	0xc0002000  /* UART */
 #define XICS_BASE   	0xc0004000  /* Interrupt controller */
+#define SPI_FCTRL_BASE  0xc0006000  /* SPI flash controller registers */
 #define DRAM_CTRL_BASE	0xc0100000  /* LiteDRAM control registers */
-#define DRAM_INIT_BASE  0xf0000000  /* Internal DRAM init firmware */
+#define SPI_FLASH_BASE  0xf0000000  /* SPI Flash memory map */
+#define DRAM_INIT_BASE  0xff000000  /* Internal DRAM init firmware */
 
 /*
  * Register definitions for the syscon registers
@@ -24,6 +26,7 @@
 #define   SYS_REG_INFO_HAS_UART 		(1ull << 0)
 #define   SYS_REG_INFO_HAS_DRAM 		(1ull << 1)
 #define   SYS_REG_INFO_HAS_BRAM 		(1ull << 2)
+#define   SYS_REG_INFO_HAS_SPI_FLASH 		(1ull << 3)
 #define SYS_REG_BRAMINFO		0x10
 #define   SYS_REG_BRAMINFO_SIZE_MASK		0xfffffffffffffull
 #define SYS_REG_DRAMINFO		0x18
@@ -35,6 +38,10 @@
 #define   SYS_REG_CTRL_CORE_RESET		(1ull << 1)
 #define   SYS_REG_CTRL_SOC_RESET		(1ull << 2)
 #define SYS_REG_DRAMINITINFO		0x30
+#define SYS_REG_SPI_INFO		0x38
+#define   SYS_REG_SPI_INFO_FLASH_OFF_MASK	0xffffffff
+
+
 
 /*
  * Register definitions for the potato UART
@@ -48,6 +55,31 @@
 #define   POTATO_CONSOLE_STATUS_TX_FULL			0x08
 #define POTATO_CONSOLE_CLOCK_DIV	0x18
 #define POTATO_CONSOLE_IRQ_EN		0x20
+
+/*
+ * Register definitions for the SPI controller
+ */
+#define SPI_REG_DATA       		0x00 /* Byte access: single wire transfer */
+#define SPI_REG_DATA_DUAL       	0x01 /* Byte access: dual wire transfer */
+#define SPI_REG_DATA_QUAD       	0x02 /* Byte access: quad wire transfer */
+#define SPI_REG_CTRL			0x04 /* Reset and manual mode control */
+#define   SPI_REG_CTRL_RESET            	0x01  /* reset all registers */
+#define   SPI_REG_CTRL_MANUAL_CS	        0x02  /* assert CS, enable manual mode */
+#define   SPI_REG_CTRL_CKDIV_SHIFT		8     /* clock div */
+#define   SPI_REG_CTRL_CKDIV_MASK		0xff
+#define SPI_REG_AUTO_CFG		0x08 /* Automatic map configuration */
+#define   SPI_REG_AUTO_CFG_CMD_SHIFT		0     /* Command to use for reads */
+#define   SPI_REG_AUTO_CFG_CMD_MASK		0xff
+#define   SPI_REG_AUTO_CFG_DUMMIES_SHIFT        8     /* # dummy cycles */
+#define   SPI_REG_AUTO_CFG_DUMMIES_MASK         0x7
+#define   SPI_REG_AUTO_CFG_MODE_SHIFT           11    /* SPI wire mode */
+#define   SPI_REG_AUTO_CFG_MODE_MASK            0x3
+#define     SPI_REG_AUT_CFG_MODE_SINGLE         (0 << 11)
+#define     SPI_REG_AUT_CFG_MODE_DUAL           (2 << 11)
+#define     SPI_REG_AUT_CFG_MODE_QUAD           (3 << 11)
+#define   SPI_REG_AUTO_CFG_ADDR4                (1u << 13) /* 3 or 4 addr bytes */
+#define   SPI_REG_AUTO_CFG_CKDIV_SHIFT          16    /* clock div */
+#define   SPI_REG_AUTO_CFG_CKDIV_MASK           0xff
 
 
 #endif /* __MICROWATT_SOC_H */

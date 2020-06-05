@@ -16,7 +16,10 @@ entity toplevel is
 	CLK_FREQUENCY : positive := 100000000;
 	USE_LITEDRAM  : boolean  := false;
 	NO_BRAM       : boolean  := false;
-	DISABLE_FLATTEN_CORE : boolean := false
+	DISABLE_FLATTEN_CORE : boolean := false;
+        SPI_FLASH_OFFSET   : integer := 10485760;
+        SPI_FLASH_DEF_CKDV : natural := 1;
+        SPI_FLASH_DEF_QUAD : boolean := true
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -29,6 +32,13 @@ entity toplevel is
 	-- LEDs
 	led0	: out std_logic;
 	led1	: out std_logic;
+
+        -- SPI
+        spi_flash_cs_n   : out std_ulogic;
+        spi_flash_mosi   : inout std_ulogic;
+        spi_flash_miso   : inout std_ulogic;
+        spi_flash_wp_n   : inout std_ulogic;
+        spi_flash_hold_n : inout std_ulogic;
 
 	-- DRAM wires
 	ddram_a       : out std_logic_vector(14 downto 0);
@@ -71,6 +81,13 @@ architecture behaviour of toplevel is
     -- Control/status
     signal core_alt_reset : std_ulogic;
 
+    -- SPI flash
+    signal spi_sck     : std_ulogic;
+    signal spi_cs_n    : std_ulogic;
+    signal spi_sdat_o  : std_ulogic_vector(3 downto 0);
+    signal spi_sdat_oe : std_ulogic_vector(3 downto 0);
+    signal spi_sdat_i  : std_ulogic_vector(3 downto 0);
+
     -- Fixup various memory sizes based on generics
     function get_bram_size return natural is
     begin
@@ -105,13 +122,30 @@ begin
 	    HAS_DRAM      => USE_LITEDRAM,
 	    DRAM_SIZE     => 512 * 1024 * 1024,
             DRAM_INIT_SIZE => PAYLOAD_SIZE,
-	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
+	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
+            HAS_SPI_FLASH      => true,
+            SPI_FLASH_DLINES   => 4,
+            SPI_FLASH_OFFSET   => SPI_FLASH_OFFSET,
+            SPI_FLASH_DEF_CKDV => SPI_FLASH_DEF_CKDV,
+            SPI_FLASH_DEF_QUAD => SPI_FLASH_DEF_QUAD
 	    )
 	port map (
+            -- System signals
 	    system_clk        => system_clk,
 	    rst               => soc_rst,
-	    uart0_txd         => uart_main_tx,
+
+            -- UART signals
+            uart0_txd         => uart_main_tx,
 	    uart0_rxd         => uart_main_rx,
+
+            -- SPI signals
+            spi_flash_sck     => spi_sck,
+            spi_flash_cs_n    => spi_cs_n,
+            spi_flash_sdat_o  => spi_sdat_o,
+            spi_flash_sdat_oe => spi_sdat_oe,
+            spi_flash_sdat_i  => spi_sdat_i,
+
+            -- DRAM wishbone
 	    wb_dram_in        => wb_dram_in,
 	    wb_dram_out       => wb_dram_out,
 	    wb_dram_ctrl_in   => wb_dram_ctrl_in,
@@ -120,6 +154,32 @@ begin
 	    wb_dram_is_init   => wb_dram_is_init,
 	    alt_reset         => core_alt_reset
 	    );
+
+    -- SPI Flash. The SPI clk needs to be fed through the STARTUPE2
+    -- primitive of the FPGA as it's not a normal pin
+    --
+    spi_flash_cs_n   <= spi_cs_n;
+    spi_flash_mosi   <= spi_sdat_o(0) when spi_sdat_oe(0) = '1' else 'Z';
+    spi_flash_miso   <= spi_sdat_o(1) when spi_sdat_oe(1) = '1' else 'Z';
+    spi_flash_wp_n   <= spi_sdat_o(2) when spi_sdat_oe(2) = '1' else 'Z';
+    spi_flash_hold_n <= spi_sdat_o(3) when spi_sdat_oe(3) = '1' else 'Z';
+    spi_sdat_i(0)    <= spi_flash_mosi;
+    spi_sdat_i(1)    <= spi_flash_miso;
+    spi_sdat_i(2)    <= spi_flash_wp_n;
+    spi_sdat_i(3)    <= spi_flash_hold_n;
+
+    STARTUPE2_INST: STARTUPE2
+        port map (
+            CLK => '0',
+            GSR => '0',
+            GTS => '0',
+            KEYCLEARB => '0',
+            PACK => '0',
+            USRCCLKO => spi_sck,
+            USRCCLKTS => '0',
+            USRDONEO => '1',
+            USRDONETS => '0'
+            );
 
     nodram: if not USE_LITEDRAM generate
         signal ddram_clk_dummy : std_ulogic;
