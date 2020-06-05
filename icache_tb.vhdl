@@ -34,6 +34,7 @@ begin
             i_out => i_in,
             m_in => m_out,
 	    flush_in => '0',
+            inval_in => '0',
             wishbone_out => wb_bram_in,
             wishbone_in => wb_bram_out
             );
