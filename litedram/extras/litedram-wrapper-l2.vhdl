@@ -22,7 +22,7 @@ entity litedram_wrapper is
         -- Line size in bytes
         LINE_SIZE         : positive := 128;
         -- Number of lines in a set
-        NUM_LINES         : positive := 32;
+        NUM_LINES         : positive := 64;
         -- Number of ways
         NUM_WAYS          : positive := 4;
         -- Max number of stores in the queue
