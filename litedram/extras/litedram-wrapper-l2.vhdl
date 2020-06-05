@@ -52,10 +52,6 @@ entity litedram_wrapper is
         wb_ctrl_is_csr  : in std_ulogic;
         wb_ctrl_is_init : in std_ulogic;
 
-        -- Init core serial debug
-        serial_tx     : out std_ulogic;
-        serial_rx     : in std_ulogic;
-
         -- Misc
         init_done     : out std_ulogic;
         init_error    : out std_ulogic;

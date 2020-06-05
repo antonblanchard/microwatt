@@ -61,9 +61,6 @@ begin
             wb_ctrl_is_csr      => '0',
             wb_ctrl_is_init     => '0',
 
-            serial_tx           => open,
-            serial_rx           => '1',
-
             init_done           => open,
             init_error          => open,
 

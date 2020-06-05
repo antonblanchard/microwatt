@@ -212,9 +212,6 @@ begin
 		wb_ctrl_is_csr  => wb_dram_is_csr,
 		wb_ctrl_is_init => wb_dram_is_init,
 
-		serial_tx	=> open,
-		serial_rx	=> '0',
-
 		init_done 	=> dram_init_done,
 		init_error	=> dram_init_error,
 
