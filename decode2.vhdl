@@ -56,7 +56,9 @@ architecture behaviour of decode2 is
 
 	function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
 				     reg_data : std_ulogic_vector(63 downto 0);
-				     ispr : gspr_index_t) return decode_input_reg_t is
+				     ispr : gspr_index_t;
+                                     instr_addr : std_ulogic_vector(63 downto 0))
+            return decode_input_reg_t is
 	begin
 		if t = RA or (t = RA_OR_ZERO and insn_ra(insn_in) /= "00000") then
 		    assert is_fast_spr(ispr) = '0' report "Decode A says GPR but ISPR says SPR:" &
@@ -71,6 +73,8 @@ architecture behaviour of decode2 is
 			report "Decode A says SPR but ISPR is invalid:" &
 			to_hstring(ispr) severity failure;
 		    return (is_fast_spr(ispr), ispr, reg_data);
+                elsif t = CIA then
+                    return ('0', (others => '0'), instr_addr);
 		else
 			return ('0', (others => '0'), (others => '0'));
 		end if;
@@ -100,8 +104,8 @@ architecture behaviour of decode2 is
 			ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64)));
 		when CONST_DS =>
 			ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64)));
-		when CONST_DX_HI =>
-			ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dx(insn_in)) & x"0000", 64)));
+		when CONST_DXHI4 =>
+			ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dx(insn_in)) & x"0004", 64)));
                 when CONST_M1 =>
 			ret := ('0', (others => '0'), x"FFFFFFFFFFFFFFFF");
 		when CONST_SH =>
@@ -282,7 +286,8 @@ begin
 		--v.e.input_cr := d_in.decode.input_cr;
 		--v.e.output_cr := d_in.decode.output_cr;
     
-		decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data, d_in.ispr1);
+		decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data, d_in.ispr1,
+                                                     d_in.nia);
 		decoded_reg_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, r_in.read2_data, d_in.ispr2);
 		decoded_reg_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn, r_in.read3_data);
 		decoded_reg_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.ispr1);
