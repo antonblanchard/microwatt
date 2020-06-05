@@ -528,6 +528,9 @@ begin
                 end if;
 	    when OP_NOP =>
 		-- Do nothing
+	    when OP_ADDPCIS =>
+		result := ppc_adde(next_nia, b_in, '0')(63 downto 0);
+		result_en := '1';
 	    when OP_ADD | OP_CMP | OP_TRAP =>
 		if e_in.invert_a = '0' then
 		    a_inv := a_in;
