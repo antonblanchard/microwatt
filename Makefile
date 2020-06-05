@@ -171,9 +171,11 @@ prog: microwatt.svf
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 tests_console = $(sort $(patsubst tests/%.console_out,%,$(wildcard tests/*.console_out)))
 
-check: $(tests) $(tests_console) test_micropython test_micropython_long
+tests_console: $(tests_console)
 
-check_light: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 test_micropython test_micropython_long $(tests_console)
+check: $(tests) tests_console test_micropython test_micropython_long tests_unit
+
+check_light: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 test_micropython test_micropython_long tests_console tests_unit
 
 $(tests): core_tb
 	@./scripts/run_test.sh $@
@@ -186,6 +188,20 @@ test_micropython: core_tb
 
 test_micropython_long: core_tb
 	@./scripts/test_micropython_long.py
+
+tests_core_tb = $(patsubst %_tb,%_tb_test,$(core_tbs))
+tests_soc_tb = $(patsubst %_tb,%_tb_test,$(soc_tbs))
+
+%_test: %
+	./$< --assert-level=error > /dev/null
+
+tests_core: $(tests_core_tb)
+
+tests_soc: $(tests_soc_tb)
+
+# FIXME SOC tests have bit rotted, so disable for now
+#tests_unit: tests_core tests_soc
+tests_unit: tests_core
 
 TAGS:
 	find . -name '*.vhdl' | xargs ./scripts/vhdltags

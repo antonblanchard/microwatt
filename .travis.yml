@@ -1,8 +1,36 @@
-language: minimal
-install: skip
+# global options
+dist: xenial
+os: linux
+language: shell
 
 services: docker
 
 before_install: docker pull ghdl/vunit:llvm
 
-script: docker run --rm -t -v `pwd`:/build -w /build ghdl/vunit:llvm bash -c "apt update && apt install -y python3-pexpect && make GNATMAKE='gnatmake -j'$(nproc) && if [ -n \"$TRAVIS_FULL_CHECK\" ] ; then  make -j$(nproc) check; else make -j$(nproc) check_light ; fi"
+env:
+  matrix:
+    - TASK="tests_unit"
+    - TASK="tests_console"
+    - TASK="; apt update && apt install -y python3-pexpect && make -j$(nproc) test_micropython test_micropython_long"
+    - TASK="{1..99}"
+    - TASK="{100..199}"
+    - TASK="{200..299}"
+    - TASK="{300..399}"
+    - TASK="{400..499}"
+    - TASK="{500..599}"
+    - TASK="{600..699}"
+    - TASK="{700..799}"
+    - TASK="{800..899}"
+    - TASK="{900..999}"
+
+script: docker run -t -v `pwd`:/build -w /build ghdl/vunit:llvm bash -c "make -j$(nproc) $TASK"
+
+stages:
+  - building
+  - test
+
+jobs:
+  include:
+    - stage: building
+      env: NAME="Building core"
+      script: docker run -t -v `pwd`:/build -w /build ghdl/vunit:llvm bash -c "make GNATMAKE='gnatmake -j'$(nproc)"
