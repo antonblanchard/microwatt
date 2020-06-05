@@ -60,14 +60,14 @@ architecture behaviour of execute1 is
 	slow_op_rc : std_ulogic;
 	slow_op_oe : std_ulogic;
 	slow_op_xerc : xer_common_t;
-        ldst_nia : std_ulogic_vector(63 downto 0);
+        last_nia : std_ulogic_vector(63 downto 0);
         log_addr_spr : std_ulogic_vector(31 downto 0);
     end record;
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, busy => '0', lr_update => '0', terminate => '0',
          mul_in_progress => '0', div_in_progress => '0', cntz_in_progress => '0',
          slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
-         next_lr => (others => '0'), ldst_nia => (others => '0'), others => (others => '0'));
+         next_lr => (others => '0'), last_nia => (others => '0'), others => (others => '0'));
 
     signal r, rin : reg_type;
 
@@ -455,6 +455,9 @@ begin
         v.e.exc_write_enable := '0';
         v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
         v.e.exc_write_data := e_in.nia;
+        if valid_in = '1' then
+            v.last_nia := e_in.nia;
+        end if;
 
  	if ctrl.irq_state = WRITE_SRR1 then
  	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
@@ -921,8 +924,6 @@ begin
 
         elsif valid_in = '1' then
             -- instruction for other units, i.e. LDST
-            v.ldst_nia := e_in.nia;
-            v.e.valid := '0';
             if e_in.unit = LDST then
                 lv.valid := '1';
             end if;
@@ -1026,8 +1027,8 @@ begin
             end if;
             v.e.exc_write_enable := '1';
             v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
-            v.e.exc_write_data := r.ldst_nia;
-            report "ldst exception writing srr0=" & to_hstring(r.ldst_nia);
+            v.e.exc_write_data := r.last_nia;
+            report "ldst exception writing srr0=" & to_hstring(r.last_nia);
             ctrl_tmp.irq_state <= WRITE_SRR1;
         end if;
 
