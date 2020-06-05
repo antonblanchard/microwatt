@@ -54,12 +54,18 @@ void main(void)
 		printf("UART ");
 	if (ftr & SYS_REG_INFO_HAS_DRAM)
 		printf("DRAM ");
+	if (ftr & SYS_REG_INFO_HAS_BRAM)
+		printf("BRAM ");
 	printf("\n");
-	val = readq(SYSCON_BASE + SYS_REG_BRAMINFO);
-	printf("          BRAM: %lld KB\n", val / 1024);
+	if (ftr & SYS_REG_INFO_HAS_BRAM) {
+		val = readq(SYSCON_BASE + SYS_REG_BRAMINFO);
+		printf("          BRAM: %lld KB\n", val / 1024);
+	}
 	if (ftr & SYS_REG_INFO_HAS_DRAM) {
 		val = readq(SYSCON_BASE + SYS_REG_DRAMINFO);
 		printf("          DRAM: %lld MB\n", val / (1024 * 1024));
+		val = readq(SYSCON_BASE + SYS_REG_DRAMINITINFO);
+		printf("     DRAM INIT: %lld KB\n", val / 1024);
 	}
 	val = readq(SYSCON_BASE + SYS_REG_CLKINFO);
 	printf("           CLK: %lld MHz\n", val / 1000000);
@@ -70,5 +76,15 @@ void main(void)
 		       MIGEN_GIT_SHA1, LITEX_GIT_SHA1);
 		sdrinit();
 	}
-	printf("Booting from BRAM...\n");
+	if (ftr & SYS_REG_INFO_HAS_BRAM)
+		printf("Booting from BRAM...\n");
+	else {
+		void *s = (void *)(DRAM_INIT_BASE + 0x4000);
+		void *d = (void *)DRAM_BASE;
+		int  sz = (0x10000 - 0x4000);
+		printf("Copying payload to DRAM...\n");
+		memcpy(d, s, sz);
+		printf("Booting from DRAM...\n");
+		flush_cpu_icache();
+	}
 }

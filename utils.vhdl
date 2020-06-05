@@ -7,7 +7,7 @@ package utils is
     function log2(i : natural) return integer;
     function log2ceil(i : natural) return integer;
     function ispow2(i : integer) return boolean;
-
+    function round_up(i : integer; s : integer) return integer;
 end utils;
 
 package body utils is
@@ -43,5 +43,9 @@ package body utils is
         end if;
     end function;
 
+    function round_up(i : integer; s : integer) return integer is
+    begin
+        return ((i + (s - 1)) / s) * s;
+    end function;
 end utils;
 

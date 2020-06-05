@@ -8,6 +8,13 @@
 #define CSR_BASE		DRAM_CTRL_BASE
 #define CONFIG_CPU_NOP		"nop"
 
+#ifdef __SIM__
+#define MEMTEST_BUS_SIZE	512//16
+#define MEMTEST_DATA_SIZE	1024//16
+#define MEMTEST_ADDR_SIZE	128//16
+#define CONFIG_SIM_DISABLE_DELAYS
+#endif
+
 extern void flush_cpu_dcache(void);
 extern void flush_cpu_icache(void);
 static inline void flush_l2_cache(void) { }

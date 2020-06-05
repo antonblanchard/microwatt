@@ -8,12 +8,13 @@ use work.wishbone_types.all;
 
 entity syscon is
     generic (
-	SIG_VALUE     : std_ulogic_vector(63 downto 0) := x"f00daa5500010001";
-	CLK_FREQ      : integer;
-	HAS_UART      : boolean;
-	HAS_DRAM      : boolean;
-	BRAM_SIZE     : integer;
-	DRAM_SIZE     : integer
+	SIG_VALUE      : std_ulogic_vector(63 downto 0) := x"f00daa5500010001";
+	CLK_FREQ       : integer;
+	HAS_UART       : boolean;
+	HAS_DRAM       : boolean;
+	BRAM_SIZE      : integer;
+	DRAM_SIZE      : integer;
+	DRAM_INIT_SIZE : integer
 	);
     port (
 	clk : in std_ulogic;
@@ -36,12 +37,13 @@ architecture behaviour of syscon is
     constant SYS_REG_BITS       : positive := 3;
 
     -- Register addresses (matches wishbone addr downto 3, ie, 8 bytes per reg)
-    constant SYS_REG_SIG	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "000";
-    constant SYS_REG_INFO	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001";
-    constant SYS_REG_BRAMINFO	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "010";
-    constant SYS_REG_DRAMINFO	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "011";
-    constant SYS_REG_CLKINFO	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "100";
-    constant SYS_REG_CTRL	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "101";
+    constant SYS_REG_SIG	  : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "000";
+    constant SYS_REG_INFO	  : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001";
+    constant SYS_REG_BRAMINFO	  : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "010";
+    constant SYS_REG_DRAMINFO	  : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "011";
+    constant SYS_REG_CLKINFO	  : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "100";
+    constant SYS_REG_CTRL	  : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "101";
+    constant SYS_REG_DRAMINITINFO : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "110";
 
     -- Muxed reg read signal
     signal reg_out	: std_ulogic_vector(63 downto 0);
@@ -49,6 +51,7 @@ architecture behaviour of syscon is
     -- INFO register bits
     constant SYS_REG_INFO_HAS_UART    : integer := 0;
     constant SYS_REG_INFO_HAS_DRAM    : integer := 1;
+    constant SYS_REG_INFO_HAS_BRAM    : integer := 2;
 
     -- BRAMINFO contains the BRAM size in the bottom 52 bits
     -- DRAMINFO contains the DRAM size if any in the bottom 52 bits
@@ -69,14 +72,16 @@ architecture behaviour of syscon is
     signal reg_info      : std_ulogic_vector(63 downto 0);
     signal reg_braminfo  : std_ulogic_vector(63 downto 0);
     signal reg_draminfo  : std_ulogic_vector(63 downto 0);
+    signal reg_dramiinfo : std_ulogic_vector(63 downto 0);
     signal reg_clkinfo   : std_ulogic_vector(63 downto 0);
     signal info_has_dram : std_ulogic;
+    signal info_has_bram : std_ulogic;
     signal info_has_uart : std_ulogic;
     signal info_clk      : std_ulogic_vector(39 downto 0);
 begin
 
     -- Generated output signals
-    dram_at_0 <= reg_ctrl(SYS_REG_CTRL_DRAM_AT_0);
+    dram_at_0 <= '1' when BRAM_SIZE = 0 else reg_ctrl(SYS_REG_CTRL_DRAM_AT_0);
     soc_reset <= reg_ctrl(SYS_REG_CTRL_SOC_RESET);
     core_reset <= reg_ctrl(SYS_REG_CTRL_CORE_RESET);
 
@@ -87,13 +92,17 @@ begin
     -- Info register is hard wired
     info_has_uart <= '1' when HAS_UART else '0';
     info_has_dram <= '1' when HAS_DRAM else '0';
+    info_has_bram <= '1' when BRAM_SIZE /= 0 else '0';
     info_clk <= std_ulogic_vector(to_unsigned(CLK_FREQ, 40));
     reg_info <= (0 => info_has_uart,
 		 1 => info_has_dram,
+                 2 => info_has_bram,
 		 others => '0');
     reg_braminfo <= x"000" & std_ulogic_vector(to_unsigned(BRAM_SIZE, 52));
     reg_draminfo <= x"000" & std_ulogic_vector(to_unsigned(DRAM_SIZE, 52)) when HAS_DRAM
 		    else (others => '0');
+    reg_dramiinfo <= x"000" & std_ulogic_vector(to_unsigned(DRAM_INIT_SIZE, 52)) when HAS_DRAM
+                     else (others => '0');
     reg_clkinfo <= (39 downto 0 => info_clk,
 		    others => '0');
 
@@ -107,6 +116,7 @@ begin
 	reg_info        when SYS_REG_INFO,
 	reg_braminfo    when SYS_REG_BRAMINFO,
 	reg_draminfo    when SYS_REG_DRAMINFO,
+	reg_dramiinfo   when SYS_REG_DRAMINITINFO,
 	reg_clkinfo     when SYS_REG_CLKINFO,
 	reg_ctrl_out	when SYS_REG_CTRL,
 	(others => '0') when others;
@@ -135,6 +145,11 @@ begin
                 end if;
                 if reg_ctrl(SYS_REG_CTRL_CORE_RESET) = '1' then
                     reg_ctrl(SYS_REG_CTRL_CORE_RESET) <= '0';
+                end if;
+
+                -- If BRAM doesn't exist, force DRAM at 0
+                if BRAM_SIZE = 0 then
+                    reg_ctrl(SYS_REG_CTRL_DRAM_AT_0) <= '1';
                 end if;
 	    end if;
 	end if;
