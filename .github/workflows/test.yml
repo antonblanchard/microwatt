@@ -1,0 +1,48 @@
+name: 'test'
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 * * 5'
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: docker pull ghdl/vunit:llvm
+    - run: docker run -t -v $PWD:/build -w /build ghdl/vunit:llvm bash -c "make GNATMAKE='gnatmake -j'$(nproc)"
+
+  py:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: docker run -t -v $PWD:/build -w /build ghdl/vunit:llvm bash -c "apt update && apt install -y python3-pexpect && make -j$(nproc) test_micropython test_micropython_long"
+
+  test:
+    needs: [build]
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        task: [
+          "tests_unit",
+          "tests_console",
+          "{1..99}",
+          "{100..199}",
+          "{200..299}",
+          "{300..399}",
+          "{400..499}",
+          "{500..599}",
+          "{600..699}",
+          "{700..799}",
+          "{800..899}",
+          "{900..999}",
+        ]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: docker run -t -v $PWD:/build -w /build ghdl/vunit:llvm bash -c "make -j$(nproc) ${{ matrix.task }}"
