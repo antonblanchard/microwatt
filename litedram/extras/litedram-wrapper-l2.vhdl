@@ -235,6 +235,7 @@ architecture behaviour of litedram_wrapper is
 
      -- Cache state machine
     type state_t is (IDLE,             -- Normal load hit processing
+                     REFILL_CLR_TAG,   -- Cache refill clear tag
                      REFILL_WAIT_ACK); -- Cache refill wait ack
     signal state : state_t;
 
@@ -674,7 +675,7 @@ begin
             when others =>
                 wb_out.stall <= '0';
             end case;
-        when REFILL_WAIT_ACK =>
+        when others =>
             wb_out.stall <= '1';
         end case;
         
@@ -859,7 +860,6 @@ begin
     refill_machine : process(system_clk)
         variable tagset      : cache_tags_set_t;
         variable cmds_done   : boolean;
-        variable replace_way : way_t;
         variable wait_qdrain : boolean;
     begin
         if rising_edge(system_clk) then
@@ -887,23 +887,10 @@ begin
                     -- We need to read a cache line
                     if req_op = OP_LOAD_MISS and not wait_qdrain then
                         -- Grab way to replace
-                        replace_way := to_integer(unsigned(plru_victim(req_index)));
-
-                        -- Force misses on that way while refilling that line
-                        cache_valids(req_index)(replace_way) <= '0';
-
-                        -- Store new tag in selected way
-                        for i in 0 to NUM_WAYS-1 loop
-                            if i = replace_way then
-                                tagset := cache_tags(req_index);
-                                write_tag(i, tagset, req_tag);
-                                cache_tags(req_index) <= tagset;
-                            end if;
-                        end loop;
+                        refill_way <= to_integer(unsigned(plru_victim(req_index)));
 
                         -- Keep track of our index and way for subsequent stores
                         refill_index <= req_index;
-                        refill_way   <= replace_way;
                         refill_row   <= get_row(req_laddr);
 
                         -- Prep for first DRAM read
@@ -921,10 +908,27 @@ begin
                         end if;
 
                         -- Track that we had one request sent
+                        state <= REFILL_CLR_TAG;
+                    end if;
+
+                when REFILL_CLR_TAG | REFILL_WAIT_ACK =>
+
+                    -- Delayed tag clearing to help timing on PLRU output
+                    if state = REFILL_CLR_TAG then
+                        -- Force misses on that way while refilling that line
+                        cache_valids(req_index)(refill_way) <= '0';
+
+                        -- Store new tag in selected way
+                        for i in 0 to NUM_WAYS-1 loop
+                            if i = refill_way then
+                                tagset := cache_tags(req_index);
+                                write_tag(i, tagset, req_tag);
+                                cache_tags(req_index) <= tagset;
+                            end if;
+                        end loop;
                         state <= REFILL_WAIT_ACK;
                     end if;
 
-                when REFILL_WAIT_ACK =>
                     -- Commands are all sent if user_port0_cmd_valid is 0
                     cmds_done := refill_cmd_valid = '0';
 
