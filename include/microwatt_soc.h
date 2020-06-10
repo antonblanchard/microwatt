@@ -66,20 +66,22 @@
 #define   SPI_REG_CTRL_RESET            	0x01  /* reset all registers */
 #define   SPI_REG_CTRL_MANUAL_CS	        0x02  /* assert CS, enable manual mode */
 #define   SPI_REG_CTRL_CKDIV_SHIFT		8     /* clock div */
-#define   SPI_REG_CTRL_CKDIV_MASK		0xff
+#define   SPI_REG_CTRL_CKDIV_MASK		(0xff << SPI_REG_CTRL_CKDIV_SHIFT)
 #define SPI_REG_AUTO_CFG		0x08 /* Automatic map configuration */
 #define   SPI_REG_AUTO_CFG_CMD_SHIFT		0     /* Command to use for reads */
-#define   SPI_REG_AUTO_CFG_CMD_MASK		0xff
+#define   SPI_REG_AUTO_CFG_CMD_MASK		(0xff << SPI_REG_AUTO_CFG_CMD_SHIFT)
 #define   SPI_REG_AUTO_CFG_DUMMIES_SHIFT        8     /* # dummy cycles */
-#define   SPI_REG_AUTO_CFG_DUMMIES_MASK         0x7
+#define   SPI_REG_AUTO_CFG_DUMMIES_MASK         (0x7  << SPI_REG_AUTO_CFG_DUMMIES_SHIFT)
 #define   SPI_REG_AUTO_CFG_MODE_SHIFT           11    /* SPI wire mode */
-#define   SPI_REG_AUTO_CFG_MODE_MASK            0x3
+#define   SPI_REG_AUTO_CFG_MODE_MASK            (0x3  << SPI_REG_AUTO_CFG_MODE_SHIFT)
 #define     SPI_REG_AUT_CFG_MODE_SINGLE         (0 << 11)
 #define     SPI_REG_AUT_CFG_MODE_DUAL           (2 << 11)
 #define     SPI_REG_AUT_CFG_MODE_QUAD           (3 << 11)
 #define   SPI_REG_AUTO_CFG_ADDR4                (1u << 13) /* 3 or 4 addr bytes */
 #define   SPI_REG_AUTO_CFG_CKDIV_SHIFT          16    /* clock div */
-#define   SPI_REG_AUTO_CFG_CKDIV_MASK           0xff
+#define   SPI_REG_AUTO_CFG_CKDIV_MASK           (0xff << SPI_REG_AUTO_CFG_CKDIV_SHIFT)
+#define   SPI_REG_AUTO_CFG_CSTOUT_SHIFT         24    /* CS timeout */
+#define   SPI_REG_AUTO_CFG_CSTOUT_MASK          (0x3f << SPI_REG_AUTO_CFG_CSTOUT_SHIFT)
 
 
 #endif /* __MICROWATT_SOC_H */

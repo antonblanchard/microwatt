@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define STACK_TOP	0xf0004000
+#define STACK_TOP	0xff004000
 
 #define FIXUP_ENDIAN						   \
 	tdi   0,0,0x48;	  /* Reverse endian of b . + 8		*/ \
@@ -50,7 +50,8 @@ start:
 	LOAD_IMM64(%r12, main)
 	mtctr	%r12,
 	bctrl
-	ba	0
+	mtctr	%r3
+	bctr
 
 	/* XXX: litedram init should not take exceptions, maybe we could get
 	 *      rid of these to save space, along with a core tweak to suppress
