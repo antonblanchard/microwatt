@@ -26,12 +26,6 @@ entity toplevel is
 	uart_main_tx : out std_ulogic;
 	uart_main_rx : in  std_ulogic;
 
-	-- DRAM UART signals (PMOD)
-	uart_pmod_tx    : out std_ulogic;
-	uart_pmod_rx    : in std_ulogic;
-	uart_pmod_cts_n : in std_ulogic;
-	uart_pmod_rts_n : out std_ulogic;
-
 	-- LEDs
 	led0_b	: out std_ulogic;
 	led0_g	: out std_ulogic;
@@ -109,8 +103,6 @@ architecture behaviour of toplevel is
     constant BRAM_SIZE    : natural := get_bram_size;
     constant PAYLOAD_SIZE : natural := get_payload_size;
 begin
-
-    uart_pmod_rts_n <= '0';
 
     -- Main SoC
     soc0: entity work.soc
@@ -231,9 +223,6 @@ begin
 		wb_ctrl_out	=> wb_dram_ctrl_out,
 		wb_ctrl_is_csr  => wb_dram_is_csr,
 		wb_ctrl_is_init => wb_dram_is_init,
-
-		serial_tx	=> uart_pmod_tx,
-		serial_rx	=> uart_pmod_rx,
 
 		init_done 	=> dram_init_done,
 		init_error	=> dram_init_error,

@@ -25,8 +25,11 @@
 #define   SYS_REG_INFO_HAS_DRAM 		(1ull << 1)
 #define   SYS_REG_INFO_HAS_BRAM 		(1ull << 2)
 #define SYS_REG_BRAMINFO		0x10
+#define   SYS_REG_BRAMINFO_SIZE_MASK		0xfffffffffffffull
 #define SYS_REG_DRAMINFO		0x18
+#define   SYS_REG_DRAMINFO_SIZE_MASK		0xfffffffffffffull
 #define SYS_REG_CLKINFO			0x20
+#define   SYS_REG_CLKINFO_FREQ_MASK		0xffffffffffull
 #define SYS_REG_CTRL			0x28
 #define   SYS_REG_CTRL_DRAM_AT_0		(1ull << 0)
 #define   SYS_REG_CTRL_CORE_RESET		(1ull << 1)

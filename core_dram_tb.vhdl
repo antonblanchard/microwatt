@@ -91,9 +91,6 @@ begin
             wb_ctrl_is_csr  => wb_dram_is_csr,
             wb_ctrl_is_init => wb_dram_is_init,
 
-            serial_tx	=> open,
-            serial_rx	=> '1',
-
             init_done 	=> open,
             init_error	=> open,
 

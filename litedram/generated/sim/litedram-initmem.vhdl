@@ -24,7 +24,7 @@ architecture rtl of dram_init_mem is
     constant INIT_RAM_SIZE    : integer := 16384;
     constant RND_PAYLOAD_SIZE : integer := round_up(EXTRA_PAYLOAD_SIZE, 8);
     constant TOTAL_RAM_SIZE   : integer := INIT_RAM_SIZE + RND_PAYLOAD_SIZE;
-    constant INIT_RAM_ABITS   : integer := log2ceil(TOTAL_RAM_SIZE);
+    constant INIT_RAM_ABITS   : integer := log2ceil(TOTAL_RAM_SIZE-1);
     constant INIT_RAM_FILE    : string := "litedram/generated/sim/litedram_core.init";
 
     type ram_t is array(0 to (TOTAL_RAM_SIZE / 4) - 1) of std_logic_vector(31 downto 0);

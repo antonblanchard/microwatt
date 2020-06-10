@@ -175,7 +175,11 @@ static int sim_command(uint8_t op, uint8_t addr, uint64_t *data)
 			printf("%02x ", buf[i]);
 		printf("\n");
 	}
-	write(sim_fd, buf, p - buf);
+	r = write(sim_fd, buf, p - buf);
+	if (r < 0) {
+		fprintf(stderr, "failed to write sim command\n");
+		return -1;
+	}
 	r = read(sim_fd, buf, sizeof(buf));
 	if (0 && r > 0) {
 		int i;
@@ -506,6 +510,37 @@ static void load(const char *filename, uint64_t addr)
 		if (!(count % 1024))
 			printf("%x...\n", count);
 	}
+	close(fd);
+	printf("%x done.\n", count);
+}
+
+static void save(const char *filename, uint64_t addr, uint64_t size)
+{
+	uint64_t data;
+	int fd, rc, count;
+
+	fd = open(filename, O_WRONLY | O_CREAT, 00666);
+	if (fd < 0) {
+		fprintf(stderr, "Failed to open '%s': %s\n", filename, strerror(errno));
+		exit(1);
+	}
+	check(dmi_write(DBG_WB_CTRL, 0x7ff), "writing WB_CTRL");
+	check(dmi_write(DBG_WB_ADDR, addr), "writing WB_ADDR");
+	count = 0;
+	for (;;) {
+		check(dmi_read(DBG_WB_DATA, &data), "reading WB_DATA");
+		rc = write(fd, &data, 8);
+		if (rc <= 0) {
+			fprintf(stderr, "Failed to write: %s\n", strerror(errno));
+			break;
+		}
+		count += 8;
+		if (!(count % 1024))
+			printf("%x...\n", count);
+		if (count >= size)
+			break;
+	}
+	close(fd);
 	printf("%x done.\n", count);
 }
 
@@ -523,9 +558,10 @@ static void usage(const char *cmd)
 
 	fprintf(stderr, "\n");
 	fprintf(stderr, " Memory:\n");
-	fprintf(stderr, "  mr <hex addr>\n");
+	fprintf(stderr, "  mr <hex addr> [count]\n");
 	fprintf(stderr, "  mw <hex addr> <hex value>\n");
 	fprintf(stderr, "  load <file> [addr]		If omitted address is 0\n");
+	fprintf(stderr, "  save <file> <addr> <size>\n");
 
 	fprintf(stderr, "\n");
 	fprintf(stderr, " Registers:\n");
@@ -651,6 +687,16 @@ int main(int argc, char *argv[])
 			if (((i+1) < argc) && isdigit(argv[i+1][0]))
 				addr = strtoul(argv[++i], NULL, 16);
 			load(filename, addr);
+		} else if (strcmp(argv[i], "save") == 0) {
+			const char *filename;
+			uint64_t addr, size;
+
+			if ((i+3) >= argc)
+				usage(argv[0]);
+			filename = argv[++i];
+			addr = strtoul(argv[++i], NULL, 16);
+			size = strtoul(argv[++i], NULL, 16);
+			save(filename, addr, size);
 		} else if (strcmp(argv[i], "gpr") == 0) {
 			uint64_t reg, count = 1;
 

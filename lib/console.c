@@ -75,7 +75,7 @@ void potato_uart_init(void)
 	uint64_t proc_freq;
 
 	potato_uart_base = UART_BASE;
-	proc_freq = readq(SYSCON_BASE + SYS_REG_CLKINFO);
+	proc_freq = readq(SYSCON_BASE + SYS_REG_CLKINFO) & SYS_REG_CLKINFO_FREQ_MASK;
 
 	potato_uart_reg_write(POTATO_CONSOLE_CLOCK_DIV, potato_uart_divisor(proc_freq, UART_FREQ));
 }

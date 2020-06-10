@@ -8,3 +8,5 @@ tests/*/*.bin
 tests/*/*.hex
 tests/*/*.elf
 TAGS
+litedram/build/*
+obj_dir/*
