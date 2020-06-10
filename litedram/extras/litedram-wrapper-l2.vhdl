@@ -245,12 +245,16 @@ architecture behaviour of litedram_wrapper is
     signal wb_stash : wishbone_master_out := wishbone_master_out_init;
 
     -- Read pipeline (to handle cache RAM latency)
-    signal read_ack_0  : std_ulogic;
-    signal read_ack_1  : std_ulogic;
+    signal read_ack_0  : std_ulogic := '0';
+    signal read_ack_1  : std_ulogic := '0';
     signal read_ad3_0  : std_ulogic;
     signal read_ad3_1  : std_ulogic;
     signal read_way_0  : way_t;
     signal read_way_1  : way_t;
+
+    -- Store ack pipeline
+    signal store_ack_0 : std_ulogic := '0';
+    signal store_ack_1 : std_ulogic := '0';
 
     -- Async signals decoding latched request
     type req_op_t is (OP_NONE,
@@ -626,7 +630,6 @@ begin
     wb_out.stall <= wb_stash.cyc;
 
     --
-    --
     -- Read response pipeline
     --
     -- XXX Might have to put store acks in there too (see comment in wb_response)
@@ -654,6 +657,16 @@ begin
                     report "read data:" & to_hstring(cache_out(read_way_0));
                 end if;
             end if;
+        end if;
+    end process;
+
+    --
+    -- Store acks pipeline
+    --
+    store_ack_pipe: process(system_clk)
+    begin
+        if rising_edge(system_clk) then
+            store_ack_1 <= store_ack_0;
         end if;
     end process;
 
@@ -717,15 +730,16 @@ begin
             store_done := '0';
         end if;
 
-        -- Generate ACKs on read hits and store complete
+        -- Pipeline store acks
+        store_ack_0 <= store_done;
+
+        -- Generate Wishbone ACKs on read hits and store complete
         --
-        -- XXXX TODO: This can happen on store right behind loads !
-        -- This probably need to be fixed by putting store acks in
-        -- the same pipeline as the read acks. TOOD: Create a testbench
-        -- to exercise those corner cases as the core can't yet.
+        -- This can happen on store right behind loads ! This is why
+        -- we don't accept a new store right behind a load ack above.
         --
-        wb_out.ack <= read_ack_1 or store_done;
-        assert read_ack_0 = '0' or store_done = '0' report
+        wb_out.ack <= read_ack_1 or store_ack_1;
+        assert read_ack_1 = '0' or store_ack_1 = '0' report
             "Read ack and store ack collision !"
             severity failure;
     end process;
