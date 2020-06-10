@@ -239,8 +239,10 @@ architecture behaviour of litedram_wrapper is
                      REFILL_WAIT_ACK); -- Cache refill wait ack
     signal state : state_t;
 
-    -- Latched WB request.
-    signal wb_req : wishbone_master_out := wishbone_master_out_init;
+    -- Latched WB request
+    signal wb_req   : wishbone_master_out := wishbone_master_out_init;
+    -- Stashed WB request
+    signal wb_stash : wishbone_master_out := wishbone_master_out_init;
 
     -- Read pipeline (to handle cache RAM latency)
     signal read_ack_0  : std_ulogic;
@@ -267,6 +269,7 @@ architecture behaviour of litedram_wrapper is
     signal req_we       : std_ulogic_vector(DRAM_SBITS-1 downto 0);
     signal req_wdata    : std_ulogic_vector(DRAM_DBITS-1 downto 0);
     signal accept_store : std_ulogic;
+    signal stall        : std_ulogic;
 
     -- Line refill command signals and latches
     signal refill_cmd_valid : std_ulogic;
@@ -574,29 +577,53 @@ begin
     request_latch: process(system_clk)
     begin
         if rising_edge(system_clk) then
-            -- We can latch a new request if we are idle (for now). We also
-            -- latch the absence of request. This is a pipeline that takes
-            -- one per-cycle unless non-IDLE.
-            --
-            if wb_out.stall = '0' then
-                -- Avoid constantly updating addr/data for unrelated requests
-                if wb_in.cyc = '1' then
-                    wb_req <= wb_in;
-                else
-                    wb_req.cyc <= wb_in.cyc;
-                    wb_req.stb <= wb_in.stb;
-                end if;
 
-                if TRACE then
-                    if wb_in.cyc = '1' and wb_in.stb = '1' then
-                        report "latch new wb req ! addr:" & to_hstring(wb_in.adr) &
-                            " we:" & std_ulogic'image(wb_in.we) &
-                            " sel:" & to_hstring(wb_in.sel);
+            -- Implement a stash buffer. If we are stalled and stash is
+            -- free, fill it up. This will generate a WB stall on the
+            -- next cycle.
+            if stall = '1' and wb_out.stall = '0' and wb_in.cyc = '1' and wb_in.stb = '1' then
+                 wb_stash <= wb_in;
+                 if TRACE then
+                     report "stashed wb req ! addr:" & to_hstring(wb_in.adr) &
+                         " we:" & std_ulogic'image(wb_in.we) &
+                         " sel:" & to_hstring(wb_in.sel);
+                 end if;
+            end if;
+
+            -- We aren't stalled, see what we can do
+            if stall = '0' then
+                if wb_stash.cyc = '1' then
+                    -- Something in stash ! use it and clear stash
+                    wb_req <= wb_stash;
+                    wb_stash.cyc <= '0';
+                    if TRACE then
+                        report "unstashed wb req ! addr:" & to_hstring(wb_stash.adr) &
+                            " we:" & std_ulogic'image(wb_stash.we) &
+                            " sel:" & to_hstring(wb_stash.sel);
+                    end if;
+                else
+                    -- Grab request from WB
+                    if wb_in.cyc = '1' then
+                        wb_req <= wb_in;
+                    else
+                        wb_req.cyc <= wb_in.cyc;
+                        wb_req.stb <= wb_in.stb;
+                    end if;
+
+                    if TRACE then
+                        if wb_in.cyc = '1' and wb_in.stb = '1' then
+                            report "latch new wb req ! addr:" & to_hstring(wb_in.adr) &
+                                " we:" & std_ulogic'image(wb_in.we) &
+                                " sel:" & to_hstring(wb_in.sel);
+                        end if;
                     end if;
                 end if;
             end if;
         end if;
     end process;
+
+    -- Stall when stash is full
+    wb_out.stall <= wb_stash.cyc;
 
     --
     --
@@ -669,14 +696,14 @@ begin
         when IDLE =>
             case req_op is
             when OP_LOAD_MISS =>
-                wb_out.stall <= '1';
+                stall <= '1';
             when OP_STORE_MISS | OP_STORE_HIT =>
-                wb_out.stall <= not accept_store;
+                stall <= not accept_store;
             when others =>
-                wb_out.stall <= '0';
+                stall <= '0';
             end case;
         when others =>
-            wb_out.stall <= '1';
+            stall <= '1';
         end case;
         
         -- Data out mux
