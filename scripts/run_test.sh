@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ $# -ne 1 ]; then
-	echo "Usage: run_test.sh <test>"
+	echo "Usage: $(basename $0) <test>"
 	exit 1
 fi
 
