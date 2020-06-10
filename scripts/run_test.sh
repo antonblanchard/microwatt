@@ -30,5 +30,10 @@ cp exp.out /tmp
 
 diff -q test.out exp.out && echo "$TEST PASS" && exit 0
 
+echo Expected output:
+cat exp.out
+echo Actual output:
+cat test.out
+
 echo "$TEST FAIL ********"
 exit 1
