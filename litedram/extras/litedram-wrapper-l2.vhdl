@@ -962,9 +962,9 @@ begin
                         -- Store new tag in selected way
                         for i in 0 to NUM_WAYS-1 loop
                             if i = refill_way then
-                                tagset := cache_tags(req_index);
+                                tagset := cache_tags(refill_index);
                                 write_tag(i, tagset, req_tag);
-                                cache_tags(req_index) <= tagset;
+                                cache_tags(refill_index) <= tagset;
                             end if;
                         end loop;
                         state <= REFILL_WAIT_ACK;
