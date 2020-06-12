@@ -609,7 +609,7 @@ begin
     no_bram: if MEMORY_SIZE = 0 generate
         wb_bram_out.ack <= wb_bram_in.cyc and wb_bram_in.stb;
         wb_bram_out.dat <= x"FFFFFFFFFFFFFFFF";
-        wb_bram_out.stall <= wb_bram_in.cyc and not wb_bram_out.ack;
+        wb_bram_out.stall <= not wb_bram_out.ack;
     end generate;
 
     -- DMI(debug bus) <-> JTAG bridge
