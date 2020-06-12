@@ -159,7 +159,7 @@ architecture rtl of icache is
     signal eaa_priv  : std_ulogic;
 
     -- Cache reload state machine
-    type state_t is (IDLE, WAIT_ACK);
+    type state_t is (IDLE, CLR_TAG, WAIT_ACK);
 
     type reg_internal_t is record
 	-- Cache hit state (Latches for 1 cycle BRAM access)
@@ -174,6 +174,7 @@ architecture rtl of icache is
 	store_way        : way_t;
         store_index      : index_t;
 	store_row        : row_t;
+        store_tag        : cache_tag_t;
         store_valid      : std_ulogic;
 
         -- TLB miss state
@@ -593,22 +594,11 @@ begin
 			    " tag:" & to_hstring(req_tag) &
                             " RA:" & to_hstring(real_addr);
 
-			-- Force misses on that way while reloading that line
-			cache_valids(req_index)(replace_way) <= '0';
-
-			-- Store new tag in selected way
-			for i in 0 to NUM_WAYS-1 loop
-			    if i = replace_way then
-				tagset := cache_tags(req_index);
-				write_tag(i, tagset, req_tag);
-				cache_tags(req_index) <= tagset;
-			    end if;
-			end loop;
-
 			-- Keep track of our index and way for subsequent stores
 			r.store_index <= req_index;
 			r.store_way <= replace_way;
 			r.store_row <= get_row(req_laddr);
+                        r.store_tag <= req_tag;
                         r.store_valid <= '1';
 
 			-- Prep for first wishbone read. We calculate the address of
@@ -619,10 +609,25 @@ begin
 			r.wb.stb <= '1';
 
 			-- Track that we had one request sent
-			r.state <= WAIT_ACK;
+			r.state <= CLR_TAG;
 		    end if;
 
-		when WAIT_ACK =>
+		when CLR_TAG | WAIT_ACK =>
+                    if r.state = CLR_TAG then
+			-- Force misses on that way while reloading that line
+			cache_valids(req_index)(r.store_way) <= '0';
+
+			-- Store new tag in selected way
+			for i in 0 to NUM_WAYS-1 loop
+			    if i = r.store_way then
+				tagset := cache_tags(r.store_index);
+				write_tag(i, tagset, r.store_tag);
+				cache_tags(r.store_index) <= tagset;
+			    end if;
+			end loop;
+
+                        r.state <= WAIT_ACK;
+                    end if;
 		    -- Requests are all sent if stb is 0
 		    stbs_done := r.wb.stb = '0';
 
