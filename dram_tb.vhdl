@@ -236,14 +236,14 @@ begin
         wb_read(a);
         wait_acks(1);
         read_data(d);
-        assert d = x"0123456789abcdef" report "bad data" severity failure;
+        assert d = x"0123456789abcdef" report "bad data, got " & to_hstring(d) severity failure;
 
         report "Simple read hit...";
         clr_acks;
         wb_read(a);
         wait_acks(1);
         read_data(d);
-        assert d = x"0123456789abcdef" report "bad data" severity failure;
+        assert d = x"0123456789abcdef" report "bad data, got " & to_hstring(d) severity failure;
 
         report "Back to back 4 stores 4 reads on hit...";
         clr_acks;

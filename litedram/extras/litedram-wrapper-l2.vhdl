@@ -235,19 +235,26 @@ architecture behaviour of litedram_wrapper is
 
      -- Cache state machine
     type state_t is (IDLE,             -- Normal load hit processing
+                     REFILL_CLR_TAG,   -- Cache refill clear tag
                      REFILL_WAIT_ACK); -- Cache refill wait ack
     signal state : state_t;
 
-    -- Latched WB request.
-    signal wb_req : wishbone_master_out := wishbone_master_out_init;
+    -- Latched WB request
+    signal wb_req   : wishbone_master_out := wishbone_master_out_init;
+    -- Stashed WB request
+    signal wb_stash : wishbone_master_out := wishbone_master_out_init;
 
     -- Read pipeline (to handle cache RAM latency)
-    signal read_ack_0  : std_ulogic;
-    signal read_ack_1  : std_ulogic;
+    signal read_ack_0  : std_ulogic := '0';
+    signal read_ack_1  : std_ulogic := '0';
     signal read_ad3_0  : std_ulogic;
     signal read_ad3_1  : std_ulogic;
     signal read_way_0  : way_t;
     signal read_way_1  : way_t;
+
+    -- Store ack pipeline
+    signal store_ack_0 : std_ulogic := '0';
+    signal store_ack_1 : std_ulogic := '0';
 
     -- Async signals decoding latched request
     type req_op_t is (OP_NONE,
@@ -266,6 +273,7 @@ architecture behaviour of litedram_wrapper is
     signal req_we       : std_ulogic_vector(DRAM_SBITS-1 downto 0);
     signal req_wdata    : std_ulogic_vector(DRAM_DBITS-1 downto 0);
     signal accept_store : std_ulogic;
+    signal stall        : std_ulogic;
 
     -- Line refill command signals and latches
     signal refill_cmd_valid : std_ulogic;
@@ -573,31 +581,54 @@ begin
     request_latch: process(system_clk)
     begin
         if rising_edge(system_clk) then
-            -- We can latch a new request if we are idle (for now). We also
-            -- latch the absence of request. This is a pipeline that takes
-            -- one per-cycle unless non-IDLE.
-            --
-            if wb_out.stall = '0' then
-                -- Avoid constantly updating addr/data for unrelated requests
-                if wb_in.cyc = '1' then
-                    wb_req <= wb_in;
-                else
-                    wb_req.cyc <= wb_in.cyc;
-                    wb_req.stb <= wb_in.stb;
-                end if;
 
-                if TRACE then
-                    if wb_in.cyc = '1' and wb_in.stb = '1' then
-                        report "latch new wb req ! addr:" & to_hstring(wb_in.adr) &
-                            " we:" & std_ulogic'image(wb_in.we) &
-                            " sel:" & to_hstring(wb_in.sel);
+            -- Implement a stash buffer. If we are stalled and stash is
+            -- free, fill it up. This will generate a WB stall on the
+            -- next cycle.
+            if stall = '1' and wb_out.stall = '0' and wb_in.cyc = '1' and wb_in.stb = '1' then
+                 wb_stash <= wb_in;
+                 if TRACE then
+                     report "stashed wb req ! addr:" & to_hstring(wb_in.adr) &
+                         " we:" & std_ulogic'image(wb_in.we) &
+                         " sel:" & to_hstring(wb_in.sel);
+                 end if;
+            end if;
+
+            -- We aren't stalled, see what we can do
+            if stall = '0' then
+                if wb_stash.cyc = '1' then
+                    -- Something in stash ! use it and clear stash
+                    wb_req <= wb_stash;
+                    wb_stash.cyc <= '0';
+                    if TRACE then
+                        report "unstashed wb req ! addr:" & to_hstring(wb_stash.adr) &
+                            " we:" & std_ulogic'image(wb_stash.we) &
+                            " sel:" & to_hstring(wb_stash.sel);
+                    end if;
+                else
+                    -- Grab request from WB
+                    if wb_in.cyc = '1' then
+                        wb_req <= wb_in;
+                    else
+                        wb_req.cyc <= wb_in.cyc;
+                        wb_req.stb <= wb_in.stb;
+                    end if;
+
+                    if TRACE then
+                        if wb_in.cyc = '1' and wb_in.stb = '1' then
+                            report "latch new wb req ! addr:" & to_hstring(wb_in.adr) &
+                                " we:" & std_ulogic'image(wb_in.we) &
+                                " sel:" & to_hstring(wb_in.sel);
+                        end if;
                     end if;
                 end if;
             end if;
         end if;
     end process;
 
-    --
+    -- Stall when stash is full
+    wb_out.stall <= wb_stash.cyc;
+
     --
     -- Read response pipeline
     --
@@ -626,6 +657,16 @@ begin
                     report "read data:" & to_hstring(cache_out(read_way_0));
                 end if;
             end if;
+        end if;
+    end process;
+
+    --
+    -- Store acks pipeline
+    --
+    store_ack_pipe: process(system_clk)
+    begin
+        if rising_edge(system_clk) then
+            store_ack_1 <= store_ack_0;
         end if;
     end process;
 
@@ -668,14 +709,14 @@ begin
         when IDLE =>
             case req_op is
             when OP_LOAD_MISS =>
-                wb_out.stall <= '1';
+                stall <= '1';
             when OP_STORE_MISS | OP_STORE_HIT =>
-                wb_out.stall <= not accept_store;
+                stall <= not accept_store;
             when others =>
-                wb_out.stall <= '0';
+                stall <= '0';
             end case;
-        when REFILL_WAIT_ACK =>
-            wb_out.stall <= '1';
+        when others =>
+            stall <= '1';
         end case;
         
         -- Data out mux
@@ -689,15 +730,16 @@ begin
             store_done := '0';
         end if;
 
-        -- Generate ACKs on read hits and store complete
+        -- Pipeline store acks
+        store_ack_0 <= store_done;
+
+        -- Generate Wishbone ACKs on read hits and store complete
         --
-        -- XXXX TODO: This can happen on store right behind loads !
-        -- This probably need to be fixed by putting store acks in
-        -- the same pipeline as the read acks. TOOD: Create a testbench
-        -- to exercise those corner cases as the core can't yet.
+        -- This can happen on store right behind loads ! This is why
+        -- we don't accept a new store right behind a load ack above.
         --
-        wb_out.ack <= read_ack_1 or store_done;
-        assert read_ack_0 = '0' or store_done = '0' report
+        wb_out.ack <= read_ack_1 or store_ack_1;
+        assert read_ack_1 = '0' or store_ack_1 = '0' report
             "Read ack and store ack collision !"
             severity failure;
     end process;
@@ -859,7 +901,6 @@ begin
     refill_machine : process(system_clk)
         variable tagset      : cache_tags_set_t;
         variable cmds_done   : boolean;
-        variable replace_way : way_t;
         variable wait_qdrain : boolean;
     begin
         if rising_edge(system_clk) then
@@ -887,23 +928,10 @@ begin
                     -- We need to read a cache line
                     if req_op = OP_LOAD_MISS and not wait_qdrain then
                         -- Grab way to replace
-                        replace_way := to_integer(unsigned(plru_victim(req_index)));
-
-                        -- Force misses on that way while refilling that line
-                        cache_valids(req_index)(replace_way) <= '0';
-
-                        -- Store new tag in selected way
-                        for i in 0 to NUM_WAYS-1 loop
-                            if i = replace_way then
-                                tagset := cache_tags(req_index);
-                                write_tag(i, tagset, req_tag);
-                                cache_tags(req_index) <= tagset;
-                            end if;
-                        end loop;
+                        refill_way <= to_integer(unsigned(plru_victim(req_index)));
 
                         -- Keep track of our index and way for subsequent stores
                         refill_index <= req_index;
-                        refill_way   <= replace_way;
                         refill_row   <= get_row(req_laddr);
 
                         -- Prep for first DRAM read
@@ -921,10 +949,27 @@ begin
                         end if;
 
                         -- Track that we had one request sent
+                        state <= REFILL_CLR_TAG;
+                    end if;
+
+                when REFILL_CLR_TAG | REFILL_WAIT_ACK =>
+
+                    -- Delayed tag clearing to help timing on PLRU output
+                    if state = REFILL_CLR_TAG then
+                        -- Force misses on that way while refilling that line
+                        cache_valids(req_index)(refill_way) <= '0';
+
+                        -- Store new tag in selected way
+                        for i in 0 to NUM_WAYS-1 loop
+                            if i = refill_way then
+                                tagset := cache_tags(refill_index);
+                                write_tag(i, tagset, req_tag);
+                                cache_tags(refill_index) <= tagset;
+                            end if;
+                        end loop;
                         state <= REFILL_WAIT_ACK;
                     end if;
 
-                when REFILL_WAIT_ACK =>
                     -- Commands are all sent if user_port0_cmd_valid is 0
                     cmds_done := refill_cmd_valid = '0';
 
