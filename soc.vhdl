@@ -548,7 +548,7 @@ begin
 	    wb_ack_out => wb_uart0_out.ack
 	    );
     wb_uart0_out.dat <= x"000000" & uart_dat8;
-    wb_uart0_out.stall <= '0' when wb_uart0_in.cyc = '0' else not wb_uart0_out.ack;
+    wb_uart0_out.stall <= not wb_uart0_out.ack;
 
     spiflash_gen: if HAS_SPI_FLASH generate        
         spiflash: entity work.spi_flash_ctrl
