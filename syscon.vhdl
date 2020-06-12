@@ -91,16 +91,15 @@ architecture behaviour of syscon is
     signal info_has_spif : std_ulogic;
     signal info_clk      : std_ulogic_vector(39 downto 0);
     signal info_fl_off   : std_ulogic_vector(31 downto 0);
+
+    -- Wishbone response latch
+    signal wb_rsp        : wb_io_slave_out;
 begin
 
     -- Generated output signals
     dram_at_0 <= '1' when BRAM_SIZE = 0 else reg_ctrl(SYS_REG_CTRL_DRAM_AT_0);
     soc_reset <= reg_ctrl(SYS_REG_CTRL_SOC_RESET);
     core_reset <= reg_ctrl(SYS_REG_CTRL_CORE_RESET);
-
-    -- All register accesses are single cycle
-    wishbone_out.ack <= wishbone_in.cyc and wishbone_in.stb;
-    wishbone_out.stall <= '0';
 
     -- Info register is hard wired
     info_has_uart <= '1' when HAS_UART else '0';
@@ -128,7 +127,8 @@ begin
     reg_ctrl_out <= (63 downto SYS_REG_CTRL_BITS => '0',
 		    SYS_REG_CTRL_BITS-1 downto 0 => reg_ctrl);
 
-    -- Register read mux
+    -- Wishbone response
+    wb_rsp.ack <= wishbone_in.cyc and wishbone_in.stb;
     with wishbone_in.adr(SYS_REG_BITS+2 downto 3) select reg_out <=
 	SIG_VALUE	when SYS_REG_SIG,
 	reg_info        when SYS_REG_INFO,
@@ -139,8 +139,18 @@ begin
 	reg_ctrl_out	when SYS_REG_CTRL,
 	reg_spiinfo	when SYS_REG_SPIFLASHINFO,
 	(others => '0') when others;
-    wishbone_out.dat <= reg_out(63 downto 32) when wishbone_in.adr(2) = '1' else
-                        reg_out(31 downto 0);
+    wb_rsp.dat   <= reg_out(63 downto 32) when wishbone_in.adr(2) = '1' else
+                  reg_out(31 downto 0);
+    wb_rsp.stall <= '0';
+
+    -- Wishbone response latch
+    regs_read: process(clk)
+    begin
+        if rising_edge(clk) then
+            -- Send response from latch
+            wishbone_out <= wb_rsp;
+        end if;
+    end process;
 
     -- Register writes
     regs_write: process(clk)
