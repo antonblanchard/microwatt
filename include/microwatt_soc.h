@@ -13,7 +13,7 @@
 #define UART_BASE	0xc0002000  /* UART */
 #define XICS_BASE   	0xc0004000  /* Interrupt controller */
 #define SPI_FCTRL_BASE  0xc0006000  /* SPI flash controller registers */
-#define DRAM_CTRL_BASE	0xc0100000  /* LiteDRAM control registers */
+#define DRAM_CTRL_BASE	0xc8000000  /* LiteDRAM control registers */
 #define SPI_FLASH_BASE  0xf0000000  /* SPI Flash memory map */
 #define DRAM_INIT_BASE  0xff000000  /* Internal DRAM init firmware */
 
