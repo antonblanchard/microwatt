@@ -8,13 +8,15 @@ use work.wishbone_types.all;
 
 entity syscon is
     generic (
-	SIG_VALUE      : std_ulogic_vector(63 downto 0) := x"f00daa5500010001";
-	CLK_FREQ       : integer;
-	HAS_UART       : boolean;
-	HAS_DRAM       : boolean;
-	BRAM_SIZE      : integer;
-	DRAM_SIZE      : integer;
-	DRAM_INIT_SIZE : integer
+	SIG_VALUE        : std_ulogic_vector(63 downto 0) := x"f00daa5500010001";
+	CLK_FREQ         : integer;
+	HAS_UART         : boolean;
+	HAS_DRAM         : boolean;
+	BRAM_SIZE        : integer;
+	DRAM_SIZE        : integer;
+	DRAM_INIT_SIZE   : integer;
+        HAS_SPI_FLASH    : boolean;
+        SPI_FLASH_OFFSET : integer
 	);
     port (
 	clk : in std_ulogic;
@@ -44,6 +46,7 @@ architecture behaviour of syscon is
     constant SYS_REG_CLKINFO	  : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "100";
     constant SYS_REG_CTRL	  : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "101";
     constant SYS_REG_DRAMINITINFO : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "110";
+    constant SYS_REG_SPIFLASHINFO : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "111";
 
     -- Muxed reg read signal
     signal reg_out	: std_ulogic_vector(63 downto 0);
@@ -52,6 +55,7 @@ architecture behaviour of syscon is
     constant SYS_REG_INFO_HAS_UART    : integer := 0;
     constant SYS_REG_INFO_HAS_DRAM    : integer := 1;
     constant SYS_REG_INFO_HAS_BRAM    : integer := 2;
+    constant SYS_REG_INFO_HAS_SPIF    : integer := 3;
 
     -- BRAMINFO contains the BRAM size in the bottom 52 bits
     -- DRAMINFO contains the DRAM size if any in the bottom 52 bits
@@ -64,6 +68,12 @@ architecture behaviour of syscon is
     constant SYS_REG_CTRL_CORE_RESET : integer := 1;
     constant SYS_REG_CTRL_SOC_RESET  : integer := 2;
 
+    -- SPI Info register bits
+    --
+    -- Top 32-bit is flash offset which is the amount of flash
+    -- reserved for the FPGA bitfile if any
+    constant SYS_REG_SPI_INFO_IS_FLASH : integer := 0;
+
     -- Ctrl register
     signal reg_ctrl	: std_ulogic_vector(SYS_REG_CTRL_BITS-1 downto 0);
     signal reg_ctrl_out	: std_ulogic_vector(63 downto 0);
@@ -74,10 +84,13 @@ architecture behaviour of syscon is
     signal reg_draminfo  : std_ulogic_vector(63 downto 0);
     signal reg_dramiinfo : std_ulogic_vector(63 downto 0);
     signal reg_clkinfo   : std_ulogic_vector(63 downto 0);
+    signal reg_spiinfo   : std_ulogic_vector(63 downto 0);
     signal info_has_dram : std_ulogic;
     signal info_has_bram : std_ulogic;
     signal info_has_uart : std_ulogic;
+    signal info_has_spif : std_ulogic;
     signal info_clk      : std_ulogic_vector(39 downto 0);
+    signal info_fl_off   : std_ulogic_vector(31 downto 0);
 begin
 
     -- Generated output signals
@@ -93,10 +106,12 @@ begin
     info_has_uart <= '1' when HAS_UART else '0';
     info_has_dram <= '1' when HAS_DRAM else '0';
     info_has_bram <= '1' when BRAM_SIZE /= 0 else '0';
+    info_has_spif <= '1' when HAS_SPI_FLASH else '0';
     info_clk <= std_ulogic_vector(to_unsigned(CLK_FREQ, 40));
-    reg_info <= (0 => info_has_uart,
-		 1 => info_has_dram,
-                 2 => info_has_bram,
+    reg_info <= (SYS_REG_INFO_HAS_UART  => info_has_uart,
+		 SYS_REG_INFO_HAS_DRAM  => info_has_dram,
+                 SYS_REG_INFO_HAS_BRAM  => info_has_bram,
+                 SYS_REG_INFO_HAS_SPIF  => info_has_spif,
 		 others => '0');
     reg_braminfo <= x"000" & std_ulogic_vector(to_unsigned(BRAM_SIZE, 52));
     reg_draminfo <= x"000" & std_ulogic_vector(to_unsigned(DRAM_SIZE, 52)) when HAS_DRAM
@@ -105,6 +120,9 @@ begin
                      else (others => '0');
     reg_clkinfo <= (39 downto 0 => info_clk,
 		    others => '0');
+    info_fl_off <= std_ulogic_vector(to_unsigned(SPI_FLASH_OFFSET, 32));
+    reg_spiinfo <= (31 downto 0 => info_fl_off,
+                    others => '0');
 
     -- Control register read composition
     reg_ctrl_out <= (63 downto SYS_REG_CTRL_BITS => '0',
@@ -119,6 +137,7 @@ begin
 	reg_dramiinfo   when SYS_REG_DRAMINITINFO,
 	reg_clkinfo     when SYS_REG_CLKINFO,
 	reg_ctrl_out	when SYS_REG_CTRL,
+	reg_spiinfo	when SYS_REG_SPIFLASHINFO,
 	(others => '0') when others;
     wishbone_out.dat <= reg_out(63 downto 32) when wishbone_in.adr(2) = '1' else
                         reg_out(31 downto 0);

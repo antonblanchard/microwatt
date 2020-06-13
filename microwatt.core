@@ -49,6 +49,8 @@ filesets:
       - xics.vhdl
       - syscon.vhdl
       - sync_fifo.vhdl
+      - spi_rxtx.vhdl
+      - spi_flash_ctrl.vhdl
     file_type : vhdlSource-2008
 
   fpga:
@@ -119,6 +121,7 @@ targets:
       - clk_input
       - clk_frequency
       - disable_flatten_core
+      - spi_flash_offset=10485760
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -132,6 +135,7 @@ targets:
       - use_litedram=true
       - disable_flatten_core
       - no_bram
+      - spi_flash_offset=10485760
     generate: [dram_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
@@ -146,6 +150,7 @@ targets:
       - clk_input
       - clk_frequency
       - disable_flatten_core
+      - spi_flash_offset=3145728
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
@@ -159,6 +164,7 @@ targets:
       - use_litedram=true
       - disable_flatten_core
       - no_bram
+      - spi_flash_offset=3145728
     generate: [dram_arty]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -173,6 +179,7 @@ targets:
       - clk_input
       - clk_frequency
       - disable_flatten_core
+      - spi_flash_offset=4194304
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -186,6 +193,7 @@ targets:
       - use_litedram=true
       - disable_flatten_core
       - no_bram
+      - spi_flash_offset=4194304
     generate: [dram_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
@@ -266,3 +274,8 @@ parameters:
     description : No internal block RAM (only DRAM and init code carrying payload)
     paramtype   : generic
     default     : false
+
+  spi_flash_offset:
+    datatype    : int
+    description : Offset (in bytes) in the SPI flash of the code payload to run
+    paramtype   : generic

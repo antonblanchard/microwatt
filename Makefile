@@ -50,17 +50,13 @@ core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
 	loadstore1.vhdl mmu.vhdl dcache.vhdl writeback.vhdl core_debug.vhdl \
 	core.vhdl
 
-soc_files = wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_fifo.vhdl \
-	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl
+soc_files = $(core_files) wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_fifo.vhdl \
+	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl \
+	spi_rxtx.vhdl spi_flash_ctrl.vhdl
 
-soc_sim_files = sim_console.vhdl sim_uart.vhdl sim_bram_helpers.vhdl \
+
+soc_sim_files = $(soc_files) sim_console.vhdl sim_uart.vhdl sim_bram_helpers.vhdl \
 	sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl dmi_dtm_xilinx.vhdl
-
-unisim_lib = sim-unisim/unisim-obj08.cf
-unisim_lib_files = sim-unisim/BSCANE2.vhdl sim-unisim/BUFG.vhdl \
-	sim-unisim/unisim_vcomponents.vhdl
-$(unisim_lib): $(unisim_lib_files)
-	ghdl -i --std=08 --work=unisim --workdir=sim-unisim $^
 
 soc_sim_c_files = sim_vhpi_c.c sim_bram_helpers_c.c sim_console_c.c \
 	sim_jtag_socket_c.c
@@ -69,12 +65,39 @@ soc_sim_obj_files=$(soc_sim_c_files:.c=.o)
 comma := ,
 soc_sim_link=$(patsubst %,-Wl$(comma)%,$(soc_sim_obj_files))
 
+unisim_dir = sim-unisim
+unisim_lib = $(unisim_dir)/unisim-obj08.cf
+unisim_lib_files = $(unisim_dir)/BSCANE2.vhdl $(unisim_dir)/BUFG.vhdl \
+	$(unisim_dir)/unisim_vcomponents.vhdl
+$(unisim_lib): $(unisim_lib_files)
+	ghdl -i --std=08 --work=unisim --workdir=$(unisim_dir) $^
+GHDLFLAGS += -P$(unisim_dir)
+
 core_tbs = multiply_tb divider_tb rotator_tb countzero_tb
 soc_tbs = core_tb icache_tb dcache_tb dmi_dtm_tb wishbone_bram_tb
+soc_flash_tbs = core_flash_tb
 soc_dram_tbs = dram_tb core_dram_tb
 
-$(soc_tbs): %: $(core_files) $(soc_files) $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) %.vhdl
-	$(GHDL) -c $(GHDLFLAGS) -Psim-unisim $(soc_sim_link) $(core_files) $(soc_files) $(soc_sim_files) $@.vhdl -e $@
+ifneq ($(FLASH_MODEL_PATH),)
+fmf_dir = $(FLASH_MODEL_PATH)/fmf
+fmf_lib = $(fmf_dir)/fmf-obj08.cf
+fmf_lib_files = $(wildcard $(fmf_dir)/*.vhd)
+GHDLFLAGS += -P$(fmf_dir)
+$(fmf_lib): $(fmf_lib_files)
+	ghdl -i --std=08 --work=fmf --workdir=$(fmf_dir) $^
+
+flash_model_files=$(FLASH_MODEL_PATH)/s25fl128s.vhd
+flash_model_files: $(fmf_lib)
+else
+flash_model_files=sim_no_flash.vhdl
+fmf_lib=
+endif
+
+$(soc_flash_tbs): %: $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) $(fmf_lib) $(flash_model_files) %.vhdl 
+	$(GHDL) -c $(GHDLFLAGS) $(soc_sim_link) $(soc_sim_files) $(flash_model_files) $@.vhdl $(unisim_files) -e $@
+
+$(soc_tbs): %: $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) %.vhdl 
+	$(GHDL) -c $(GHDLFLAGS) $(soc_sim_link) $(soc_sim_files) $@.vhdl -e $@
 
 $(core_tbs): %: $(core_files) glibc_random.vhdl glibc_random_helpers.vhdl %.vhdl
 	$(GHDL) -c $(GHDLFLAGS) $(core_files) glibc_random.vhdl glibc_random_helpers.vhdl $@.vhdl -e $@
@@ -106,8 +129,8 @@ soc_dram_sim_obj_files = $(soc_sim_obj_files) sim_litedram_c.o
 dram_link_files=-Wl,obj_dir/Vlitedram_core__ALL.a -Wl,obj_dir/verilated.o -Wl,obj_dir/verilated_vcd_c.o -Wl,-lstdc++
 soc_dram_sim_link=$(patsubst %,-Wl$(comma)%,$(soc_dram_sim_obj_files)) $(dram_link_files)
 
-$(soc_dram_tbs): %: $(core_files) $(soc_dram_files) $(soc_dram_sim_files) $(soc_dram_sim_obj_files) $(unisim_lib) %.vhdl
-	$(GHDL) -c $(GHDLFLAGS) -Psim-unisim $(soc_dram_sim_link) $(core_files) $(soc_dram_files) $(soc_dram_sim_files) $@.vhdl -e $@
+$(soc_dram_tbs): %: $(soc_dram_files) $(soc_dram_sim_files) $(soc_dram_sim_obj_files) $(flash_model_files) $(unisim_lib) $(fmf_lib) %.vhdl 
+	$(GHDL) -c $(GHDLFLAGS) $(soc_dram_sim_link) $(soc_dram_files) $(soc_dram_sim_files) $(flash_model_files) $@.vhdl -e $@
 endif
 
 # Hello world

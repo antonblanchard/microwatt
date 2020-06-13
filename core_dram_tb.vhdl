@@ -5,6 +5,7 @@ use ieee.numeric_std.all;
 library work;
 use work.common.all;
 use work.wishbone_types.all;
+use work.utils.all;
 
 entity core_dram_tb is
     generic (
@@ -31,6 +32,17 @@ architecture behave of core_dram_tb is
     signal wb_dram_is_init  : std_ulogic;
     signal core_alt_reset : std_ulogic;
 
+    -- SPI
+    signal spi_sck     : std_ulogic;
+    signal spi_cs_n    : std_ulogic := '1';
+    signal spi_sdat_o  : std_ulogic_vector(3 downto 0);
+    signal spi_sdat_oe : std_ulogic_vector(3 downto 0);
+    signal spi_sdat_i  : std_ulogic_vector(3 downto 0);
+    signal fl_hold_n   : std_logic;
+    signal fl_wp_n     : std_logic;
+    signal fl_mosi     : std_logic;
+    signal fl_miso     : std_logic;
+
     -- ROM size
     function get_rom_size return natural is
     begin
@@ -53,7 +65,10 @@ begin
             HAS_DRAM => true,
 	    DRAM_SIZE => 256 * 1024 * 1024,
             DRAM_INIT_SIZE => ROM_SIZE,
-	    CLK_FREQ => 100000000
+	    CLK_FREQ => 100000000,
+            HAS_SPI_FLASH    => true,
+            SPI_FLASH_DLINES => 4,
+            SPI_FLASH_OFFSET => 0
 	    )
 	port map(
 	    rst => soc_rst,
@@ -66,8 +81,43 @@ begin
 	    wb_dram_ctrl_out => wb_dram_ctrl_out,
             wb_dram_is_csr => wb_dram_is_csr,
             wb_dram_is_init => wb_dram_is_init,
+            spi_flash_sck     => spi_sck,
+            spi_flash_cs_n    => spi_cs_n,
+            spi_flash_sdat_o  => spi_sdat_o,
+            spi_flash_sdat_oe => spi_sdat_oe,
+            spi_flash_sdat_i  => spi_sdat_i,
 	    alt_reset => core_alt_reset
 	    );
+
+        flash: entity work.s25fl128s
+        generic map (
+            TimingModel => "S25FL128SAGNFI000_R_30pF",
+            LongTimming => false,
+            tdevice_PU => 10 ns,
+            tdevice_PP256 => 100 ns,
+            tdevice_PP512 => 100 ns,
+            tdevice_WRR   => 100 ns,
+            UserPreload => TRUE
+            )
+        port map(
+            SCK => spi_sck,
+            SI => fl_mosi,
+            CSNeg => spi_cs_n,
+            HOLDNeg => fl_hold_n,
+            WPNeg => fl_wp_n,
+            RSTNeg => '1',
+            SO => fl_miso
+            );
+
+    fl_mosi   <= spi_sdat_o(0) when spi_sdat_oe(0) = '1' else 'Z';
+    fl_miso   <= spi_sdat_o(1) when spi_sdat_oe(1) = '1' else 'Z';
+    fl_wp_n   <= spi_sdat_o(2) when spi_sdat_oe(2) = '1' else 'Z';
+    fl_hold_n <= spi_sdat_o(3) when spi_sdat_oe(3) = '1' else '1' when spi_sdat_oe(0) = '1' else 'Z';
+
+    spi_sdat_i(0) <= fl_mosi;
+    spi_sdat_i(1) <= fl_miso;
+    spi_sdat_i(2) <= fl_wp_n;
+    spi_sdat_i(3) <= fl_hold_n;
 
     dram: entity work.litedram_wrapper
         generic map(

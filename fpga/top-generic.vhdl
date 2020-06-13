@@ -78,13 +78,19 @@ begin
 	    RESET_LOW     => RESET_LOW,
 	    SIM           => false,
 	    CLK_FREQ      => CLK_FREQUENCY,
-	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
+	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
+            HAS_SPI          => false
 	    )
 	port map (
 	    system_clk        => system_clk,
 	    rst               => soc_rst,
 	    uart0_txd         => uart0_txd,
 	    uart0_rxd         => uart0_rxd,
+            spi0_sck          => open,
+            spi0_cs_n         => open,
+            spi0_sdat_o       => open,
+            spi0_sdat_oe      => open,
+            spi0_sdat_i       => '1',
 	    wb_dram_in        => wb_dram_in,
 	    wb_dram_out       => wb_dram_out,
 	    wb_dram_ctrl_in   => wb_dram_ctrl_in,
