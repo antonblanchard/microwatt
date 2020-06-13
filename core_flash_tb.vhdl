@@ -46,8 +46,6 @@ begin
 	port map(
 	    rst => rst,
 	    system_clk => clk,
-	    uart0_rxd => '0',
-	    uart0_txd => open,
 	    wb_dram_in => wb_dram_in,
 	    wb_dram_out => wb_dram_out,
 	    wb_dram_ctrl_in => wb_dram_ctrl_in,
@@ -56,8 +54,7 @@ begin
             spi_flash_cs_n    => spi_cs_n,
             spi_flash_sdat_o  => spi_sdat_o,
             spi_flash_sdat_oe => spi_sdat_oe,
-            spi_flash_sdat_i  => spi_sdat_i,
-	    alt_reset => '0'
+            spi_flash_sdat_i  => spi_sdat_i
 	    );
 
     flash: entity work.s25fl128s

@@ -40,8 +40,6 @@ architecture behaviour of toplevel is
     -- DRAM control wishbone connection
     signal wb_dram_ctrl_in  : wb_io_master_out;
     signal wb_dram_ctrl_out : wb_io_slave_out;
-    signal wb_dram_is_csr   : std_ulogic;
-    signal wb_dram_is_init  : std_ulogic;
 
 begin
 
@@ -77,26 +75,17 @@ begin
 	    RAM_INIT_FILE => RAM_INIT_FILE,
 	    SIM           => false,
 	    CLK_FREQ      => CLK_FREQUENCY,
-	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
-            HAS_SPI          => false
+	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
 	    )
 	port map (
 	    system_clk        => system_clk,
 	    rst               => soc_rst,
 	    uart0_txd         => uart0_txd,
 	    uart0_rxd         => uart0_rxd,
-            spi0_sck          => open,
-            spi0_cs_n         => open,
-            spi0_sdat_o       => open,
-            spi0_sdat_oe      => open,
-            spi0_sdat_i       => '1',
 	    wb_dram_in        => wb_dram_in,
 	    wb_dram_out       => wb_dram_out,
 	    wb_dram_ctrl_in   => wb_dram_ctrl_in,
-	    wb_dram_ctrl_out  => wb_dram_ctrl_out,
-	    wb_dram_is_csr    => wb_dram_is_csr,
-	    wb_dram_is_init   => wb_dram_is_init,
-	    alt_reset         => '0'
+	    wb_dram_ctrl_out  => wb_dram_ctrl_out
 	    );
 
     -- Dummy DRAM

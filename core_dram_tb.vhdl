@@ -72,8 +72,6 @@ begin
 	port map(
 	    rst => soc_rst,
 	    system_clk => system_clk,
-	    uart0_rxd => '0',
-	    uart0_txd => open,
 	    wb_dram_in => wb_dram_in,
 	    wb_dram_out => wb_dram_out,
 	    wb_dram_ctrl_in => wb_dram_ctrl_in,

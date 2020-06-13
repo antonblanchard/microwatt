@@ -56,17 +56,17 @@ entity soc is
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
-	uart0_rxd    : in  std_ulogic;
+	uart0_rxd    : in  std_ulogic := '0';
 
         -- SPI Flash signals
         spi_flash_sck     : out std_ulogic;
         spi_flash_cs_n    : out std_ulogic;
         spi_flash_sdat_o  : out std_ulogic_vector(SPI_FLASH_DLINES-1 downto 0);
         spi_flash_sdat_oe : out std_ulogic_vector(SPI_FLASH_DLINES-1 downto 0);
-        spi_flash_sdat_i  : in  std_ulogic_vector(SPI_FLASH_DLINES-1 downto 0);
+        spi_flash_sdat_i  : in  std_ulogic_vector(SPI_FLASH_DLINES-1 downto 0) := (others => '1');
 
 	-- DRAM controller signals
-	alt_reset    : in std_ulogic
+	alt_reset    : in std_ulogic := '0'
 	);
 end entity soc;
 
