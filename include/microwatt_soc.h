@@ -18,6 +18,11 @@
 #define DRAM_INIT_BASE  0xff000000  /* Internal DRAM init firmware */
 
 /*
+ * Interrupt numbers
+ */
+#define IRQ_UART0       0
+
+/*
  * Register definitions for the syscon registers
  */
 

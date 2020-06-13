@@ -33,6 +33,9 @@ use work.wishbone_types.all;
 --      IO bus, this will be fixed when it's moved out of litedram and
 --      into the main SoC once we have a common "firmware".
 
+-- Interrupt numbers:
+--
+--   0  : UART0
 
 entity soc is
     generic (
@@ -118,6 +121,7 @@ architecture behaviour of soc is
     signal wb_uart0_in   : wb_io_master_out;
     signal wb_uart0_out  : wb_io_slave_out;
     signal uart0_dat8    : std_ulogic_vector(7 downto 0);
+    signal uart0_irq     : std_ulogic;
 
     -- SPI Flash controller signals:
     signal wb_spiflash_in     : wb_io_master_out;
@@ -568,7 +572,7 @@ begin
 	    reset => rst_uart,
 	    txd => uart0_txd,
 	    rxd => uart0_rxd,
-	    irq => int_level_in(0),
+	    irq => uart0_irq,
 	    wb_adr_in => wb_uart0_in.adr(11 downto 0),
 	    wb_dat_in => wb_uart0_in.dat(7 downto 0),
 	    wb_dat_out => uart0_dat8,
@@ -620,6 +624,13 @@ begin
 	    int_level_in => int_level_in,
 	    core_irq_out => core_ext_irq
 	    );
+
+    -- Assign external interrupts
+    interrupts: process(all)
+    begin
+        int_level_in <= (others => '0');
+        int_level_in(0) <= uart0_irq;
+    end process;
 
     -- BRAM Memory slave
     bram: if MEMORY_SIZE /= 0 generate
