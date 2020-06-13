@@ -27,6 +27,7 @@ end mmu;
 architecture behave of mmu is
 
     type state_t is (IDLE,
+                     DO_TLBIE,
                      TLB_WAIT,
                      PROC_TBL_READ,
                      PROC_TBL_WAIT,
@@ -44,6 +45,7 @@ architecture behave of mmu is
         store     : std_ulogic;
         priv      : std_ulogic;
         addr      : std_ulogic_vector(63 downto 0);
+        inval_all : std_ulogic;
         -- config SPRs
         prtbl     : std_ulogic_vector(63 downto 0);
         pid       : std_ulogic_vector(31 downto 0);
@@ -178,7 +180,6 @@ begin
         variable tlb_load : std_ulogic;
         variable itlb_load : std_ulogic;
         variable tlbie_req : std_ulogic;
-        variable inval_all : std_ulogic;
         variable prtbl_rd : std_ulogic;
         variable pt_valid : std_ulogic;
         variable effpid : std_ulogic_vector(31 downto 0);
@@ -207,7 +208,7 @@ begin
         tlb_load := '0';
         itlb_load := '0';
         tlbie_req := '0';
-        inval_all := '0';
+        v.inval_all := '0';
         prtbl_rd := '0';
 
         -- Radix tree data structures in memory are big-endian,
@@ -240,19 +241,17 @@ begin
                 v.store := not (l_in.load or l_in.iside);
                 v.priv := l_in.priv;
                 if l_in.tlbie = '1' then
-                    dcreq := '1';
-                    tlbie_req := '1';
                     -- Invalidate all iTLB/dTLB entries for tlbie with
                     -- RB[IS] != 0 or RB[AP] != 0, or for slbia
-                    inval_all := l_in.slbia or l_in.addr(11) or l_in.addr(10) or
-                                 l_in.addr(7) or l_in.addr(6) or l_in.addr(5);
+                    v.inval_all := l_in.slbia or l_in.addr(11) or l_in.addr(10) or
+                                   l_in.addr(7) or l_in.addr(6) or l_in.addr(5);
                     -- The RIC field of the tlbie instruction comes across on the
                     -- sprn bus as bits 2--3.  RIC=2 flushes process table caches.
                     if l_in.sprn(3) = '1' then
                         v.pt0_valid := '0';
                         v.pt3_valid := '0';
                     end if;
-                    v.state := TLB_WAIT;
+                    v.state := DO_TLBIE;
                 else
                     v.valid := '1';
                     if pt_valid = '0' then
@@ -281,11 +280,14 @@ begin
                     v.pt3_valid := '0';
                 end if;
                 v.pt0_valid := '0';
-                dcreq := '1';
-                tlbie_req := '1';
-                inval_all := '1';
-                v.state := TLB_WAIT;
+                v.inval_all := '1';
+                v.state := DO_TLBIE;
             end if;
+
+        when DO_TLBIE =>
+            dcreq := '1';
+            tlbie_req := '1';
+            v.state := TLB_WAIT;
 
         when TLB_WAIT =>
             if d_in.done = '1' then
@@ -436,8 +438,8 @@ begin
 
         -- drive outputs
         if tlbie_req = '1' then
-            addr := l_in.addr;
-            tlb_data := l_in.rs;
+            addr := r.addr;
+            tlb_data := (others => '0');
         elsif tlb_load = '1' then
             addr := r.addr(63 downto 12) & x"000";
             tlb_data := pte;
@@ -458,14 +460,14 @@ begin
 
         d_out.valid <= dcreq;
         d_out.tlbie <= tlbie_req;
-        d_out.doall <= inval_all;
+        d_out.doall <= r.inval_all;
         d_out.tlbld <= tlb_load;
         d_out.addr <= addr;
         d_out.pte <= tlb_data;
 
         i_out.tlbld <= itlb_load;
         i_out.tlbie <= tlbie_req;
-        i_out.doall <= inval_all;
+        i_out.doall <= r.inval_all;
         i_out.addr <= addr;
         i_out.pte <= tlb_data;
 
