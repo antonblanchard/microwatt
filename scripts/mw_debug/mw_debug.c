@@ -507,8 +507,10 @@ static void load(const char *filename, uint64_t addr)
 		// if (rc < 8) XXX fixup endian ?
 		check(dmi_write(DBG_WB_DATA, data), "writing WB_DATA");
 		count += 8;
-		if (!(count % 1024))
-			printf("%x...\n", count);
+		if (!(count % 1024)) {
+			printf("%x...\r", count);
+			fflush(stdout);
+		}
 	}
 	close(fd);
 	printf("%x done.\n", count);
@@ -535,8 +537,10 @@ static void save(const char *filename, uint64_t addr, uint64_t size)
 			break;
 		}
 		count += 8;
-		if (!(count % 1024))
-			printf("%x...\n", count);
+		if (!(count % 1024)) {
+			printf("%x...\r", count);
+			fflush(stdout);
+		}
 		if (count >= size)
 			break;
 	}
