@@ -232,6 +232,7 @@ architecture rtl of dcache is
         byte_sel  : std_ulogic_vector(7 downto 0);
         hit_way   : way_t;
         repl_way  : way_t;
+        same_tag  : std_ulogic;
     end record;
 
     -- First stage register, contains state for stage 1 of load hits
@@ -301,6 +302,7 @@ architecture rtl of dcache is
     signal req_tag     : cache_tag_t;
     signal req_op      : op_t;
     signal req_data    : std_ulogic_vector(63 downto 0);
+    signal req_same_tag : std_ulogic;
 
     signal early_req_row  : row_t;
 
@@ -777,6 +779,7 @@ begin
                 rel_match := '1';
             end if;
         end if;
+        req_same_tag <= rel_match;
 
         -- See if the request matches the line currently being reloaded
         if r1.state = RELOAD_WAIT_ACK and req_index = r1.store_index and
@@ -1222,6 +1225,7 @@ begin
                     req.byte_sel := r0.req.byte_sel;
                     req.hit_way := req_hit_way;
                     req.repl_way := replace_way;
+                    req.same_tag := req_same_tag;
 
                     -- Store the incoming request from r0, if it is a slow request
                     -- Note that r1.full = 1 implies req_op = OP_NONE
@@ -1243,6 +1247,7 @@ begin
                     r1.store_row <= get_row(req.real_addr);
                     r1.end_row_ix <= get_row_of_line(get_row(req.real_addr)) - 1;
                     r1.reload_tag <= get_tag(req.real_addr);
+                    r1.req.same_tag <= '1';
 
                     if req.op = OP_STORE_HIT then
                         r1.store_way <= req.hit_way;
@@ -1346,11 +1351,10 @@ begin
                         -- complete the request next cycle.
                         -- Compare the whole address in case the request in
                         -- r1.req is not the one that started this refill.
-			if r1.full = '1' and
+			if r1.full = '1' and r1.req.same_tag = '1' and
                             ((r1.dcbz = '1' and r1.req.dcbz = '1') or
                              (r1.dcbz = '0' and r1.req.op = OP_LOAD_MISS)) and
-                            r1.store_row = get_row(r1.req.real_addr) and
-                            r1.reload_tag = get_tag(r1.req.real_addr) then
+                            r1.store_row = get_row(r1.req.real_addr) then
                             r1.full <= '0';
                             r1.slow_valid <= '1';
                             r1.forward_sel <= (others => '1');
@@ -1379,19 +1383,14 @@ begin
                     if wishbone_in.stall = '0' then
                         -- See if there is another store waiting to be done
                         -- which is in the same real page.
-                        -- Using r1.req rather than req here limits us to one
-                        -- store every two cycles, but helps timing in that we
-                        -- don't depend on req_op or ra.
-                        if r1.full = '1' and acks < 7 and
-                            (r1.req.op = OP_STORE_MISS or r1.req.op = OP_STORE_HIT) and
-                            (r1.req.real_addr(r1.wb.adr'left downto TLB_LG_PGSZ) =
-                             r1.wb.adr(r1.wb.adr'left downto TLB_LG_PGSZ)) then
-                            r1.wb.adr <= r1.req.real_addr(r1.wb.adr'left downto 0);
-                            r1.wb.dat <= r1.req.data;
-                            r1.wb.sel <= r1.req.byte_sel;
+                        if acks < 7 and req.same_tag = '1' and
+                            (req.op = OP_STORE_MISS or req.op = OP_STORE_HIT) then
+                            r1.wb.adr <= req.real_addr(r1.wb.adr'left downto 0);
+                            r1.wb.dat <= req.data;
+                            r1.wb.sel <= req.byte_sel;
                             r1.wb.stb <= '1';
                             stbs_done := false;
-                            if r1.req.op = OP_STORE_HIT then
+                            if req.op = OP_STORE_HIT then
                                 r1.write_bram <= '1';
                             end if;
                             r1.full <= '0';
