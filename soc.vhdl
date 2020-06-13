@@ -29,6 +29,12 @@ use work.wishbone_types.all;
 
 -- External IO bus:
 -- 0xc8000000: LiteDRAM control (CSRs)
+-- 0xc8020000: LiteEth CSRs (*)
+-- 0xc8030000: LiteEth MMIO (*)
+
+-- (*) LiteEth must be a single aligned 32KB block as the CSRs and MMIOs
+--     are actually decoded as a single wishbone which LiteEth will
+--     internally split based on bit 16.
 
 -- (**) DRAM init code is currently special and goes to the external
 --      IO bus, this will be fixed when it's moved out of litedram and
@@ -37,6 +43,7 @@ use work.wishbone_types.all;
 -- Interrupt numbers:
 --
 --   0  : UART0
+--   1  : Ethernet
 
 entity soc is
     generic (
@@ -53,7 +60,8 @@ entity soc is
         SPI_FLASH_OFFSET   : integer := 0;
         SPI_FLASH_DEF_CKDV : natural := 2;
         SPI_FLASH_DEF_QUAD : boolean := false;
-        LOG_LENGTH         : natural := 512
+        LOG_LENGTH         : natural := 512;
+        HAS_LITEETH        : boolean := false
 	);
     port(
 	rst          : in  std_ulogic;
@@ -68,6 +76,10 @@ entity soc is
 	wb_ext_io_out        : in wb_io_slave_out := wb_io_slave_out_init;
 	wb_ext_is_dram_csr   : out std_ulogic;
 	wb_ext_is_dram_init  : out std_ulogic;
+	wb_ext_is_eth        : out std_ulogic;
+
+        -- External interrupts
+        ext_irq_eth          : in std_ulogic := '0';
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
@@ -181,6 +193,7 @@ architecture behaviour of soc is
                            SLAVE_IO_EXTERNAL,
                            SLAVE_IO_NONE);
     signal slave_io_dbg : slave_io_type;
+
 begin
 
     resets: process(system_clk)
@@ -298,6 +311,7 @@ begin
 	    wb_io_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_io_out;
 	end case;
+
     end process slave_top_intercon;
 
     -- IO wishbone slave 64->32 bits converter
@@ -499,6 +513,7 @@ begin
 
 	wb_ext_is_dram_csr   <= '0';
 	wb_ext_is_dram_init  <= '0';
+	wb_ext_is_eth        <= '0';
 
         -- Default response, ack & return all 1's
         wb_sio_in.dat <= (others => '1');
@@ -519,6 +534,12 @@ begin
                 ext_valid := true;
             elsif wb_sio_out.adr(23 downto 16) = x"00" and HAS_DRAM then
                 wb_ext_is_dram_csr  <= '1';
+                ext_valid := true;
+            elsif wb_sio_out.adr(23 downto 16) = x"02" and HAS_LITEETH then
+                wb_ext_is_eth       <= '1';
+                ext_valid := true;
+            elsif wb_sio_out.adr(23 downto 16) = x"03" and HAS_LITEETH then
+                wb_ext_is_eth       <= '1';
                 ext_valid := true;
             end if;
             if ext_valid then
@@ -564,7 +585,8 @@ begin
 	    DRAM_INIT_SIZE => DRAM_INIT_SIZE,
 	    CLK_FREQ => CLK_FREQ,
 	    HAS_SPI_FLASH => HAS_SPI_FLASH,
-	    SPI_FLASH_OFFSET => SPI_FLASH_OFFSET
+	    SPI_FLASH_OFFSET => SPI_FLASH_OFFSET,
+            HAS_LITEETH => HAS_LITEETH
 	)
 	port map(
 	    clk => system_clk,
@@ -657,6 +679,7 @@ begin
     begin
         int_level_in <= (others => '0');
         int_level_in(0) <= uart0_irq;
+        int_level_in(1) <= ext_irq_eth;
     end process;
 
     -- BRAM Memory slave

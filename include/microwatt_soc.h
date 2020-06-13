@@ -15,6 +15,8 @@
 #define XICS_ICS_BASE   0xc0005000  /* Interrupt controller */
 #define SPI_FCTRL_BASE  0xc0006000  /* SPI flash controller registers */
 #define DRAM_CTRL_BASE	0xc8000000  /* LiteDRAM control registers */
+#define LETH_CSR_BASE	0xc8020000  /* LiteEth CSR registers */
+#define LETH_SRAM_BASE	0xc8030000  /* LiteEth MMIO space */
 #define SPI_FLASH_BASE  0xf0000000  /* SPI Flash memory map */
 #define DRAM_INIT_BASE  0xff000000  /* Internal DRAM init firmware */
 
@@ -22,6 +24,7 @@
  * Interrupt numbers
  */
 #define IRQ_UART0       0
+#define IRQ_ETHERNET    1
 
 /*
  * Register definitions for the syscon registers
@@ -33,6 +36,7 @@
 #define   SYS_REG_INFO_HAS_DRAM 		(1ull << 1)
 #define   SYS_REG_INFO_HAS_BRAM 		(1ull << 2)
 #define   SYS_REG_INFO_HAS_SPI_FLASH 		(1ull << 3)
+#define   SYS_REG_INFO_HAS_LITEETH 		(1ull << 4)
 #define SYS_REG_BRAMINFO		0x10
 #define   SYS_REG_BRAMINFO_SIZE_MASK		0xfffffffffffffull
 #define SYS_REG_DRAMINFO		0x18

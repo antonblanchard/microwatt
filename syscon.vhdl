@@ -16,7 +16,8 @@ entity syscon is
 	DRAM_SIZE        : integer;
 	DRAM_INIT_SIZE   : integer;
         HAS_SPI_FLASH    : boolean;
-        SPI_FLASH_OFFSET : integer
+        SPI_FLASH_OFFSET : integer;
+	HAS_LITEETH      : boolean
 	);
     port (
 	clk : in std_ulogic;
@@ -56,6 +57,7 @@ architecture behaviour of syscon is
     constant SYS_REG_INFO_HAS_DRAM    : integer := 1;
     constant SYS_REG_INFO_HAS_BRAM    : integer := 2;
     constant SYS_REG_INFO_HAS_SPIF    : integer := 3;
+    constant SYS_REG_INFO_HAS_LETH    : integer := 4;
 
     -- BRAMINFO contains the BRAM size in the bottom 52 bits
     -- DRAMINFO contains the DRAM size if any in the bottom 52 bits
@@ -89,6 +91,7 @@ architecture behaviour of syscon is
     signal info_has_bram : std_ulogic;
     signal info_has_uart : std_ulogic;
     signal info_has_spif : std_ulogic;
+    signal info_has_leth : std_ulogic;
     signal info_clk      : std_ulogic_vector(39 downto 0);
     signal info_fl_off   : std_ulogic_vector(31 downto 0);
 
@@ -102,16 +105,19 @@ begin
     core_reset <= reg_ctrl(SYS_REG_CTRL_CORE_RESET);
 
     -- Info register is hard wired
-    info_has_uart <= '1' when HAS_UART else '0';
-    info_has_dram <= '1' when HAS_DRAM else '0';
+    info_has_uart <= '1' when HAS_UART       else '0';
+    info_has_dram <= '1' when HAS_DRAM       else '0';
     info_has_bram <= '1' when BRAM_SIZE /= 0 else '0';
-    info_has_spif <= '1' when HAS_SPI_FLASH else '0';
+    info_has_spif <= '1' when HAS_SPI_FLASH  else '0';
+    info_has_leth <= '1' when HAS_LITEETH    else '0';
     info_clk <= std_ulogic_vector(to_unsigned(CLK_FREQ, 40));
     reg_info <= (SYS_REG_INFO_HAS_UART  => info_has_uart,
 		 SYS_REG_INFO_HAS_DRAM  => info_has_dram,
                  SYS_REG_INFO_HAS_BRAM  => info_has_bram,
                  SYS_REG_INFO_HAS_SPIF  => info_has_spif,
+                 SYS_REG_INFO_HAS_LETH  => info_has_leth,
 		 others => '0');
+
     reg_braminfo <= x"000" & std_ulogic_vector(to_unsigned(BRAM_SIZE, 52));
     reg_draminfo <= x"000" & std_ulogic_vector(to_unsigned(DRAM_SIZE, 52)) when HAS_DRAM
 		    else (others => '0');

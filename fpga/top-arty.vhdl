@@ -21,11 +21,12 @@ entity toplevel is
         SPI_FLASH_OFFSET   : integer := 4194304;
         SPI_FLASH_DEF_CKDV : natural := 1;
         SPI_FLASH_DEF_QUAD : boolean := true;
-        LOG_LENGTH         : natural := 512
+        LOG_LENGTH         : natural := 512;
+        USE_LITEETH        : boolean  := false
         );
     port(
         ext_clk   : in  std_ulogic;
-        ext_rst   : in  std_ulogic;
+        ext_rst_n : in  std_ulogic;
 
         -- UART0 signals:
         uart_main_tx : out std_ulogic;
@@ -35,6 +36,10 @@ entity toplevel is
         led0_b  : out std_ulogic;
         led0_g  : out std_ulogic;
         led0_r  : out std_ulogic;
+        led4    : out std_ulogic;
+        led5    : out std_ulogic;
+        led6    : out std_ulogic;
+        led7    : out std_ulogic;
 
         -- SPI
         spi_flash_cs_n   : out std_ulogic;
@@ -43,6 +48,21 @@ entity toplevel is
         spi_flash_miso   : inout std_ulogic;
         spi_flash_wp_n   : inout std_ulogic;
         spi_flash_hold_n : inout std_ulogic;
+
+        -- Ethernet
+        eth_ref_clk      : out std_ulogic;
+        eth_clocks_tx    : in std_ulogic;
+        eth_clocks_rx    : in std_ulogic;
+        eth_rst_n        : out std_ulogic;
+        eth_mdio         : inout std_ulogic;
+        eth_mdc          : out std_ulogic;
+        eth_rx_dv        : in std_ulogic;
+        eth_rx_er        : in std_ulogic;
+        eth_rx_data      : in std_ulogic_vector(3 downto 0);
+        eth_tx_en        : out std_ulogic;
+        eth_tx_data      : out std_ulogic_vector(3 downto 0);
+        eth_col          : in std_ulogic;
+        eth_crs          : in std_ulogic;
 
         -- DRAM wires
         ddram_a       : out std_ulogic_vector(13 downto 0);
@@ -70,20 +90,27 @@ architecture behaviour of toplevel is
     signal pll_rst : std_ulogic;
 
     -- Internal clock signals:
-    signal system_clk : std_ulogic;
+    signal system_clk        : std_ulogic;
     signal system_clk_locked : std_ulogic;
+    signal eth_clk_locked    : std_ulogic;
 
-    -- DRAM main data wishbone connection
-    signal wb_dram_in       : wishbone_master_out;
-    signal wb_dram_out      : wishbone_slave_out;
-
-    -- DRAM control wishbone connection
+    -- External IOs from the SoC
     signal wb_ext_io_in        : wb_io_master_out;
     signal wb_ext_io_out       : wb_io_slave_out;
     signal wb_ext_is_dram_csr  : std_ulogic;
     signal wb_ext_is_dram_init : std_ulogic;
     signal wb_ext_is_eth       : std_ulogic;
 
+    -- DRAM main data wishbone connection
+    signal wb_dram_in          : wishbone_master_out;
+    signal wb_dram_out         : wishbone_slave_out;
+
+    -- DRAM control wishbone connection
+    signal wb_dram_ctrl_out    : wb_io_slave_out := wb_io_slave_out_init;
+
+    -- LiteEth connection
+    signal ext_irq_eth         : std_ulogic;
+    signal wb_eth_out          : wb_io_slave_out := wb_io_slave_out_init;
 
     -- Control/status
     signal core_alt_reset : std_ulogic;
@@ -142,7 +169,8 @@ begin
             SPI_FLASH_OFFSET   => SPI_FLASH_OFFSET,
             SPI_FLASH_DEF_CKDV => SPI_FLASH_DEF_CKDV,
             SPI_FLASH_DEF_QUAD => SPI_FLASH_DEF_QUAD,
-            LOG_LENGTH         => LOG_LENGTH
+            LOG_LENGTH         => LOG_LENGTH,
+            USE_LITEETH        => USE_LITEETH
             )
         port map (
             -- System signals
@@ -160,6 +188,9 @@ begin
             spi_flash_sdat_oe => spi_sdat_oe,
             spi_flash_sdat_i  => spi_sdat_i,
 
+            -- External interrupts
+            ext_irq_eth       => ext_irq_eth,
+
             -- DRAM wishbone
             wb_dram_in           => wb_dram_in,
             wb_dram_out          => wb_dram_out,
@@ -167,6 +198,7 @@ begin
             wb_ext_io_out        => wb_ext_io_out,
             wb_ext_is_dram_csr   => wb_ext_is_dram_csr,
             wb_ext_is_dram_init  => wb_ext_is_dram_init,
+            wb_ext_is_eth        => wb_ext_is_eth,
             alt_reset            => core_alt_reset
             );
 
@@ -217,8 +249,8 @@ begin
             port map(
                 ext_clk => ext_clk,
                 pll_clk => system_clk,
-                pll_locked_in => system_clk_locked,
-                ext_rst_in => ext_rst,
+                pll_locked_in => system_clk_locked and eth_clk_locked,
+                ext_rst_in => ext_rst_n,
                 pll_rst_out => pll_rst,
                 rst_out => soc_rst
                 );
@@ -257,6 +289,7 @@ begin
         signal dram_init_done  : std_ulogic;
         signal dram_init_error : std_ulogic;
         signal dram_sys_rst    : std_ulogic;
+        signal rst_gen_rst     : std_ulogic;
     begin
 
         -- Eventually dig out the frequency from the generator
@@ -272,11 +305,21 @@ begin
             port map(
                 ext_clk => ext_clk,
                 pll_clk => system_clk,
-                pll_locked_in => '1',
-                ext_rst_in => ext_rst,
+                pll_locked_in => eth_clk_locked,
+                ext_rst_in => ext_rst_n,
                 pll_rst_out => pll_rst,
-                rst_out => open
+                rst_out => rst_gen_rst
                 );
+
+        -- Generate SoC reset
+        soc_rst_gen: process(system_clk)
+        begin
+            if ext_rst_n = '0' then
+                soc_rst <= '1';
+            elsif rising_edge(system_clk) then
+                soc_rst <= dram_sys_rst or not eth_clk_locked or not system_clk_locked;
+            end if;
+        end process;
 
         dram: entity work.litedram_wrapper
             generic map(
@@ -289,14 +332,14 @@ begin
                 clk_in          => ext_clk,
                 rst             => pll_rst,
                 system_clk      => system_clk,
-                system_reset    => soc_rst,
+                system_reset    => dram_sys_rst,
                 core_alt_reset  => core_alt_reset,
                 pll_locked      => system_clk_locked,
 
                 wb_in           => wb_dram_in,
                 wb_out          => wb_dram_out,
                 wb_ctrl_in      => wb_ext_io_in,
-                wb_ctrl_out     => wb_ext_io_out,
+                wb_ctrl_out     => wb_dram_ctrl_out,
                 wb_ctrl_is_csr  => wb_ext_is_dram_csr,
                 wb_ctrl_is_init => wb_ext_is_dram_init,
 
@@ -326,6 +369,141 @@ begin
 
     end generate;
 
+    has_liteeth : if USE_LITEETH generate
+
+        component liteeth_core port (
+            sys_clock           : in std_ulogic;
+            sys_reset           : in std_ulogic;
+            mii_eth_clocks_tx   : in std_ulogic;
+            mii_eth_clocks_rx   : in std_ulogic;
+            mii_eth_rst_n       : out std_ulogic;
+            mii_eth_mdio        : in std_ulogic;
+            mii_eth_mdc         : out std_ulogic;
+            mii_eth_rx_dv       : in std_ulogic;
+            mii_eth_rx_er       : in std_ulogic;
+            mii_eth_rx_data     : in std_ulogic_vector(3 downto 0);
+            mii_eth_tx_en       : out std_ulogic;
+            mii_eth_tx_data     : out std_ulogic_vector(3 downto 0);
+            mii_eth_col         : in std_ulogic;
+            mii_eth_crs         : in std_ulogic;
+            wishbone_adr        : in std_ulogic_vector(29 downto 0);
+            wishbone_dat_w      : in std_ulogic_vector(31 downto 0);
+            wishbone_dat_r      : out std_ulogic_vector(31 downto 0);
+            wishbone_sel        : in std_ulogic_vector(3 downto 0);
+            wishbone_cyc        : in std_ulogic;
+            wishbone_stb        : in std_ulogic;
+            wishbone_ack        : out std_ulogic;
+            wishbone_we         : in std_ulogic;
+            wishbone_cti        : in std_ulogic_vector(2 downto 0);
+            wishbone_bte        : in std_ulogic_vector(1 downto 0);
+            wishbone_err        : out std_ulogic;
+            interrupt           : out std_ulogic
+            );
+        end component;
+
+        signal wb_eth_cyc     : std_ulogic;
+        signal wb_eth_adr     : std_ulogic_vector(29 downto 0);
+
+        -- Change this to use a PLL instead of a BUFR to generate the 25Mhz
+        -- reference clock to the PHY.
+        constant USE_PLL : boolean := false;
+    begin
+        eth_use_pll: if USE_PLL generate
+            signal eth_clk_25     : std_ulogic;
+            signal eth_clkfb      : std_ulogic;
+        begin
+            pll_eth : PLLE2_BASE
+                generic map (
+                    BANDWIDTH          => "OPTIMIZED",
+                    CLKFBOUT_MULT      => 16,
+                    CLKIN1_PERIOD      => 10.0,
+                    CLKOUT0_DIVIDE     => 64,
+                    DIVCLK_DIVIDE      => 1,
+                    STARTUP_WAIT       => "FALSE")
+                port map (
+                    CLKOUT0  => eth_clk_25,
+                    CLKOUT1  => open,
+                    CLKOUT2  => open,
+                    CLKOUT3  => open,
+                    CLKOUT4  => open,
+                    CLKOUT5  => open,
+                    CLKFBOUT => eth_clkfb,
+                    LOCKED   => eth_clk_locked,
+                    CLKIN1   => ext_clk,
+                    PWRDWN   => '0',
+                    RST      => pll_rst,
+                    CLKFBIN  => eth_clkfb);
+
+            eth_clk_buf: BUFG
+                port map (
+                    I => eth_clk_25,
+                    O => eth_ref_clk
+                    );
+        end generate;
+
+        eth_use_bufr: if not USE_PLL generate
+            eth_clk_div: BUFR
+                generic map (
+                    BUFR_DIVIDE => "4"
+                    )
+                port map (
+                    I => system_clk,
+                    O => eth_ref_clk,
+                    CE => '1',
+                    CLR => '0'
+                    );
+            eth_clk_locked <= '1';
+        end generate;
+
+        liteeth :  liteeth_core
+            port map(
+                sys_clock         => system_clk,
+                sys_reset         => soc_rst,
+                mii_eth_clocks_tx => eth_clocks_tx,
+                mii_eth_clocks_rx => eth_clocks_rx,
+                mii_eth_rst_n     => eth_rst_n,
+                mii_eth_mdio      => eth_mdio,
+                mii_eth_mdc       => eth_mdc,
+                mii_eth_rx_dv     => eth_rx_dv,
+                mii_eth_rx_er     => eth_rx_er,
+                mii_eth_rx_data   => eth_rx_data,
+                mii_eth_tx_en     => eth_tx_en,
+                mii_eth_tx_data   => eth_tx_data,
+                mii_eth_col       => eth_col,
+                mii_eth_crs       => eth_crs,
+                wishbone_adr      => wb_eth_adr,
+                wishbone_dat_w    => wb_ext_io_in.dat,
+                wishbone_dat_r    => wb_eth_out.dat,
+                wishbone_sel      => wb_ext_io_in.sel,
+                wishbone_cyc      => wb_eth_cyc,
+                wishbone_stb      => wb_ext_io_in.stb,
+                wishbone_ack      => wb_eth_out.ack,
+                wishbone_we       => wb_ext_io_in.we,
+                wishbone_cti      => "000",
+                wishbone_bte      => "00",
+                wishbone_err      => open,
+                interrupt         => ext_irq_eth
+                );
+
+        -- Gate cyc with "chip select" from soc
+        wb_eth_cyc <= wb_ext_io_in.cyc and wb_ext_is_eth;
+
+        -- Remove top address bits as liteeth decoder doesn't know about them
+        wb_eth_adr <= x"000" & "000" & wb_ext_io_in.adr(16 downto 2);
+
+        -- LiteETH isn't pipelined
+        wb_eth_out.stall <= not wb_eth_out.ack;
+
+    end generate;
+
+    no_liteeth : if not USE_LITEETH generate
+        eth_clk_locked <= '1';
+        ext_irq_eth    <= '0';
+    end generate;
+
+    -- Mux WB response on the IO bus
+    wb_ext_io_out <= wb_eth_out when wb_ext_is_eth = '1' else wb_dram_ctrl_out;
+
     leds_pwm : process(system_clk)
     begin
         if rising_edge(system_clk) then
@@ -341,5 +519,10 @@ begin
             end if;
         end if;
     end process;
+
+    led4 <= system_clk_locked;
+    led5 <= eth_clk_locked;
+    led6 <= not soc_rst;
+    led7 <= not spi_flash_cs_n;
 
 end architecture behaviour;
