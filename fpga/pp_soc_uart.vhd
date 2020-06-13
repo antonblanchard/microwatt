@@ -107,8 +107,6 @@ architecture behaviour of pp_soc_uart is
     type wb_state_type is (IDLE, WRITE_ACK, READ_ACK);
     signal wb_state : wb_state_type;
 
-    signal wb_ack : std_logic; --! Wishbone acknowledge signal
-
     signal rxd2 : std_logic := '1';
     signal rxd3 : std_logic := '1';
     signal txd2 : std_ulogic := '1';
@@ -319,13 +317,11 @@ begin
 
     ---------- Wishbone Interface ---------- 
 
-    wb_ack_out <= wb_ack and wb_cyc_in and wb_stb_in;
-
     wishbone: process(clk)
     begin
 	if rising_edge(clk) then
 	    if reset = '1' then
-		wb_ack <= '0';
+		wb_ack_out <= '0';
 		wb_state <= IDLE;
 		send_buffer_push <= '0';
 		recv_buffer_pop <= '0';
@@ -348,7 +344,7 @@ begin
 			    end if;
 
 			    -- Invalid writes are acked and ignored.
-			    wb_ack <= '1';
+			    wb_ack_out <= '1';
 			    wb_state <= WRITE_ACK;
 			else -- Read from register
 			    if wb_adr_in = x"008" then
@@ -356,18 +352,18 @@ begin
 			    elsif wb_adr_in = x"010" then
 				wb_dat_out <= x"0" & send_buffer_full & recv_buffer_full &
 					      send_buffer_empty & recv_buffer_empty;
-				wb_ack <= '1';
+				wb_ack_out <= '1';
 			    elsif wb_adr_in = x"018" then
 				wb_dat_out <= sample_clk_divisor;
-				wb_ack <= '1';
+				wb_ack_out <= '1';
 			    elsif wb_adr_in = x"020" then
 				wb_dat_out <= (0 => irq_recv_enable,
 					       1 => irq_tx_ready_enable,
 					       others => '0');
-				wb_ack <= '1';
+				wb_ack_out <= '1';
 			    else
 				wb_dat_out <= (others => '0');
-				wb_ack <= '1';
+				wb_ack_out <= '1';
 			    end if;
 			    wb_state <= READ_ACK;
 			end if;
@@ -376,7 +372,7 @@ begin
 		    send_buffer_push <= '0';
 
 		    if wb_stb_in = '0' then
-			wb_ack <= '0';
+			wb_ack_out <= '0';
 			wb_state <= IDLE;
 		    end if;
 		when READ_ACK =>
@@ -384,11 +380,11 @@ begin
 			recv_buffer_pop <= '0';
 		    else
 			wb_dat_out <= recv_buffer_output;
-			wb_ack <= '1';
+			wb_ack_out <= '1';
 		    end if;
 
 		    if wb_stb_in = '0' then
-			wb_ack <= '0';
+			wb_ack_out <= '0';
 			wb_state <= IDLE;
 		    end if;
 		end case;
