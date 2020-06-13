@@ -40,12 +40,12 @@ begin
     begin
         if rising_edge(clk) then
             if w_in.write_enable = '1' then
-                assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
 		if w_in.write_reg(5) = '0' then
 		    report "Writing GPR " & to_hstring(w_in.write_reg) & " " & to_hstring(w_in.write_data);
 		else
 		    report "Writing GSPR " & to_hstring(w_in.write_reg) & " " & to_hstring(w_in.write_data);
 		end if;
+                assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
                 registers(to_integer(unsigned(w_in.write_reg))) <= w_in.write_data;
             end if;
         end if;
