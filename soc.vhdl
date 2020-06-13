@@ -48,9 +48,9 @@ entity soc is
 
 	-- DRAM controller signals
 	wb_dram_in       : out wishbone_master_out;
-	wb_dram_out      : in wishbone_slave_out;
+	wb_dram_out      : in wishbone_slave_out := wishbone_slave_out_init;
 	wb_dram_ctrl_in  : out wb_io_master_out;
-	wb_dram_ctrl_out : in wb_io_slave_out;
+	wb_dram_ctrl_out : in wb_io_slave_out := wb_io_slave_out_init;
 	wb_dram_is_csr   : out std_ulogic;
 	wb_dram_is_init  : out std_ulogic;
 
@@ -267,8 +267,14 @@ begin
 	    wb_bram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_bram_out;
 	when SLAVE_TOP_DRAM =>
-	    wb_dram_in.cyc <= wb_master_out.cyc;
-	    wb_master_in <= wb_dram_out;
+            if HAS_DRAM then
+                wb_dram_in.cyc <= wb_master_out.cyc;
+                wb_master_in <= wb_dram_out;
+            else
+                wb_master_in.ack <= wb_master_out.cyc and wb_master_out.stb;
+                wb_master_in.dat <= (others => '1');
+                wb_master_in.stall <= '0';
+            end if;
 	when SLAVE_TOP_IO =>
 	    wb_io_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_io_out;
@@ -468,12 +474,24 @@ begin
 
 	case slave_io is
 	when SLAVE_IO_DRAM_INIT =>
-	    wb_dram_ctrl_in.cyc <= wb_sio_out.cyc;
-	    wb_sio_in <= wb_dram_ctrl_out;
+            if HAS_DRAM then
+                wb_dram_ctrl_in.cyc <= wb_sio_out.cyc;
+                wb_sio_in <= wb_dram_ctrl_out;
+            else
+                wb_sio_in.ack <= wb_sio_out.cyc and wb_sio_out.stb;
+                wb_sio_in.dat <= (others => '1');
+                wb_sio_in.stall <= '0';
+            end if;
 	    wb_dram_is_init <= '1';
 	when SLAVE_IO_DRAM_CSR =>
-	    wb_dram_ctrl_in.cyc <= wb_sio_out.cyc;
-	    wb_sio_in <= wb_dram_ctrl_out;
+            if HAS_DRAM then
+                wb_dram_ctrl_in.cyc <= wb_sio_out.cyc;
+                wb_sio_in <= wb_dram_ctrl_out;
+            else
+                wb_sio_in.ack <= wb_sio_out.cyc and wb_sio_out.stb;
+                wb_sio_in.dat <= (others => '1');
+                wb_sio_in.stall <= '0';
+            end if;
 	    wb_dram_is_csr <= '1';
 	when SLAVE_IO_SYSCON =>
 	    wb_syscon_in.cyc <= wb_sio_out.cyc;
