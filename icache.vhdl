@@ -32,6 +32,12 @@ entity icache is
         SIM : boolean := false;
         -- Line size in bytes
         LINE_SIZE : positive := 64;
+        -- BRAM organisation: We never access more than wishbone_data_bits at
+        -- a time so to save resources we make the array only that wide, and
+        -- use consecutive indices for to make a cache "line"
+        --
+        -- ROW_SIZE is the width in bytes of the BRAM (based on WB, so 64-bits)
+        ROW_SIZE  : positive := wishbone_data_bits / 8;
         -- Number of lines in a set
         NUM_LINES : positive := 32;
         -- Number of ways
@@ -62,19 +68,14 @@ entity icache is
 end entity icache;
 
 architecture rtl of icache is
-    -- BRAM organisation: We never access more than wishbone_data_bits at
-    -- a time so to save resources we make the array only that wide, and
-    -- use consecutive indices for to make a cache "line"
-    --
-    -- ROW_SIZE is the width in bytes of the BRAM (based on WB, so 64-bits)
-    constant ROW_SIZE      : natural := wishbone_data_bits / 8;
+    constant ROW_SIZE_BITS : natural := ROW_SIZE*8;
     -- ROW_PER_LINE is the number of row (wishbone transactions) in a line
     constant ROW_PER_LINE  : natural := LINE_SIZE / ROW_SIZE;
     -- BRAM_ROWS is the number of rows in BRAM needed to represent the full
     -- icache
     constant BRAM_ROWS     : natural := NUM_LINES * ROW_PER_LINE;
     -- INSN_PER_ROW is the number of 32bit instructions per BRAM row
-    constant INSN_PER_ROW  : natural := wishbone_data_bits / 32;
+    constant INSN_PER_ROW  : natural := ROW_SIZE_BITS / 32;
     -- Bit fields counts in the address
 
     -- INSN_BITS is the number of bits to select an instruction in a row
@@ -114,7 +115,7 @@ architecture rtl of icache is
     subtype way_t is integer range 0 to NUM_WAYS-1;
 
     -- The cache data BRAM organized as described above for each way
-    subtype cache_row_t is std_ulogic_vector(wishbone_data_bits-1 downto 0);
+    subtype cache_row_t is std_ulogic_vector(ROW_SIZE_BITS-1 downto 0);
 
     -- The cache tags LUTRAM has a row per set. Vivado is a pain and will
     -- not handle a clean (commented) definition of the cache tags as a 3d
@@ -348,7 +349,7 @@ begin
 	way: entity work.cache_ram
 	    generic map (
 		ROW_BITS => ROW_BITS,
-		WIDTH => wishbone_data_bits
+		WIDTH => ROW_SIZE_BITS
 		)
 	    port map (
 		clk     => clk,
