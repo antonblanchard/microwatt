@@ -117,7 +117,7 @@ architecture behaviour of soc is
     -- UART0 signals:
     signal wb_uart0_in   : wb_io_master_out;
     signal wb_uart0_out  : wb_io_slave_out;
-    signal uart_dat8     : std_ulogic_vector(7 downto 0);
+    signal uart0_dat8    : std_ulogic_vector(7 downto 0);
 
     -- SPI Flash controller signals:
     signal wb_spiflash_in     : wb_io_master_out;
@@ -571,13 +571,13 @@ begin
 	    irq => int_level_in(0),
 	    wb_adr_in => wb_uart0_in.adr(11 downto 0),
 	    wb_dat_in => wb_uart0_in.dat(7 downto 0),
-	    wb_dat_out => uart_dat8,
+	    wb_dat_out => uart0_dat8,
 	    wb_cyc_in => wb_uart0_in.cyc,
 	    wb_stb_in => wb_uart0_in.stb,
 	    wb_we_in => wb_uart0_in.we,
 	    wb_ack_out => wb_uart0_out.ack
 	    );
-    wb_uart0_out.dat <= x"000000" & uart_dat8;
+    wb_uart0_out.dat <= x"000000" & uart0_dat8;
     wb_uart0_out.stall <= not wb_uart0_out.ack;
 
     spiflash_gen: if HAS_SPI_FLASH generate        
