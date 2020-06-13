@@ -30,7 +30,6 @@ entity soc is
     generic (
 	MEMORY_SIZE        : natural;
 	RAM_INIT_FILE      : string;
-	RESET_LOW          : boolean;
 	CLK_FREQ           : positive;
 	SIM                : boolean;
 	DISABLE_FLATTEN_CORE : boolean := false;

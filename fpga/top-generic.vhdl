@@ -75,7 +75,6 @@ begin
 	generic map(
 	    MEMORY_SIZE   => MEMORY_SIZE,
 	    RAM_INIT_FILE => RAM_INIT_FILE,
-	    RESET_LOW     => RESET_LOW,
 	    SIM           => false,
 	    CLK_FREQ      => CLK_FREQUENCY,
 	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,

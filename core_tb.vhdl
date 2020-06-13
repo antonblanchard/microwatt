@@ -30,7 +30,6 @@ begin
 	    SIM => true,
 	    MEMORY_SIZE => (384*1024),
 	    RAM_INIT_FILE => "main_ram.bin",
-	    RESET_LOW => false,
 	    CLK_FREQ => 100000000,
             HAS_SPI_FLASH => false
 	    )

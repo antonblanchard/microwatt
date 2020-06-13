@@ -61,7 +61,6 @@ begin
 	    SIM => true,
 	    MEMORY_SIZE => MEMORY_SIZE,
 	    RAM_INIT_FILE => MAIN_RAM_FILE,
-	    RESET_LOW => false,
             HAS_DRAM => true,
 	    DRAM_SIZE => 256 * 1024 * 1024,
             DRAM_INIT_SIZE => ROM_SIZE,
