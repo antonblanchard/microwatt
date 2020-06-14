@@ -82,6 +82,7 @@ architecture behave of core is
     signal icache_stall_out : std_ulogic;
     signal icache_stall_in : std_ulogic;
     signal decode1_stall_in : std_ulogic;
+    signal decode1_busy     : std_ulogic;
     signal decode2_busy_in : std_ulogic;
     signal decode2_stall_out : std_ulogic;
     signal ex1_icache_inval: std_ulogic;
@@ -188,7 +189,7 @@ begin
             log_out => log_data(42 downto 0)
             );
 
-    fetch1_stall_in <= icache_stall_out or decode2_stall_out;
+    fetch1_stall_in <= icache_stall_out or decode1_busy;
 
     icache_0: entity work.icache
         generic map(
@@ -212,7 +213,7 @@ begin
             log_out => log_data(96 downto 43)
             );
 
-    icache_stall_in <= decode2_stall_out;
+    icache_stall_in <= decode1_busy;
 
     decode1_0: entity work.decode1
         port map (
@@ -220,6 +221,7 @@ begin
             rst => rst_dec1,
             stall_in => decode1_stall_in,
             flush_in => flush,
+            busy_out => decode1_busy,
             f_in => icache_to_decode1,
             d_out => decode1_to_decode2,
             log_out => log_data(109 downto 97)

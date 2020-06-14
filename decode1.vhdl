@@ -13,6 +13,7 @@ entity decode1 is
 
         stall_in : in std_ulogic;
         flush_in : in std_ulogic;
+        busy_out : out std_ulogic;
 
         f_in     : in IcacheToDecode1Type;
         d_out    : out Decode1ToDecode2Type;
@@ -22,6 +23,7 @@ end entity decode1;
 
 architecture behaviour of decode1 is
     signal r, rin : Decode1ToDecode2Type;
+    signal s      : Decode1ToDecode2Type;
 
     subtype major_opcode_t is unsigned(5 downto 0);
     type major_rom_array_t is array(0 to 63) of decode_rom_t;
@@ -359,12 +361,27 @@ begin
     decode1_0: process(clk)
     begin
         if rising_edge(clk) then
-            -- Output state remains unchanged on stall, unless we are flushing
-            if rst = '1' or flush_in = '1' or stall_in = '0' then
-                r <= rin;
+            if rst = '1' then
+                r <= Decode1ToDecode2Init;
+                s <= Decode1ToDecode2Init;
+            elsif flush_in = '1' then
+                r.valid <= '0';
+                s.valid <= '0';
+            elsif s.valid = '1' then
+                if stall_in = '0' then
+                    r <= s;
+                    s.valid <= '0';
+                end if;
+            else
+                s <= rin;
+                s.valid <= rin.valid and r.valid and stall_in;
+                if r.valid = '0' or stall_in = '0' then
+                    r <= rin;
+                end if;
             end if;
         end if;
     end process;
+    busy_out <= s.valid;
 
     decode1_1: process(all)
         variable v : Decode1ToDecode2Type;
@@ -470,14 +487,6 @@ begin
                     when others =>
                 end case;
             end if;
-        end if;
-
-        if flush_in = '1' then
-            v.valid := '0';
-        end if;
-
-        if rst = '1' then
-            v := Decode1ToDecode2Init;
         end if;
 
         -- Update registers
