@@ -113,8 +113,16 @@ package common is
 	ispr1: gspr_index_t; -- (G)SPR used for branch condition (CTR) or mfspr
 	ispr2: gspr_index_t; -- (G)SPR used for branch target (CTR, LR, TAR)
 	decode: decode_rom_t;
+        br_pred: std_ulogic; -- Branch was predicted to be taken
     end record;
-    constant Decode1ToDecode2Init : Decode1ToDecode2Type := (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'), ispr1 => (others => '0'), ispr2 => (others => '0'), decode => decode_rom_init);
+    constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
+        (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
+         ispr1 => (others => '0'), ispr2 => (others => '0'), decode => decode_rom_init, br_pred => '0');
+
+    type Decode1ToFetch1Type is record
+        redirect     : std_ulogic;
+        redirect_nia : std_ulogic_vector(63 downto 0);
+    end record;
 
     type Decode2ToExecute1Type is record
 	valid: std_ulogic;
@@ -149,12 +157,13 @@ package common is
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
         reserve : std_ulogic;                           -- set for larx/stcx
+        br_pred : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
          lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
-	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0',
+	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'), read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'), cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'), others => (others => '0'));
 
     type Execute1ToMultiplyType is record

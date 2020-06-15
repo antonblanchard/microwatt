@@ -8,16 +8,18 @@ use work.decode_types.all;
 
 entity decode1 is
     port (
-        clk      : in std_ulogic;
-        rst      : in std_ulogic;
+        clk       : in std_ulogic;
+        rst       : in std_ulogic;
 
-        stall_in : in std_ulogic;
-        flush_in : in std_ulogic;
-        busy_out : out std_ulogic;
+        stall_in  : in  std_ulogic;
+        flush_in  : in  std_ulogic;
+        busy_out  : out std_ulogic;
+        flush_out : out std_ulogic;
 
-        f_in     : in IcacheToDecode1Type;
-        d_out    : out Decode1ToDecode2Type;
-        log_out  : out std_ulogic_vector(12 downto 0)
+        f_in      : in IcacheToDecode1Type;
+        f_out     : out Decode1ToFetch1Type;
+        d_out     : out Decode1ToDecode2Type;
+        log_out   : out std_ulogic_vector(12 downto 0)
 	);
 end entity decode1;
 
@@ -385,11 +387,15 @@ begin
 
     decode1_1: process(all)
         variable v : Decode1ToDecode2Type;
+        variable f : Decode1ToFetch1Type;
         variable majorop : major_opcode_t;
         variable op_19_bits: std_ulogic_vector(2 downto 0);
         variable sprn : spr_num_t;
+        variable br_nia    : std_ulogic_vector(61 downto 0);
+        variable br_target : std_ulogic_vector(61 downto 0);
+        variable br_offset : signed(23 downto 0);
     begin
-        v := r;
+        v := Decode1ToDecode2Init;
 
         v.valid := f_in.valid;
         v.nia  := f_in.nia;
@@ -486,14 +492,36 @@ begin
 
         else
             v.decode := major_decode_rom_array(to_integer(majorop));
-
         end if;
+
+        -- Branch predictor
+        -- Note bclr, bcctr and bctar are predicted not taken as we have no
+        -- count cache or link stack.
+        br_offset := (others => '0');
+        if majorop = 18 then
+            -- Unconditional branches are always taken
+            v.br_pred := '1';
+            br_offset := signed(f_in.insn(25 downto 2));
+        elsif majorop = 16 then
+            -- Predict backward branches as taken, forward as untaken
+            v.br_pred := f_in.insn(15);
+            br_offset := resize(signed(f_in.insn(15 downto 2)), 24);
+        end if;
+        br_nia := f_in.nia(63 downto 2);
+        if f_in.insn(1) = '1' then
+            br_nia := (others => '0');
+        end if;
+        br_target := std_ulogic_vector(signed(br_nia) + br_offset);
+        f.redirect := v.br_pred and f_in.valid and not flush_in and not s.valid;
+        f.redirect_nia := br_target & "00";
 
         -- Update registers
         rin <= v;
 
         -- Update outputs
         d_out <= r;
+        f_out <= f;
+        flush_out <= f.redirect;
     end process;
 
     dec1_log : process(clk)

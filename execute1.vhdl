@@ -305,11 +305,17 @@ begin
         variable exception_nextpc : std_ulogic;
         variable trapval : std_ulogic_vector(4 downto 0);
         variable illegal : std_ulogic;
+        variable is_branch : std_ulogic;
+        variable taken_branch : std_ulogic;
+        variable abs_branch : std_ulogic;
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
 	result_en := '0';
 	newcrf := (others => '0');
+        is_branch := '0';
+        taken_branch := '0';
+        abs_branch := '0';
 
 	v := r;
 	v.e := Execute1ToWritebackInit;
@@ -625,12 +631,9 @@ begin
 		result := logical_result;
 		result_en := '1';
 	    when OP_B =>
-		f_out.redirect <= '1';
-		if (insn_aa(e_in.insn)) then
-		    f_out.redirect_nia <= b_in;
-		else
-		    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
-		end if;
+                is_branch := '1';
+                taken_branch := '1';
+                abs_branch := insn_aa(e_in.insn);
 	    when OP_BC =>
 		-- read_data1 is CTR
 		bo := insn_bo(e_in.insn);
@@ -640,14 +643,9 @@ begin
 		    result_en := '1';
 		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
-		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = 1 then
-		    f_out.redirect <= '1';
-		    if (insn_aa(e_in.insn)) then
-			f_out.redirect_nia <= b_in;
-		    else
-			f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
-		    end if;
-		end if;
+                is_branch := '1';
+		taken_branch := ppc_bc_taken(bo, bi, e_in.cr, a_in);
+                abs_branch := insn_aa(e_in.insn);
 	    when OP_BCREG =>
 		-- read_data1 is CTR
 		-- read_data2 is target register (CTR, LR or TAR)
@@ -658,7 +656,7 @@ begin
 		    result_en := '1';
 		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
-		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = 1 then
+		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = '1' then
 		    f_out.redirect <= '1';
 		    f_out.redirect_nia <= b_in(63 downto 2) & "00";
 		end if;
@@ -903,23 +901,35 @@ begin
 
 	    v.e.rc := e_in.rc and valid_in;
 
+            -- Mispredicted branches cause a redirect
+            if is_branch = '1' and taken_branch /= e_in.br_pred then
+                f_out.redirect <= '1';
+                if taken_branch = '1' then
+                    if abs_branch = '1' then
+                        f_out.redirect_nia <= b_in;
+                    else
+                        f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
+                    end if;
+                else
+                    f_out.redirect_nia <= next_nia;
+                end if;
+            end if;
+
 	    -- Update LR on the next cycle after a branch link
-	    --
-	    -- WARNING: The LR update isn't tracked by our hazard tracker. This
-	    --          will work (well I hope) because it only happens on branches
-	    --          which will flush all decoded instructions. By the time
-	    --          fetch catches up, we'll have the new LR. This will
-	    --          *not* work properly however if we have a branch predictor,
-	    --          in which case the solution would probably be to keep a
-	    --          local cache of the updated LR in execute1 (flushed on
-	    --          exceptions) that is used instead of the value from
-	    --          decode when its content is valid.
+	    -- If we're not writing back anything else, we can write back LR
+            -- this cycle, otherwise we take an extra cycle.
 	    if e_in.lr = '1' then
-		v.lr_update := '1';
-		v.next_lr := next_nia;
-		v.e.valid := '0';
-		report "Delayed LR update to " & to_hstring(next_nia);
-		v.busy := '1';
+                if result_en = '0' then
+                    result_en := '1';
+                    result := next_nia;
+                    v.e.write_reg := fast_spr_num(SPR_LR);
+                else
+                    v.lr_update := '1';
+                    v.next_lr := next_nia;
+                    v.e.valid := '0';
+                    report "Delayed LR update to " & to_hstring(next_nia);
+                    v.busy := '1';
+                end if;
 	    end if;
 
         elsif valid_in = '1' then

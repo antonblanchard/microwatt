@@ -358,6 +358,7 @@ begin
         v.e.sign_extend := d_in.decode.sign_extend;
         v.e.update := d_in.decode.update;
         v.e.reserve := d_in.decode.reserve;
+        v.e.br_pred := d_in.br_pred;
 
         -- issue control
         control_valid_in <= d_in.valid;
@@ -371,6 +372,11 @@ begin
         end if;
         update_gpr_write_valid <= d_in.decode.update;
         update_gpr_write_reg <= decoded_reg_a.reg;
+        if v.e.lr = '1' then
+            -- there are no instructions that have both update=1 and lr=1
+            update_gpr_write_valid <= '1';
+            update_gpr_write_reg <= fast_spr_num(SPR_LR);
+        end if;
 
         gpr_a_read_valid <= decoded_reg_a.reg_valid;
         gpr_a_read <= decoded_reg_a.reg;

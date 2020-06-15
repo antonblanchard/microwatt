@@ -93,7 +93,7 @@ package ppc_fx_insns is
 	function ppc_divd (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 	function ppc_divwu (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 
-	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return integer;
+	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return std_ulogic;
 end package ppc_fx_insns;
 
 package body ppc_fx_insns is
@@ -785,13 +785,12 @@ package body ppc_fx_insns is
 		return std_ulogic_vector(resize(tmp, ra'length));
 	end;
 
-	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return integer is
+	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return std_ulogic is
 		variable crfield: integer;
 		variable crbit_match: std_ulogic;
 		variable ctr_not_zero: std_ulogic;
 		variable ctr_ok: std_ulogic;
 		variable cond_ok: std_ulogic;
-		variable ret: integer;
 	begin
 		crfield := to_integer(unsigned(bi));
 		-- BE bit numbering
@@ -800,12 +799,7 @@ package body ppc_fx_insns is
 		ctr_not_zero := '1' when ctr /= x"0000000000000001" else '0';
 		ctr_ok := bo(4-2) or (ctr_not_zero xor bo(4-3));
 		cond_ok := bo(4-0) or crbit_match;
-		if ctr_ok = '1' and cond_ok = '1' then
-			ret := 1;
-		else
-			ret := 0;
-		end if;
-		return ret;
+                return ctr_ok and cond_ok;
 	end;
 
 end package body ppc_fx_insns;

@@ -48,6 +48,7 @@ architecture behave of core is
 
     -- decode signals
     signal decode1_to_decode2: Decode1ToDecode2Type;
+    signal decode1_to_fetch1: Decode1ToFetch1Type;
     signal decode2_to_execute1: Decode2ToExecute1Type;
 
     -- register file signals
@@ -90,6 +91,8 @@ architecture behave of core is
     signal dcache_stall_out: std_ulogic;
 
     signal flush: std_ulogic;
+    signal decode1_flush: std_ulogic;
+    signal fetch1_flush: std_ulogic;
 
     signal complete: std_ulogic;
     signal terminate: std_ulogic;
@@ -182,14 +185,16 @@ begin
             rst => rst_fetch1,
 	    alt_reset_in => alt_reset_d,
             stall_in => fetch1_stall_in,
-            flush_in => flush,
+            flush_in => fetch1_flush,
 	    stop_in => dbg_core_stop,
+            d_in => decode1_to_fetch1,
             e_in => execute1_to_fetch1,
             i_out => fetch1_to_icache,
             log_out => log_data(42 downto 0)
             );
 
     fetch1_stall_in <= icache_stall_out or decode1_busy;
+    fetch1_flush <= flush or decode1_flush;
 
     icache_0: entity work.icache
         generic map(
@@ -204,7 +209,7 @@ begin
             i_in => fetch1_to_icache,
             i_out => icache_to_decode1,
             m_in => mmu_to_icache,
-            flush_in => flush,
+            flush_in => fetch1_flush,
             inval_in => dbg_icache_rst or ex1_icache_inval,
             stall_in => icache_stall_in,
 	    stall_out => icache_stall_out,
@@ -221,9 +226,11 @@ begin
             rst => rst_dec1,
             stall_in => decode1_stall_in,
             flush_in => flush,
+            flush_out => decode1_flush,
             busy_out => decode1_busy,
             f_in => icache_to_decode1,
             d_out => decode1_to_decode2,
+            f_out => decode1_to_fetch1,
             log_out => log_data(109 downto 97)
             );
 
