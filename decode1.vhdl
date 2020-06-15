@@ -419,6 +419,20 @@ begin
             sprn := decode_spr_num(f_in.insn);
             v.ispr1 := fast_spr_num(sprn);
 
+            if std_match(f_in.insn(10 downto 1), "01-1010011") then
+                -- mfspr or mtspr
+                -- Make slow SPRs single issue
+                if is_fast_spr(v.ispr1) = '0' then
+                    v.decode.sgl_pipe := '1';
+                    -- send MMU-related SPRs to loadstore1
+                    case sprn is
+                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PRTBL =>
+                            v.decode.unit := LDST;
+                        when others =>
+                    end case;
+                end if;
+            end if;
+
         elsif majorop = "010000" then
             -- CTR may be needed as input to bc
             v.decode := major_decode_rom_array(to_integer(majorop));
@@ -473,20 +487,6 @@ begin
         else
             v.decode := major_decode_rom_array(to_integer(majorop));
 
-        end if;
-
-        if v.decode.insn_type = OP_MFSPR or v.decode.insn_type = OP_MTSPR then
-            sprn := decode_spr_num(f_in.insn);
-            -- Make slow SPRs single issue
-            if is_fast_spr(v.ispr1) = '0' then
-                v.decode.sgl_pipe := '1';
-                -- send MMU-related SPRs to loadstore1
-                case sprn is
-                    when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PRTBL =>
-                        v.decode.unit := LDST;
-                    when others =>
-                end case;
-            end if;
         end if;
 
         -- Update registers
