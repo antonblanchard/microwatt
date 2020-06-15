@@ -4,6 +4,7 @@ use ieee.numeric_std.all;
 
 library work;
 use work.decode_types.all;
+use work.ppc_fx_insns.all;
 
 entity logical is
     port (
@@ -13,9 +14,7 @@ entity logical is
         invert_in  : in std_ulogic;
         invert_out : in std_ulogic;
         result     : out std_ulogic_vector(63 downto 0);
-        datalen    : in std_logic_vector(3 downto 0);
-        popcnt     : out std_ulogic_vector(63 downto 0);
-        parity     : out std_ulogic_vector(63 downto 0)
+        datalen    : in std_logic_vector(3 downto 0)
         );
 end entity logical;
 
@@ -34,30 +33,14 @@ architecture behaviour of logical is
     type sixbit2 is array(0 to 1) of sixbit;
     signal pc32     : sixbit2;
     signal par0, par1 : std_ulogic;
+    signal popcnt   : std_ulogic_vector(63 downto 0);
+    signal parity   : std_ulogic_vector(63 downto 0);
 
 begin
     logical_0: process(all)
         variable rb_adj, tmp : std_ulogic_vector(63 downto 0);
+        variable negative : std_ulogic;
     begin
-        rb_adj := rb;
-        if invert_in = '1' then
-            rb_adj := not rb;
-        end if;
-
-        case op is
-            when OP_AND =>
-                tmp := rs and rb_adj;
-            when OP_OR =>
-                tmp := rs or rb_adj;
-	    when others =>
-                tmp := rs xor rb_adj;
-        end case;
-
-        result <= tmp;
-        if invert_out = '1' then
-            result <= not tmp;
-        end if;
-
         -- population counts
         for i in 0 to 31 loop
             pc2(i) <= unsigned("0" & rs(i * 2 downto i * 2)) + unsigned("0" & rs(i * 2 + 1 downto i * 2 + 1));
@@ -97,6 +80,45 @@ begin
             parity(0) <= par0;
             parity(32) <= par1;
         end if;
+
+        rb_adj := rb;
+        if invert_in = '1' then
+            rb_adj := not rb;
+        end if;
+
+        case op is
+            when OP_AND =>
+                tmp := rs and rb_adj;
+            when OP_OR =>
+                tmp := rs or rb_adj;
+	    when OP_XOR =>
+                tmp := rs xor rb_adj;
+            when OP_POPCNT =>
+                tmp := popcnt;
+            when OP_PRTY =>
+                tmp := parity;
+            when OP_CMPB =>
+                tmp := ppc_cmpb(rs, rb);
+            when others =>
+                -- EXTS
+                -- note datalen is a 1-hot encoding
+		negative := (datalen(0) and rs(7)) or
+			    (datalen(1) and rs(15)) or
+			    (datalen(2) and rs(31));
+		tmp := (others => negative);
+		if datalen(2) = '1' then
+		    tmp(31 downto 16) := rs(31 downto 16);
+		end if;
+		if datalen(2) = '1' or datalen(1) = '1' then
+		    tmp(15 downto 8) := rs(15 downto 8);
+		end if;
+		tmp(7 downto 0) := rs(7 downto 0);
+        end case;
+
+        if invert_out = '1' then
+            tmp := not tmp;
+        end if;
+        result <= tmp;
 
     end process;
 end behaviour;

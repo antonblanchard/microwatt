@@ -82,8 +82,6 @@ architecture behaviour of execute1 is
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
     signal countzero_result: std_ulogic_vector(63 downto 0);
-    signal popcnt_result: std_ulogic_vector(63 downto 0);
-    signal parity_result: std_ulogic_vector(63 downto 0);
 
     -- multiply signals
     signal x_to_multiply: Execute1ToMultiplyType;
@@ -208,9 +206,7 @@ begin
 	    invert_in => e_in.invert_a,
 	    invert_out => e_in.invert_out,
 	    result => logical_result,
-            datalen => e_in.data_len,
-            popcnt => popcnt_result,
-            parity => parity_result
+            datalen => e_in.data_len
 	    );
 
     countzero_0: entity work.zero_counter
@@ -295,7 +291,6 @@ begin
         variable sign1, sign2 : std_ulogic;
         variable abs1, abs2 : signed(63 downto 0);
 	variable overflow : std_ulogic;
-	variable negative : std_ulogic;
         variable zerohi, zerolo : std_ulogic;
         variable msb_a, msb_b : std_ulogic;
         variable a_lt : std_ulogic;
@@ -308,6 +303,7 @@ begin
         variable is_branch : std_ulogic;
         variable taken_branch : std_ulogic;
         variable abs_branch : std_ulogic;
+        variable spr_val : std_ulogic_vector(63 downto 0);
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -627,7 +623,7 @@ begin
                         end if;
                     end if;
                 end if;
-	    when OP_AND | OP_OR | OP_XOR =>
+	    when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS =>
 		result := logical_result;
 		result_en := '1';
 	    when OP_B =>
@@ -677,27 +673,10 @@ begin
                     ctrl_tmp.msr(MSR_DR) <= '1';
                 end if;
 
-	    when OP_CMPB =>
-		result := ppc_cmpb(c_in, b_in);
-		result_en := '1';
             when OP_CNTZ =>
                 v.e.valid := '0';
                 v.cntz_in_progress := '1';
                 v.busy := '1';
-            when OP_EXTS =>
-                -- note data_len is a 1-hot encoding
-		negative := (e_in.data_len(0) and c_in(7)) or
-			    (e_in.data_len(1) and c_in(15)) or
-			    (e_in.data_len(2) and c_in(31));
-		result := (others => negative);
-		if e_in.data_len(2) = '1' then
-		    result(31 downto 16) := c_in(31 downto 16);
-		end if;
-		if e_in.data_len(2) = '1' or e_in.data_len(1) = '1' then
-		    result(15 downto 8) := c_in(15 downto 8);
-		end if;
-		result(7 downto 0) := c_in(7 downto 0);
-		result_en := '1';
 	    when OP_ISEL =>
 		crbit := to_integer(unsigned(insn_bc(e_in.insn)));
 		if e_in.cr(31-crbit) = '1' then
@@ -769,24 +748,25 @@ begin
 			result(63-45) := v.e.xerc.ca32;
 		    end if;
 		else
+                    spr_val := c_in;
 		    case decode_spr_num(e_in.insn) is
 		    when SPR_TB =>
-			result := ctrl.tb;
+			spr_val := ctrl.tb;
 		    when SPR_DEC =>
-			result := ctrl.dec;
+			spr_val := ctrl.dec;
                     when 724 =>     -- LOG_ADDR SPR
-                        result := log_wr_addr & r.log_addr_spr;
+                        spr_val := log_wr_addr & r.log_addr_spr;
                     when 725 =>     -- LOG_DATA SPR
-                        result := log_rd_data;
+                        spr_val := log_rd_data;
                         v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
                     when others =>
                         -- mfspr from unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode
-			result := c_in;
                         if ctrl.msr(MSR_PR) = '1' then
                             illegal := '1';
                         end if;
 		    end case;
+                    result := spr_val;
 		end if;
 	    when OP_MFCR =>
 		if e_in.insn(20) = '0' then
@@ -862,12 +842,6 @@ begin
                         end if;
 		    end case;
 		end if;
-	    when OP_POPCNT =>
-		result := popcnt_result;
-		result_en := '1';
-	    when OP_PRTY =>
-		result := parity_result;
-		result_en := '1';
 	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR | OP_EXTSWSLI =>
 		result := rotator_result;
 		if e_in.output_carry = '1' then
@@ -917,12 +891,14 @@ begin
 
 	    -- Update LR on the next cycle after a branch link
 	    -- If we're not writing back anything else, we can write back LR
-            -- this cycle, otherwise we take an extra cycle.
+            -- this cycle, otherwise we take an extra cycle.  We use the
+            -- exc_write path since next_nia is written through that path
+            -- in other places.
 	    if e_in.lr = '1' then
                 if result_en = '0' then
-                    result_en := '1';
-                    result := next_nia;
-                    v.e.write_reg := fast_spr_num(SPR_LR);
+                    v.e.exc_write_enable := '1';
+                    v.e.exc_write_data := next_nia;
+                    v.e.exc_write_reg := fast_spr_num(SPR_LR);
                 else
                     v.lr_update := '1';
                     v.next_lr := next_nia;
@@ -939,9 +915,9 @@ begin
             end if;
 
 	elsif r.lr_update = '1' then
-	    result_en := '1';
-	    result := r.next_lr;
-	    v.e.write_reg := fast_spr_num(SPR_LR);
+            v.e.exc_write_enable := '1';
+	    v.e.exc_write_data := r.next_lr;
+	    v.e.exc_write_reg := fast_spr_num(SPR_LR);
 	    v.e.valid := '1';
         elsif r.cntz_in_progress = '1' then
             -- cnt[lt]z always takes two cycles
