@@ -652,26 +652,27 @@ begin
 		    result_en := '1';
 		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
-		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = '1' then
-		    f_out.redirect <= '1';
-		    f_out.redirect_nia <= b_in(63 downto 2) & "00";
-		end if;
+                is_branch := '1';
+		taken_branch := ppc_bc_taken(bo, bi, e_in.cr, a_in);
+                abs_branch := '1';
 
 	    when OP_RFID =>
-		f_out.redirect <= '1';
-                f_out.virt_mode <= b_in(MSR_IR) or b_in(MSR_PR);
-                f_out.priv_mode <= not b_in(MSR_PR);
-		f_out.redirect_nia <= a_in(63 downto 2) & "00"; -- srr0
+                f_out.virt_mode <= a_in(MSR_IR) or a_in(MSR_PR);
+                f_out.priv_mode <= not a_in(MSR_PR);
                 -- Can't use msr_copy here because the partial function MSR
                 -- bits should be left unchanged, not zeroed.
-                ctrl_tmp.msr(63 downto 31) <= b_in(63 downto 31);
-                ctrl_tmp.msr(26 downto 22) <= b_in(26 downto 22);
-                ctrl_tmp.msr(15 downto 0)  <= b_in(15 downto 0);
-                if b_in(MSR_PR) = '1' then
+                ctrl_tmp.msr(63 downto 31) <= a_in(63 downto 31);
+                ctrl_tmp.msr(26 downto 22) <= a_in(26 downto 22);
+                ctrl_tmp.msr(15 downto 0)  <= a_in(15 downto 0);
+                if a_in(MSR_PR) = '1' then
                     ctrl_tmp.msr(MSR_EE) <= '1';
                     ctrl_tmp.msr(MSR_IR) <= '1';
                     ctrl_tmp.msr(MSR_DR) <= '1';
                 end if;
+                -- mark this as a branch so CFAR gets updated
+                is_branch := '1';
+                taken_branch := '1';
+                abs_branch := '1';
 
             when OP_CNTZ =>
                 v.e.valid := '0';
@@ -757,6 +758,8 @@ begin
 			spr_val(31 downto 0)  := ctrl.tb(63 downto 32);
 		    when SPR_DEC =>
 			spr_val := ctrl.dec;
+                    when SPR_CFAR =>
+                        spr_val := ctrl.cfar;
                     when 724 =>     -- LOG_ADDR SPR
                         spr_val := log_wr_addr & r.log_addr_spr;
                     when 725 =>     -- LOG_DATA SPR
@@ -879,9 +882,9 @@ begin
 	    v.e.rc := e_in.rc and valid_in;
 
             -- Mispredicted branches cause a redirect
-            if is_branch = '1' and taken_branch /= e_in.br_pred then
-                f_out.redirect <= '1';
+            if is_branch = '1' then
                 if taken_branch = '1' then
+                    ctrl_tmp.cfar <= e_in.nia;
                     if abs_branch = '1' then
                         f_out.redirect_nia <= b_in;
                     else
@@ -889,6 +892,9 @@ begin
                     end if;
                 else
                     f_out.redirect_nia <= next_nia;
+                end if;
+                if taken_branch /= e_in.br_pred then
+                    f_out.redirect <= '1';
                 end if;
             end if;
 

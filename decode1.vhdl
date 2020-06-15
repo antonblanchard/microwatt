@@ -473,8 +473,8 @@ begin
                 end if;
             else
                 -- Could be OP_RFID
-                v.ispr1 := fast_spr_num(SPR_SRR0);
-                v.ispr2 := fast_spr_num(SPR_SRR1);
+                v.ispr1 := fast_spr_num(SPR_SRR1);
+                v.ispr2 := fast_spr_num(SPR_SRR0);
             end if;
 
         elsif majorop = "011110" then
