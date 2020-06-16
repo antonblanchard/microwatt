@@ -110,6 +110,7 @@ targets:
       - clk_input
       - clk_frequency
       - disable_flatten_core
+      - log_length=2048
     tools:
       vivado: {part : xc7a100tcsg324-1}
     toplevel : toplevel
@@ -124,6 +125,7 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - spi_flash_offset=10485760
+      - log_length=2048
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -138,6 +140,7 @@ targets:
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=10485760
+      - log_length=2048
     generate: [dram_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
@@ -153,6 +156,7 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - spi_flash_offset=3145728
+      - log_length=512
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
@@ -167,6 +171,7 @@ targets:
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=3145728
+      - log_length=512
     generate: [dram_arty]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -182,6 +187,7 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - spi_flash_offset=4194304
+      - log_length=2048
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -196,6 +202,7 @@ targets:
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=4194304
+      - log_length=2048
     generate: [dram_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
@@ -211,6 +218,7 @@ targets:
       - clk_input=12000000
       - clk_frequency
       - disable_flatten_core
+      - log_length=512
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel
@@ -280,4 +288,9 @@ parameters:
   spi_flash_offset:
     datatype    : int
     description : Offset (in bytes) in the SPI flash of the code payload to run
+    paramtype   : generic
+
+  log_length:
+    datatype    : int
+    description : Length of the core log buffer in entries (32 bytes each)
     paramtype   : generic

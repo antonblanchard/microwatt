@@ -11,7 +11,8 @@ entity core is
         SIM : boolean := false;
 	DISABLE_FLATTEN : boolean := false;
         EX1_BYPASS : boolean := true;
-	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0')
+	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
+        LOG_LENGTH : natural := 512
         );
     port (
         clk          : in std_ulogic;
@@ -372,6 +373,9 @@ begin
     log_data(139 downto 135) <= "00000";
 
     debug_0: entity work.core_debug
+        generic map (
+            LOG_LENGTH => LOG_LENGTH
+            )
 	port map (
 	    clk => clk,
 	    rst => rst_dbg,

@@ -41,7 +41,8 @@ entity soc is
         SPI_FLASH_DLINES   : positive := 1;
         SPI_FLASH_OFFSET   : integer := 0;
         SPI_FLASH_DEF_CKDV : natural := 2;
-        SPI_FLASH_DEF_QUAD : boolean := false
+        SPI_FLASH_DEF_QUAD : boolean := false;
+        LOG_LENGTH         : natural := 512
 	);
     port(
 	rst          : in  std_ulogic;
@@ -186,7 +187,8 @@ begin
 	generic map(
 	    SIM => SIM,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
-	    ALT_RESET_ADDRESS => (23 downto 0 => '0', others => '1')
+	    ALT_RESET_ADDRESS => (23 downto 0 => '0', others => '1'),
+            LOG_LENGTH => LOG_LENGTH
 	    )
 	port map(
 	    clk => system_clk,
