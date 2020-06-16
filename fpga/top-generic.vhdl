@@ -11,7 +11,8 @@ entity toplevel is
 	RESET_LOW     : boolean  := true;
 	CLK_INPUT     : positive := 100000000;
 	CLK_FREQUENCY : positive := 100000000;
-	DISABLE_FLATTEN_CORE : boolean := false
+	DISABLE_FLATTEN_CORE : boolean := false;
+        UART_IS_16550 : boolean  := false
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -67,7 +68,8 @@ begin
 	    RAM_INIT_FILE => RAM_INIT_FILE,
 	    SIM           => false,
 	    CLK_FREQ      => CLK_FREQUENCY,
-	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
+	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
+            UART0_IS_16550     => UART_IS_16550
 	    )
 	port map (
 	    system_clk        => system_clk,

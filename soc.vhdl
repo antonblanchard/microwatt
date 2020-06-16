@@ -20,6 +20,7 @@ use work.wishbone_types.all;
 -- IO Bus:
 -- 0xc0000000: SYSCON
 -- 0xc0002000: UART0
+-- 0xc0003000: UART1 (if any)
 -- 0xc0004000: XICS ICP
 -- 0xc0005000: XICS ICS
 -- 0xc0006000: SPI Flash controller
@@ -61,7 +62,9 @@ entity soc is
         SPI_FLASH_DEF_CKDV : natural := 2;
         SPI_FLASH_DEF_QUAD : boolean := false;
         LOG_LENGTH         : natural := 512;
-        HAS_LITEETH        : boolean := false
+        HAS_LITEETH        : boolean := false;
+	UART0_IS_16550     : boolean := false;
+	HAS_UART1          : boolean := false
 	);
     port(
 	rst          : in  std_ulogic;
@@ -84,6 +87,10 @@ entity soc is
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
 	uart0_rxd    : in  std_ulogic := '0';
+
+	-- UART1 signals:
+	uart1_txd    : out std_ulogic;
+	uart1_rxd    : in  std_ulogic := '0';
 
         -- SPI Flash signals
         spi_flash_sck     : out std_ulogic;
@@ -137,6 +144,12 @@ architecture behaviour of soc is
     signal uart0_dat8    : std_ulogic_vector(7 downto 0);
     signal uart0_irq     : std_ulogic;
 
+    -- UART1 signals:
+    signal wb_uart1_in   : wb_io_master_out;
+    signal wb_uart1_out  : wb_io_slave_out;
+    signal uart1_dat8    : std_ulogic_vector(7 downto 0);
+    signal uart1_irq     : std_ulogic;
+
     -- SPI Flash controller signals:
     signal wb_spiflash_in     : wb_io_master_out;
     signal wb_spiflash_out    : wb_io_slave_out;
@@ -188,12 +201,37 @@ architecture behaviour of soc is
                            SLAVE_IO_UART,
                            SLAVE_IO_ICP,
                            SLAVE_IO_ICS,
+                           SLAVE_IO_UART1,
                            SLAVE_IO_SPI_FLASH_REG,
                            SLAVE_IO_SPI_FLASH_MAP,
                            SLAVE_IO_EXTERNAL,
                            SLAVE_IO_NONE);
     signal slave_io_dbg : slave_io_type;
 
+    -- This is the component exported by the 16550 compatible
+    -- UART from FuseSoC.
+    --
+    component uart_top port (
+        wb_clk_i    : in std_ulogic;
+        wb_rst_i    : in std_ulogic;
+        wb_adr_i    : in std_ulogic_vector(2 downto 0);
+        wb_dat_i    : in std_ulogic_vector(7 downto 0);
+        wb_dat_o    : out std_ulogic_vector(7 downto 0);
+        wb_we_i     : in std_ulogic;
+        wb_stb_i    : in std_ulogic;
+        wb_cyc_i    : in std_ulogic;
+        wb_ack_o    : out std_ulogic;
+        int_o       : out std_ulogic;
+        stx_pad_o   : out std_ulogic;
+        srx_pad_i   : in std_ulogic;
+        rts_pad_o   : out std_ulogic;
+        cts_pad_i   : in std_ulogic;
+        dtr_pad_o   : out std_ulogic;
+        dsr_pad_i   : in std_ulogic;
+        ri_pad_i    : in std_ulogic;
+        dcd_pad_i   : in std_ulogic
+        );
+    end component;
 begin
 
     resets: process(system_clk)
@@ -458,7 +496,7 @@ begin
             
     -- IO wishbone slave intercon.
     --
-    slave_io_intercon: process(wb_sio_out, wb_syscon_out, wb_uart0_out,
+    slave_io_intercon: process(wb_sio_out, wb_syscon_out, wb_uart0_out, wb_uart1_out,
                                wb_ext_io_out, wb_xics_icp_out, wb_xics_ics_out,
                                wb_spiflash_out)
 	variable slave_io : slave_io_type;
@@ -478,6 +516,8 @@ begin
 	    slave_io := SLAVE_IO_SYSCON;
 	elsif std_match(match, x"C0002") then
 	    slave_io := SLAVE_IO_UART;
+	elsif std_match(match, x"C0003") then
+	    slave_io := SLAVE_IO_UART1;
 	elsif std_match(match, x"C8---") then
 	    slave_io := SLAVE_IO_EXTERNAL;
 	elsif std_match(match, x"C0004") then
@@ -490,6 +530,8 @@ begin
         slave_io_dbg <= slave_io;
 	wb_uart0_in <= wb_sio_out;
 	wb_uart0_in.cyc <= '0';
+	wb_uart1_in <= wb_sio_out;
+	wb_uart1_in.cyc <= '0';
 	wb_spiflash_in <= wb_sio_out;
 	wb_spiflash_in.cyc <= '0';
         wb_spiflash_is_reg <= '0';
@@ -559,6 +601,9 @@ begin
 	when SLAVE_IO_ICS =>
 	    wb_xics_ics_in.cyc <= wb_sio_out.cyc;
 	    wb_sio_in <= wb_xics_ics_out;
+	when SLAVE_IO_UART1 =>
+	    wb_uart1_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_uart1_out;
 	when SLAVE_IO_SPI_FLASH_MAP =>
             -- Clear top bits so they don't make their way to the
             -- fash chip.
@@ -586,7 +631,9 @@ begin
 	    CLK_FREQ => CLK_FREQ,
 	    HAS_SPI_FLASH => HAS_SPI_FLASH,
 	    SPI_FLASH_OFFSET => SPI_FLASH_OFFSET,
-            HAS_LITEETH => HAS_LITEETH
+            HAS_LITEETH => HAS_LITEETH,
+            UART0_IS_16550 => UART0_IS_16550,
+            HAS_UART1 => HAS_UART1
 	)
 	port map(
 	    clk => system_clk,
@@ -598,29 +645,114 @@ begin
 	    soc_reset => open -- XXX TODO
 	    );
 
-    -- Simulated memory and UART
+    --
+    -- UART0
+    --
+    -- Either potato (legacy) or 16550
+    --
+    uart0_pp: if not UART0_IS_16550 generate
+	uart0: entity work.pp_soc_uart
+	    generic map(
+		FIFO_DEPTH => 32
+		)
+	    port map(
+		clk => system_clk,
+		reset => rst_uart,
+		txd => uart0_txd,
+		rxd => uart0_rxd,
+		irq => uart0_irq,
+		wb_adr_in => wb_uart0_in.adr(11 downto 0),
+		wb_dat_in => wb_uart0_in.dat(7 downto 0),
+		wb_dat_out => uart0_dat8,
+		wb_cyc_in => wb_uart0_in.cyc,
+		wb_stb_in => wb_uart0_in.stb,
+		wb_we_in => wb_uart0_in.we,
+		wb_ack_out => wb_uart0_out.ack
+		);
+    end generate;
 
-    -- UART0 wishbone slave
-    uart0: entity work.pp_soc_uart
-	generic map(
-	    FIFO_DEPTH => 32
-	    )
-	port map(
-	    clk => system_clk,
-	    reset => rst_uart,
-	    txd => uart0_txd,
-	    rxd => uart0_rxd,
-	    irq => uart0_irq,
-	    wb_adr_in => wb_uart0_in.adr(11 downto 0),
-	    wb_dat_in => wb_uart0_in.dat(7 downto 0),
-	    wb_dat_out => uart0_dat8,
-	    wb_cyc_in => wb_uart0_in.cyc,
-	    wb_stb_in => wb_uart0_in.stb,
-	    wb_we_in => wb_uart0_in.we,
-	    wb_ack_out => wb_uart0_out.ack
-	    );
+    uart0_16550 : if UART0_IS_16550 generate
+        signal irq_l : std_ulogic;
+    begin
+	uart0: uart_top
+	    port map (
+		wb_clk_i   => system_clk,
+		wb_rst_i   => rst_uart,
+		wb_adr_i   => wb_uart0_in.adr(4 downto 2),
+		wb_dat_i   => wb_uart0_in.dat(7 downto 0),
+		wb_dat_o   => uart0_dat8,
+		wb_we_i    => wb_uart0_in.we,
+		wb_stb_i   => wb_uart0_in.stb,
+		wb_cyc_i   => wb_uart0_in.cyc,
+		wb_ack_o   => wb_uart0_out.ack,
+		int_o      => irq_l,
+		stx_pad_o  => uart0_txd,
+		srx_pad_i  => uart0_rxd,
+		rts_pad_o  => open,
+		cts_pad_i  => '1',
+		dtr_pad_o  => open,
+		dsr_pad_i  => '1',
+		ri_pad_i   => '0',
+		dcd_pad_i  => '1'
+		);
+
+        -- Add a register on the irq out, helps timing
+        uart0_irq_latch: process(system_clk)
+        begin
+            if rising_edge(system_clk) then
+                uart0_irq <= irq_l;
+            end if;
+        end process;
+    end generate;
+
     wb_uart0_out.dat <= x"000000" & uart0_dat8;
     wb_uart0_out.stall <= not wb_uart0_out.ack;
+
+    --
+    -- UART1
+    --
+    -- Always 16550 if it exists
+    --
+    uart1: if HAS_UART1 generate
+        signal irq_l : std_ulogic;
+    begin
+	uart1: uart_top
+	    port map (
+		wb_clk_i   => system_clk,
+		wb_rst_i   => rst_uart,
+		wb_adr_i   => wb_uart1_in.adr(4 downto 2),
+		wb_dat_i   => wb_uart1_in.dat(7 downto 0),
+		wb_dat_o   => uart1_dat8,
+		wb_we_i    => wb_uart1_in.we,
+		wb_stb_i   => wb_uart1_in.stb,
+		wb_cyc_i   => wb_uart1_in.cyc,
+		wb_ack_o   => wb_uart1_out.ack,
+		int_o      => irq_l,
+		stx_pad_o  => uart1_txd,
+		srx_pad_i  => uart1_rxd,
+		rts_pad_o  => open,
+		cts_pad_i  => '1',
+		dtr_pad_o  => open,
+		dsr_pad_i  => '1',
+		ri_pad_i   => '0',
+		dcd_pad_i  => '1'
+		);
+        -- Add a register on the irq out, helps timing
+        uart0_irq_latch: process(system_clk)
+        begin
+            if rising_edge(system_clk) then
+                uart1_irq <= irq_l;
+            end if;
+        end process;
+	wb_uart1_out.dat <= x"000000" & uart1_dat8;
+	wb_uart1_out.stall <= not wb_uart1_out.ack;
+    end generate;
+
+    no_uart1 : if not HAS_UART1 generate
+	wb_uart1_out.dat <= x"00000000";
+	wb_uart1_out.ack <= wb_uart1_in.cyc and wb_uart1_in.stb;
+	wb_uart1_out.stall <= '0';
+    end generate;
 
     spiflash_gen: if HAS_SPI_FLASH generate        
         spiflash: entity work.spi_flash_ctrl
@@ -680,6 +812,7 @@ begin
         int_level_in <= (others => '0');
         int_level_in(0) <= uart0_irq;
         int_level_in(1) <= ext_irq_eth;
+        int_level_in(2) <= uart1_irq;
     end process;
 
     -- BRAM Memory slave

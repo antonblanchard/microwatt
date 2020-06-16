@@ -13,10 +13,10 @@ set_property -dict { PACKAGE_PIN A9  IOSTANDARD LVCMOS33 } [get_ports { uart_mai
 # Pmod Header JC: UART (bottom)
 ################################################################################
 
-#set_property -dict { PACKAGE_PIN U14 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_cts_n }];
-#set_property -dict { PACKAGE_PIN V14 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_tx }];
-#set_property -dict { PACKAGE_PIN T13 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_rx }];
-#set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_rts_n }];
+set_property -dict { PACKAGE_PIN U14 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_cts_n }];
+set_property -dict { PACKAGE_PIN V14 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_tx }];
+set_property -dict { PACKAGE_PIN T13 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_rx }];
+set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_rts_n }];
 
 ################################################################################
 # RGB LEDs

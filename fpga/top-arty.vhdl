@@ -22,7 +22,9 @@ entity toplevel is
         SPI_FLASH_DEF_CKDV : natural := 1;
         SPI_FLASH_DEF_QUAD : boolean := true;
         LOG_LENGTH         : natural := 512;
-        USE_LITEETH        : boolean  := false
+        USE_LITEETH        : boolean  := false;
+        UART_IS_16550      : boolean  := false;
+        HAS_UART1          : boolean  := false
         );
     port(
         ext_clk   : in  std_ulogic;
@@ -31,6 +33,12 @@ entity toplevel is
         -- UART0 signals:
         uart_main_tx : out std_ulogic;
         uart_main_rx : in  std_ulogic;
+
+	-- UART1 signals:
+	uart_pmod_tx    : out std_ulogic;
+	uart_pmod_rx    : in std_ulogic;
+	uart_pmod_cts_n : in std_ulogic;
+	uart_pmod_rts_n : out std_ulogic;
 
         -- LEDs
         led0_b  : out std_ulogic;
@@ -170,7 +178,9 @@ begin
             SPI_FLASH_DEF_CKDV => SPI_FLASH_DEF_CKDV,
             SPI_FLASH_DEF_QUAD => SPI_FLASH_DEF_QUAD,
             LOG_LENGTH         => LOG_LENGTH,
-            USE_LITEETH        => USE_LITEETH
+            HAS_LITEETH        => USE_LITEETH,
+            UART0_IS_16550     => UART_IS_16550,
+            HAS_UART1          => HAS_UART1
             )
         port map (
             -- System signals
@@ -180,6 +190,10 @@ begin
             -- UART signals
             uart0_txd         => uart_main_tx,
             uart0_rxd         => uart_main_rx,
+
+	    -- UART1 signals
+	    uart1_txd         => uart_pmod_tx,
+	    uart1_rxd         => uart_pmod_rx,
 
             -- SPI signals
             spi_flash_sck     => spi_sck,
@@ -201,6 +215,8 @@ begin
             wb_ext_is_eth        => wb_ext_is_eth,
             alt_reset            => core_alt_reset
             );
+
+    uart_pmod_rts_n <= '0';
 
     -- SPI Flash
     --
