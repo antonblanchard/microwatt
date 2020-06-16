@@ -61,6 +61,10 @@ filesets:
       - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
     file_type : vhdlSource-2008
 
+  xilinx_specific:
+    files:
+      - xilinx-mult.vhdl : {file_type : vhdlSource-2008}
+
   debug_xilinx:
     files:
       - dmi_dtm_xilinx.vhdl : {file_type : vhdlSource-2008}
@@ -74,28 +78,24 @@ filesets:
       - fpga/nexys_a7.xdc : {file_type : xdc}
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
       - fpga/top-generic.vhdl : {file_type : vhdlSource-2008}
-      - xilinx-mult.vhdl : {file_type : vhdlSource-2008}
 
   nexys_video:
     files:
       - fpga/nexys-video.xdc : {file_type : xdc}
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
       - fpga/top-nexys-video.vhdl : {file_type : vhdlSource-2008}
-      - xilinx-mult.vhdl : {file_type : vhdlSource-2008}
 
   arty_a7:
     files:
       - fpga/arty_a7.xdc : {file_type : xdc}
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
       - fpga/top-arty.vhdl : {file_type : vhdlSource-2008}
-      - xilinx-mult.vhdl : {file_type : vhdlSource-2008}
 
   cmod_a7-35:
     files:
       - fpga/cmod_a7-35.xdc : {file_type : xdc}
       - fpga/clk_gen_mcmm.vhd : {file_type : vhdlSource-2008}
       - fpga/top-generic.vhdl : {file_type : vhdlSource-2008}
-      - xilinx-mult.vhdl : {file_type : vhdlSource-2008}
 
   litedram:
       depend : [":microwatt:litedram"]
@@ -103,7 +103,7 @@ filesets:
 targets:
   nexys_a7:
     default_tool: vivado
-    filesets: [core, nexys_a7, soc, fpga, debug_xilinx]
+    filesets: [core, nexys_a7, soc, fpga, debug_xilinx, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -117,7 +117,7 @@ targets:
 
   nexys_video-nodram:
     default_tool: vivado
-    filesets: [core, nexys_video, soc, fpga, debug_xilinx]
+    filesets: [core, nexys_video, soc, fpga, debug_xilinx, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -132,7 +132,7 @@ targets:
 
   nexys_video:
     default_tool: vivado
-    filesets: [core, nexys_video, soc, fpga, debug_xilinx, litedram]
+    filesets: [core, nexys_video, soc, fpga, debug_xilinx, litedram, xilinx_specific]
     parameters:
       - memory_size
       - ram_init_file
@@ -148,7 +148,7 @@ targets:
 
   arty_a7-35-nodram:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -163,7 +163,7 @@ targets:
 
   arty_a7-35:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -179,7 +179,7 @@ targets:
 
   arty_a7-100-nodram:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -194,7 +194,7 @@ targets:
 
   arty_a7-100:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, xilinx_specific]
     parameters:
       - memory_size
       - ram_init_file
@@ -210,7 +210,7 @@ targets:
 
   cmod_a7-35:
     default_tool: vivado
-    filesets: [core, cmod_a7-35, soc, fpga, debug_xilinx]
+    filesets: [core, cmod_a7-35, soc, fpga, debug_xilinx, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -224,7 +224,7 @@ targets:
     toplevel : toplevel
 
   synth:
-    filesets: [core, soc]
+    filesets: [core, soc, xilinx_specific]
     tools:
       vivado: {pnr : none}
     toplevel: core
