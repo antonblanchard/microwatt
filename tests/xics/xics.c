@@ -1,7 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <limits.h>
 
 #include "console.h"
 #include "xics.h"
