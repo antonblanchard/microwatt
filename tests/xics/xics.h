@@ -9,23 +9,33 @@
 
 #define bswap32(x) (uint32_t)__builtin_bswap32((uint32_t)(x))
 
-uint8_t xics_read8(int offset)
+uint8_t icp_read8(int offset)
 {
-	return readb(XICS_BASE + offset);
+	return readb(XICS_ICP_BASE + offset);
 }
 
-void xics_write8(int offset, uint8_t val)
+void icp_write8(int offset, uint8_t val)
 {
-	writeb(val, XICS_BASE + offset);
+	writeb(val, XICS_ICP_BASE + offset);
 }
 
-uint32_t xics_read32(int offset)
+uint32_t icp_read32(int offset)
 {
-	return bswap32(readl(XICS_BASE + offset));
+	return bswap32(readl(XICS_ICP_BASE + offset));
 }
 
-void xics_write32(int offset, uint32_t val)
+static inline void icp_write32(int offset, uint32_t val)
 {
-	writel(bswap32(val), XICS_BASE + offset);
+	writel(bswap32(val), XICS_ICP_BASE + offset);
+}
+
+uint32_t ics_read_xive(int irq)
+{
+	return bswap32(readl(XICS_ICS_BASE + 0x800 + (irq << 2)));
+}
+
+void ics_write_xive(uint32_t val, int irq)
+{
+	writel(bswap32(val), XICS_ICS_BASE + 0x800 + (irq << 2));
 }
 
