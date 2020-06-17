@@ -12,8 +12,8 @@ void delay(void)
 {
 	static volatile int i;
 
-	for (i = 0; i < 10; ++i)
-		;
+	for (i = 0; i < 16; ++i)
+		__asm__ volatile("" : : : "memory");
 }
 
 void print_number(unsigned int i) // only for i = 0-999
