@@ -53,7 +53,7 @@ architecture behaviour of xics is
     constant reg_internal_init : reg_internal_t :=
 	(wb_ack => '0',
 	 mfrr_pending => '0',
-	 mfrr => x"00", -- mask everything on reset
+	 mfrr => x"ff", -- no IPI on reset
 	 irq => '0',
 	 others => (others => '0'));
 
