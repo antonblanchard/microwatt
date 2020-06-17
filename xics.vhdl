@@ -86,6 +86,19 @@ begin
 	variable v : reg_internal_t;
 	variable xirr_accept_rd : std_ulogic;
 	variable irq_eoi : std_ulogic;
+
+        function  bswap(v : in std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
+            variable r : std_ulogic_vector(31 downto 0);
+        begin
+            r( 7 downto  0) := v(31 downto 24);
+            r(15 downto  8) := v(23 downto 16);
+            r(23 downto 16) := v(15 downto  8);
+            r(31 downto 24) := v( 7 downto  0);
+            return r;
+        end function;
+
+        variable be_in  : std_ulogic_vector(31 downto 0);
+        variable be_out : std_ulogic_vector(31 downto 0);
     begin
 	v := r;
 
@@ -94,72 +107,55 @@ begin
 	xirr_accept_rd := '0';
 	irq_eoi := '0';
 
+        be_in := bswap(wb_in.dat);
+        be_out := (others => '0');
+
 	if wb_in.cyc = '1' and wb_in.stb = '1' then
 	    v.wb_ack := '1'; -- always ack
 	    if wb_in.we = '1' then -- write
 		-- writes to both XIRR are the same
 		case wb_in.adr(7 downto 0) is
                 when XIRR_POLL =>
-		    report "XICS XIRR_POLL write";
-		    if wb_in.sel = x"f" then -- 4 bytes
-			v.cppr := wb_in.dat(31 downto 24);
-		    elsif wb_in.sel = x"1"  then -- 1 byte
-			v.cppr := wb_in.dat(7 downto 0);
-                    end if;
+		    report "ICP XIRR_POLL write";
+                    v.cppr := be_in(31 downto 24);
                 when XIRR =>
+                    v.cppr := be_in(31 downto 24);
 		    if wb_in.sel = x"f"  then -- 4 byte
-                        report "XICS XIRR write word:" & to_hstring(wb_in.dat);
-			v.cppr := wb_in.dat(31 downto 24);
+                        report "ICP XIRR write word (EOI) :" & to_hstring(be_in);
 			irq_eoi := '1';
 		    elsif wb_in.sel = x"1"  then -- 1 byte
-                        report "XICS XIRR write byte:" & to_hstring(wb_in.dat(7 downto 0));
-			v.cppr := wb_in.dat(7 downto 0);
+                        report "ICP XIRR write byte (CPPR):" & to_hstring(be_in(31 downto 24));
                     else
-                        report "XICS XIRR UNSUPPORTED write ! sel=" & to_hstring(wb_in.sel);
+                        report "ICP XIRR UNSUPPORTED write ! sel=" & to_hstring(wb_in.sel);
 		    end if;
 		when MFRR =>
+                    v.mfrr := be_in(31 downto 24);
+                    v.mfrr_pending := '1';
 		    if wb_in.sel = x"f" then -- 4 bytes
-                        report "XICS MFRR write word:" & to_hstring(wb_in.dat);
-			v.mfrr_pending := '1';
-			v.mfrr := wb_in.dat(31 downto 24);
+                        report "ICP MFRR write word:" & to_hstring(be_in);
 		    elsif wb_in.sel = x"1" then -- 1 byte
-                        report "XICS MFRR write byte:" & to_hstring(wb_in.dat(7 downto 0));
-			v.mfrr_pending := '1';
-			v.mfrr := wb_in.dat(7 downto 0);
+                        report "ICP MFRR write byte:" & to_hstring(be_in(31 downto 24));
                     else
-                        report "XICS MFRR UNSUPPORTED write ! sel=" & to_hstring(wb_in.sel);
+                        report "ICP MFRR UNSUPPORTED write ! sel=" & to_hstring(wb_in.sel);
 		    end if;
                 when others =>                        
 		end case;
 
 	    else -- read
-		v.wb_rd_data := (others => '0');
 
 		case wb_in.adr(7 downto 0) is
                 when XIRR_POLL =>
-                    report "XICS XIRR_POLL read";
-		    if wb_in.sel = x"f" then
-			v.wb_rd_data(23 downto  0) := r.xisr;
-			v.wb_rd_data(31 downto 24) := r.cppr;
-		    elsif wb_in.sel = x"1" then
-			v.wb_rd_data(7 downto  0) := r.cppr;
-                    end if;
+                    report "ICP XIRR_POLL read";
+                    be_out := r.cppr & r.xisr;
                 when XIRR =>
-                    report "XICS XIRR read";
+                    report "ICP XIRR read";
+                    be_out := r.cppr & r.xisr;
 		    if wb_in.sel = x"f" then
-			v.wb_rd_data(23 downto 0) := r.xisr;
-			v.wb_rd_data(31 downto 24) := r.cppr;
 			xirr_accept_rd := '1';
-		    elsif wb_in.sel = x"1" then
-			v.wb_rd_data(7 downto 0) := r.cppr;
 		    end if;
 		when MFRR =>
-		    report "XICS MFRR read";
-		    if wb_in.sel = x"f" then -- 4 bytes
-			v.wb_rd_data(31 downto 24) := r.mfrr;
-		    elsif wb_in.sel = x"1" then -- 1 byte
-			v.wb_rd_data( 7 downto  0) := r.mfrr;
-		    end if;
+                    report "ICP MFRR read";
+                    be_out(31 downto 24) := r.mfrr;
                 when others =>                        
 		end case;
 	    end if;
@@ -202,6 +198,8 @@ begin
 		" mfrr:" & to_hstring(r.mfrr);
 	    v.cppr := r.pending_priority;
 	end if;
+
+        v.wb_rd_data := bswap(be_out);
 
 	if irq_eoi = '1' then
 	    v.irq := '0';
