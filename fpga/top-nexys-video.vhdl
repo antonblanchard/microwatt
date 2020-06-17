@@ -73,10 +73,10 @@ architecture behaviour of toplevel is
     signal wb_dram_out      : wishbone_slave_out;
 
     -- DRAM control wishbone connection
-    signal wb_dram_ctrl_in  : wb_io_master_out;
-    signal wb_dram_ctrl_out : wb_io_slave_out;
-    signal wb_dram_is_csr   : std_ulogic;
-    signal wb_dram_is_init  : std_ulogic;
+    signal wb_ext_io_in        : wb_io_master_out;
+    signal wb_ext_io_out       : wb_io_slave_out;
+    signal wb_ext_is_dram_csr  : std_ulogic;
+    signal wb_ext_is_dram_init : std_ulogic;
 
     -- Control/status
     signal core_alt_reset : std_ulogic;
@@ -116,7 +116,6 @@ begin
 	generic map(
 	    MEMORY_SIZE   => BRAM_SIZE,
 	    RAM_INIT_FILE => RAM_INIT_FILE,
-	    RESET_LOW     => RESET_LOW,
 	    SIM           => false,
 	    CLK_FREQ      => CLK_FREQUENCY,
 	    HAS_DRAM      => USE_LITEDRAM,
@@ -146,13 +145,13 @@ begin
             spi_flash_sdat_i  => spi_sdat_i,
 
             -- DRAM wishbone
-	    wb_dram_in        => wb_dram_in,
-	    wb_dram_out       => wb_dram_out,
-	    wb_dram_ctrl_in   => wb_dram_ctrl_in,
-	    wb_dram_ctrl_out  => wb_dram_ctrl_out,
-	    wb_dram_is_csr    => wb_dram_is_csr,
-	    wb_dram_is_init   => wb_dram_is_init,
-	    alt_reset         => core_alt_reset
+	    wb_dram_in          => wb_dram_in,
+	    wb_dram_out         => wb_dram_out,
+	    wb_ext_io_in        => wb_ext_io_in,
+	    wb_ext_io_out       => wb_ext_io_out,
+	    wb_ext_is_dram_csr  => wb_dram_is_csr,
+	    wb_ext_is_dram_init => wb_dram_is_init,
+	    alt_reset           => core_alt_reset
 	    );
 
     -- SPI Flash. The SPI clk needs to be fed through the STARTUPE2
@@ -267,10 +266,10 @@ begin
 
 		wb_in		=> wb_dram_in,
 		wb_out		=> wb_dram_out,
-		wb_ctrl_in	=> wb_dram_ctrl_in,
-		wb_ctrl_out	=> wb_dram_ctrl_out,
-		wb_ctrl_is_csr  => wb_dram_is_csr,
-		wb_ctrl_is_init => wb_dram_is_init,
+		wb_ctrl_in	=> wb_ext_io_in,
+		wb_ctrl_out	=> wb_ext_io_out,
+		wb_ctrl_is_csr  => wb_ext_is_dram_csr,
+		wb_ctrl_is_init => wb_ext_is_dram_init,
 
 		init_done 	=> dram_init_done,
 		init_error	=> dram_init_error,

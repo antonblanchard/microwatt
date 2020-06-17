@@ -50,5 +50,5 @@ package wishbone_types is
         ack   : std_ulogic;
         stall : std_ulogic;
     end record;
-    
+    constant wb_io_slave_out_init : wb_io_slave_out := (ack => '0', stall => '0', others => (others => '0'));
 end package wishbone_types;

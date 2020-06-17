@@ -15,12 +15,6 @@ architecture behave of core_flash_tb is
 	-- testbench signals
 	constant clk_period : time := 10 ns;
 
-        -- Dummy DRAM
-	signal wb_dram_in : wishbone_master_out;
-	signal wb_dram_out : wishbone_slave_out;
-	signal wb_dram_ctrl_in : wb_io_master_out;
-	signal wb_dram_ctrl_out : wb_io_slave_out;
-
         -- SPI
         signal spi_sck     : std_ulogic;
         signal spi_cs_n    : std_ulogic := '1';
@@ -38,7 +32,6 @@ begin
 	    SIM => true,
 	    MEMORY_SIZE => (384*1024),
 	    RAM_INIT_FILE => "main_ram.bin",
-	    RESET_LOW => false,
 	    CLK_FREQ => 100000000,
             HAS_SPI_FLASH    => true,
             SPI_FLASH_DLINES => 4,
@@ -47,18 +40,11 @@ begin
 	port map(
 	    rst => rst,
 	    system_clk => clk,
-	    uart0_rxd => '0',
-	    uart0_txd => open,
-	    wb_dram_in => wb_dram_in,
-	    wb_dram_out => wb_dram_out,
-	    wb_dram_ctrl_in => wb_dram_ctrl_in,
-	    wb_dram_ctrl_out => wb_dram_ctrl_out,
             spi_flash_sck     => spi_sck,
             spi_flash_cs_n    => spi_cs_n,
             spi_flash_sdat_o  => spi_sdat_o,
             spi_flash_sdat_oe => spi_sdat_oe,
-            spi_flash_sdat_i  => spi_sdat_i,
-	    alt_reset => '0'
+            spi_flash_sdat_i  => spi_sdat_i
 	    );
 
     flash: entity work.s25fl128s
@@ -107,13 +93,5 @@ begin
     end process;
 
     jtag: entity work.sim_jtag;
-
-    -- Dummy DRAM
-    wb_dram_out.ack <= wb_dram_in.cyc and wb_dram_in.stb;
-    wb_dram_out.dat <= x"FFFFFFFFFFFFFFFF";
-    wb_dram_out.stall <= '0';
-    wb_dram_ctrl_out.ack <= wb_dram_ctrl_in.cyc and wb_dram_ctrl_in.stb;
-    wb_dram_ctrl_out.dat <= x"FFFFFFFF";
-    wb_dram_ctrl_out.stall <= '0';
 
 end;
