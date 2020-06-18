@@ -1,8 +1,7 @@
 #include <stddef.h>
 
-void potato_uart_init(void);
-void potato_uart_irq_en(void);
-void potato_uart_irq_dis(void);
+void console_init(void);
+void console_set_irq_en(bool rx_irq, bool tx_irq);
 int getchar(void);
 int putchar(int c);
 int puts(const char *str);

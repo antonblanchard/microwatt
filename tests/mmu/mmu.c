@@ -661,7 +661,7 @@ void do_test(int num, int (*test)(void))
 
 int main(void)
 {
-	potato_uart_init();
+	console_init();
 	init_mmu();
 
 	do_test(1, mmu_test_1);

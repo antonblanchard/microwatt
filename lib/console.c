@@ -80,9 +80,15 @@ void potato_uart_init(void)
 	potato_uart_reg_write(POTATO_CONSOLE_CLOCK_DIV, potato_uart_divisor(proc_freq, UART_FREQ));
 }
 
-void potato_uart_irq_en(void)
+void potato_uart_set_irq_en(bool rx_irq, bool tx_irq)
 {
-	potato_uart_reg_write(POTATO_CONSOLE_IRQ_EN, 0xff);
+	uint64_t en = 0;
+
+	if (rx_irq)
+		en |= POTATO_CONSOLE_IRQ_RX;
+	if (tx_irq)
+		en |= POTATO_CONSOLE_IRQ_TX;
+	potato_uart_reg_write(POTATO_CONSOLE_IRQ_EN, en);
 }
 
 void potato_uart_irq_dis(void)
@@ -131,3 +137,13 @@ size_t strlen(const char *s)
 	return len;
 }
 #endif
+
+void console_init(void)
+{
+	potato_uart_init();
+}
+
+void console_set_irq_en(bool rx_irq, bool tx_irq)
+{
+	potato_uart_set_irq_en(rx_irq, tx_irq);
+}

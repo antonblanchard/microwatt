@@ -25,7 +25,7 @@ void init_bss()
 int main(void)
 {
 	init_bss();
-	potato_uart_init();
+	console_init();
 
 	puts(HELLO_WORLD);
 

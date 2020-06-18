@@ -69,6 +69,8 @@
 #define   POTATO_CONSOLE_STATUS_TX_FULL			0x08
 #define POTATO_CONSOLE_CLOCK_DIV	0x18
 #define POTATO_CONSOLE_IRQ_EN		0x20
+#define   POTATO_CONSOLE_IRQ_RX				0x01
+#define   POTATO_CONSOLE_IRQ_TX				0x02
 
 /*
  * Register definitionss for our standard (16550 style) UART

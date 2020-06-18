@@ -24,7 +24,7 @@ int main(void)
 {
 	int fail = 0;
 
-	potato_uart_init();
+	console_init();
 
 	print_test_number(1);
 	if (test_addpcis_1() != 0) {

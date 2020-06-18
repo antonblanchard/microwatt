@@ -83,7 +83,7 @@ void ipi_isr(void) {
 void uart_isr(void) {
 	debug_puts(UART);
 
-	potato_uart_irq_dis(); // disable interrupt to ack it
+	console_set_irq_en(false, false);
 
 	isrs_run |= ISR_UART;
 }
@@ -202,7 +202,7 @@ int xics_test_1(void)
 	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
 
 	// trigger two interrupts
-	potato_uart_irq_en();        // cause serial interrupt
+	console_set_irq_en(true,true);// cause serial interrupt
 	ics_write_xive(0x6, 0);      // set source to prio 6
 	icp_write8(XICS_MFRR, 0x04); // cause ipi interrupt at prio 5
 
@@ -222,7 +222,7 @@ int xics_test_1(void)
 
 	// cleanup
 	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
-	potato_uart_irq_dis();
+	console_set_irq_en(false, false);
 	ics_write_xive(0, 0xff);
 	isrs_run = 0;
 
@@ -242,7 +242,7 @@ int xics_test_2(void)
 	assert(isrs_run == 0);
 
 	// trigger both
-	potato_uart_irq_en(); // cause 0x500 interrupt
+	console_set_irq_en(true, true);
 	icp_write8(XICS_MFRR, 0x05); // cause 0x500 interrupt
 
 	delay();
@@ -250,7 +250,7 @@ int xics_test_2(void)
 
 	// cleanup
 	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
-	potato_uart_irq_dis();
+	console_set_irq_en(false, false);
 	isrs_run = 0;
 
 	return 0;
@@ -307,7 +307,7 @@ int main(void)
 	int i = 0;
 	int (*t)(void);
 
-	potato_uart_init();
+	console_init();
 	ipi_running = false;
 
 	/* run the tests */
