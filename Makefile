@@ -56,7 +56,8 @@ soc_files = $(core_files) wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_
 
 
 soc_sim_files = $(soc_files) sim_console.vhdl sim_pp_uart.vhdl sim_bram_helpers.vhdl \
-	sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl dmi_dtm_xilinx.vhdl
+	sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl dmi_dtm_xilinx.vhdl \
+	sim_16550_uart.vhdl
 
 soc_sim_c_files = sim_vhpi_c.c sim_bram_helpers_c.c sim_console_c.c \
 	sim_jtag_socket_c.c
