@@ -79,6 +79,10 @@
 #define UART_REG_TX       0x00
 #define UART_REG_DLL      0x00
 #define UART_REG_IER      0x04
+#define   UART_REG_IER_RDI      0x01
+#define   UART_REG_IER_THRI     0x02
+#define   UART_REG_IER_RLSI     0x04
+#define   UART_REG_IER_MSI      0x08
 #define UART_REG_DLM      0x04
 #define UART_REG_IIR      0x08
 #define UART_REG_FCR      0x08
