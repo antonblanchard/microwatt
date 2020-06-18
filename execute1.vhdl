@@ -752,6 +752,9 @@ begin
 		    case decode_spr_num(e_in.insn) is
 		    when SPR_TB =>
 			spr_val := ctrl.tb;
+		    when SPR_TBU =>
+                        spr_val(63 downto 32) := (others => '0');
+			spr_val(31 downto 0)  := ctrl.tb(63 downto 32);
 		    when SPR_DEC =>
 			spr_val := ctrl.dec;
                     when 724 =>     -- LOG_ADDR SPR
