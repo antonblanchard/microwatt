@@ -12,7 +12,7 @@ entity toplevel is
 	CLK_INPUT     : positive := 100000000;
 	CLK_FREQUENCY : positive := 100000000;
 	DISABLE_FLATTEN_CORE : boolean := false;
-        UART_IS_16550 : boolean  := false
+        UART_IS_16550 : boolean  := true
 	);
     port(
 	ext_clk   : in  std_ulogic;
