@@ -24,7 +24,7 @@ entity toplevel is
         LOG_LENGTH         : natural := 512;
         USE_LITEETH        : boolean  := false;
         UART_IS_16550      : boolean  := false;
-        HAS_UART1          : boolean  := false
+        HAS_UART1          : boolean  := true
         );
     port(
         ext_clk   : in  std_ulogic;

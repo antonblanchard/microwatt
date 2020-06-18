@@ -315,7 +315,7 @@ parameters:
     datatype    : bool
     description : Use 16550-compatible UART from OpenCores
     paramtype   : generic
-    default     : false
+    default     : true
 
   has_uart1:
     datatype    : bool

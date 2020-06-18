@@ -20,7 +20,7 @@ entity toplevel is
         SPI_FLASH_OFFSET   : integer := 10485760;
         SPI_FLASH_DEF_CKDV : natural := 1;
         SPI_FLASH_DEF_QUAD : boolean := true;
-        UART_IS_16550      : boolean  := false;
+        UART_IS_16550      : boolean := true;
 	);
     port(
 	ext_clk   : in  std_ulogic;

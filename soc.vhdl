@@ -63,7 +63,7 @@ entity soc is
         SPI_FLASH_DEF_QUAD : boolean := false;
         LOG_LENGTH         : natural := 512;
         HAS_LITEETH        : boolean := false;
-	UART0_IS_16550     : boolean := false;
+	UART0_IS_16550     : boolean := true;
 	HAS_UART1          : boolean := false
 	);
     port(
