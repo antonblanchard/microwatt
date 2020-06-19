@@ -71,8 +71,11 @@ void sim_console_poll(unsigned char *__rt)
 	ret = poll(fdset, 1, 0);
 	//fprintf(stderr, "poll returns %d\n", ret);
 
-	if (ret == 1)
-		val = 1;
+	if (ret == 1) {
+		if (fdset[0].revents & POLLIN)
+			val = 1;
+//		fprintf(stderr, "poll revents: 0x%x\n", fdset[0].revents);
+	}
 
 	to_std_logic_vector(val, __rt, 64);
 }
