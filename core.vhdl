@@ -11,7 +11,8 @@ entity core is
         SIM : boolean := false;
 	DISABLE_FLATTEN : boolean := false;
         EX1_BYPASS : boolean := true;
-	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0')
+	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
+        LOG_LENGTH : natural := 512
         );
     port (
         clk          : in std_ulogic;
@@ -41,16 +42,14 @@ entity core is
 end core;
 
 architecture behave of core is
-    -- fetch signals
-    signal fetch2_to_decode1: Fetch2ToDecode1Type;
-
     -- icache signals
     signal fetch1_to_icache : Fetch1ToIcacheType;
-    signal icache_to_fetch2 : IcacheToFetch2Type;
+    signal icache_to_decode1 : IcacheToDecode1Type;
     signal mmu_to_icache : MmuToIcacheType;
 
     -- decode signals
     signal decode1_to_decode2: Decode1ToDecode2Type;
+    signal decode1_to_fetch1: Decode1ToFetch1Type;
     signal decode2_to_execute1: Decode2ToExecute1Type;
 
     -- register file signals
@@ -83,16 +82,18 @@ architecture behave of core is
     -- local signals
     signal fetch1_stall_in : std_ulogic;
     signal icache_stall_out : std_ulogic;
-    signal fetch2_stall_in : std_ulogic;
+    signal icache_stall_in : std_ulogic;
     signal decode1_stall_in : std_ulogic;
-    signal decode2_stall_in : std_ulogic;
+    signal decode1_busy     : std_ulogic;
+    signal decode2_busy_in : std_ulogic;
     signal decode2_stall_out : std_ulogic;
     signal ex1_icache_inval: std_ulogic;
-    signal ex1_stall_out: std_ulogic;
-    signal ls1_stall_out: std_ulogic;
+    signal ex1_busy_out: std_ulogic;
     signal dcache_stall_out: std_ulogic;
 
     signal flush: std_ulogic;
+    signal decode1_flush: std_ulogic;
+    signal fetch1_flush: std_ulogic;
 
     signal complete: std_ulogic;
     signal terminate: std_ulogic;
@@ -128,6 +129,12 @@ architecture behave of core is
     -- Debug status
     signal dbg_core_is_stopped: std_ulogic;
 
+    -- Logging signals
+    signal log_data    : std_ulogic_vector(255 downto 0);
+    signal log_rd_addr : std_ulogic_vector(31 downto 0);
+    signal log_wr_addr : std_ulogic_vector(31 downto 0);
+    signal log_rd_data : std_ulogic_vector(63 downto 0);
+
     function keep_h(disable : boolean) return string is
     begin
 	if disable then
@@ -139,7 +146,6 @@ architecture behave of core is
     attribute keep_hierarchy : string;
     attribute keep_hierarchy of fetch1_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of icache_0 : label is keep_h(DISABLE_FLATTEN);
-    attribute keep_hierarchy of fetch2_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of decode1_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of decode2_0 : label is keep_h(DISABLE_FLATTEN);
     attribute keep_hierarchy of register_file_0 : label is keep_h(DISABLE_FLATTEN);
@@ -180,45 +186,40 @@ begin
             rst => rst_fetch1,
 	    alt_reset_in => alt_reset_d,
             stall_in => fetch1_stall_in,
-            flush_in => flush,
+            flush_in => fetch1_flush,
 	    stop_in => dbg_core_stop,
+            d_in => decode1_to_fetch1,
             e_in => execute1_to_fetch1,
-            i_out => fetch1_to_icache
+            i_out => fetch1_to_icache,
+            log_out => log_data(42 downto 0)
             );
 
-    fetch1_stall_in <= icache_stall_out or decode2_stall_out;
+    fetch1_stall_in <= icache_stall_out or decode1_busy;
+    fetch1_flush <= flush or decode1_flush;
 
     icache_0: entity work.icache
         generic map(
             SIM => SIM,
             LINE_SIZE => 64,
-            NUM_LINES => 32,
+            NUM_LINES => 64,
 	    NUM_WAYS => 2
             )
         port map(
             clk => clk,
             rst => rst_icache,
             i_in => fetch1_to_icache,
-            i_out => icache_to_fetch2,
+            i_out => icache_to_decode1,
             m_in => mmu_to_icache,
-            flush_in => flush,
+            flush_in => fetch1_flush,
             inval_in => dbg_icache_rst or ex1_icache_inval,
+            stall_in => icache_stall_in,
 	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
-            wishbone_in => wishbone_insn_in
+            wishbone_in => wishbone_insn_in,
+            log_out => log_data(96 downto 43)
             );
 
-    fetch2_0: entity work.fetch2
-        port map (
-            clk => clk,
-            rst => rst_fetch2,
-            stall_in => fetch2_stall_in,
-            flush_in => flush,
-            i_in => icache_to_fetch2,
-            f_out => fetch2_to_decode1
-            );
-
-    fetch2_stall_in <= decode2_stall_out;
+    icache_stall_in <= decode1_busy;
 
     decode1_0: entity work.decode1
         port map (
@@ -226,8 +227,12 @@ begin
             rst => rst_dec1,
             stall_in => decode1_stall_in,
             flush_in => flush,
-            f_in => fetch2_to_decode1,
-            d_out => decode1_to_decode2
+            flush_out => decode1_flush,
+            busy_out => decode1_busy,
+            f_in => icache_to_decode1,
+            d_out => decode1_to_decode2,
+            f_out => decode1_to_fetch1,
+            log_out => log_data(109 downto 97)
             );
 
     decode1_stall_in <= decode2_stall_out;
@@ -239,7 +244,7 @@ begin
         port map (
             clk => clk,
             rst => rst_dec2,
-	    stall_in => decode2_stall_in,
+	    busy_in => decode2_busy_in,
             stall_out => decode2_stall_out,
             flush_in => flush,
             complete_in => complete,
@@ -249,9 +254,10 @@ begin
             r_in => register_file_to_decode2,
             r_out => decode2_to_register_file,
             c_in => cr_file_to_decode2,
-            c_out => decode2_to_cr_file
+            c_out => decode2_to_cr_file,
+            log_out => log_data(119 downto 110)
             );
-    decode2_stall_in <= ex1_stall_out or ls1_stall_out;
+    decode2_busy_in <= ex1_busy_out;
 
     register_file_0: entity work.register_file
         generic map (
@@ -267,7 +273,8 @@ begin
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
 	    sim_dump => terminate,
-	    sim_dump_done => sim_cr_dump
+	    sim_dump_done => sim_cr_dump,
+            log_out => log_data(255 downto 185)
 	    );
 
     cr_file_0: entity work.cr_file
@@ -279,7 +286,8 @@ begin
             d_in => decode2_to_cr_file,
             d_out => cr_file_to_decode2,
             w_in => writeback_to_cr_file,
-            sim_dump => sim_cr_dump
+            sim_dump => sim_cr_dump,
+            log_out => log_data(184 downto 172)
             );
 
     execute1_0: entity work.execute1
@@ -290,7 +298,7 @@ begin
             clk => clk,
             rst => rst_ex1,
             flush_out => flush,
-	    stall_out => ex1_stall_out,
+	    busy_out => ex1_busy_out,
             e_in => decode2_to_execute1,
             l_in => loadstore1_to_execute1,
             ext_irq_in => ext_irq,
@@ -299,7 +307,11 @@ begin
             e_out => execute1_to_writeback,
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
-            terminate_out => terminate
+            terminate_out => terminate,
+            log_out => log_data(134 downto 120),
+            log_rd_addr => log_rd_addr,
+            log_rd_data => log_rd_data,
+            log_wr_addr => log_wr_addr
             );
 
     loadstore1_0: entity work.loadstore1
@@ -314,7 +326,7 @@ begin
             m_out => loadstore1_to_mmu,
             m_in => mmu_to_loadstore1,
             dc_stall => dcache_stall_out,
-            stall_out => ls1_stall_out
+            log_out => log_data(149 downto 140)
             );
 
     mmu_0: entity work.mmu
@@ -331,7 +343,7 @@ begin
     dcache_0: entity work.dcache
         generic map(
             LINE_SIZE => 64,
-            NUM_LINES => 32,
+            NUM_LINES => 64,
 	    NUM_WAYS => 2
             )
         port map (
@@ -343,7 +355,8 @@ begin
             m_out => dcache_to_mmu,
             stall_out => dcache_stall_out,
             wishbone_in => wishbone_data_in,
-            wishbone_out => wishbone_data_out
+            wishbone_out => wishbone_data_out,
+            log_out => log_data(171 downto 152)
             );
 
     writeback_0: entity work.writeback
@@ -356,7 +369,13 @@ begin
             complete_out => complete
             );
 
+    log_data(151 downto 150) <= "00";
+    log_data(139 downto 135) <= "00000";
+
     debug_0: entity work.core_debug
+        generic map (
+            LOG_LENGTH => LOG_LENGTH
+            )
 	port map (
 	    clk => clk,
 	    rst => rst_dbg,
@@ -377,6 +396,10 @@ begin
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
+            log_data => log_data,
+            log_read_addr => log_rd_addr,
+            log_read_data => log_rd_data,
+            log_write_addr => log_wr_addr,
 	    terminated_out => terminated_out
 	    );
 

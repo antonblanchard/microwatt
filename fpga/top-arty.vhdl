@@ -20,7 +20,8 @@ entity toplevel is
         SCLK_STARTUPE2     : boolean := false;
         SPI_FLASH_OFFSET   : integer := 4194304;
         SPI_FLASH_DEF_CKDV : natural := 1;
-        SPI_FLASH_DEF_QUAD : boolean := true
+        SPI_FLASH_DEF_QUAD : boolean := true;
+        LOG_LENGTH         : natural := 512
         );
     port(
         ext_clk   : in  std_ulogic;
@@ -140,7 +141,8 @@ begin
             SPI_FLASH_DLINES   => 4,
             SPI_FLASH_OFFSET   => SPI_FLASH_OFFSET,
             SPI_FLASH_DEF_CKDV => SPI_FLASH_DEF_CKDV,
-            SPI_FLASH_DEF_QUAD => SPI_FLASH_DEF_QUAD
+            SPI_FLASH_DEF_QUAD => SPI_FLASH_DEF_QUAD,
+            LOG_LENGTH         => LOG_LENGTH
             )
         port map (
             -- System signals

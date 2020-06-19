@@ -8,19 +8,24 @@ use work.decode_types.all;
 
 entity decode1 is
     port (
-        clk      : in std_ulogic;
-        rst      : in std_ulogic;
+        clk       : in std_ulogic;
+        rst       : in std_ulogic;
 
-        stall_in : in std_ulogic;
-        flush_in : in std_ulogic;
+        stall_in  : in  std_ulogic;
+        flush_in  : in  std_ulogic;
+        busy_out  : out std_ulogic;
+        flush_out : out std_ulogic;
 
-        f_in     : in Fetch2ToDecode1Type;
-        d_out    : out Decode1ToDecode2Type
+        f_in      : in IcacheToDecode1Type;
+        f_out     : out Decode1ToFetch1Type;
+        d_out     : out Decode1ToDecode2Type;
+        log_out   : out std_ulogic_vector(12 downto 0)
 	);
 end entity decode1;
 
 architecture behaviour of decode1 is
     signal r, rin : Decode1ToDecode2Type;
+    signal s      : Decode1ToDecode2Type;
 
     subtype major_opcode_t is unsigned(5 downto 0);
     type major_rom_array_t is array(0 to 63) of decode_rom_t;
@@ -352,24 +357,45 @@ architecture behaviour of decode1 is
     constant nop_instr      : decode_rom_t := (ALU,  OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
     constant fetch_fail_inst: decode_rom_t := (LDST, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
 
+    signal log_data : std_ulogic_vector(12 downto 0);
+
 begin
     decode1_0: process(clk)
     begin
         if rising_edge(clk) then
-            -- Output state remains unchanged on stall, unless we are flushing
-            if rst = '1' or flush_in = '1' or stall_in = '0' then
-                r <= rin;
+            if rst = '1' then
+                r <= Decode1ToDecode2Init;
+                s <= Decode1ToDecode2Init;
+            elsif flush_in = '1' then
+                r.valid <= '0';
+                s.valid <= '0';
+            elsif s.valid = '1' then
+                if stall_in = '0' then
+                    r <= s;
+                    s.valid <= '0';
+                end if;
+            else
+                s <= rin;
+                s.valid <= rin.valid and r.valid and stall_in;
+                if r.valid = '0' or stall_in = '0' then
+                    r <= rin;
+                end if;
             end if;
         end if;
     end process;
+    busy_out <= s.valid;
 
     decode1_1: process(all)
         variable v : Decode1ToDecode2Type;
+        variable f : Decode1ToFetch1Type;
         variable majorop : major_opcode_t;
         variable op_19_bits: std_ulogic_vector(2 downto 0);
         variable sprn : spr_num_t;
+        variable br_nia    : std_ulogic_vector(61 downto 0);
+        variable br_target : std_ulogic_vector(61 downto 0);
+        variable br_offset : signed(23 downto 0);
     begin
-        v := r;
+        v := Decode1ToDecode2Init;
 
         v.valid := f_in.valid;
         v.nia  := f_in.nia;
@@ -395,6 +421,31 @@ begin
             -- major opcode 31, lots of things
             v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
 
+            -- Work out ispr1/ispr2 independent of v.decode since they seem to be critical path
+            sprn := decode_spr_num(f_in.insn);
+            v.ispr1 := fast_spr_num(sprn);
+
+            if std_match(f_in.insn(10 downto 1), "01-1010011") then
+                -- mfspr or mtspr
+                -- Make slow SPRs single issue
+                if is_fast_spr(v.ispr1) = '0' then
+                    v.decode.sgl_pipe := '1';
+                    -- send MMU-related SPRs to loadstore1
+                    case sprn is
+                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PRTBL =>
+                            v.decode.unit := LDST;
+                        when others =>
+                    end case;
+                end if;
+            end if;
+
+        elsif majorop = "010000" then
+            -- CTR may be needed as input to bc
+            v.decode := major_decode_rom_array(to_integer(majorop));
+            if f_in.insn(23) = '0' then
+                v.ispr1 := fast_spr_num(SPR_CTR);
+            end if;
+
         elsif majorop = "010011" then
             if decode_op_19_valid(to_integer(unsigned(f_in.insn(10 downto 1)))) = '0' then
                 report "op 19 illegal subcode";
@@ -403,6 +454,27 @@ begin
                 op_19_bits := f_in.insn(5) & f_in.insn(3) & f_in.insn(2);
                 v.decode := decode_op_19_array(to_integer(unsigned(op_19_bits)));
                 report "op 19 sub " & to_hstring(op_19_bits);
+            end if;
+
+            -- Work out ispr1/ispr2 independent of v.decode since they seem to be critical path
+            if f_in.insn(2) = '0' then
+                -- Could be OP_BCREG: bclr, bcctr, bctar
+                -- Branch uses CTR as condition when BO(2) is 0. This is
+                -- also used to indicate that CTR is modified (they go
+                -- together).
+                if f_in.insn(23) = '0' then
+                    v.ispr1 := fast_spr_num(SPR_CTR);
+                end if;
+                -- TODO: Add TAR
+                if f_in.insn(10) = '0' then
+                    v.ispr2 := fast_spr_num(SPR_LR);
+                else
+                    v.ispr2 := fast_spr_num(SPR_CTR);
+                end if;
+            else
+                -- Could be OP_RFID
+                v.ispr1 := fast_spr_num(SPR_SRR0);
+                v.ispr2 := fast_spr_num(SPR_SRR1);
             end if;
 
         elsif majorop = "011110" then
@@ -422,56 +494,45 @@ begin
             v.decode := major_decode_rom_array(to_integer(majorop));
         end if;
 
-        -- Set ISPR1/ISPR2 when needed
-        if v.decode.insn_type = OP_BC or v.decode.insn_type = OP_BCREG then
-            -- Branch uses CTR as condition when BO(2) is 0. This is
-            -- also used to indicate that CTR is modified (they go
-            -- together).
-            --
-            if f_in.insn(23) = '0' then
-                v.ispr1 := fast_spr_num(SPR_CTR);
-            end if;
-
-            -- Branch source register is an SPR
-            if v.decode.insn_type = OP_BCREG then
-                -- TODO: Add TAR
-                if f_in.insn(10) = '0' then
-                    v.ispr2 := fast_spr_num(SPR_LR);
-                else
-                    v.ispr2 := fast_spr_num(SPR_CTR);
-                end if;
-            end if;
-        elsif v.decode.insn_type = OP_MFSPR or v.decode.insn_type = OP_MTSPR then
-            sprn := decode_spr_num(f_in.insn);
-            v.ispr1 := fast_spr_num(sprn);
-            -- Make slow SPRs single issue
-            if is_fast_spr(v.ispr1) = '0' then
-                v.decode.sgl_pipe := '1';
-                -- send MMU-related SPRs to loadstore1
-                case sprn is
-                    when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PRTBL =>
-                        v.decode.unit := LDST;
-                    when others =>
-                end case;
-            end if;
-        elsif v.decode.insn_type = OP_RFID then
-            report "PPC RFID";
-            v.ispr1 := fast_spr_num(SPR_SRR0);
-            v.ispr2 := fast_spr_num(SPR_SRR1);
+        -- Branch predictor
+        -- Note bclr, bcctr and bctar are predicted not taken as we have no
+        -- count cache or link stack.
+        br_offset := (others => '0');
+        if majorop = 18 then
+            -- Unconditional branches are always taken
+            v.br_pred := '1';
+            br_offset := signed(f_in.insn(25 downto 2));
+        elsif majorop = 16 then
+            -- Predict backward branches as taken, forward as untaken
+            v.br_pred := f_in.insn(15);
+            br_offset := resize(signed(f_in.insn(15 downto 2)), 24);
         end if;
-
-        if flush_in = '1' then
-            v.valid := '0';
+        br_nia := f_in.nia(63 downto 2);
+        if f_in.insn(1) = '1' then
+            br_nia := (others => '0');
         end if;
-
-        if rst = '1' then
-            v := Decode1ToDecode2Init;
-        end if;
+        br_target := std_ulogic_vector(signed(br_nia) + br_offset);
+        f.redirect := v.br_pred and f_in.valid and not flush_in and not s.valid;
+        f.redirect_nia := br_target & "00";
 
         -- Update registers
         rin <= v;
 
         -- Update outputs
         d_out <= r;
+        f_out <= f;
+        flush_out <= f.redirect;
     end process;
+
+    dec1_log : process(clk)
+    begin
+        if rising_edge(clk) then
+            log_data <= std_ulogic_vector(to_unsigned(insn_type_t'pos(r.decode.insn_type), 6)) &
+                        r.nia(5 downto 2) &
+                        std_ulogic_vector(to_unsigned(unit_t'pos(r.decode.unit), 2)) &
+                        r.valid;
+        end if;
+    end process;
+    log_out <= log_data;
+
 end architecture behaviour;

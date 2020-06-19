@@ -3,9 +3,14 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
+use work.utils.all;
 use work.common.all;
 
 entity core_debug is
+    generic (
+        -- Length of log buffer
+        LOG_LENGTH : natural := 512
+        );
     port (
         clk          : in std_logic;
         rst          : in std_logic;
@@ -33,6 +38,12 @@ entity core_debug is
         dbg_gpr_ack     : in std_ulogic;
         dbg_gpr_addr    : out gspr_index_t;
         dbg_gpr_data    : in std_ulogic_vector(63 downto 0);
+
+        -- Core logging data
+        log_data        : in std_ulogic_vector(255 downto 0);
+        log_read_addr   : in std_ulogic_vector(31 downto 0);
+        log_read_data   : out std_ulogic_vector(63 downto 0);
+        log_write_addr  : out std_ulogic_vector(31 downto 0);
 
 	-- Misc
 	terminated_out  : out std_ulogic
@@ -77,6 +88,12 @@ architecture behave of core_debug is
     -- GSPR register data
     constant DBG_CORE_GSPR_DATA      : std_ulogic_vector(3 downto 0) := "0101";
 
+    -- Log buffer address and data registers
+    constant DBG_CORE_LOG_ADDR       : std_ulogic_vector(3 downto 0) := "0110";
+    constant DBG_CORE_LOG_DATA       : std_ulogic_vector(3 downto 0) := "0111";
+
+    constant LOG_INDEX_BITS : natural := log2(LOG_LENGTH);
+
     -- Some internal wires
     signal stat_reg : std_ulogic_vector(63 downto 0);
 
@@ -88,6 +105,12 @@ architecture behave of core_debug is
     signal terminated   : std_ulogic;
     signal do_gspr_rd   : std_ulogic;
     signal gspr_index   : gspr_index_t;
+
+    signal log_dmi_addr : std_ulogic_vector(31 downto 0) := (others => '0');
+    signal log_dmi_data : std_ulogic_vector(63 downto 0) := (others => '0');
+    signal do_dmi_log_rd : std_ulogic;
+    signal dmi_read_log_data : std_ulogic;
+    signal dmi_read_log_data_1 : std_ulogic;
 
 begin
        -- Single cycle register accesses on DMI except for GSPR data
@@ -108,6 +131,8 @@ begin
 	nia             when DBG_CORE_NIA,
         msr             when DBG_CORE_MSR,
         dbg_gpr_data    when DBG_CORE_GSPR_DATA,
+        log_write_addr & log_dmi_addr when DBG_CORE_LOG_ADDR,
+        log_dmi_data    when DBG_CORE_LOG_DATA,
 	(others => '0') when others;
 
     -- DMI writes
@@ -118,6 +143,7 @@ begin
 	    do_step <= '0';
 	    do_reset <= '0';
 	    do_icreset <= '0';
+            do_dmi_log_rd <= '0';
 
 	    if (rst) then
 		stopping <= '0';
@@ -151,11 +177,26 @@ begin
 			    end if;
                         elsif dmi_addr = DBG_CORE_GSPR_INDEX then
                             gspr_index <= dmi_din(gspr_index_t'left downto 0);
+                        elsif dmi_addr = DBG_CORE_LOG_ADDR then
+                            log_dmi_addr <= dmi_din(31 downto 0);
+                            do_dmi_log_rd <= '1';
 			end if;
 		    else
 			report("DMI read from " & to_string(dmi_addr));
 		    end if;
+
+                elsif dmi_read_log_data = '0' and dmi_read_log_data_1 = '1' then
+                    -- Increment log_dmi_addr after the end of a read from DBG_CORE_LOG_DATA
+                    log_dmi_addr(LOG_INDEX_BITS + 1 downto 0) <=
+                        std_ulogic_vector(unsigned(log_dmi_addr(LOG_INDEX_BITS+1 downto 0)) + 1);
+                    do_dmi_log_rd <= '1';
 		end if;
+                dmi_read_log_data_1 <= dmi_read_log_data;
+                if dmi_req = '1' and dmi_addr = DBG_CORE_LOG_DATA then
+                    dmi_read_log_data <= '1';
+                else
+                    dmi_read_log_data <= '0';
+                end if;
 
 		-- Set core stop on terminate. We'll be stopping some time *after*
 		-- the offending instruction, at least until we can do back flushes
@@ -175,5 +216,87 @@ begin
     core_rst <= do_reset;
     icache_rst <= do_icreset;
     terminated_out <= terminated;
+
+    -- Logging RAM
+    maybe_log: if LOG_LENGTH > 0 generate
+        subtype log_ptr_t is unsigned(LOG_INDEX_BITS - 1 downto 0);
+        type log_array_t is array(0 to LOG_LENGTH - 1) of std_ulogic_vector(255 downto 0);
+        signal log_array    : log_array_t;
+        signal log_rd_ptr   : log_ptr_t;
+        signal log_wr_ptr   : log_ptr_t;
+        signal log_toggle   : std_ulogic;
+        signal log_wr_enable : std_ulogic;
+        signal log_rd_ptr_latched : log_ptr_t;
+        signal log_rd       : std_ulogic_vector(255 downto 0);
+        signal log_dmi_reading : std_ulogic;
+        signal log_dmi_read_done : std_ulogic;
+
+        function select_dword(data : std_ulogic_vector(255 downto 0);
+                              addr : std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
+            variable firstbit : integer;
+        begin
+            firstbit := to_integer(unsigned(addr(1 downto 0))) * 64;
+            return data(firstbit + 63 downto firstbit);
+        end;
+
+        attribute ram_style : string;
+        attribute ram_style of log_array : signal is "block";
+        attribute ram_decomp : string;
+        attribute ram_decomp of log_array : signal is "power";
+
+    begin
+        -- Use MSB of read addresses to stop the logging
+        log_wr_enable <= not (log_read_addr(31) or log_dmi_addr(31));
+
+        log_ram: process(clk)
+        begin
+            if rising_edge(clk) then
+                if log_wr_enable = '1' then
+                    log_array(to_integer(log_wr_ptr)) <= log_data;
+                end if;
+                log_rd <= log_array(to_integer(log_rd_ptr_latched));
+            end if;
+        end process;
+
+
+        log_buffer: process(clk)
+            variable b : integer;
+            variable data : std_ulogic_vector(255 downto 0);
+        begin
+            if rising_edge(clk) then
+                if rst = '1' then
+                    log_wr_ptr <= (others => '0');
+                    log_toggle <= '0';
+                elsif log_wr_enable = '1' then
+                    if log_wr_ptr = to_unsigned(LOG_LENGTH - 1, LOG_INDEX_BITS) then
+                        log_toggle <= not log_toggle;
+                    end if;
+                    log_wr_ptr <= log_wr_ptr + 1;
+                end if;
+                if do_dmi_log_rd = '1' then
+                    log_rd_ptr_latched <= unsigned(log_dmi_addr(LOG_INDEX_BITS + 1 downto 2));
+                else
+                    log_rd_ptr_latched <= unsigned(log_read_addr(LOG_INDEX_BITS + 1 downto 2));
+                end if;
+                if log_dmi_read_done = '1' then
+                    log_dmi_data <= select_dword(log_rd, log_dmi_addr);
+                else
+                    log_read_data <= select_dword(log_rd, log_read_addr);
+                end if;
+                log_dmi_read_done <= log_dmi_reading;
+                log_dmi_reading <= do_dmi_log_rd;
+            end if;
+        end process;
+        log_write_addr(LOG_INDEX_BITS - 1 downto 0) <= std_ulogic_vector(log_wr_ptr);
+        log_write_addr(LOG_INDEX_BITS) <= '1';
+        log_write_addr(31 downto LOG_INDEX_BITS + 1) <= (others => '0');
+    end generate;
+
+    no_log: if LOG_LENGTH = 0 generate
+    begin
+        log_read_data <= (others => '0');
+        log_write_addr <= x"00000001";
+    end generate;
+
 end behave;
 

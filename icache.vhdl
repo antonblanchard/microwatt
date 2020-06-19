@@ -48,16 +48,19 @@ entity icache is
         rst          : in std_ulogic;
 
         i_in         : in Fetch1ToIcacheType;
-        i_out        : out IcacheToFetch2Type;
+        i_out        : out IcacheToDecode1Type;
 
         m_in         : in MmuToIcacheType;
 
+        stall_in     : in std_ulogic;
 	stall_out    : out std_ulogic;
 	flush_in     : in std_ulogic;
 	inval_in     : in std_ulogic;
 
         wishbone_out : out wishbone_master_out;
-        wishbone_in  : in wishbone_slave_out
+        wishbone_in  : in wishbone_slave_out;
+
+        log_out      : out std_ulogic_vector(53 downto 0)
         );
 end entity icache;
 
@@ -112,6 +115,7 @@ architecture rtl of icache is
     subtype row_t is integer range 0 to BRAM_ROWS-1;
     subtype index_t is integer range 0 to NUM_LINES-1;
     subtype way_t is integer range 0 to NUM_WAYS-1;
+    subtype row_in_line_t is unsigned(ROW_LINEBITS-1 downto 0);
 
     -- The cache data BRAM organized as described above for each way
     subtype cache_row_t is std_ulogic_vector(wishbone_data_bits-1 downto 0);
@@ -129,6 +133,7 @@ architecture rtl of icache is
     -- The cache valid bits
     subtype cache_way_valids_t is std_ulogic_vector(NUM_WAYS-1 downto 0);
     type cache_valids_t is array(index_t) of cache_way_valids_t;
+    type row_per_line_valid_t is array(0 to ROW_PER_LINE - 1) of std_ulogic;
 
     -- Storage. Hopefully "cache_rows" is a BRAM, the rest is LUTs
     signal cache_tags   : cache_tags_array_t;
@@ -176,6 +181,8 @@ architecture rtl of icache is
 	store_row        : row_t;
         store_tag        : cache_tag_t;
         store_valid      : std_ulogic;
+        end_row_ix       : row_in_line_t;
+        rows_valid       : row_per_line_valid_t;
 
         -- TLB miss state
         fetch_failed     : std_ulogic;
@@ -197,6 +204,10 @@ architecture rtl of icache is
     signal ra_valid      : std_ulogic;
     signal priv_fault    : std_ulogic;
     signal access_ok     : std_ulogic;
+    signal use_previous  : std_ulogic;
+
+    -- Output data to logger
+    signal log_data    : std_ulogic_vector(53 downto 0);
 
     -- Cache RAM interface
     type cache_ram_out_t is array(way_t) of cache_row_t;
@@ -219,20 +230,24 @@ architecture rtl of icache is
         return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto ROW_OFF_BITS)));
     end;
 
-    -- Returns whether this is the last row of a line
-    function is_last_row_addr(addr: wishbone_addr_type) return boolean is
-	constant ones : std_ulogic_vector(ROW_LINEBITS-1 downto 0) := (others => '1');
+    -- Return the index of a row within a line
+    function get_row_of_line(row: row_t) return row_in_line_t is
+	variable row_v : unsigned(ROW_BITS-1 downto 0);
     begin
-	return addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS) = ones;
+	row_v := to_unsigned(row, ROW_BITS);
+        return row_v(ROW_LINEBITS-1 downto 0);
     end;
 
     -- Returns whether this is the last row of a line
-    function is_last_row(row: row_t) return boolean is
-	variable row_v : std_ulogic_vector(ROW_BITS-1 downto 0);
-	constant ones  : std_ulogic_vector(ROW_LINEBITS-1 downto 0) := (others => '1');
+    function is_last_row_addr(addr: wishbone_addr_type; last: row_in_line_t) return boolean is
     begin
-	row_v := std_ulogic_vector(to_unsigned(row, ROW_BITS));
-	return row_v(ROW_LINEBITS-1 downto 0) = ones;
+	return unsigned(addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS)) = last;
+    end;
+
+    -- Returns whether this is the last row of a line
+    function is_last_row(row: row_t; last: row_in_line_t) return boolean is
+    begin
+	return get_row_of_line(row) = last;
     end;
 
     -- Return the address of the next row in the current cache line
@@ -361,7 +376,7 @@ begin
 		);
 	process(all)
 	begin
-	    do_read <= '1';
+	    do_read <= not (stall_in or use_previous);
 	    do_write <= '0';
 	    if wishbone_in.ack = '1' and r.store_way = i then
 		do_write <= '1';
@@ -466,23 +481,38 @@ begin
 	variable is_hit  : std_ulogic;
 	variable hit_way : way_t;
     begin
+        -- i_in.sequential means that i_in.nia this cycle is 4 more than
+        -- last cycle.  If we read more than 32 bits at a time, had a cache hit
+        -- last cycle, and we don't want the first 32-bit chunk, then we can
+        -- keep the data we read last cycle and just use that.
+        if unsigned(i_in.nia(INSN_BITS+2-1 downto 2)) /= 0 then
+            use_previous <= i_in.sequential and r.hit_valid;
+        else
+            use_previous <= '0';
+        end if;
+
 	-- Extract line, row and tag from request
         req_index <= get_index(i_in.nia);
         req_row <= get_row(i_in.nia);
         req_tag <= get_tag(real_addr);
 
-	-- Calculate address of beginning of cache line, will be
+	-- Calculate address of beginning of cache row, will be
 	-- used for cache miss processing if needed
 	--
 	req_laddr <= (63 downto REAL_ADDR_BITS => '0') &
-                     real_addr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) &
-		     (LINE_OFF_BITS-1 downto 0 => '0');
+                     real_addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
+		     (ROW_OFF_BITS-1 downto 0 => '0');
 
 	-- Test if pending request is a hit on any way
 	hit_way := 0;
 	is_hit := '0';
 	for i in way_t loop
-	    if i_in.req = '1' and cache_valids(req_index)(i) = '1' then
+	    if i_in.req = '1' and
+                (cache_valids(req_index)(i) = '1' or
+                 (r.state = WAIT_ACK and
+                  req_index = r.store_index and
+                  i = r.store_way and
+                  r.rows_valid(req_row mod ROW_PER_LINE) = '1')) then
 		if read_tag(i, cache_tags(req_index)) = req_tag then
 		    hit_way := i;
 		    is_hit := '1';
@@ -528,25 +558,35 @@ begin
     icache_hit : process(clk)
     begin
         if rising_edge(clk) then
-	    -- On a hit, latch the request for the next cycle, when the BRAM data
-	    -- will be available on the cache_out output of the corresponding way
-	    --
-            r.hit_valid <= req_is_hit;
-            -- Send stop marks and NIA down regardless of validity
-            r.hit_smark <= i_in.stop_mark;
-            r.hit_nia <= i_in.nia;
-	    if req_is_hit = '1' then
-		r.hit_way <= req_hit_way;
-		r.hit_smark <= i_in.stop_mark;
+            -- keep outputs to fetch2 unchanged on a stall
+            -- except that flush or reset sets valid to 0
+            -- If use_previous, keep the same data as last cycle and use the second half
+            if stall_in = '1' or use_previous = '1' then
+                if rst = '1' or flush_in = '1' then
+                    r.hit_valid <= '0';
+                end if;
+            else
+                -- On a hit, latch the request for the next cycle, when the BRAM data
+                -- will be available on the cache_out output of the corresponding way
+                --
+                r.hit_valid <= req_is_hit;
+                if req_is_hit = '1' then
+                    r.hit_way <= req_hit_way;
 
-		report "cache hit nia:" & to_hstring(i_in.nia) &
-                    " IR:" & std_ulogic'image(i_in.virt_mode) &
-		    " SM:" & std_ulogic'image(i_in.stop_mark) &
-		    " idx:" & integer'image(req_index) &
-		    " tag:" & to_hstring(req_tag) &
-		    " way:" & integer'image(req_hit_way) &
-                    " RA:" & to_hstring(real_addr);
+                    report "cache hit nia:" & to_hstring(i_in.nia) &
+                        " IR:" & std_ulogic'image(i_in.virt_mode) &
+                        " SM:" & std_ulogic'image(i_in.stop_mark) &
+                        " idx:" & integer'image(req_index) &
+                        " tag:" & to_hstring(req_tag) &
+                        " way:" & integer'image(req_hit_way) &
+                        " RA:" & to_hstring(real_addr);
+                end if;
 	    end if;
+            if stall_in = '0' then
+                -- Send stop marks and NIA down regardless of validity
+                r.hit_smark <= i_in.stop_mark;
+                r.hit_nia <= i_in.nia;
+            end if;
 	end if;
     end process;
 
@@ -584,6 +624,11 @@ begin
 		-- Main state machine
 		case r.state is
 		when IDLE =>
+                    -- Reset per-row valid flags, only used in WAIT_ACK
+                    for i in 0 to ROW_PER_LINE - 1 loop
+                        r.rows_valid(i) <= '0';
+                    end loop;
+
 		    -- We need to read a cache line
 		    if req_is_miss = '1' then
 			report "cache miss nia:" & to_hstring(i_in.nia) &
@@ -600,6 +645,7 @@ begin
 			r.store_row <= get_row(req_laddr);
                         r.store_tag <= req_tag;
                         r.store_valid <= '1';
+                        r.end_row_ix <= get_row_of_line(get_row(req_laddr)) - 1;
 
 			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line and start the WB cycle.
@@ -637,7 +683,7 @@ begin
 			-- stb and set stbs_done so we can handle an eventual last
 			-- ack on the same cycle.
 			--
-			if is_last_row_addr(r.wb.adr) then
+			if is_last_row_addr(r.wb.adr, r.end_row_ix) then
 			    r.wb.stb <= '0';
 			    stbs_done := true;
 			end if;
@@ -648,8 +694,9 @@ begin
 
 		    -- Incoming acks processing
 		    if wishbone_in.ack = '1' then
+                        r.rows_valid(r.store_row mod ROW_PER_LINE) <= '1';
 			-- Check for completion
-			if stbs_done and is_last_row(r.store_row) then
+			if stbs_done and is_last_row(r.store_row, r.end_row_ix) then
 			    -- Complete wishbone cycle
 			    r.wb.cyc <= '0';
 
@@ -669,9 +716,41 @@ begin
             -- TLB miss and protection fault processing
             if rst = '1' or flush_in = '1' or m_in.tlbld = '1' then
                 r.fetch_failed <= '0';
-            elsif i_in.req = '1' and access_ok = '0' then
+            elsif i_in.req = '1' and access_ok = '0' and stall_in = '0' then
                 r.fetch_failed <= '1';
             end if;
 	end if;
     end process;
+
+    data_log: process(clk)
+        variable lway: way_t;
+        variable wstate: std_ulogic;
+    begin
+        if rising_edge(clk) then
+            if req_is_hit then
+                lway := req_hit_way;
+            else
+                lway := replace_way;
+            end if;
+            wstate := '0';
+            if r.state /= IDLE then
+                wstate := '1';
+            end if;
+            log_data <= i_out.valid &
+                        i_out.insn &
+                        wishbone_in.ack &
+                        r.wb.adr(5 downto 3) &
+                        r.wb.stb & r.wb.cyc &
+                        wishbone_in.stall &
+                        stall_out &
+                        r.fetch_failed &
+                        r.hit_nia(5 downto 2) &
+                        wstate &
+                        std_ulogic_vector(to_unsigned(lway, 3)) &
+                        req_is_hit & req_is_miss &
+                        access_ok &
+                        ra_valid;
+        end if;
+    end process;
+    log_out <= log_data;
 end;

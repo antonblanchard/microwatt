@@ -9,7 +9,6 @@ filesets:
       - wishbone_types.vhdl
       - common.vhdl
       - fetch1.vhdl
-      - fetch2.vhdl
       - decode1.vhdl
       - helpers.vhdl
       - decode2.vhdl
@@ -27,7 +26,6 @@ filesets:
       - loadstore1.vhdl
       - mmu.vhdl
       - dcache.vhdl
-      - multiply.vhdl
       - divider.vhdl
       - rotator.vhdl
       - writeback.vhdl
@@ -62,6 +60,10 @@ filesets:
       - fpga/pp_utilities.vhd
       - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
     file_type : vhdlSource-2008
+
+  xilinx_specific:
+    files:
+      - xilinx-mult.vhdl : {file_type : vhdlSource-2008}
 
   debug_xilinx:
     files:
@@ -101,20 +103,21 @@ filesets:
 targets:
   nexys_a7:
     default_tool: vivado
-    filesets: [core, nexys_a7, soc, fpga, debug_xilinx]
+    filesets: [core, nexys_a7, soc, fpga, debug_xilinx, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
       - clk_input
       - clk_frequency
       - disable_flatten_core
+      - log_length=2048
     tools:
       vivado: {part : xc7a100tcsg324-1}
     toplevel : toplevel
 
   nexys_video-nodram:
     default_tool: vivado
-    filesets: [core, nexys_video, soc, fpga, debug_xilinx]
+    filesets: [core, nexys_video, soc, fpga, debug_xilinx, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -122,13 +125,14 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - spi_flash_offset=10485760
+      - log_length=2048
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
 
   nexys_video:
     default_tool: vivado
-    filesets: [core, nexys_video, soc, fpga, debug_xilinx, litedram]
+    filesets: [core, nexys_video, soc, fpga, debug_xilinx, litedram, xilinx_specific]
     parameters:
       - memory_size
       - ram_init_file
@@ -136,6 +140,7 @@ targets:
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=10485760
+      - log_length=2048
     generate: [dram_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
@@ -143,7 +148,7 @@ targets:
 
   arty_a7-35-nodram:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -151,13 +156,14 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - spi_flash_offset=3145728
+      - log_length=512
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
 
   arty_a7-35:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -165,6 +171,7 @@ targets:
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=3145728
+      - log_length=512
     generate: [dram_arty]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -172,7 +179,7 @@ targets:
 
   arty_a7-100-nodram:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -180,13 +187,14 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - spi_flash_offset=4194304
+      - log_length=2048
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
 
   arty_a7-100:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, xilinx_specific]
     parameters:
       - memory_size
       - ram_init_file
@@ -194,6 +202,7 @@ targets:
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=4194304
+      - log_length=2048
     generate: [dram_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
@@ -201,7 +210,7 @@ targets:
 
   cmod_a7-35:
     default_tool: vivado
-    filesets: [core, cmod_a7-35, soc, fpga, debug_xilinx]
+    filesets: [core, cmod_a7-35, soc, fpga, debug_xilinx, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -209,12 +218,13 @@ targets:
       - clk_input=12000000
       - clk_frequency
       - disable_flatten_core
+      - log_length=512
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel
 
   synth:
-    filesets: [core, soc]
+    filesets: [core, soc, xilinx_specific]
     tools:
       vivado: {pnr : none}
     toplevel: core
@@ -278,4 +288,9 @@ parameters:
   spi_flash_offset:
     datatype    : int
     description : Offset (in bytes) in the SPI flash of the code payload to run
+    paramtype   : generic
+
+  log_length:
+    datatype    : int
+    description : Length of the core log buffer in entries (32 bytes each)
     paramtype   : generic

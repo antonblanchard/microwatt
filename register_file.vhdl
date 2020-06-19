@@ -24,7 +24,9 @@ entity register_file is
 
         -- debug
         sim_dump      : in std_ulogic;
-        sim_dump_done : out std_ulogic
+        sim_dump_done : out std_ulogic;
+
+        log_out       : out std_ulogic_vector(70 downto 0)
         );
 end entity register_file;
 
@@ -34,18 +36,19 @@ architecture behaviour of register_file is
     signal rd_port_b : std_ulogic_vector(63 downto 0);
     signal dbg_data : std_ulogic_vector(63 downto 0);
     signal dbg_ack : std_ulogic;
+    signal log_data : std_ulogic_vector(70 downto 0);
 begin
     -- synchronous writes
     register_write_0: process(clk)
     begin
         if rising_edge(clk) then
             if w_in.write_enable = '1' then
-                assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
 		if w_in.write_reg(5) = '0' then
 		    report "Writing GPR " & to_hstring(w_in.write_reg) & " " & to_hstring(w_in.write_data);
 		else
 		    report "Writing GSPR " & to_hstring(w_in.write_reg) & " " & to_hstring(w_in.write_data);
 		end if;
+                assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
                 registers(to_integer(unsigned(w_in.write_reg))) <= w_in.write_data;
             end if;
         end if;
@@ -131,4 +134,13 @@ begin
         sim_dump_done <= '0';
     end generate;
 
+    reg_log: process(clk)
+    begin
+        if rising_edge(clk) then
+            log_data <= w_in.write_data &
+                        w_in.write_enable &
+                        w_in.write_reg;
+        end if;
+    end process;
+    log_out <= log_data;
 end architecture behaviour;

@@ -9,6 +9,14 @@
 #undef DEBUG
 //#define DEBUG 1
 
+void delay(void)
+{
+	static volatile int i;
+
+	for (i = 0; i < 10; ++i)
+		;
+}
+
 void print_number(unsigned int i) // only for i = 0-999
 {
 	unsigned int j, k, m;
@@ -148,14 +156,17 @@ int xics_test_0(void)
 	xics_write8(XICS_MFRR, 0x05); // cause 0x500 interrupt
 
 	// still masked, so shouldn't happen yet
+	delay();
 	assert(isrs_run == 0);
 
 	// unmask IPI only
 	xics_write8(XICS_XIRR, 0x40);
+	delay();
 	assert(isrs_run == ISR_IPI);
 
 	// unmask UART
 	xics_write8(XICS_XIRR, 0xc0);
+	delay();
 	assert(isrs_run == (ISR_IPI | ISR_UART));
 
 	// cleanup
@@ -174,12 +185,14 @@ int xics_test_1(void)
 	xics_write8(XICS_XIRR, 0xff); // allow all interrupts
 
 	// should be none pending
+	delay();
 	assert(isrs_run == 0);
 
 	// trigger both
 	potato_uart_irq_en(); // cause 0x500 interrupt
 	xics_write8(XICS_MFRR, 0x05); // cause 0x500 interrupt
 
+	delay();
 	assert(isrs_run == (ISR_IPI | ISR_UART));
 
 	// cleanup
@@ -208,9 +221,11 @@ int xics_test_2(void)
 	// trigger an IPI
 	xics_write8(XICS_MFRR, 0x05); // cause 0x500 interrupt
 
+	delay();
 	assert(isrs_run == 0);
 
 	mtmsrd(0x9000000000008003); // EE on
+	delay();
 	assert(isrs_run == ISR_IPI);
 
 	// cleanup

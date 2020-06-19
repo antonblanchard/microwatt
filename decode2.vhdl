@@ -17,7 +17,7 @@ entity decode2 is
         rst   : in std_ulogic;
 
         complete_in : in std_ulogic;
-        stall_in : in std_ulogic;
+        busy_in   : in std_ulogic;
         stall_out : out std_ulogic;
 
         stopped_out : out std_ulogic;
@@ -32,7 +32,9 @@ entity decode2 is
         r_out : out Decode2ToRegisterFileType;
 
         c_in  : in CrFileToDecode2Type;
-        c_out : out Decode2ToCrFileType
+        c_out : out Decode2ToCrFileType;
+
+        log_out : out std_ulogic_vector(9 downto 0)
 	);
 end entity decode2;
 
@@ -42,6 +44,10 @@ architecture behaviour of decode2 is
     end record;
 
     signal r, rin : reg_type;
+
+    signal deferred : std_ulogic;
+
+    signal log_data : std_ulogic_vector(9 downto 0);
 
     type decode_input_reg_t is record
         reg_valid : std_ulogic;
@@ -61,8 +67,6 @@ architecture behaviour of decode2 is
         return decode_input_reg_t is
     begin
         if t = RA or (t = RA_OR_ZERO and insn_ra(insn_in) /= "00000") then
-            assert is_fast_spr(ispr) = '0' report "Decode A says GPR but ISPR says SPR:" &
-                to_hstring(ispr) severity failure;
             return ('1', gpr_to_gspr(insn_ra(insn_in)), reg_data);
         elsif t = SPR then
             -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
@@ -87,8 +91,6 @@ architecture behaviour of decode2 is
     begin
         case t is
             when RB =>
-                assert is_fast_spr(ispr) = '0' report "Decode B says GPR but ISPR says SPR:" &
-                    to_hstring(ispr) severity failure;
                 ret := ('1', gpr_to_gspr(insn_rb(insn_in)), reg_data);
             when CONST_UI =>
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
@@ -196,6 +198,9 @@ architecture behaviour of decode2 is
     signal gpr_write : gspr_index_t;
     signal gpr_bypassable  : std_ulogic;
 
+    signal update_gpr_write_valid : std_ulogic;
+    signal update_gpr_write_reg : gspr_index_t;
+
     signal gpr_a_read_valid : std_ulogic;
     signal gpr_a_read :gspr_index_t;
     signal gpr_a_bypass : std_ulogic;
@@ -220,7 +225,8 @@ begin
 
             complete_in => complete_in,
             valid_in    => control_valid_in,
-            stall_in    => stall_in,
+            busy_in     => busy_in,
+            deferred    => deferred,
             flush_in    => flush_in,
             sgl_pipe_in => control_sgl_pipe,
             stop_mark_in => d_in.stop_mark,
@@ -228,6 +234,9 @@ begin
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write,
             gpr_bypassable     => gpr_bypassable,
+
+            update_gpr_write_valid => update_gpr_write_valid,
+            update_gpr_write_reg => update_gpr_write_reg,
 
             gpr_a_read_valid_in  => gpr_a_read_valid,
             gpr_a_read_in        => gpr_a_read,
@@ -250,18 +259,24 @@ begin
             gpr_bypass_c => gpr_c_bypass
             );
 
+    deferred <= r.e.valid and busy_in;
+
     decode2_0: process(clk)
     begin
         if rising_edge(clk) then
-            if rin.e.valid = '1' then
-                report "execute " & to_hstring(rin.e.nia);
+            if rst = '1' or flush_in = '1' or deferred = '0' then
+                if rin.e.valid = '1' then
+                    report "execute " & to_hstring(rin.e.nia);
+                end if;
+                r <= rin;
             end if;
-            r <= rin;
         end if;
     end process;
 
-    r_out.read1_reg <= gpr_or_spr_to_gspr(insn_ra(d_in.insn), d_in.ispr1);
-    r_out.read2_reg <= gpr_or_spr_to_gspr(insn_rb(d_in.insn), d_in.ispr2);
+    r_out.read1_reg <= d_in.ispr1 when d_in.decode.input_reg_a = SPR
+                       else gpr_to_gspr(insn_ra(d_in.insn));
+    r_out.read2_reg <= d_in.ispr2 when d_in.decode.input_reg_b = SPR
+                       else gpr_to_gspr(insn_rb(d_in.insn));
     r_out.read3_reg <= insn_rs(d_in.insn);
 
     c_out.read <= d_in.decode.input_cr;
@@ -343,6 +358,7 @@ begin
         v.e.sign_extend := d_in.decode.sign_extend;
         v.e.update := d_in.decode.update;
         v.e.reserve := d_in.decode.reserve;
+        v.e.br_pred := d_in.br_pred;
 
         -- issue control
         control_valid_in <= d_in.valid;
@@ -353,6 +369,13 @@ begin
         gpr_bypassable <= '0';
         if EX1_BYPASS and d_in.decode.unit = ALU then
             gpr_bypassable <= '1';
+        end if;
+        update_gpr_write_valid <= d_in.decode.update;
+        update_gpr_write_reg <= decoded_reg_a.reg;
+        if v.e.lr = '1' then
+            -- there are no instructions that have both update=1 and lr=1
+            update_gpr_write_valid <= '1';
+            update_gpr_write_reg <= fast_spr_num(SPR_LR);
         end if;
 
         gpr_a_read_valid <= decoded_reg_a.reg_valid;
@@ -371,7 +394,7 @@ begin
             v.e.insn_type := OP_ILLEGAL;
         end if;
 
-        if rst = '1' then
+        if rst = '1' or flush_in = '1' then
             v.e := Decode2ToExecute1Init;
         end if;
 
@@ -381,4 +404,19 @@ begin
         -- Update outputs
         e_out <= r.e;
     end process;
+
+    dec2_log : process(clk)
+    begin
+        if rising_edge(clk) then
+            log_data <= r.e.nia(5 downto 2) &
+                        r.e.valid &
+                        stopped_out &
+                        stall_out &
+                        r.e.bypass_data3 &
+                        r.e.bypass_data2 &
+                        r.e.bypass_data1;
+        end if;
+    end process;
+    log_out <= log_data;
+
 end architecture behaviour;

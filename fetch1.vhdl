@@ -23,8 +23,14 @@ entity fetch1 is
 	-- redirect from execution unit
 	e_in          : in Execute1ToFetch1Type;
 
+        -- redirect from decode1
+        d_in          : in Decode1ToFetch1Type;
+
 	-- Request to icache
-	i_out         : out Fetch1ToIcacheType
+	i_out         : out Fetch1ToIcacheType;
+
+        -- outputs to logger
+        log_out       : out std_ulogic_vector(42 downto 0)
 	);
 end entity fetch1;
 
@@ -35,16 +41,18 @@ architecture behaviour of fetch1 is
     end record;
     signal r, r_next : Fetch1ToIcacheType;
     signal r_int, r_next_int : reg_internal_t;
+    signal log_nia : std_ulogic_vector(42 downto 0);
 begin
 
     regs : process(clk)
     begin
 	if rising_edge(clk) then
+            log_nia <= r.nia(63) & r.nia(43 downto 2);
 	    if r /= r_next then
 		report "fetch1 rst:" & std_ulogic'image(rst) &
                     " IR:" & std_ulogic'image(e_in.virt_mode) &
                     " P:" & std_ulogic'image(e_in.priv_mode) &
-		    " R:" & std_ulogic'image(e_in.redirect) &
+		    " R:" & std_ulogic'image(e_in.redirect) & std_ulogic'image(d_in.redirect) &
 		    " S:" & std_ulogic'image(stall_in) &
 		    " T:" & std_ulogic'image(stop_in) &
 		    " nia:" & to_hstring(r_next.nia) &
@@ -54,6 +62,7 @@ begin
 	    r_int <= r_next_int;
 	end if;
     end process;
+    log_out <= log_nia;
 
     comb : process(all)
 	variable v : Fetch1ToIcacheType;
@@ -62,6 +71,7 @@ begin
     begin
 	v := r;
 	v_int := r_int;
+        v.sequential := '0';
 
 	if rst = '1' then
 	    if alt_reset_in = '1' then
@@ -76,6 +86,8 @@ begin
 	    v.nia := e_in.redirect_nia;
             v.virt_mode := e_in.virt_mode;
             v.priv_mode := e_in.priv_mode;
+        elsif d_in.redirect = '1' then
+            v.nia := d_in.redirect_nia;
 	elsif stall_in = '0' then
 
 	    -- For debug stop/step to work properly we need a little bit of
@@ -122,6 +134,7 @@ begin
 
 	    if increment then
 		v.nia := std_logic_vector(unsigned(v.nia) + 4);
+                v.sequential := '1';
 	    end if;
 	end if;
 

@@ -15,13 +15,17 @@ entity control is
         complete_in         : in std_ulogic;
         valid_in            : in std_ulogic;
         flush_in            : in std_ulogic;
-	stall_in            : in std_ulogic;
+	busy_in             : in std_ulogic;
+        deferred            : in std_ulogic;
         sgl_pipe_in         : in std_ulogic;
         stop_mark_in        : in std_ulogic;
 
         gpr_write_valid_in  : in std_ulogic;
         gpr_write_in        : in gspr_index_t;
         gpr_bypassable      : in std_ulogic;
+
+        update_gpr_write_valid : in std_ulogic;
+        update_gpr_write_reg : in gspr_index_t;
 
         gpr_a_read_valid_in : in std_ulogic;
         gpr_a_read_in       : in gspr_index_t;
@@ -72,13 +76,20 @@ begin
             )
         port map (
             clk                => clk,
-	    stall_in           => stall_in,
+            busy_in            => busy_in,
+	    deferred           => deferred,
+            complete_in        => complete_in,
+            flush_in           => flush_in,
+            issuing            => valid_out,
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
             bypass_avail       => gpr_bypassable,
             gpr_read_valid_in  => gpr_a_read_valid_in,
             gpr_read_in        => gpr_a_read_in,
+
+            ugpr_write_valid   => update_gpr_write_valid,
+            ugpr_write_reg     => update_gpr_write_reg,
 
             stall_out          => stall_a_out,
             use_bypass         => gpr_bypass_a
@@ -90,13 +101,20 @@ begin
             )
         port map (
             clk                => clk,
-	    stall_in           => stall_in,
+            busy_in            => busy_in,
+	    deferred           => deferred,
+            complete_in        => complete_in,
+            flush_in           => flush_in,
+            issuing            => valid_out,
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
             bypass_avail       => gpr_bypassable,
             gpr_read_valid_in  => gpr_b_read_valid_in,
             gpr_read_in        => gpr_b_read_in,
+
+            ugpr_write_valid   => update_gpr_write_valid,
+            ugpr_write_reg     => update_gpr_write_reg,
 
             stall_out          => stall_b_out,
             use_bypass         => gpr_bypass_b
@@ -110,13 +128,20 @@ begin
             )
         port map (
             clk                => clk,
-	    stall_in           => stall_in,
+            busy_in            => busy_in,
+	    deferred           => deferred,
+            complete_in        => complete_in,
+            flush_in           => flush_in,
+            issuing            => valid_out,
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
             bypass_avail       => gpr_bypassable,
             gpr_read_valid_in  => gpr_c_read_valid_in,
             gpr_read_in        => gpr_c_read_in_fmt,
+
+            ugpr_write_valid   => update_gpr_write_valid,
+            ugpr_write_reg     => update_gpr_write_reg,
 
             stall_out          => stall_c_out,
             use_bypass         => gpr_bypass_c
@@ -128,7 +153,11 @@ begin
             )
         port map (
             clk                => clk,
-	    stall_in           => stall_in,
+            busy_in            => busy_in,
+	    deferred           => deferred,
+            complete_in        => complete_in,
+            flush_in           => flush_in,
+            issuing            => valid_out,
 
             cr_read_in         => cr_read_in,
             cr_write_in        => cr_write_valid,
@@ -139,7 +168,8 @@ begin
     control0: process(clk)
     begin
         if rising_edge(clk) then
-            assert r_int.outstanding >= 0 and r_int.outstanding <= (PIPELINE_DEPTH+1) report "Outstanding bad " & integer'image(r_int.outstanding) severity failure;
+            assert rin_int.outstanding >= 0 and rin_int.outstanding <= (PIPELINE_DEPTH+1)
+                report "Outstanding bad " & integer'image(rin_int.outstanding) severity failure;
             r_int <= rin_int;
         end if;
     end process;
@@ -152,17 +182,18 @@ begin
         v_int := r_int;
 
         -- asynchronous
-        valid_tmp := valid_in and not flush_in and not stall_in;
-        stall_tmp := stall_in;
+        valid_tmp := valid_in and not flush_in;
+        stall_tmp := '0';
 
-        if complete_in = '1' then
+        if flush_in = '1' then
+            -- expect to see complete_in next cycle
+            v_int.outstanding := 1;
+        elsif complete_in = '1' then
             v_int.outstanding := r_int.outstanding - 1;
         end if;
 
         if rst = '1' then
-            v_int.state := IDLE;
-            v_int.outstanding := 0;
-            stall_tmp := '0';
+            v_int := reg_internal_init;
             valid_tmp := '0';
         end if;
 
@@ -227,7 +258,9 @@ begin
         end if;
 
         if valid_tmp = '1' then
-            v_int.outstanding := v_int.outstanding + 1;
+            if deferred = '0' then
+                v_int.outstanding := v_int.outstanding + 1;
+            end if;
             gpr_write_valid <= gpr_write_valid_in;
             cr_write_valid <= cr_write_in;
         else
@@ -237,7 +270,7 @@ begin
 
         -- update outputs
         valid_out <= valid_tmp;
-        stall_out <= stall_tmp;
+        stall_out <= stall_tmp or deferred;
 
         -- update registers
         rin_int <= v_int;

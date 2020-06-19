@@ -20,7 +20,7 @@ entity execute1 is
 
 	-- asynchronous
 	flush_out : out std_ulogic;
-	stall_out : out std_ulogic;
+	busy_out : out std_ulogic;
 
 	e_in  : in Decode2ToExecute1Type;
         l_in  : in Loadstore1ToExecute1Type;
@@ -36,34 +36,44 @@ entity execute1 is
         dbg_msr_out : out std_ulogic_vector(63 downto 0);
 
 	icache_inval : out std_ulogic;
-	terminate_out : out std_ulogic
+	terminate_out : out std_ulogic;
+
+        log_out : out std_ulogic_vector(14 downto 0);
+        log_rd_addr : out std_ulogic_vector(31 downto 0);
+        log_rd_data : in std_ulogic_vector(63 downto 0);
+        log_wr_addr : in std_ulogic_vector(31 downto 0)
 	);
 end entity execute1;
 
 architecture behaviour of execute1 is
     type reg_type is record
 	e : Execute1ToWritebackType;
+        busy: std_ulogic;
+        terminate: std_ulogic;
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
 	mul_in_progress : std_ulogic;
         div_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
+        slow_op_insn : insn_type_t;
 	slow_op_dest : gpr_index_t;
 	slow_op_rc : std_ulogic;
 	slow_op_oe : std_ulogic;
 	slow_op_xerc : xer_common_t;
-        ldst_nia : std_ulogic_vector(63 downto 0);
+        last_nia : std_ulogic_vector(63 downto 0);
+        log_addr_spr : std_ulogic_vector(31 downto 0);
     end record;
     constant reg_type_init : reg_type :=
-        (e => Execute1ToWritebackInit, lr_update => '0',
+        (e => Execute1ToWritebackInit, busy => '0', lr_update => '0', terminate => '0',
          mul_in_progress => '0', div_in_progress => '0', cntz_in_progress => '0',
-         slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
-         next_lr => (others => '0'), ldst_nia => (others => '0'), others => (others => '0'));
+         slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
+         next_lr => (others => '0'), last_nia => (others => '0'), others => (others => '0'));
 
     signal r, rin : reg_type;
 
     signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
 
+    signal valid_in : std_ulogic;
     signal ctrl: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
     signal ctrl_tmp: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
@@ -72,8 +82,6 @@ architecture behaviour of execute1 is
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
     signal countzero_result: std_ulogic_vector(63 downto 0);
-    signal popcnt_result: std_ulogic_vector(63 downto 0);
-    signal parity_result: std_ulogic_vector(63 downto 0);
 
     -- multiply signals
     signal x_to_multiply: Execute1ToMultiplyType;
@@ -82,6 +90,11 @@ architecture behaviour of execute1 is
     -- divider signals
     signal x_to_divider: Execute1ToDividerType;
     signal divider_to_x: DividerToExecute1Type;
+
+    -- signals for logging
+    signal exception_log : std_ulogic;
+    signal irq_valid_log : std_ulogic;
+    signal log_data : std_ulogic_vector(14 downto 0);
 
     type privilege_level is (USER, SUPER);
     type op_privilege_array is array(insn_type_t) of privilege_level;
@@ -193,9 +206,7 @@ begin
 	    invert_in => e_in.invert_a,
 	    invert_out => e_in.invert_out,
 	    result => logical_result,
-            datalen => e_in.data_len,
-            popcnt => popcnt_result,
-            parity => parity_result
+            datalen => e_in.data_len
 	    );
 
     countzero_0: entity work.zero_counter
@@ -223,10 +234,16 @@ begin
             );
 
     dbg_msr_out <= ctrl.msr;
+    log_rd_addr <= r.log_addr_spr;
 
     a_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data1 = '1' else e_in.read_data1;
     b_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data2 = '1' else e_in.read_data2;
     c_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data3 = '1' else e_in.read_data3;
+
+    busy_out <= l_in.busy or r.busy;
+    valid_in <= e_in.valid and not busy_out;
+
+    terminate_out <= r.terminate;
 
     execute1_0: process(clk)
     begin
@@ -238,7 +255,7 @@ begin
             else
                 r <= rin;
                 ctrl <= ctrl_tmp;
-                assert not (r.lr_update = '1' and e_in.valid = '1')
+                assert not (r.lr_update = '1' and valid_in = '1')
                     report "LR update collision with valid in EX1"
                     severity failure;
                 if r.lr_update = '1' then
@@ -274,7 +291,6 @@ begin
         variable sign1, sign2 : std_ulogic;
         variable abs1, abs2 : signed(63 downto 0);
 	variable overflow : std_ulogic;
-	variable negative : std_ulogic;
         variable zerohi, zerolo : std_ulogic;
         variable msb_a, msb_b : std_ulogic;
         variable a_lt : std_ulogic;
@@ -284,11 +300,18 @@ begin
         variable exception_nextpc : std_ulogic;
         variable trapval : std_ulogic_vector(4 downto 0);
         variable illegal : std_ulogic;
+        variable is_branch : std_ulogic;
+        variable taken_branch : std_ulogic;
+        variable abs_branch : std_ulogic;
+        variable spr_val : std_ulogic_vector(63 downto 0);
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
 	result_en := '0';
 	newcrf := (others => '0');
+        is_branch := '0';
+        taken_branch := '0';
+        abs_branch := '0';
 
 	v := r;
 	v.e := Execute1ToWritebackInit;
@@ -334,32 +357,7 @@ begin
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
 
-	-- signals to multiply unit
-	x_to_multiply <= Execute1ToMultiplyInit;
-	x_to_multiply.insn_type <= e_in.insn_type;
-	x_to_multiply.is_32bit <= e_in.is_32bit;
-
-	if e_in.is_32bit = '1' then
-	    if e_in.is_signed = '1' then
-		x_to_multiply.data1 <= (others => a_in(31));
-		x_to_multiply.data1(31 downto 0) <= a_in(31 downto 0);
-		x_to_multiply.data2 <= (others => b_in(31));
-		x_to_multiply.data2(31 downto 0) <= b_in(31 downto 0);
-	    else
-		x_to_multiply.data1 <= '0' & x"00000000" & a_in(31 downto 0);
-		x_to_multiply.data2 <= '0' & x"00000000" & b_in(31 downto 0);
-	    end if;
-	else
-	    if e_in.is_signed = '1' then
-		x_to_multiply.data1 <= a_in(63) & a_in;
-		x_to_multiply.data2 <= b_in(63) & b_in;
-	    else
-		x_to_multiply.data1 <= '0' & a_in;
-		x_to_multiply.data2 <= '0' & b_in;
-	    end if;
-	end if;
-
-        -- signals to divide unit
+        -- signals to multiply and divide units
         sign1 := '0';
         sign2 := '0';
         if e_in.is_signed = '1' then
@@ -383,15 +381,22 @@ begin
             abs2 := - signed(b_in);
         end if;
 
+	x_to_multiply <= Execute1ToMultiplyInit;
+	x_to_multiply.is_32bit <= e_in.is_32bit;
+
         x_to_divider <= Execute1ToDividerInit;
         x_to_divider.is_signed <= e_in.is_signed;
 	x_to_divider.is_32bit <= e_in.is_32bit;
         if e_in.insn_type = OP_MOD then
             x_to_divider.is_modulus <= '1';
         end if;
+
+        x_to_multiply.neg_result <= sign1 xor sign2;
         x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
         if e_in.is_32bit = '0' then
             -- 64-bit forms
+            x_to_multiply.data1 <= std_ulogic_vector(abs1);
+            x_to_multiply.data2 <= std_ulogic_vector(abs2);
             if e_in.insn_type = OP_DIVE then
                 x_to_divider.is_extended <= '1';
             end if;
@@ -399,6 +404,8 @@ begin
             x_to_divider.divisor <= std_ulogic_vector(abs2);
         else
             -- 32-bit forms
+            x_to_multiply.data1 <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
+            x_to_multiply.data2 <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
             x_to_divider.is_extended <= '0';
             if e_in.insn_type = OP_DIVE then   -- extended forms
                 x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
@@ -426,9 +433,9 @@ begin
 	    end if;
 	end if;
 
-	terminate_out <= '0';
+	v.terminate := '0';
 	icache_inval <= '0';
-	stall_out <= '0';
+	v.busy := '0';
 	f_out <= Execute1ToFetch1TypeInit;
         -- send MSR[IR] and ~MSR[PR] up to fetch1
         f_out.virt_mode <= ctrl.msr(MSR_IR);
@@ -450,6 +457,9 @@ begin
         v.e.exc_write_enable := '0';
         v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
         v.e.exc_write_data := e_in.nia;
+        if valid_in = '1' then
+            v.last_nia := e_in.nia;
+        end if;
 
  	if ctrl.irq_state = WRITE_SRR1 then
  	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
@@ -466,10 +476,10 @@ begin
             f_out.virt_mode <= '0';
             f_out.priv_mode <= '1';
 	    f_out.redirect_nia <= ctrl.irq_nia;
-	    v.e.valid := e_in.valid;
+            v.e.valid := '1';
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
-	elsif irq_valid = '1' and e_in.valid = '1' then
+	elsif irq_valid = '1' and valid_in = '1' then
 	    -- we need two cycles to write srr0 and 1
 	    -- will need more when we have to write HEIR
             -- Don't deliver the interrupt until we have a valid instruction
@@ -477,7 +487,7 @@ begin
 	    exception := '1';
 	    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
 
-        elsif e_in.valid = '1' and ctrl.msr(MSR_PR) = '1' and
+        elsif valid_in = '1' and ctrl.msr(MSR_PR) = '1' and
             instr_is_privileged(e_in.insn_type, e_in.insn) then
             -- generate a program interrupt
             exception := '1';
@@ -487,12 +497,13 @@ begin
             ctrl_tmp.srr1(63 - 45) <= '1';
             report "privileged instruction";
             
-	elsif e_in.valid = '1' and e_in.unit = ALU then
+	elsif valid_in = '1' and e_in.unit = ALU then
 
 	    report "execute nia " & to_hstring(e_in.nia);
 
 	    v.e.valid := '1';
 	    v.e.write_reg := e_in.write_reg;
+            v.slow_op_insn := e_in.insn_type;
 	    v.slow_op_dest := gspr_to_gpr(e_in.write_reg);
 	    v.slow_op_rc := e_in.rc;
 	    v.slow_op_oe := e_in.oe;
@@ -521,7 +532,7 @@ begin
                 -- check bits 1-10 of the instruction to make sure it's attn
                 -- if not then it is illegal
                 if e_in.insn(10 downto 1) = "0100000000" then
-                    terminate_out <= '1';
+                    v.terminate := '1';
                     report "ATTN";
                 else
                     illegal := '1';
@@ -612,16 +623,13 @@ begin
                         end if;
                     end if;
                 end if;
-	    when OP_AND | OP_OR | OP_XOR =>
+	    when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS =>
 		result := logical_result;
 		result_en := '1';
 	    when OP_B =>
-		f_out.redirect <= '1';
-		if (insn_aa(e_in.insn)) then
-		    f_out.redirect_nia <= b_in;
-		else
-		    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
-		end if;
+                is_branch := '1';
+                taken_branch := '1';
+                abs_branch := insn_aa(e_in.insn);
 	    when OP_BC =>
 		-- read_data1 is CTR
 		bo := insn_bo(e_in.insn);
@@ -631,14 +639,9 @@ begin
 		    result_en := '1';
 		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
-		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = 1 then
-		    f_out.redirect <= '1';
-		    if (insn_aa(e_in.insn)) then
-			f_out.redirect_nia <= b_in;
-		    else
-			f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
-		    end if;
-		end if;
+                is_branch := '1';
+		taken_branch := ppc_bc_taken(bo, bi, e_in.cr, a_in);
+                abs_branch := insn_aa(e_in.insn);
 	    when OP_BCREG =>
 		-- read_data1 is CTR
 		-- read_data2 is target register (CTR, LR or TAR)
@@ -649,7 +652,7 @@ begin
 		    result_en := '1';
 		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
-		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = 1 then
+		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = '1' then
 		    f_out.redirect <= '1';
 		    f_out.redirect_nia <= b_in(63 downto 2) & "00";
 		end if;
@@ -670,27 +673,10 @@ begin
                     ctrl_tmp.msr(MSR_DR) <= '1';
                 end if;
 
-	    when OP_CMPB =>
-		result := ppc_cmpb(c_in, b_in);
-		result_en := '1';
             when OP_CNTZ =>
                 v.e.valid := '0';
                 v.cntz_in_progress := '1';
-                stall_out <= '1';
-            when OP_EXTS =>
-                -- note data_len is a 1-hot encoding
-		negative := (e_in.data_len(0) and c_in(7)) or
-			    (e_in.data_len(1) and c_in(15)) or
-			    (e_in.data_len(2) and c_in(31));
-		result := (others => negative);
-		if e_in.data_len(2) = '1' then
-		    result(31 downto 16) := c_in(31 downto 16);
-		end if;
-		if e_in.data_len(2) = '1' or e_in.data_len(1) = '1' then
-		    result(15 downto 8) := c_in(15 downto 8);
-		end if;
-		result(7 downto 0) := c_in(7 downto 0);
-		result_en := '1';
+                v.busy := '1';
 	    when OP_ISEL =>
 		crbit := to_integer(unsigned(insn_bc(e_in.insn)));
 		if e_in.cr(31-crbit) = '1' then
@@ -762,19 +748,25 @@ begin
 			result(63-45) := v.e.xerc.ca32;
 		    end if;
 		else
+                    spr_val := c_in;
 		    case decode_spr_num(e_in.insn) is
 		    when SPR_TB =>
-			result := ctrl.tb;
+			spr_val := ctrl.tb;
 		    when SPR_DEC =>
-			result := ctrl.dec;
+			spr_val := ctrl.dec;
+                    when 724 =>     -- LOG_ADDR SPR
+                        spr_val := log_wr_addr & r.log_addr_spr;
+                    when 725 =>     -- LOG_DATA SPR
+                        spr_val := log_rd_data;
+                        v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
                     when others =>
                         -- mfspr from unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode
-			result := c_in;
                         if ctrl.msr(MSR_PR) = '1' then
                             illegal := '1';
                         end if;
 		    end case;
+                    result := spr_val;
 		end if;
 	    when OP_MFCR =>
 		if e_in.insn(20) = '0' then
@@ -840,6 +832,8 @@ begin
 		    case decode_spr_num(e_in.insn) is
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;
+                    when 724 =>     -- LOG_ADDR SPR
+                        v.log_addr_spr := c_in(31 downto 0);
 		    when others =>
                         -- mtspr to unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode
@@ -848,12 +842,6 @@ begin
                         end if;
 		    end case;
 		end if;
-	    when OP_POPCNT =>
-		result := popcnt_result;
-		result_en := '1';
-	    when OP_PRTY =>
-		result := parity_result;
-		result_en := '1';
 	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR | OP_EXTSWSLI =>
 		result := rotator_result;
 		if e_in.output_carry = '1' then
@@ -871,53 +859,65 @@ begin
 	    when OP_MUL_L64 | OP_MUL_H64 | OP_MUL_H32 =>
 		v.e.valid := '0';
 		v.mul_in_progress := '1';
-		stall_out <= '1';
+		v.busy := '1';
 		x_to_multiply.valid <= '1';
 
 	    when OP_DIV | OP_DIVE | OP_MOD =>
 		v.e.valid := '0';
 		v.div_in_progress := '1';
-		stall_out <= '1';
+		v.busy := '1';
 		x_to_divider.valid <= '1';
 
             when others =>
-		terminate_out <= '1';
+		v.terminate := '1';
 		report "illegal";
 	    end case;
 
-	    v.e.rc := e_in.rc and e_in.valid;
+	    v.e.rc := e_in.rc and valid_in;
+
+            -- Mispredicted branches cause a redirect
+            if is_branch = '1' and taken_branch /= e_in.br_pred then
+                f_out.redirect <= '1';
+                if taken_branch = '1' then
+                    if abs_branch = '1' then
+                        f_out.redirect_nia <= b_in;
+                    else
+                        f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
+                    end if;
+                else
+                    f_out.redirect_nia <= next_nia;
+                end if;
+            end if;
 
 	    -- Update LR on the next cycle after a branch link
-	    --
-	    -- WARNING: The LR update isn't tracked by our hazard tracker. This
-	    --          will work (well I hope) because it only happens on branches
-	    --          which will flush all decoded instructions. By the time
-	    --          fetch catches up, we'll have the new LR. This will
-	    --          *not* work properly however if we have a branch predictor,
-	    --          in which case the solution would probably be to keep a
-	    --          local cache of the updated LR in execute1 (flushed on
-	    --          exceptions) that is used instead of the value from
-	    --          decode when its content is valid.
+	    -- If we're not writing back anything else, we can write back LR
+            -- this cycle, otherwise we take an extra cycle.  We use the
+            -- exc_write path since next_nia is written through that path
+            -- in other places.
 	    if e_in.lr = '1' then
-		v.lr_update := '1';
-		v.next_lr := next_nia;
-		v.e.valid := '0';
-		report "Delayed LR update to " & to_hstring(next_nia);
-		stall_out <= '1';
+                if result_en = '0' then
+                    v.e.exc_write_enable := '1';
+                    v.e.exc_write_data := next_nia;
+                    v.e.exc_write_reg := fast_spr_num(SPR_LR);
+                else
+                    v.lr_update := '1';
+                    v.next_lr := next_nia;
+                    v.e.valid := '0';
+                    report "Delayed LR update to " & to_hstring(next_nia);
+                    v.busy := '1';
+                end if;
 	    end if;
 
-        elsif e_in.valid = '1' then
+        elsif valid_in = '1' then
             -- instruction for other units, i.e. LDST
-            v.ldst_nia := e_in.nia;
-            v.e.valid := '0';
             if e_in.unit = LDST then
                 lv.valid := '1';
             end if;
 
 	elsif r.lr_update = '1' then
-	    result_en := '1';
-	    result := r.next_lr;
-	    v.e.write_reg := fast_spr_num(SPR_LR);
+            v.e.exc_write_enable := '1';
+	    v.e.exc_write_data := r.next_lr;
+	    v.e.exc_write_reg := fast_spr_num(SPR_LR);
 	    v.e.valid := '1';
         elsif r.cntz_in_progress = '1' then
             -- cnt[lt]z always takes two cycles
@@ -931,8 +931,18 @@ begin
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
 	       (r.div_in_progress = '1' and divider_to_x.valid = '1') then
 		if r.mul_in_progress = '1' then
-		    result := multiply_to_x.write_reg_data;
-		    overflow := multiply_to_x.overflow;
+                    overflow := '0';
+                    case r.slow_op_insn is
+                        when OP_MUL_H32 =>
+                            result := multiply_to_x.result(63 downto 32) &
+                                      multiply_to_x.result(63 downto 32);
+                        when OP_MUL_H64 =>
+                            result := multiply_to_x.result(127 downto 64);
+                        when others =>
+                            -- i.e. OP_MUL_L64
+                            result := multiply_to_x.result(63 downto 0);
+                            overflow := multiply_to_x.overflow;
+                    end case;
 		else
 		    result := divider_to_x.write_reg_data;
 		    overflow := divider_to_x.overflow;
@@ -952,7 +962,7 @@ begin
 		end if;
 		v.e.valid := '1';
 	    else
-		stall_out <= '1';
+		v.busy := '1';
 		v.mul_in_progress := r.mul_in_progress;
 		v.div_in_progress := r.div_in_progress;
 	    end if;
@@ -973,7 +983,8 @@ begin
                 v.e.exc_write_data := next_nia;
             end if;
             ctrl_tmp.irq_state <= WRITE_SRR1;
-            v.e.valid := '1';
+            v.busy := '1';
+            v.e.valid := '0';
 	end if;
 
 	v.e.write_data := result;
@@ -1002,10 +1013,9 @@ begin
             end if;
             v.e.exc_write_enable := '1';
             v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
-            v.e.exc_write_data := r.ldst_nia;
-            report "ldst exception writing srr0=" & to_hstring(r.ldst_nia);
+            v.e.exc_write_data := r.last_nia;
+            report "ldst exception writing srr0=" & to_hstring(r.last_nia);
             ctrl_tmp.irq_state <= WRITE_SRR1;
-            v.e.valid := '1';   -- complete the original load or store
         end if;
 
         -- Outputs to loadstore1 (async)
@@ -1040,5 +1050,26 @@ begin
         l_out <= lv;
 	e_out <= r.e;
 	flush_out <= f_out.redirect;
+
+        exception_log <= exception;
+        irq_valid_log <= irq_valid;
     end process;
+
+    ex1_log : process(clk)
+    begin
+        if rising_edge(clk) then
+            log_data <= ctrl.msr(MSR_EE) & ctrl.msr(MSR_PR) &
+                        ctrl.msr(MSR_IR) & ctrl.msr(MSR_DR) &
+                        exception_log &
+                        irq_valid_log &
+                        std_ulogic_vector(to_unsigned(irq_state_t'pos(ctrl.irq_state), 1)) &
+                        "000" &
+                        r.e.write_enable &
+                        r.e.valid &
+                        f_out.redirect &
+                        r.busy &
+                        flush_out;
+        end if;
+    end process;
+    log_out <= log_data;
 end architecture behaviour;
