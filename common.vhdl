@@ -97,7 +97,6 @@ package common is
 	msr: std_ulogic_vector(63 downto 0);
         cfar: std_ulogic_vector(63 downto 0);
 	irq_state : irq_state_t;
-	irq_nia: std_ulogic_vector(63 downto 0);
 	srr1: std_ulogic_vector(63 downto 0);
     end record;
 
@@ -234,8 +233,8 @@ package common is
         priv_mode: std_ulogic;
 	redirect_nia: std_ulogic_vector(63 downto 0);
     end record;
-    constant Execute1ToFetch1TypeInit : Execute1ToFetch1Type := (redirect => '0', virt_mode => '0',
-                                                                 priv_mode => '0', others => (others => '0'));
+    constant Execute1ToFetch1Init : Execute1ToFetch1Type := (redirect => '0', virt_mode => '0',
+                                                             priv_mode => '0', others => (others => '0'));
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
