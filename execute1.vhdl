@@ -74,6 +74,7 @@ architecture behaviour of execute1 is
     signal r, rin : reg_type;
 
     signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
+    signal cr_in : std_ulogic_vector(31 downto 0);
 
     signal valid_in : std_ulogic;
     signal ctrl: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
@@ -355,6 +356,16 @@ begin
 	    v.e.xerc := e_in.xerc;
 	end if;
 
+        -- CR forwarding
+        cr_in <= e_in.cr;
+        if EX1_BYPASS and e_in.bypass_cr = '1' and r.e.write_cr_enable = '1' then
+            for i in 0 to 7 loop
+                if r.e.write_cr_mask(i) = '1' then
+                    cr_in(i * 4 + 3 downto i * 4) <= r.e.write_cr_data(i * 4 + 3 downto i * 4);
+                end if;
+            end loop;
+        end if;
+
 	v.lr_update := '0';
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
@@ -635,7 +646,7 @@ begin
 		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
                 is_branch := '1';
-		taken_branch := ppc_bc_taken(bo, bi, e_in.cr, a_in);
+		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
                 abs_branch := insn_aa(e_in.insn);
 	    when OP_BCREG =>
 		-- read_data1 is CTR
@@ -648,7 +659,7 @@ begin
 		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
                 is_branch := '1';
-		taken_branch := ppc_bc_taken(bo, bi, e_in.cr, a_in);
+		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
                 abs_branch := '1';
 
 	    when OP_RFID =>
@@ -675,7 +686,7 @@ begin
                 v.busy := '1';
 	    when OP_ISEL =>
 		crbit := to_integer(unsigned(insn_bc(e_in.insn)));
-		if e_in.cr(31-crbit) = '1' then
+		if cr_in(31-crbit) = '1' then
 		    result := a_in;
 		else
 		    result := b_in;
@@ -695,7 +706,7 @@ begin
 		        lo := (7-i)*4;
 		        hi := lo + 3;
 		        if i = scrnum then
-			    newcrf := e_in.cr(hi downto lo);
+			    newcrf := cr_in(hi downto lo);
 		        end if;
 		    end loop;
 		    for i in 0 to 7 loop
@@ -713,14 +724,14 @@ begin
 		    bbnum := 31 - to_integer(unsigned(bb));
                     -- Bits 5-8 of cr_op give the truth table of the requested
                     -- logical operation
-                    cr_operands := e_in.cr(banum) & e_in.cr(bbnum);
+                    cr_operands := cr_in(banum) & cr_in(bbnum);
                     crresult := cr_op(5 + to_integer(unsigned(cr_operands)));
 		    v.e.write_cr_mask := num_to_fxm((31-btnum) / 4);
 		    for i in 0 to 31 loop
 			if i = btnum then
 		            v.e.write_cr_data(i) := crresult;
 			else
-		            v.e.write_cr_data(i) := e_in.cr(i);
+		            v.e.write_cr_data(i) := cr_in(i);
 			end if;
 		    end loop;
 		end if;
@@ -772,7 +783,7 @@ begin
 	    when OP_MFCR =>
 		if e_in.insn(20) = '0' then
 		    -- mfcr
-		    result := x"00000000" & e_in.cr;
+		    result := x"00000000" & cr_in;
 		else
 		    -- mfocrf
 		    crnum := fxm_to_num(insn_fxm(e_in.insn));
@@ -781,7 +792,7 @@ begin
 			lo := (7-i)*4;
 			hi := lo + 3;
 			if crnum = i then
-			    result(hi downto lo) := e_in.cr(hi downto lo);
+			    result(hi downto lo) := cr_in(hi downto lo);
 			end if;
 		    end loop;
 		end if;

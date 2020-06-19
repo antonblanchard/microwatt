@@ -213,7 +213,10 @@ architecture behaviour of decode2 is
     signal gpr_c_read : gpr_index_t;
     signal gpr_c_bypass : std_ulogic;
 
-    signal cr_write_valid : std_ulogic;
+    signal cr_write_valid  : std_ulogic;
+    signal cr_bypass       : std_ulogic;
+    signal cr_bypass_avail : std_ulogic;
+
 begin
     control_0: entity work.control
 	generic map (
@@ -248,7 +251,9 @@ begin
             gpr_c_read_in        => gpr_c_read,
 
             cr_read_in           => d_in.decode.input_cr,
-            cr_write_in           => cr_write_valid,
+            cr_write_in          => cr_write_valid,
+            cr_bypass            => cr_bypass,
+            cr_bypassable        => cr_bypass_avail,
 
             valid_out   => control_valid_out,
             stall_out   => stall_out,
@@ -342,6 +347,7 @@ begin
             v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
         end if;
         v.e.cr := c_in.read_cr_data;
+        v.e.bypass_cr := cr_bypass;
         v.e.xerc := c_in.read_xerc_data;
         v.e.invert_a := d_in.decode.invert_a;
         v.e.invert_out := d_in.decode.invert_out;
@@ -388,6 +394,10 @@ begin
         gpr_c_read <= gspr_to_gpr(decoded_reg_c.reg);
 
         cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
+        cr_bypass_avail <= '0';
+        if EX1_BYPASS then
+            cr_bypass_avail <= d_in.decode.output_cr;
+        end if;
 
         v.e.valid := control_valid_out;
         if d_in.decode.unit = NONE then
