@@ -39,7 +39,7 @@ set_property -dict { PACKAGE_PIN M14 IOSTANDARD LVCMOS33 } [get_ports { spi_flas
 
 # Put registers into IOBs to improve timing
 set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/*sck_1*}]
-set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/dat_i_l*}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/input_delay_1.dat_i_l*}]
 
 
 ################################################################################
