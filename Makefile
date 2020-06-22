@@ -175,10 +175,10 @@ fpga_files = $(core_files) $(soc_files) fpga/soc_reset.vhdl \
 synth_files = $(core_files) $(soc_files) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
 
 microwatt.json: $(synth_files)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; synth_ecp5 -json $@"
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; synth_ecp5 -json $@"
 
 microwatt.v: $(synth_files)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
 
 # Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
