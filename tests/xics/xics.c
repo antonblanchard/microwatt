@@ -168,8 +168,8 @@ int xics_test_0(void)
 	assert(v0 = 0xff);
 	assert(v1 = 0xff);
 
-	ics_write_xive(0xaa, 0);
-	ics_write_xive(0x55, 1);
+	ics_write_xive(0xa, 0);
+	ics_write_xive(0x5, 1);
 	v0 = ics_read_xive(0);
 	v1 = ics_read_xive(1);
 #ifdef DEBUG
@@ -181,11 +181,15 @@ int xics_test_0(void)
 	print_number(v1);
 	puts("\n");
 #endif
-	assert(v0 = 0xaa);
-	assert(v1 = 0x55);
+	assert(v0 = 0xa);
+	assert(v1 = 0x5);
 
 	ics_write_xive(0xff, 0);
 	ics_write_xive(0xff, 1);
+	v0 = ics_read_xive(0);
+	v1 = ics_read_xive(1);
+	assert(v0 = 0xff);
+	assert(v1 = 0xff);
 	return 0;
 }
 
@@ -198,28 +202,28 @@ int xics_test_1(void)
 	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
 
 	// trigger two interrupts
-	potato_uart_irq_en(); // cause 0x500 interrupt
-	ics_write_xive(0x80, 0);
-	icp_write8(XICS_MFRR, 0x05); // cause 0x500 interrupt
+	potato_uart_irq_en();        // cause serial interrupt
+	ics_write_xive(0x6, 0);      // set source to prio 6
+	icp_write8(XICS_MFRR, 0x04); // cause ipi interrupt at prio 5
 
 	// still masked, so shouldn't happen yet
 	delay();
 	assert(isrs_run == 0);
 
 	// unmask IPI only
-	icp_write8(XICS_XIRR, 0x40);
+	icp_write8(XICS_XIRR, 0x6);
 	delay();
 	assert(isrs_run == ISR_IPI);
 
 	// unmask UART
-	icp_write8(XICS_XIRR, 0xc0);
+	icp_write8(XICS_XIRR, 0x7);
 	delay();
 	assert(isrs_run == (ISR_IPI | ISR_UART));
 
 	// cleanup
 	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
 	potato_uart_irq_dis();
-	ics_write_xive(0, 0);
+	ics_write_xive(0, 0xff);
 	isrs_run = 0;
 
 	return 0;

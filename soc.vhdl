@@ -640,7 +640,8 @@ begin
 
     xics_ics: entity work.xics_ics
 	generic map(
-	    SRC_NUM => 16
+	    SRC_NUM   => 16,
+	    PRIO_BITS => 3
 	    )
 	port map(
 	    clk => system_clk,

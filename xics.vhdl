@@ -211,7 +211,8 @@ use work.wishbone_types.all;
 
 entity xics_ics is
     generic (
-        SRC_NUM  : positive := 16
+        SRC_NUM    : integer range 1 to 256  := 16;
+        PRIO_BITS  : integer range 1 to 8    := 8
         );
     port (
         clk          : in std_logic;
@@ -227,10 +228,12 @@ end xics_ics;
 
 architecture rtl of xics_ics is
 
-    subtype pri_t is std_ulogic_vector(7 downto 0);
+    subtype pri_t is std_ulogic_vector(PRIO_BITS-1 downto 0);
     type xive_t is record
         pri : pri_t;
     end record;
+    constant pri_masked : pri_t := (others => '1');
+
     type xive_array_t is array(0 to SRC_NUM-1) of xive_t;
     signal xives : xive_array_t;
 
@@ -239,7 +242,7 @@ architecture rtl of xics_ics is
     signal icp_out_next : ics_to_icp_t;
     signal int_level_l : std_ulogic_vector(SRC_NUM - 1 downto 0);
 
-    function  bswap(v : in std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
+    function bswap(v : in std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
         variable r : std_ulogic_vector(31 downto 0);
     begin
         r( 7 downto  0) := v(31 downto 24);
@@ -249,8 +252,35 @@ architecture rtl of xics_ics is
         return r;
     end function;
 
-    -- Register map
-    --     0  : Config (currently hard wired base irq#)
+    function get_config return std_ulogic_vector is
+        variable r: std_ulogic_vector(31 downto 0);
+    begin
+        r := (others => '0');
+        r(23 downto  0) := std_ulogic_vector(to_unsigned(SRC_NUM, 24));
+        r(27 downto 24) := std_ulogic_vector(to_unsigned(PRIO_BITS, 4));
+        return r;
+    end function;
+
+    function prio_pack(pri8: std_ulogic_vector(7 downto 0)) return pri_t is
+    begin
+        return pri8(PRIO_BITS-1 downto 0);
+    end function;
+
+    function prio_unpack(pri: pri_t) return std_ulogic_vector is
+        variable r : std_ulogic_vector(7 downto 0);
+    begin
+        if pri = pri_masked then
+            r := x"ff";
+        else
+            r := (others => '0');
+            r(PRIO_BITS-1 downto 0) := pri;
+        end if;
+        return r;
+   end function;
+
+
+-- Register map
+    --     0  : Config
     --     4  : Debug/diagnostics
     --   800  : XIVE0
     --   804  : XIVE1 ...
@@ -258,6 +288,7 @@ architecture rtl of xics_ics is
     -- Config register format:
     --
     --  23..  0 : Interrupt base (hard wired to 16)
+    --  27.. 24 : #prio bits (1..8)
     --
     -- XIVE register format:
     --
@@ -311,9 +342,9 @@ begin
                           int_level_l(reg_idx) &
                           '0' &
                           x"00000" &
-                          xives(reg_idx).pri;
+                          prio_unpack(xives(reg_idx).pri);
             elsif reg_is_config = '1' then
-                be_out := std_ulogic_vector(to_unsigned(SRC_NUM, 32));
+                be_out := get_config;
             elsif reg_is_debug = '1' then
                 be_out := x"00000" & icp_out_next.src & icp_out_next.pri;
             end if;
@@ -332,21 +363,22 @@ begin
         if rising_edge(clk) then
             if rst = '1' then
                 for i in 0 to SRC_NUM - 1 loop
-                    xives(i) <= (pri => x"ff");
+                    xives(i) <= (pri => pri_masked);
                 end loop;
             elsif wb_valid = '1' and wb_in.we = '1' then
                 if reg_is_xive then
                     -- TODO: When adding support for other bits, make sure to
                     -- properly implement wb_in.sel to allow partial writes.
-                    xives(reg_idx).pri <= be_in(7 downto 0);
-                    report "ICS irq " & integer'image(reg_idx) & " set to:" & to_hstring(be_in(7 downto 0));
+                    xives(reg_idx).pri <= prio_pack(be_in(7 downto 0));
+                    report "ICS irq " & integer'image(reg_idx) &
+                        " set to:" & to_hstring(be_in(7 downto 0));
                 end if;
             end if;
         end if;
     end process;
 
     -- generate interrupt. This is a simple combinational process,
-    -- potentially wasteul in HW for large number of interrupts.
+    -- potentially wasteful in HW for large number of interrupts.
     --
     -- could be replaced with iterative state machines and a message
     -- system between ICSs' (plural) and ICP  incl. reject etc...
@@ -364,16 +396,19 @@ begin
 
         -- A more favored than b ?
         function a_mf_b(a: pri_t; b: pri_t) return boolean is
-            variable a_i : integer range 0 to 255;
-            variable b_i : integer range 0 to 255;
+            variable a_i : unsigned(PRIO_BITS-1 downto 0);
+            variable b_i : unsigned(PRIO_BITS-1 downto 0);
         begin
-            a_i := to_integer(unsigned(a));
-            b_i := to_integer(unsigned(b));
-            return a < b;
+            a_i := unsigned(a);
+            b_i := unsigned(b);
+            report "a_mf_b a=" & to_hstring(a) &
+                " b=" & to_hstring(b) &
+                " r=" & boolean'image(a < b);
+            return a_i < b_i;
         end function;
     begin
         -- XXX FIXME: Use a tree
-        max_pri := x"ff";
+        max_pri := pri_masked;
         max_idx := 0;
         for i in 0 to SRC_NUM - 1 loop
             if int_level_l(i) = '1' and a_mf_b(xives(i).pri, max_pri) then
@@ -381,11 +416,11 @@ begin
                 max_idx := i;
             end if;
         end loop;
-        if max_pri /= x"ff" then
-            report "MFI: " & integer'image(max_idx) & " pri=" & to_hstring(max_pri);
+        if max_pri /= pri_masked then
+            report "MFI: " & integer'image(max_idx) & " pri=" & to_hstring(prio_unpack(max_pri));
         end if;
         icp_out_next.src <= std_ulogic_vector(to_unsigned(max_idx, 4));
-        icp_out_next.pri <= max_pri;
+        icp_out_next.pri <= prio_unpack(max_pri);
     end process;
 
 end architecture rtl;
