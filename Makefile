@@ -187,7 +187,8 @@ microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uar
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
 
 microwatt_out.config: microwatt.json $(LPF)
-	$(NEXTPNR) --json $< --lpf $(LPF) --textcfg $@ $(NEXTPNR_FLAGS) --package $(PACKAGE)
+	$(NEXTPNR) --json $< --lpf $(LPF) --textcfg $@.tmp $(NEXTPNR_FLAGS) --package $(PACKAGE)
+	mv -f $@.tmp $@
 
 microwatt.bit: microwatt_out.config
 	$(ECPPACK) --svf microwatt.svf $< $@
