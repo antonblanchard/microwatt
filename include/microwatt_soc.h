@@ -11,7 +11,8 @@
 
 #define SYSCON_BASE	0xc0000000  /* System control regs */
 #define UART_BASE	0xc0002000  /* UART */
-#define XICS_BASE   	0xc0004000  /* Interrupt controller */
+#define XICS_ICP_BASE   0xc0004000  /* Interrupt controller */
+#define XICS_ICS_BASE   0xc0005000  /* Interrupt controller */
 #define SPI_FCTRL_BASE  0xc0006000  /* SPI flash controller registers */
 #define DRAM_CTRL_BASE	0xc8000000  /* LiteDRAM control registers */
 #define SPI_FLASH_BASE  0xf0000000  /* SPI Flash memory map */

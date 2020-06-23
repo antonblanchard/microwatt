@@ -21,6 +21,7 @@ use work.wishbone_types.all;
 -- 0xc0000000: SYSCON
 -- 0xc0002000: UART0
 -- 0xc0004000: XICS ICP
+-- 0xc0005000: XICS ICS
 -- 0xc0006000: SPI Flash controller
 -- 0xc8nnnnnn: External IO bus
 -- 0xf0000000: Flash "ROM" mapping
@@ -130,12 +131,14 @@ architecture behaviour of soc is
     signal wb_spiflash_is_reg : std_ulogic;
     signal wb_spiflash_is_map : std_ulogic;
 
-    -- XICS0 signals:
-    signal wb_xics0_in   : wb_io_master_out;
-    signal wb_xics0_out  : wb_io_slave_out;
-    signal int_level_in  : std_ulogic_vector(15 downto 0);
-
-    signal core_ext_irq  : std_ulogic;
+    -- XICS signals:
+    signal wb_xics_icp_in   : wb_io_master_out;
+    signal wb_xics_icp_out  : wb_io_slave_out;
+    signal wb_xics_ics_in   : wb_io_master_out;
+    signal wb_xics_ics_out  : wb_io_slave_out;
+    signal int_level_in     : std_ulogic_vector(15 downto 0);
+    signal ics_to_icp       : ics_to_icp_t;
+    signal core_ext_irq     : std_ulogic;
 
     -- Main memory signals:
     signal wb_bram_in     : wishbone_master_out;
@@ -171,7 +174,8 @@ architecture behaviour of soc is
     -- IO branch split:
     type slave_io_type is (SLAVE_IO_SYSCON,
                            SLAVE_IO_UART,
-                           SLAVE_IO_ICP_0,
+                           SLAVE_IO_ICP,
+                           SLAVE_IO_ICS,
                            SLAVE_IO_SPI_FLASH_REG,
                            SLAVE_IO_SPI_FLASH_MAP,
                            SLAVE_IO_EXTERNAL,
@@ -441,7 +445,8 @@ begin
     -- IO wishbone slave intercon.
     --
     slave_io_intercon: process(wb_sio_out, wb_syscon_out, wb_uart0_out,
-                               wb_ext_io_out, wb_xics0_out, wb_spiflash_out)
+                               wb_ext_io_out, wb_xics_icp_out, wb_xics_ics_out,
+                               wb_spiflash_out)
 	variable slave_io : slave_io_type;
 
         variable match : std_ulogic_vector(31 downto 12);
@@ -462,7 +467,9 @@ begin
 	elsif std_match(match, x"C8---") then
 	    slave_io := SLAVE_IO_EXTERNAL;
 	elsif std_match(match, x"C0004") then
-	    slave_io := SLAVE_IO_ICP_0;
+	    slave_io := SLAVE_IO_ICP;
+	elsif std_match(match, x"C0005") then
+	    slave_io := SLAVE_IO_ICS;
 	elsif std_match(match, x"C0006") then
 	    slave_io := SLAVE_IO_SPI_FLASH_REG;
 	end if;
@@ -474,11 +481,15 @@ begin
         wb_spiflash_is_reg <= '0';
         wb_spiflash_is_map <= '0';
 
-	 -- Only give xics 8 bits of wb addr
-	wb_xics0_in <= wb_sio_out;
-	wb_xics0_in.adr <= (others => '0');
-	wb_xics0_in.adr(7 downto 0) <= wb_sio_out.adr(7 downto 0);
-	wb_xics0_in.cyc  <= '0';
+	 -- Only give xics 8 bits of wb addr (for now...)
+	wb_xics_icp_in <= wb_sio_out;
+	wb_xics_icp_in.adr <= (others => '0');
+	wb_xics_icp_in.adr(7 downto 0) <= wb_sio_out.adr(7 downto 0);
+	wb_xics_icp_in.cyc  <= '0';
+	wb_xics_ics_in <= wb_sio_out;
+	wb_xics_ics_in.adr <= (others => '0');
+	wb_xics_ics_in.adr(11 downto 0) <= wb_sio_out.adr(11 downto 0);
+	wb_xics_ics_in.cyc  <= '0';
 
 	wb_ext_io_in <= wb_sio_out;
 	wb_ext_io_in.cyc <= '0';
@@ -521,9 +532,12 @@ begin
 	when SLAVE_IO_UART =>
 	    wb_uart0_in.cyc <= wb_sio_out.cyc;
 	    wb_sio_in <= wb_uart0_out;
-	when SLAVE_IO_ICP_0 =>
-	    wb_xics0_in.cyc <= wb_sio_out.cyc;
-	    wb_sio_in <= wb_xics0_out;
+	when SLAVE_IO_ICP =>
+	    wb_xics_icp_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_xics_icp_out;
+	when SLAVE_IO_ICS =>
+	    wb_xics_ics_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_xics_ics_out;
 	when SLAVE_IO_SPI_FLASH_MAP =>
             -- Clear top bits so they don't make their way to the
             -- fash chip.
@@ -614,17 +628,28 @@ begin
         wb_spiflash_out.stall <= wb_spiflash_in.cyc and not wb_spiflash_out.ack;
     end generate;
 
-    xics0: entity work.xics
+    xics_icp: entity work.xics_icp
+	port map(
+	    clk => system_clk,
+	    rst => rst_xics,
+	    wb_in => wb_xics_icp_in,
+	    wb_out => wb_xics_icp_out,
+            ics_in => ics_to_icp,
+	    core_irq_out => core_ext_irq
+	    );
+
+    xics_ics: entity work.xics_ics
 	generic map(
-	    LEVEL_NUM => 16
+	    SRC_NUM   => 16,
+	    PRIO_BITS => 3
 	    )
 	port map(
 	    clk => system_clk,
 	    rst => rst_xics,
-	    wb_in => wb_xics0_in,
-	    wb_out => wb_xics0_out,
+	    wb_in => wb_xics_ics_in,
+	    wb_out => wb_xics_ics_out,
 	    int_level_in => int_level_in,
-	    core_irq_out => core_ext_irq
+            icp_out => ics_to_icp
 	    );
 
     -- Assign external interrupts

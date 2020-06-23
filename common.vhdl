@@ -78,6 +78,16 @@ package common is
 
     type irq_state_t is (WRITE_SRR0, WRITE_SRR1);
 
+    -- For now, fixed 16 sources, make this either a parametric
+    -- package of some sort or an unconstrainted array.
+    type ics_to_icp_t is record
+        -- Level interrupts only, ICS just keeps prsenting the
+        -- highest priority interrupt. Once handling edge, something
+        -- smarter involving handshake & reject support will be needed
+        src : std_ulogic_vector(3 downto 0);
+        pri : std_ulogic_vector(7 downto 0);
+    end record;
+
     -- This needs to die...
     type ctrl_t is record
 	tb: std_ulogic_vector(63 downto 0);
