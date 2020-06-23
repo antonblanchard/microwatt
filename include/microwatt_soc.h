@@ -39,6 +39,7 @@
 #define   SYS_REG_INFO_HAS_LITEETH 		(1ull << 4)
 #define   SYS_REG_INFO_HAS_LARGE_SYSCON	        (1ull << 5)
 #define   SYS_REG_INFO_HAS_UART1 		(1ull << 6)
+#define   SYS_REG_INFO_HAS_ARTB                 (1ull << 7)
 #define SYS_REG_BRAMINFO		0x10
 #define   SYS_REG_BRAMINFO_SIZE_MASK		0xfffffffffffffull
 #define SYS_REG_DRAMINFO		0x18

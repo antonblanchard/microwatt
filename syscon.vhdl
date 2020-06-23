@@ -64,6 +64,7 @@ architecture behaviour of syscon is
     constant SYS_REG_INFO_HAS_LETH    : integer := 4;  -- Has LiteEth ethernet
     constant SYS_REG_INFO_HAS_LSYS    : integer := 5;  -- Has 6-bit address syscon
     constant SYS_REG_INFO_HAS_URT1    : integer := 6;  -- Has second UART
+    constant SYS_REG_INFO_HAS_ARTB    : integer := 7;  -- Has architected TB frequency
 
     -- BRAMINFO contains the BRAM size in the bottom 52 bits
     -- DRAMINFO contains the DRAM size if any in the bottom 52 bits
