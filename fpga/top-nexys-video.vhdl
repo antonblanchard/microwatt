@@ -256,6 +256,8 @@ begin
 	    generic map(
 		DRAM_ABITS => 25,
 		DRAM_ALINES => 15,
+                DRAM_DLINES => 16,
+                DRAM_PORT_WIDTH => 128,
                 PAYLOAD_FILE => RAM_INIT_FILE,
                 PAYLOAD_SIZE => PAYLOAD_SIZE
 		)
