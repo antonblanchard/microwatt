@@ -58,6 +58,18 @@ architecture rtl of clock_generator is
 		report "Unsupported output frequency" severity failure;
 		return bad_settings;
 	    end case;
+	when 200000000 =>
+	    case output_hz is
+	    when 100000000 =>
+		return (clkin_period  => 5.0,
+			clkfbout_mult => 5.0,
+			clkout_divide => 10.0,
+			divclk_divide => 1,
+			force_rst     => '0');
+	    when others =>
+		report "Unsupported output frequency" severity failure;
+		return bad_settings;
+	    end case;
 	when 12000000 =>
 	    case output_hz is
 	    when 100000000 =>
@@ -65,7 +77,7 @@ architecture rtl of clock_generator is
 			clkfbout_mult => 50.0,
 			clkout_divide => 6.0,
 			divclk_divide => 1,
-			force_rst     => '0');			
+			force_rst     => '0');
 	    when  50000000 =>
 		return (clkin_period  => 83.33,
 			clkfbout_mult => 50.0,
