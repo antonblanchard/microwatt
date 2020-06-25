@@ -20,7 +20,7 @@ entity toplevel is
         SPI_FLASH_OFFSET   : integer := 10485760;
         SPI_FLASH_DEF_CKDV : natural := 1;
         SPI_FLASH_DEF_QUAD : boolean := true;
-        UART_IS_16550      : boolean := true;
+        UART_IS_16550      : boolean := true
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -151,8 +151,8 @@ begin
 	    wb_dram_out         => wb_dram_out,
 	    wb_ext_io_in        => wb_ext_io_in,
 	    wb_ext_io_out       => wb_ext_io_out,
-	    wb_ext_is_dram_csr  => wb_dram_is_csr,
-	    wb_ext_is_dram_init => wb_dram_is_init,
+	    wb_ext_is_dram_csr  => wb_ext_is_dram_csr,
+	    wb_ext_is_dram_init => wb_ext_is_dram_init,
 	    alt_reset           => core_alt_reset
 	    );
 
