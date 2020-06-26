@@ -264,6 +264,7 @@ begin
 		rst             => pll_rst,
 		system_clk	=> system_clk,
 		system_reset	=> soc_rst,
+                core_alt_reset  => core_alt_reset,
 		pll_locked	=> system_clk_locked,
 
 		wb_in		=> wb_dram_in,
