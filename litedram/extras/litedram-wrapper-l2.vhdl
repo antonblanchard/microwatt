@@ -914,6 +914,12 @@ begin
             user_port0_wdata_data(WBL*(i+1)-1 downto WBL*i) <= stq_data;
         end loop;
 
+        -- Note: Current litedram ignores user_port0_wdata_valid. We
+        -- must make sure to always have the data available at the
+        -- output of the store queue when we send the write command.
+        --
+        -- Thankfully this is always the case with this design.
+        --
         user_port0_wdata_valid <= storeq_rd_valid;
         storeq_rd_ready        <= user_port0_wdata_ready;
 
@@ -957,6 +963,9 @@ begin
             user_port0_cmd_valid <= refill_cmd_valid;
             user_port0_cmd_we    <= '0';
         end if;
+
+        -- Note: litedram  ignores this signal and assumes we are
+        -- always ready to accept read data.
         user_port0_rdata_ready <= '1'; -- Always 1
     end process;
 
