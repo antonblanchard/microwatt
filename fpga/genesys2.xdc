@@ -23,27 +23,6 @@ set_property -dict { PACKAGE_PIN R25   IOSTANDARD LVCMOS33 } [get_ports { spi_fl
 set_property -dict { PACKAGE_PIN R20   IOSTANDARD LVCMOS33 } [get_ports { spi_flash_wp_n   }]
 set_property -dict { PACKAGE_PIN R21   IOSTANDARD LVCMOS33 } [get_ports { spi_flash_hold_n }]
 
-eth_ref_clk, eth_rst_n
-ext_clk, ext_rst_n, led0_b, led0_g, led0_r, led4, led5, led6, led7, spi_flash_clk
-
-## Ethernet
-#set_property -dict { PACKAGE_PIN AK16  IOSTANDARD LVCMOS18 } [get_ports { eth_int_b }]; #IO_L1P_T0_32 Sch=eth_intb
-set_property -dict { PACKAGE_PIN AF12  IOSTANDARD LVCMOS15 } [get_ports { eth_mdc }]; #IO_L23P_T3_33 Sch=eth_mdc
-#set_property -dict { PACKAGE_PIN AG12  IOSTANDARD LVCMOS15 } [get_ports { eth_mdio }]; #IO_L23N_T3_33 Sch=eth_mdio
-#set_property -dict { PACKAGE_PIN AH24  IOSTANDARD LVCMOS33 } [get_ports { ETH_PHYRST_N }]; #IO_L14N_T2_SRCC_12 Sch=eth_phyrst_n
-#set_property -dict { PACKAGE_PIN AK15  IOSTANDARD LVCMOS18 } [get_ports { eth_pme_b }]; #IO_L1N_T0_32 Sch=eth_pmeb
-#set_property -dict { PACKAGE_PIN AG10  IOSTANDARD LVCMOS15 } [get_ports { eth_rxck }]; #IO_L13P_T2_MRCC_33 Sch=eth_rx_clk
-#set_property -dict { PACKAGE_PIN AH11  IOSTANDARD LVCMOS15 } [get_ports { eth_rxctl }]; #IO_L18P_T2_33 Sch=eth_rx_ctl
-#set_property -dict { PACKAGE_PIN AJ14  IOSTANDARD LVCMOS15 } [get_ports { eth_rxd[0] }]; #IO_L21N_T3_DQS_33 Sch=eth_rx_d[0]
-#set_property -dict { PACKAGE_PIN AH14  IOSTANDARD LVCMOS15 } [get_ports { eth_rxd[1] }]; #IO_L21P_T3_DQS_33 Sch=eth_rx_d[1]
-#set_property -dict { PACKAGE_PIN AK13  IOSTANDARD LVCMOS15 } [get_ports { eth_rxd[2] }]; #IO_L20N_T3_33 Sch=eth_rx_d[2]
-#set_property -dict { PACKAGE_PIN AJ13  IOSTANDARD LVCMOS15 } [get_ports { eth_rxd[3] }]; #IO_L22P_T3_33 Sch=eth_rx_d[3]
-#set_property -dict { PACKAGE_PIN AE10  IOSTANDARD LVCMOS15 } [get_ports { eth_txck }]; #IO_L14P_T2_SRCC_33 Sch=eth_tx_clk
-set_property -dict { PACKAGE_PIN AJ12  IOSTANDARD LVCMOS15 } [get_ports { eth_tx_data[0] }]; #IO_L22N_T3_33 Sch=eth_tx_d[0]
-set_property -dict { PACKAGE_PIN AK11  IOSTANDARD LVCMOS15 } [get_ports { eth_tx_data[1] }]; #IO_L17P_T2_33 Sch=eth_tx_d[1]
-set_property -dict { PACKAGE_PIN AJ11  IOSTANDARD LVCMOS15 } [get_ports { eth_tx_data[2] }]; #IO_L18N_T2_33 Sch=eth_tx_d[2]
-set_property -dict { PACKAGE_PIN AK10  IOSTANDARD LVCMOS15 } [get_ports { eth_tx_data[3] }]; #IO_L17N_T2_33 Sch=eth_tx_d[3]
-set_property -dict { PACKAGE_PIN AK14  IOSTANDARD LVCMOS15 } [get_ports { eth_tx_en }]; #IO_L20P_T3_33 Sch=eth_tx_en
 
 ## DRAM
 
@@ -472,3 +451,10 @@ set_property LOC AG5 [get_ports {ddram_reset_n}]
 set_property SLEW FAST [get_ports {ddram_reset_n}]
 set_property VCCAUX_IO HIGH [get_ports {ddram_reset_n}]
 set_property IOSTANDARD LVCMOS15 [get_ports {ddram_reset_n}]
+
+
+
+# False path constraints
+set_false_path -quiet -through [get_nets -hierarchical -filter {mr_ff == TRUE}]
+set_false_path -quiet -to [get_pins -filter {REF_PIN_NAME == PRE} -of_objects [get_cells -hierarchical -filter {ars_ff1 == TRUE || ars_ff2 == TRUE}]]
+set_max_delay 2 -quiet -from [get_pins -filter {REF_PIN_NAME == C} -of_objects [get_cells -hierarchical -filter {ars_ff1 == TRUE}]] -to [get_pins -filter {REF_PIN_NAME == D} -of_objects [get_cells -hierarchical -filter {ars_ff2 == TRUE}]]

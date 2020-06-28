@@ -48,6 +48,7 @@ entity toplevel is
 	ddram_ras_n   : out std_logic;
 	ddram_cas_n   : out std_logic;
 	ddram_we_n    : out std_logic;
+	ddram_cs_n    : out std_ulogic;
 	ddram_dm      : out std_logic_vector(3 downto 0);
 	ddram_dq      : inout std_logic_vector(31 downto 0);
 	ddram_dqs_p   : inout std_logic_vector(3 downto 0);
@@ -273,6 +274,7 @@ begin
 		rst             => pll_rst,
 		system_clk	=> system_clk,
 		system_reset	=> soc_rst,
+		core_alt_reset  => core_alt_reset,
 		pll_locked	=> system_clk_locked,
 
 		wb_in		=> wb_dram_in,
@@ -290,7 +292,7 @@ begin
 		ddram_ras_n	=> ddram_ras_n,
 		ddram_cas_n	=> ddram_cas_n,
 		ddram_we_n	=> ddram_we_n,
-		ddram_cs_n	=> open,
+		ddram_cs_n	=> ddram_cs_n,
 		ddram_dm	=> ddram_dm,
 		ddram_dq	=> ddram_dq,
 		ddram_dqs_p	=> ddram_dqs_p,
