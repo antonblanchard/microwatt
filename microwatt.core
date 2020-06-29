@@ -100,6 +100,9 @@ filesets:
   litedram:
       depend : [":microwatt:litedram"]
 
+  liteeth:
+      depend : [":microwatt:liteeth"]
+
 targets:
   nexys_a7:
     default_tool: vivado
@@ -141,7 +144,7 @@ targets:
       - no_bram
       - spi_flash_offset=10485760
       - log_length=2048
-    generate: [dram_nexys_video]
+    generate: [litedram_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -163,16 +166,17 @@ targets:
 
   arty_a7-35:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, xilinx_specific]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
       - use_litedram=true
+      - use_liteeth=true
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=3145728
       - log_length=512
-    generate: [dram_arty]
+    generate: [litedram_arty, liteeth_arty]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
@@ -194,16 +198,17 @@ targets:
 
   arty_a7-100:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, xilinx_specific]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, xilinx_specific]
     parameters:
       - memory_size
       - ram_init_file
       - use_litedram=true
+      - use_liteeth=true
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=4194304
       - log_length=2048
-    generate: [dram_arty]
+    generate: [litedram_arty, liteeth_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -230,11 +235,15 @@ targets:
     toplevel: core
 
 generate:
-  dram_arty:
+  litedram_arty:
     generator: litedram_gen
     parameters: {board : arty}
 
-  dram_nexys_video:
+  liteeth_arty:
+    generator: liteeth_gen
+    parameters: {board : arty}
+
+  litedram_nexys_video:
     generator: litedram_gen
     parameters: {board : nexys-video}
 
@@ -276,6 +285,12 @@ parameters:
   use_litedram:
     datatype    : bool
     description : Use liteDRAM
+    paramtype   : generic
+    default     : false
+
+  use_liteeth:
+    datatype    : bool
+    description : Use liteEth
     paramtype   : generic
     default     : false
 
