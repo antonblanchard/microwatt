@@ -7,7 +7,7 @@
 
 int main(void)
 {
-	potato_uart_init();
+	console_init();
 
 	puts(HELLO_WORLD);
 

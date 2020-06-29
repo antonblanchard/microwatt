@@ -241,7 +241,7 @@ uint64_t main(void)
 	bool try_flash = false;
 
 	/* Init the UART */
-	potato_uart_init();
+	console_init();
 
 	printf("\n\nWelcome to Microwatt !\n\n");
 

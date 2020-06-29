@@ -228,7 +228,7 @@ void do_test(int num, int (*fn)(unsigned long))
 
 int main(void)
 {
-	potato_uart_init();
+	console_init();
 	init_mmu();
 	map(0x2000, 0x2000, REF | CHG | PERM_RD | PERM_EX);	/* map code page */
 	map(0x7000, 0x7000, REF | CHG | PERM_RD | PERM_WR);	/* map stack page */

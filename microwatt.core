@@ -103,10 +103,13 @@ filesets:
   liteeth:
       depend : [":microwatt:liteeth"]
 
+  uart16550:
+      depend : ["::uart16550"]
+
 targets:
   nexys_a7:
     default_tool: vivado
-    filesets: [core, nexys_a7, soc, fpga, debug_xilinx, xilinx_specific]
+    filesets: [core, nexys_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -114,13 +117,15 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - log_length=2048
+      - uart_is_16550
+      - has_uart1
     tools:
       vivado: {part : xc7a100tcsg324-1}
     toplevel : toplevel
 
   nexys_video-nodram:
     default_tool: vivado
-    filesets: [core, nexys_video, soc, fpga, debug_xilinx, xilinx_specific]
+    filesets: [core, nexys_video, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -129,13 +134,15 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=10485760
       - log_length=2048
+      - uart_is_16550
+      - has_uart1
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
 
   nexys_video:
     default_tool: vivado
-    filesets: [core, nexys_video, soc, fpga, debug_xilinx, litedram, xilinx_specific]
+    filesets: [core, nexys_video, soc, fpga, debug_xilinx, litedram, uart16550, xilinx_specific]
     parameters:
       - memory_size
       - ram_init_file
@@ -151,7 +158,7 @@ targets:
 
   arty_a7-35-nodram:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, xilinx_specific]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -160,13 +167,15 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=3145728
       - log_length=512
+      - uart_is_16550
+      - has_uart1
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
 
   arty_a7-35:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, xilinx_specific]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -176,6 +185,8 @@ targets:
       - no_bram
       - spi_flash_offset=3145728
       - log_length=512
+      - uart_is_16550
+      - has_uart1
     generate: [litedram_arty, liteeth_arty]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -183,7 +194,7 @@ targets:
 
   arty_a7-100-nodram:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, xilinx_specific]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -192,13 +203,15 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=4194304
       - log_length=2048
+      - uart_is_16550
+      - has_uart1
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
 
   arty_a7-100:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, xilinx_specific]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific]
     parameters:
       - memory_size
       - ram_init_file
@@ -208,6 +221,8 @@ targets:
       - no_bram
       - spi_flash_offset=4194304
       - log_length=2048
+      - uart_is_16550
+      - has_uart1
     generate: [litedram_arty, liteeth_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
@@ -215,7 +230,7 @@ targets:
 
   cmod_a7-35:
     default_tool: vivado
-    filesets: [core, cmod_a7-35, soc, fpga, debug_xilinx, xilinx_specific]
+    filesets: [core, cmod_a7-35, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
@@ -224,6 +239,8 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - log_length=512
+      - uart_is_16550
+      - has_uart1
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel
@@ -291,6 +308,18 @@ parameters:
   use_liteeth:
     datatype    : bool
     description : Use liteEth
+    paramtype   : generic
+    default     : false
+
+  uart_is_16550:
+    datatype    : bool
+    description : Use 16550-compatible UART from OpenCores
+    paramtype   : generic
+    default     : true
+
+  has_uart1:
+    datatype    : bool
+    description : Enable second UART (always 16550-compatible)
     paramtype   : generic
     default     : false
 

@@ -39,7 +39,7 @@ sim_provides = {
     "dmi_dtm" : "dmi_dtm_xilinx.vhdl",
     "clock_generator" : "fpga/clk_gen_bypass.vhd",
     "main_bram" : "sim_bram.vhdl",
-    "pp_soc_uart" : "sim_uart.vhdl"
+    "pp_soc_uart" : "sim_pp_uart.vhdl"
 }
 
 if synth:

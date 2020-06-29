@@ -27,6 +27,7 @@ package common is
     constant SPR_DSISR  : spr_num_t := 18;
     constant SPR_DAR    : spr_num_t := 19;
     constant SPR_TB     : spr_num_t := 268;
+    constant SPR_TBU    : spr_num_t := 269;
     constant SPR_DEC    : spr_num_t := 22;
     constant SPR_SRR0   : spr_num_t := 26;
     constant SPR_SRR1   : spr_num_t := 27;
