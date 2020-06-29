@@ -67,7 +67,7 @@ $(OBJ)/libc.o: $(LIBC_OBJ)
 	$(call Q,LD, $(LD) -r -o $@ $^, $@)
 
 $(OBJ)/$(PROGRAM).elf: $(OBJECTS) $(OBJ)/libc.o $(OBJ)/$(PROGRAM).lds
-	$(call Q,LD, $(LD) $(LDFLAGS) -o $@ $^, $@)
+	$(call Q,LD, $(LD) $(LDFLAGS) -o $@ $(OBJECTS) $(OBJ)/libc.o, $@)
 
 $(OBJ)/$(PROGRAM).bin: $(OBJ)/$(PROGRAM).elf
 	$(call Q,OC, $(OBJCOPY) -O binary -S $^ $@, $@)
