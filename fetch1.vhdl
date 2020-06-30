@@ -83,11 +83,11 @@ begin
             v.priv_mode := '1';
 	    v_int.stop_state := RUNNING;
 	elsif e_in.redirect = '1' then
-	    v.nia := e_in.redirect_nia;
+	    v.nia := e_in.redirect_nia(63 downto 2) & "00";
             v.virt_mode := e_in.virt_mode;
             v.priv_mode := e_in.priv_mode;
         elsif d_in.redirect = '1' then
-            v.nia := d_in.redirect_nia;
+            v.nia := d_in.redirect_nia(63 downto 2) & "00";
 	elsif stall_in = '0' then
 
 	    -- For debug stop/step to work properly we need a little bit of

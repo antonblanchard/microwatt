@@ -87,12 +87,19 @@ begin
         end if;
 
         case op is
-            when OP_AND =>
-                tmp := rs and rb_adj;
-            when OP_OR =>
-                tmp := rs or rb_adj;
-	    when OP_XOR =>
-                tmp := rs xor rb_adj;
+            when OP_AND | OP_OR | OP_XOR =>
+                case op is
+                    when OP_AND =>
+                        tmp := rs and rb_adj;
+                    when OP_OR =>
+                        tmp := rs or rb_adj;
+                    when others =>
+                        tmp := rs xor rb_adj;
+                end case;
+                if invert_out = '1' then
+                    tmp := not tmp;
+                end if;
+
             when OP_POPCNT =>
                 tmp := popcnt;
             when OP_PRTY =>
@@ -115,9 +122,6 @@ begin
 		tmp(7 downto 0) := rs(7 downto 0);
         end case;
 
-        if invert_out = '1' then
-            tmp := not tmp;
-        end if;
         result <= tmp;
 
     end process;

@@ -16,15 +16,18 @@ entity cr_hazard is
 
         cr_read_in  : in std_ulogic;
         cr_write_in : in std_ulogic;
+        bypassable  : in std_ulogic;
 
-        stall_out   : out std_ulogic
+        stall_out   : out std_ulogic;
+        use_bypass  : out std_ulogic
         );
 end entity cr_hazard;
 architecture behaviour of cr_hazard is
     type pipeline_entry_type is record
-        valid : std_ulogic;
+        valid  : std_ulogic;
+        bypass : std_ulogic;
     end record;
-    constant pipeline_entry_init : pipeline_entry_type := (valid => '0');
+    constant pipeline_entry_init : pipeline_entry_type := (valid => '0', bypass => '0');
 
     type pipeline_t is array(0 to PIPELINE_DEPTH) of pipeline_entry_type;
     constant pipeline_t_init : pipeline_t := (others => pipeline_entry_init);
@@ -47,7 +50,20 @@ begin
         if complete_in = '1' then
             v(1).valid := '0';
         end if;
-        stall_out <= cr_read_in and (v(0).valid or v(1).valid);
+
+        use_bypass <= '0';
+        stall_out <= '0';
+        if cr_read_in = '1' then
+            loop_0: for i in 0 to PIPELINE_DEPTH loop
+                if v(i).valid = '1' then
+                    if r(i).bypass = '1' then
+                        use_bypass <= '1';
+                    else
+                        stall_out <= '1';
+                    end if;
+                end if;
+            end loop;
+        end if;
 
         -- XXX assumes PIPELINE_DEPTH = 1
         if busy_in = '0' then
@@ -56,6 +72,7 @@ begin
         end if;
         if deferred = '0' and issuing = '1' then
             v(0).valid := cr_write_in;
+            v(0).bypass := bypassable;
         end if;
         if flush_in = '1' then
             v(0).valid := '0';

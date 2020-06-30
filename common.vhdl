@@ -31,6 +31,7 @@ package common is
     constant SPR_DEC    : spr_num_t := 22;
     constant SPR_SRR0   : spr_num_t := 26;
     constant SPR_SRR1   : spr_num_t := 27;
+    constant SPR_CFAR   : spr_num_t := 28;
     constant SPR_HSRR0  : spr_num_t := 314;
     constant SPR_HSRR1  : spr_num_t := 315;
     constant SPR_SPRG0  : spr_num_t := 272;
@@ -94,8 +95,8 @@ package common is
 	tb: std_ulogic_vector(63 downto 0);
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
+        cfar: std_ulogic_vector(63 downto 0);
 	irq_state : irq_state_t;
-	irq_nia: std_ulogic_vector(63 downto 0);
 	srr1: std_ulogic_vector(63 downto 0);
     end record;
 
@@ -150,6 +151,7 @@ package common is
         bypass_data2: std_ulogic;
         bypass_data3: std_ulogic;
 	cr: std_ulogic_vector(31 downto 0);
+        bypass_cr : std_ulogic;
 	xerc: xer_common_t;
 	lr: std_ulogic;
 	rc: std_ulogic;
@@ -172,7 +174,7 @@ package common is
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
-         lr => '0', rc => '0', oe => '0', invert_a => '0',
+         bypass_cr => '0', lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'), read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'), cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'), others => (others => '0'));
@@ -232,8 +234,8 @@ package common is
         priv_mode: std_ulogic;
 	redirect_nia: std_ulogic_vector(63 downto 0);
     end record;
-    constant Execute1ToFetch1TypeInit : Execute1ToFetch1Type := (redirect => '0', virt_mode => '0',
-                                                                 priv_mode => '0', others => (others => '0'));
+    constant Execute1ToFetch1Init : Execute1ToFetch1Type := (redirect => '0', virt_mode => '0',
+                                                             priv_mode => '0', others => (others => '0'));
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;

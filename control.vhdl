@@ -38,6 +38,7 @@ entity control is
 
         cr_read_in          : in std_ulogic;
         cr_write_in         : in std_ulogic;
+        cr_bypassable       : in std_ulogic;
 
         valid_out           : out std_ulogic;
         stall_out           : out std_ulogic;
@@ -45,7 +46,8 @@ entity control is
 
         gpr_bypass_a        : out std_ulogic;
         gpr_bypass_b        : out std_ulogic;
-        gpr_bypass_c        : out std_ulogic
+        gpr_bypass_c        : out std_ulogic;
+        cr_bypass           : out std_ulogic
         );
 end entity control;
 
@@ -161,8 +163,10 @@ begin
 
             cr_read_in         => cr_read_in,
             cr_write_in        => cr_write_valid,
+            bypassable         => cr_bypassable,
 
-            stall_out          => cr_stall_out
+            stall_out          => cr_stall_out,
+            use_bypass         => cr_bypass
             );
 
     control0: process(clk)
