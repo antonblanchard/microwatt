@@ -54,6 +54,7 @@ soc_files = $(core_files) wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_
 	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl \
 	spi_rxtx.vhdl spi_flash_ctrl.vhdl
 
+uart_files = $(wildcard uart16550/*.v)
 
 soc_sim_files = $(soc_files) sim_console.vhdl sim_pp_uart.vhdl sim_bram_helpers.vhdl \
 	sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl dmi_dtm_xilinx.vhdl \
@@ -175,10 +176,10 @@ fpga_files = $(core_files) $(soc_files) fpga/soc_reset.vhdl \
 synth_files = $(core_files) $(soc_files) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
 
 microwatt.json: $(synth_files)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; synth_ecp5 -json $@"
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; synth_ecp5 -json $@" $(uart_files)
 
 microwatt.v: $(synth_files)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; write_verilog $@" $(uart_files)
 
 # Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
