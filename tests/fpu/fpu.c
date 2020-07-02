@@ -163,6 +163,72 @@ int fpu_test_2(void)
 	return 0;
 }
 
+struct sp_dp_equiv {
+	unsigned int sp;
+	unsigned long dp;
+} sp_dp_equiv[] = {
+	{ 0, 0 },
+	{ 0x80000000, 0x8000000000000000 },
+	{ 0x7f800000, 0x7ff0000000000000 },
+	{ 0xff800000, 0xfff0000000000000 },
+	{ 0x7f812345, 0x7ff02468a0000000 },
+	{ 0x456789ab, 0x40acf13560000000 },
+	{ 0x12345678, 0x3a468acf00000000 },
+	{ 0x00400000, 0x3800000000000000 },
+	{ 0x00200000, 0x37f0000000000000 },
+	{ 0x00000002, 0x36b0000000000000 },
+	{ 0x00000001, 0x36a0000000000000 },
+};
+
+int sp_to_dp(long arg)
+{
+	unsigned long dp;
+
+	__asm__("lfs 20,0(%0); stfd 20,0(%1)"
+		: : "b" (&sp_dp_equiv[arg].sp), "b" (&dp) : "memory");
+	if (dp != sp_dp_equiv[arg].dp) {
+		print_hex(sp_dp_equiv[arg].sp, 8);
+		print_string(" ");
+		print_hex(dp, 16);
+		print_string(" ");
+		print_hex(sp_dp_equiv[arg].dp, 16);
+		print_string(" ");
+	}
+	return dp != sp_dp_equiv[arg].dp;
+}
+
+int dp_to_sp(long arg)
+{
+	unsigned int sp;
+
+	__asm__("lfd 21,0(%0); stfs 21,0(%1)"
+		: : "b" (&sp_dp_equiv[arg].dp), "b" (&sp) : "memory");
+	return sp != sp_dp_equiv[arg].sp;
+}
+
+int fpu_test_3(void)
+{
+	int i, n, ret;
+
+	n = sizeof(sp_dp_equiv) / sizeof(sp_dp_equiv[0]);
+	enable_fp();
+	for (i = 0; i < n; ++i) {
+		ret = trapit(i, sp_to_dp);
+		if (ret != 0) {
+			if (ret == 1)
+				ret += i;
+			return ret;
+		}
+		ret = trapit(i, dp_to_sp);
+		if (ret != 0) {
+			if (ret == 1)
+				ret += i + 0x10000;
+			return ret;
+		}
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -176,7 +242,7 @@ void do_test(int num, int (*test)(void))
 	} else {
 		fail = 1;
 		print_string("FAIL ");
-		print_hex(ret, 4);
+		print_hex(ret, 5);
 		print_string(" SRR0=");
 		print_hex(mfspr(SRR0), 16);
 		print_string(" SRR1=");
@@ -191,6 +257,7 @@ int main(void)
 
 	do_test(1, fpu_test_1);
 	do_test(2, fpu_test_2);
+	do_test(3, fpu_test_3);
 
 	return fail;
 }
