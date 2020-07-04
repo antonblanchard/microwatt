@@ -71,7 +71,7 @@ unisim_lib = $(unisim_dir)/unisim-obj08.cf
 unisim_lib_files = $(unisim_dir)/BSCANE2.vhdl $(unisim_dir)/BUFG.vhdl \
 	$(unisim_dir)/unisim_vcomponents.vhdl
 $(unisim_lib): $(unisim_lib_files)
-	ghdl -i --std=08 --work=unisim --workdir=$(unisim_dir) $^
+	$(GHDL) -i --std=08 --work=unisim --workdir=$(unisim_dir) $^
 GHDLFLAGS += -P$(unisim_dir)
 
 core_tbs = multiply_tb divider_tb rotator_tb countzero_tb
@@ -85,7 +85,7 @@ fmf_lib = $(fmf_dir)/fmf-obj08.cf
 fmf_lib_files = $(wildcard $(fmf_dir)/*.vhd)
 GHDLFLAGS += -P$(fmf_dir)
 $(fmf_lib): $(fmf_lib_files)
-	ghdl -i --std=08 --work=fmf --workdir=$(fmf_dir) $^
+	$(GHDL) -i --std=08 --work=fmf --workdir=$(fmf_dir) $^
 
 flash_model_files=$(FLASH_MODEL_PATH)/s25fl128s.vhd
 flash_model_files: $(fmf_lib)
