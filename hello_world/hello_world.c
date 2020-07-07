@@ -14,5 +14,7 @@ int main(void)
 	while (1) {
 		unsigned char c = getchar();
 		putchar(c);
+		if (c == 13) // if CR send LF
+			putchar(10);
 	}
 }

@@ -2,6 +2,10 @@
 *~
 *.cf
 *.s
+*.bit
+*_out.config
+microwatt.json
+microwatt.svf
 *_tb
 main_ram.bin
 tests/*/*.bin

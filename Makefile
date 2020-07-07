@@ -54,6 +54,7 @@ soc_files = $(core_files) wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_
 	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl \
 	spi_rxtx.vhdl spi_flash_ctrl.vhdl
 
+uart_files = $(wildcard uart16550/*.v)
 
 soc_sim_files = $(soc_files) sim_console.vhdl sim_pp_uart.vhdl sim_bram_helpers.vhdl \
 	sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl dmi_dtm_xilinx.vhdl \
@@ -142,7 +143,10 @@ RAM_INIT_FILE=hello_world/hello_world.hex
 #MEMORY_SIZE=393216
 #RAM_INIT_FILE=micropython/firmware.hex
 
+FPGA_TARGET ?= ORANGE-CRAB
+
 # OrangeCrab with ECP85
+ifeq ($(FPGA_TARGET), ORANGE-CRAB)
 RESET_LOW=true
 CLK_INPUT=50000000
 CLK_FREQUENCY=50000000
@@ -151,16 +155,19 @@ PACKAGE=CSFBGA285
 NEXTPNR_FLAGS=--um5g-85k --freq 50
 OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+endif
 
 # ECP5-EVN
-#RESET_LOW=true
-#CLK_INPUT=12000000
-#CLK_FREQUENCY=12000000
-#LPF=constraints/ecp5-evn.lpf
-#PACKAGE=CABGA381
-#NEXTPNR_FLAGS=--um5g-85k --freq 12
-#OPENOCD_JTAG_CONFIG=openocd/ecp5-evn.cfg
-#OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+ifeq ($(FPGA_TARGET), ECP5-EVN)
+RESET_LOW=true
+CLK_INPUT=12000000
+CLK_FREQUENCY=12000000
+LPF=constraints/ecp5-evn.lpf
+PACKAGE=CABGA381
+NEXTPNR_FLAGS=--um5g-85k --freq 12
+OPENOCD_JTAG_CONFIG=openocd/ecp5-evn.cfg
+OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+endif
 
 GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=$(MEMORY_SIZE) -gRAM_INIT_FILE=$(RAM_INIT_FILE) \
 	-gRESET_LOW=$(RESET_LOW) -gCLK_INPUT=$(CLK_INPUT) -gCLK_FREQUENCY=$(CLK_FREQUENCY)
@@ -174,11 +181,11 @@ fpga_files = $(core_files) $(soc_files) fpga/soc_reset.vhdl \
 
 synth_files = $(core_files) $(soc_files) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
 
-microwatt.json: $(synth_files)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; synth_ecp5 -json $@"
+microwatt.json: $(synth_files) $(RAM_INIT_FILE)
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; synth_ecp5 -json $@  $(SYNTH_ECP5_FLAGS)" $(uart_files)
 
-microwatt.v: $(synth_files)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
+microwatt.v: $(synth_files) $(RAM_INIT_FILE)
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; write_verilog $@" $(uart_files)
 
 # Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
@@ -187,7 +194,8 @@ microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uar
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
 
 microwatt_out.config: microwatt.json $(LPF)
-	$(NEXTPNR) --json $< --lpf $(LPF) --textcfg $@ $(NEXTPNR_FLAGS) --package $(PACKAGE)
+	$(NEXTPNR) --json $< --lpf $(LPF) --textcfg $@.tmp $(NEXTPNR_FLAGS) --package $(PACKAGE)
+	mv -f $@.tmp $@
 
 microwatt.bit: microwatt_out.config
 	$(ECPPACK) --svf microwatt.svf $< $@

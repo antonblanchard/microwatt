@@ -46,3 +46,17 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: docker run -t -v $PWD:/build -w /build ghdl/vunit:llvm bash -c "make -j$(nproc) ${{ matrix.task }}"
+
+  symbiflow-ecp5:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: make DOCKER=1 FPGA_TARGET=ECP5-EVN SYNTH_ECP5_FLAGS="-noflatten" microwatt.json
+    - run: make DOCKER=1 FPGA_TARGET=ECP5-EVN microwatt.bit
+
+# test building verilog target from yosys/nextpnr
+  verilog:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: make DOCKER=1 microwatt.v
