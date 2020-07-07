@@ -40,6 +40,18 @@ architecture rtl of clock_generator is
 	     force_rst     => '1');
     begin
 	case input_hz is
+	when 200000000 =>
+	    case output_hz is
+	    when 100000000 =>
+		return (clkin_period  => 5.0,
+			clkfbout_mult => 8,
+			clkout_divide => 16,
+			divclk_divide => 1,
+			force_rst     => '0');
+	    when others =>
+		report "Unsupported output frequency" severity failure;
+		return bad_settings;
+	    end case;
 	when 100000000 =>
 	    case output_hz is
 	    when 100000000 =>
