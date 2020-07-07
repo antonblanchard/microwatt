@@ -766,6 +766,9 @@ begin
 			spr_val := ctrl.dec;
                     when SPR_CFAR =>
                         spr_val := ctrl.cfar;
+                    when SPR_PVR =>
+                        spr_val(63 downto 32) := (others => '0');
+                        spr_val(31 downto 0) := PVR_MICROWATT;
                     when 724 =>     -- LOG_ADDR SPR
                         spr_val := log_wr_addr & r.log_addr_spr;
                     when 725 =>     -- LOG_DATA SPR
