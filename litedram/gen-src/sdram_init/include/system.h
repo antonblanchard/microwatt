@@ -1,6 +1,8 @@
 #ifndef __SYSTEM_H
 #define __SYSTEM_H
 
+#include <stdint.h>
+
 #include "microwatt_soc.h"
 #include "io.h"
 
@@ -31,6 +33,9 @@ static inline uint64_t timer0_value_read(void)
 	__asm__ volatile ("mfdec %0" : "=r" (val));
 	return val;
 }
+
+static inline void init_progression_bar(int max) { }
+static inline void show_progress(int now) { }
 
 static inline void csr_write_simple(unsigned long v, unsigned long a)
 {

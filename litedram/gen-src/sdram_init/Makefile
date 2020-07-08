@@ -3,8 +3,10 @@
 include variables.mak
 OBJ = $(BUILD_DIR)/obj
 
+LXINC_DIR=$(LXSRC_DIR)/include
+
 PROGRAM = sdram_init
-OBJECTS = $(OBJ)/head.o $(OBJ)/main.o $(OBJ)/sdram.o $(OBJ)/console.o
+OBJECTS = $(OBJ)/head.o $(OBJ)/main.o $(OBJ)/sdram.o $(OBJ)/memtest.o $(OBJ)/console.o
 
 #### Compiler
 
@@ -22,7 +24,13 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 #### Flags
 
 CPPFLAGS = -nostdinc -D__USE_LIBC $(EXTRA_CFLAGS)
-CPPFLAGS += -I$(SRC_DIR)/libc/include -I$(LXSRC_DIR) -I$(LXINC_DIR) -I$(GENINC_DIR) -I$(SRC_DIR)/include -I$(SRC_DIR)/../../../include
+
+# These includes must be first ...
+CPPFLAGS += -I$(GENINC_DIR) -I$(SRC_DIR)/include -I$(SRC_DIR)/../../../include -I$(SRC_DIR)/libc/include 
+
+# .. and these last, otherwise litex overrides some of our stuff
+CPPFLAGS += -I$(LXSRC_DIR) -I$(LXINC_DIR) -I$(LXINC_DIR)/base -I$(LXSRC_DIR)/liblitedram
+
 CPPFLAGS += -isystem $(shell $(CC) -print-file-name=include)
 CFLAGS = -Os -g -Wall -std=c99 -m64 -mabi=elfv2 -msoft-float -mno-string -mno-multiple -mno-vsx -mno-altivec -mlittle-endian -fno-stack-protector -mstrict-align -ffreestanding -fdata-sections -ffunction-sections -fno-delete-null-pointer-checks 
 ASFLAGS = $(CPPFLAGS) $(CFLAGS)
@@ -48,7 +56,9 @@ endif
 
 all: objdir $(OBJ)/$(PROGRAM).hex
 
-$(OBJ)/sdram.o: $(LXSRC_DIR)/sdram.c
+$(OBJ)/sdram.o: $(LXSRC_DIR)/liblitedram/sdram.c
+	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)
+$(OBJ)/memtest.o: $(LXSRC_DIR)/libbase/memtest.c
 	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)
 $(OBJ)/console.o: $(SRC_DIR)/../../../lib/console.c
 	$(call Q,CC, $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@, $@)

@@ -38,16 +38,14 @@ def build_init_code(build_dir, is_sim):
     sw_inc_dir = os.path.join(sw_dir, "include")
     gen_inc_dir = os.path.join(sw_inc_dir, "generated")
     src_dir = os.path.join(gen_src_dir, "sdram_init")
-    lxbios_src_dir = os.path.join(soc_directory, "software", "liblitedram")
-    lxbios_inc_dir = os.path.join(soc_directory, "software", "include")
+    lxbios_src_dir = os.path.join(soc_directory, "software")
     print("     sw dir:", sw_dir)
     print("gen_inc_dir:", gen_inc_dir)
     print("    src dir:", src_dir)
     print(" lx src dir:", lxbios_src_dir)
-    print(" lx inc dir:", lxbios_inc_dir)
 
-    # Generate mem.h
-    mem_h = "#define MAIN_RAM_BASE 0x40000000"
+    # Generate mem.h (hard wire size, it's not important)
+    mem_h = "#define MAIN_RAM_BASE 0x40000000\n#define MAIN_RAM_SIZE 0x10000000"
     write_to_file(os.path.join(gen_inc_dir, "mem.h"), mem_h)
 
     # Environment
@@ -61,7 +59,6 @@ def build_init_code(build_dir, is_sim):
     add_var("SRC_DIR", src_dir)
     add_var("GENINC_DIR", sw_inc_dir)
     add_var("LXSRC_DIR", lxbios_src_dir)
-    add_var("LXINC_DIR", lxbios_inc_dir)
     if is_sim:
         add_var("EXTRA_CFLAGS", "-D__SIM__")
     write_to_file(os.path.join(gen_inc_dir, "variables.mak"), "".join(env_vars))

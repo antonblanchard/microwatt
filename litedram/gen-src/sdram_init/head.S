@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define STACK_TOP	0xff004000
+#define STACK_TOP	0xff006000
 
 #define FIXUP_ENDIAN						   \
 	tdi   0,0,0x48;	  /* Reverse endian of b . + 8		*/ \
