@@ -20,6 +20,7 @@ entity toplevel is
         SPI_FLASH_OFFSET   : integer := 10485760;
         SPI_FLASH_DEF_CKDV : natural := 1;
         SPI_FLASH_DEF_QUAD : boolean := true;
+        LOG_LENGTH         : natural := 2048;
         UART_IS_16550      : boolean := true
 	);
     port(
@@ -128,6 +129,7 @@ begin
             SPI_FLASH_OFFSET   => SPI_FLASH_OFFSET,
             SPI_FLASH_DEF_CKDV => SPI_FLASH_DEF_CKDV,
             SPI_FLASH_DEF_QUAD => SPI_FLASH_DEF_QUAD,
+            LOG_LENGTH         => LOG_LENGTH,
             UART0_IS_16550     => UART_IS_16550
 	    )
 	port map (
