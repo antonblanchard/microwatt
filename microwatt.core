@@ -118,7 +118,6 @@ targets:
       - disable_flatten_core
       - log_length=2048
       - uart_is_16550
-      - has_uart1
     tools:
       vivado: {part : xc7a100tcsg324-1}
     toplevel : toplevel
@@ -135,7 +134,6 @@ targets:
       - spi_flash_offset=10485760
       - log_length=2048
       - uart_is_16550
-      - has_uart1
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -151,6 +149,7 @@ targets:
       - no_bram
       - spi_flash_offset=10485760
       - log_length=2048
+      - uart_is_16550
     generate: [litedram_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
@@ -240,7 +239,6 @@ targets:
       - disable_flatten_core
       - log_length=512
       - uart_is_16550
-      - has_uart1
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel

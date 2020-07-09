@@ -11,6 +11,9 @@ entity spi_flash_ctrl is
         DEF_CLK_DIV     : natural  := 2;      -- Clock divider SCK = CLK/((CLK_DIV+1)*2)
         DEF_QUAD_READ   : boolean  := false;  -- Use quad read with 8 clk dummy
 
+        -- Dummy clocks after boot
+        BOOT_CLOCKS     : boolean  := true;   -- Send 8 dummy clocks after boot
+
         -- Number of data lines (1=MISO/MOSI, otherwise 2 or 4)
         DATA_LINES      : positive := 1
         );
@@ -103,7 +106,7 @@ architecture rtl of spi_flash_ctrl is
     constant DEFAULT_CS_TIMEOUT : integer := 32;
 
     -- Automatic mode state
-    type auto_state_t is (AUTO_IDLE, AUTO_CS_ON, AUTO_CMD,
+    type auto_state_t is (AUTO_BOOT, AUTO_IDLE, AUTO_CS_ON, AUTO_CMD,
                           AUTO_ADR0, AUTO_ADR1, AUTO_ADR2, AUTO_ADR3,
                           AUTO_DUMMY,
                           AUTO_DAT0, AUTO_DAT1, AUTO_DAT2, AUTO_DAT3,
@@ -125,7 +128,7 @@ architecture rtl of spi_flash_ctrl is
     -- Automatic mode latches
     signal auto_data      : std_ulogic_vector(wb_out.dat'left downto 0) := (others => '0');
     signal auto_cnt       : integer range 0 to 63 := 0;
-    signal auto_state     : auto_state_t := AUTO_IDLE;
+    signal auto_state     : auto_state_t := AUTO_BOOT;
     signal auto_last_addr : std_ulogic_vector(31 downto 0);
 
 begin
@@ -176,7 +179,7 @@ begin
             -- in practice.
             --
             if cmd_valid = '1' and cmd_ready = '1' then
-                pending_read <= '1';
+                pending_read <= not wb_req.we;
             elsif bus_idle = '1' then
                 pending_read <= '0'; 
             end if;
@@ -396,21 +399,29 @@ begin
         if rst = '1' or ctrl_reset = '1' then
             auto_cs <= '0';
             auto_cnt_next <= 0;
-            auto_next <= AUTO_IDLE;
+            auto_next <= AUTO_BOOT;
         else
             -- Run counter
             if auto_cnt /= 0 then
                 auto_cnt_next <= auto_cnt - 1;
             end if;
 
-            -- Automatic CS is set whenever state isn't IDLE or RECOVERY
-            if auto_state /= AUTO_IDLE and
-               auto_state /= AUTO_RECOVERY then
+            -- Automatic CS is set whenever state isn't IDLE or RECOVERY or BOOT
+            if  auto_state /= AUTO_IDLE and
+                auto_state /= AUTO_RECOVERY and
+                auto_state /= AUTO_BOOT then
                 auto_cs <= '1';
             end if;
 
             -- State machine
             case auto_state is
+            when AUTO_BOOT =>
+                if BOOT_CLOCKS then
+                    auto_cmd_valid <= '1';
+                    if cmd_ready = '1' then
+                        auto_next <= AUTO_IDLE;
+                    end if;
+                end if;
             when AUTO_IDLE =>
                 -- Access to the memory map only when manual CS isn't set
                 if wb_map_valid = '1' and ctrl_cs = '0' then
@@ -599,3 +610,4 @@ begin
     end process;
 
 end architecture;
+
