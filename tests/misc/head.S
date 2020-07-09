@@ -16,6 +16,7 @@
  */
 
 #define STACK_TOP 0x2000
+#define PVR	287
 
 /* Load an immediate 64-bit value into a register */
 #define LOAD_IMM64(r, e)			\
@@ -100,3 +101,39 @@ test_addpcis_2:
 
     blr
 
+/* Test reading the PVR */
+.global test_mfpvr
+test_mfpvr:
+    mflr %r0
+    std %r0, 16(%r1)
+    stdu %r1, -32(%r1)
+
+    /*
+     * If r3 happened to already contain PVR_MICROWATT the test
+     * would succeed even if the PVR is not implemented.
+     */
+    LOAD_IMM64(%r3, 0xdeadbeef)
+    mfpvr %r3
+
+    addi %r1, %r1, 32
+    ld %r0, 16(%r1)
+    mtlr %r0
+
+    blr
+
+/* Test writing the PVR does nothing */
+.global test_mtpvr
+test_mtpvr:
+    mflr %r0
+    std %r0, 16(%r1)
+    stdu %r1, -32(%r1)
+
+    LOAD_IMM64(%r3, 0xdeadbeef)
+    mtspr PVR, %r3
+    mfpvr %r3
+
+    addi %r1, %r1, 32
+    ld %r0, 16(%r1)
+    mtlr %r0
+
+    blr

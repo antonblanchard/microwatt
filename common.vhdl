@@ -6,6 +6,8 @@ library work;
 use work.decode_types.all;
 
 package common is
+    -- Processor Version Number
+    constant PVR_MICROWATT  : std_ulogic_vector(31 downto 0) := x"00630000";
 
     -- MSR bit numbers
     constant MSR_SF  : integer := (63 - 0);     -- Sixty-Four bit mode
@@ -43,6 +45,7 @@ package common is
     constant SPR_HSPRG1 : spr_num_t := 305;
     constant SPR_PID    : spr_num_t := 48;
     constant SPR_PRTBL  : spr_num_t := 720;
+    constant SPR_PVR	: spr_num_t := 287;
 
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);

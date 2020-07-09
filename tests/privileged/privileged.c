@@ -15,6 +15,7 @@ extern int call_with_msr(unsigned long arg, int (*fn)(unsigned long), unsigned l
 #define SRR1	27
 #define PID	48
 #define PRTBL	720
+#define PVR	287
 
 static inline unsigned long mfspr(int sprnum)
 {
@@ -186,6 +187,20 @@ int priv_fn_6(unsigned long x)
 	return 0;
 }
 
+int priv_fn_7(unsigned long x)
+{
+	mfspr(PVR);
+	__asm__ volatile("sc");
+	return 0;
+}
+
+int priv_fn_8(unsigned long x)
+{
+	mtspr(PVR, x);
+	__asm__ volatile("sc");
+	return 0;
+}
+
 int priv_test(int (*fn)(unsigned long))
 {
 	unsigned long msr;
@@ -239,6 +254,8 @@ int main(void)
 	do_test(4, priv_fn_4);
 	do_test(5, priv_fn_5);
 	do_test(6, priv_fn_6);
+	do_test(7, priv_fn_7);
+	do_test(8, priv_fn_8);
 
 	return fail;
 }
