@@ -226,6 +226,7 @@ architecture rtl of dcache is
 
     type mem_access_request_t is record
         op        : op_t;
+        valid     : std_ulogic;
         dcbz      : std_ulogic;
         real_addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
         data      : std_ulogic_vector(63 downto 0);
@@ -309,6 +310,7 @@ architecture rtl of dcache is
     signal req_op      : op_t;
     signal req_data    : std_ulogic_vector(63 downto 0);
     signal req_same_tag : std_ulogic;
+    signal req_go      : std_ulogic;
 
     signal early_req_row  : row_t;
 
@@ -856,6 +858,7 @@ begin
             end if;
         end if;
 	req_op <= op;
+        req_go <= go;
 
         -- Version of the row number that is valid one cycle earlier
         -- in the cases where we need to read the cache data BRAM.
@@ -1240,6 +1243,7 @@ begin
                     req := r1.req;
                 else
                     req.op := req_op;
+                    req.valid := req_go;
                     req.dcbz := r0.req.dcbz;
                     req.real_addr := ra;
                     req.data := r0.req.data;
@@ -1402,11 +1406,14 @@ begin
                     if wishbone_in.stall = '0' then
                         -- See if there is another store waiting to be done
                         -- which is in the same real page.
-                        if acks < 7 and req.same_tag = '1' and
-                            (req.op = OP_STORE_MISS or req.op = OP_STORE_HIT) then
-                            r1.wb.adr <= req.real_addr(r1.wb.adr'left downto 0);
+                        if req.valid = '1' then
+                            r1.wb.adr(SET_SIZE_BITS - 1 downto 0) <=
+                                req.real_addr(SET_SIZE_BITS - 1 downto 0);
                             r1.wb.dat <= req.data;
                             r1.wb.sel <= req.byte_sel;
+                        end if;
+                        if acks < 7 and req.same_tag = '1' and
+                            (req.op = OP_STORE_MISS or req.op = OP_STORE_HIT) then
                             r1.wb.stb <= '1';
                             stbs_done := false;
                             if req.op = OP_STORE_HIT then
