@@ -249,6 +249,11 @@ architecture rtl of dcache is
         hit_index        : index_t;
         cache_hit        : std_ulogic;
 
+        -- TLB hit state
+        tlb_hit          : std_ulogic;
+        tlb_hit_way      : tlb_way_t;
+        tlb_hit_index    : tlb_index_t;
+
 	-- 2-stage data buffer for data forwarded from writes to reads
 	forward_data1    : std_ulogic_vector(63 downto 0);
 	forward_data2    : std_ulogic_vector(63 downto 0);
@@ -567,15 +572,15 @@ begin
 		    lru => tlb_plru_out
 		    );
 
-	    process(tlb_req_index, tlb_hit, tlb_hit_way, tlb_plru_out)
+	    process(all)
 	    begin
 		-- PLRU interface
-		if tlb_hit = '1' and tlb_req_index = i then
-		    tlb_plru_acc_en <= '1';
+		if r1.tlb_hit_index = i then
+		    tlb_plru_acc_en <= r1.tlb_hit;
 		else
 		    tlb_plru_acc_en <= '0';
 		end if;
-		tlb_plru_acc <= std_ulogic_vector(to_unsigned(tlb_hit_way, TLB_WAY_BITS));
+		tlb_plru_acc <= std_ulogic_vector(to_unsigned(r1.tlb_hit_way, TLB_WAY_BITS));
 		tlb_plru_victim(i) <= tlb_plru_out;
 	    end process;
 	end generate;
@@ -1145,6 +1150,11 @@ begin
             else
                 r1.stcx_fail <= '0';
             end if;
+
+            -- Record TLB hit information for updating TLB PLRU
+            r1.tlb_hit <= tlb_hit;
+            r1.tlb_hit_way <= tlb_hit_way;
+            r1.tlb_hit_index <= tlb_req_index;
 
             -- complete tlbies and TLB loads in the third cycle
             r1.tlbie_done <= r0_valid and (r0.tlbie or r0.tlbld);
