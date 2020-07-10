@@ -231,7 +231,6 @@ architecture rtl of dcache is
         data      : std_ulogic_vector(63 downto 0);
         byte_sel  : std_ulogic_vector(7 downto 0);
         hit_way   : way_t;
-        repl_way  : way_t;
         same_tag  : std_ulogic;
     end record;
 
@@ -247,6 +246,8 @@ architecture rtl of dcache is
 	-- Cache hit state
 	hit_way          : way_t;
 	hit_load_valid   : std_ulogic;
+        hit_index        : index_t;
+        cache_hit        : std_ulogic;
 
 	-- 2-stage data buffer for data forwarded from writes to reads
 	forward_data1    : std_ulogic_vector(63 downto 0);
@@ -677,16 +678,15 @@ begin
 		    lru => plru_out
 		    );
 
-	    process(req_index, req_op, req_hit_way, plru_out)
+	    process(all)
 	    begin
 		-- PLRU interface
-		if (req_op = OP_LOAD_HIT or
-		    req_op = OP_STORE_HIT) and req_index = i then
-		    plru_acc_en <= '1';
+		if r1.hit_index = i then
+		    plru_acc_en <= r1.cache_hit;
 		else
 		    plru_acc_en <= '0';
 		end if;
-		plru_acc <= std_ulogic_vector(to_unsigned(req_hit_way, WAY_BITS));
+		plru_acc <= std_ulogic_vector(to_unsigned(r1.hit_way, WAY_BITS));
 		plru_victim(i) <= plru_out;
 	    end process;
 	end generate;
@@ -788,7 +788,7 @@ begin
             -- since it will be by the time we perform the store.
             -- For a load, check the appropriate row valid bit.
             is_hit := not r0.req.load or r1.rows_valid(req_row mod ROW_PER_LINE);
-            hit_way := r1.store_way;
+            hit_way := replace_way;
         end if;
 
         -- Whether to use forwarded data for a load or not
@@ -811,8 +811,12 @@ begin
 	-- The way that matched on a hit	       
 	req_hit_way <= hit_way;
 
-	-- The way to replace on a miss
-	replace_way <= to_integer(unsigned(plru_victim(req_index)));
+        -- The way to replace on a miss
+        if r1.write_tag = '1' then
+            replace_way <= to_integer(unsigned(plru_victim(r1.store_index)));
+        else
+            replace_way <= r1.store_way;
+        end if;
 
         -- work out whether we have permission for this access
         -- NB we don't yet implement AMR, thus no KUAP
@@ -1079,7 +1083,7 @@ begin
                 wr_addr <= std_ulogic_vector(to_unsigned(r1.store_row, ROW_BITS));
                 wr_sel <= (others => '1');
 
-                if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' and r1.store_way = i then
+                if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' and replace_way = i then
                     do_write <= '1';
                 end if;
 	    end if;
@@ -1113,12 +1117,18 @@ begin
             end if;
 
             -- Fast path for load/store hits. Set signals for the writeback controls.
+            r1.hit_way <= req_hit_way;
+            r1.hit_index <= req_index;
 	    if req_op = OP_LOAD_HIT then
-		r1.hit_way <= req_hit_way;
 		r1.hit_load_valid <= '1';
 	    else
 		r1.hit_load_valid <= '0';
 	    end if;
+            if req_op = OP_LOAD_HIT or req_op = OP_STORE_HIT then
+                r1.cache_hit <= '1';
+            else
+                r1.cache_hit <= '0';
+            end if;
 
             if req_op = OP_BAD then
                 report "Signalling ld/st error valid_ra=" & std_ulogic'image(valid_ra) &
@@ -1179,7 +1189,7 @@ begin
                     r1.forward_data1 <= wishbone_in.dat;
                 end if;
                 r1.forward_sel1 <= (others => '1');
-                r1.forward_way1 <= r1.store_way;
+                r1.forward_way1 <= replace_way;
                 r1.forward_row1 <= r1.store_row;
                 r1.forward_valid1 <= '0';
             end if;
@@ -1205,11 +1215,12 @@ begin
                 if r1.write_tag = '1' then
                     -- Store new tag in selected way
                     for i in 0 to NUM_WAYS-1 loop
-                        if i = r1.store_way then
+                        if i = replace_way then
                             cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                                 (TAG_WIDTH - 1 downto TAG_BITS => '0') & r1.reload_tag;
                         end if;
                     end loop;
+                    r1.store_way <= replace_way;
                     r1.write_tag <= '0';
                 end if;
 
@@ -1224,7 +1235,6 @@ begin
                     req.data := r0.req.data;
                     req.byte_sel := r0.req.byte_sel;
                     req.hit_way := req_hit_way;
-                    req.repl_way := replace_way;
                     req.same_tag := req_same_tag;
 
                     -- Store the incoming request from r0, if it is a slow request
@@ -1251,8 +1261,6 @@ begin
 
                     if req.op = OP_STORE_HIT then
                         r1.store_way <= req.hit_way;
-                    else
-                        r1.store_way <= req.repl_way;
                     end if;
 
                     -- Reset per-row valid bits, ready for handling OP_LOAD_MISS
@@ -1269,7 +1277,6 @@ begin
 			--
 			report "cache miss real addr:" & to_hstring(req.real_addr) &
 			    " idx:" & integer'image(get_index(req.real_addr)) &
-			    " way:" & integer'image(req.repl_way) &
 			    " tag:" & to_hstring(get_tag(req.real_addr));
 
 			-- Start the wishbone cycle
@@ -1310,7 +1317,9 @@ begin
 
                             -- Handle the rest like a load miss
                             r1.state <= RELOAD_WAIT_ACK;
-                            r1.write_tag <= '1';
+                            if req.op = OP_STORE_MISS then
+                                r1.write_tag <= '1';
+                            end if;
                             r1.dcbz <= '1';
                         end if;
                         r1.wb.we <= '1';
