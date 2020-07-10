@@ -69,6 +69,7 @@ architecture behave of loadstore1 is
         priv_mode    : std_ulogic;
         state        : state_t;
         dwords_done  : std_ulogic;
+        last_dword   : std_ulogic;
         first_bytes  : std_ulogic_vector(7 downto 0);
         second_bytes : std_ulogic_vector(7 downto 0);
         dar          : std_ulogic_vector(63 downto 0);
@@ -146,7 +147,6 @@ begin
         variable wdata : std_ulogic_vector(63 downto 0);
         variable write_enable : std_ulogic;
         variable do_update : std_ulogic;
-        variable two_dwords : std_ulogic;
         variable done : std_ulogic;
         variable data_permuted : std_ulogic_vector(63 downto 0);
         variable data_trimmed : std_ulogic_vector(63 downto 0);
@@ -174,7 +174,6 @@ begin
 
         write_enable := '0';
         do_update := '0';
-        two_dwords := or (r.second_bytes);
 
         -- load data formatting
         byte_offset := unsigned(r.addr(2 downto 0));
@@ -204,10 +203,10 @@ begin
         -- trim and sign-extend
         for i in 0 to 7 loop
             if i < to_integer(unsigned(r.length)) then
-                if two_dwords = '1' then
+                if r.dwords_done = '1' then
                     trim_ctl(i) := '1' & not use_second(i);
                 else
-                    trim_ctl(i) := not use_second(i) & '0';
+                    trim_ctl(i) := "10";
                 end if;
             else
                 trim_ctl(i) := '0' & (negative and r.sign_extend);
@@ -237,6 +236,7 @@ begin
             byte_sel := r.second_bytes;
             req := '1';
             v.state := ACK_WAIT;
+            v.last_dword := '0';
 
         when ACK_WAIT =>
             if d_in.valid = '1' then
@@ -263,8 +263,9 @@ begin
                         v.state := MMU_LOOKUP;
                     end if;
                 else
-                    if two_dwords = '1' and r.dwords_done = '0' then
+                    if r.last_dword = '0' then
                         v.dwords_done := '1';
+                        v.last_dword := '1';
                         if r.load = '1' then
                             v.load_data := data_permuted;
                         end if;
@@ -297,7 +298,7 @@ begin
                     if r.instr_fault = '0' then
                         -- retry the request now that the MMU has installed a TLB entry
                         req := '1';
-                        if two_dwords = '1' and r.dwords_done = '0' then
+                        if r.last_dword = '0' then
                             v.state := SECOND_REQ;
                         else
                             v.state := ACK_WAIT;
@@ -349,6 +350,7 @@ begin
             v.tlbie := '0';
             v.instr_fault := '0';
             v.dwords_done := '0';
+            v.last_dword := '1';
             v.write_reg := l_in.write_reg;
             v.length := l_in.length;
             v.byte_reverse := l_in.byte_reverse;
