@@ -379,7 +379,7 @@ begin
 	begin
 	    do_read <= not (stall_in or use_previous);
 	    do_write <= '0';
-	    if wishbone_in.ack = '1' and r.store_way = i then
+	    if wishbone_in.ack = '1' and replace_way = i then
 		do_write <= '1';
 	    end if;
 	    cache_out(i) <= dout;
@@ -413,15 +413,15 @@ begin
 		    lru => plru_out
 		    );
 
-	    process(req_index, req_is_hit, req_hit_way, req_is_hit, plru_out)
+	    process(all)
 	    begin
 		-- PLRU interface
-		if req_is_hit = '1' and req_index = i then
-		    plru_acc_en <= req_is_hit;
+		if get_index(r.hit_nia) = i then
+		    plru_acc_en <= r.hit_valid;
 		else
 		    plru_acc_en <= '0';
 		end if;
-		plru_acc <= std_ulogic_vector(to_unsigned(req_hit_way, WAY_BITS));
+		plru_acc <= std_ulogic_vector(to_unsigned(r.hit_way, WAY_BITS));
 		plru_victim(i) <= plru_out;
 	    end process;
 	end generate;
@@ -531,8 +531,12 @@ begin
         end if;
 	req_hit_way <= hit_way;
 
-	-- The way to replace on a miss
-	replace_way <= to_integer(unsigned(plru_victim(req_index)));
+        -- The way to replace on a miss
+        if r.state = CLR_TAG then
+            replace_way <= to_integer(unsigned(plru_victim(r.store_index)));
+        else
+            replace_way <= r.store_way;
+        end if;
 
 	-- Output instruction from current cache row
 	--
@@ -642,7 +646,6 @@ begin
 
 			-- Keep track of our index and way for subsequent stores
 			r.store_index <= req_index;
-			r.store_way <= replace_way;
 			r.store_row <= get_row(req_laddr);
                         r.store_tag <= req_tag;
                         r.store_valid <= '1';
@@ -661,12 +664,15 @@ begin
 
 		when CLR_TAG | WAIT_ACK =>
                     if r.state = CLR_TAG then
+                        -- Get victim way from plru
+			r.store_way <= replace_way;
+
 			-- Force misses on that way while reloading that line
-			cache_valids(req_index)(r.store_way) <= '0';
+			cache_valids(req_index)(replace_way) <= '0';
 
 			-- Store new tag in selected way
 			for i in 0 to NUM_WAYS-1 loop
-			    if i = r.store_way then
+			    if i = replace_way then
 				tagset := cache_tags(r.store_index);
 				write_tag(i, tagset, r.store_tag);
 				cache_tags(r.store_index) <= tagset;
@@ -702,7 +708,7 @@ begin
 			    r.wb.cyc <= '0';
 
 			    -- Cache line is now valid
-			    cache_valids(r.store_index)(r.store_way) <= r.store_valid and not inval_in;
+			    cache_valids(r.store_index)(replace_way) <= r.store_valid and not inval_in;
 
 			    -- We are done
 			    r.state <= IDLE;
@@ -728,11 +734,7 @@ begin
         variable wstate: std_ulogic;
     begin
         if rising_edge(clk) then
-            if req_is_hit then
-                lway := req_hit_way;
-            else
-                lway := replace_way;
-            end if;
+            lway := req_hit_way;
             wstate := '0';
             if r.state /= IDLE then
                 wstate := '1';
