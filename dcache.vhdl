@@ -1250,8 +1250,18 @@ begin
                     req.mmu_req := r0.mmu_req;
                     req.dcbz := r0.req.dcbz;
                     req.real_addr := ra;
-                    req.data := r0.req.data;
-                    req.byte_sel := r0.req.byte_sel;
+                    -- Force data to 0 for dcbz
+                    if r0.req.dcbz = '0' then
+                        req.data := r0.req.data;
+                    else
+                        req.data := (others => '0');
+                    end if;
+                    -- Select all bytes for dcbz and for cacheable loads
+                    if r0.req.dcbz = '1' or (r0.req.load = '1' and r0.req.nc = '0') then
+                        req.byte_sel := (others => '1');
+                    else
+                        req.byte_sel := r0.req.byte_sel;
+                    end if;
                     req.hit_way := req_hit_way;
                     req.same_tag := req_same_tag;
 
@@ -1268,7 +1278,9 @@ begin
 		case r1.state is
                 when IDLE =>
                     r1.wb.adr <= req.real_addr(r1.wb.adr'left downto 0);
-                    r1.dcbz <= '0';
+                    r1.wb.sel <= req.byte_sel;
+                    r1.wb.dat <= req.data;
+                    r1.dcbz <= req.dcbz;
 
                     -- Keep track of our index and way for subsequent stores.
                     r1.store_index <= get_index(req.real_addr);
@@ -1298,7 +1310,6 @@ begin
 			    " tag:" & to_hstring(get_tag(req.real_addr));
 
 			-- Start the wishbone cycle
-			r1.wb.sel <= (others => '1');
 			r1.wb.we  <= '0';
 			r1.wb.cyc <= '1';
 			r1.wb.stb <= '1';
@@ -1308,7 +1319,6 @@ begin
                         r1.write_tag <= '1';
 
 		    when OP_LOAD_NC =>
-                        r1.wb.sel <= req.byte_sel;
                         r1.wb.cyc <= '1';
                         r1.wb.stb <= '1';
 			r1.wb.we <= '0';
@@ -1316,8 +1326,6 @@ begin
 
                     when OP_STORE_HIT | OP_STORE_MISS =>
                         if req.dcbz = '0' then
-                            r1.wb.sel <= req.byte_sel;
-                            r1.wb.dat <= req.data;
                             r1.state <= STORE_WAIT_ACK;
                             r1.acks_pending <= to_unsigned(1, 3);
                             r1.full <= '0';
@@ -1333,17 +1341,10 @@ begin
                         else
                             -- dcbz is handled much like a load miss except
                             -- that we are writing to memory instead of reading
-
-                            -- Start the wishbone writes
-                            r1.wb.sel <= (others => '1');
-                            r1.wb.dat <= (others => '0');
-
-                            -- Handle the rest like a load miss
                             r1.state <= RELOAD_WAIT_ACK;
                             if req.op = OP_STORE_MISS then
                                 r1.write_tag <= '1';
                             end if;
-                            r1.dcbz <= '1';
                         end if;
                         r1.wb.we <= '1';
                         r1.wb.cyc <= '1';
