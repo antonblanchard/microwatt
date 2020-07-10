@@ -619,12 +619,12 @@ begin
                         end loop;
                     else
                         -- trap instructions (tw, twi, td, tdi)
+                        v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
+                        -- set bit 46 to say trap occurred
+                        ctrl_tmp.srr1(63 - 46) <= '1';
                         if or (trapval and insn_to(e_in.insn)) = '1' then
                             -- generate trap-type program interrupt
                             exception := '1';
-                            v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
-                            -- set bit 46 to say trap occurred
-                            ctrl_tmp.srr1(63 - 46) <= '1';
                             report "trap";
                         end if;
                     end if;
