@@ -10,6 +10,10 @@ use work.common.all;
 -- We calculate the address in the first cycle
 
 entity loadstore1 is
+    generic (
+        -- Non-zero to enable log data collection
+        LOG_LENGTH : natural := 0
+        );
     port (
         clk   : in std_ulogic;
         rst   : in std_ulogic;
@@ -84,8 +88,6 @@ architecture behave of loadstore1 is
 
     signal r, rin : reg_stage_t;
     signal lsu_sum : std_ulogic_vector(63 downto 0);
-
-    signal log_data : std_ulogic_vector(9 downto 0);
 
     -- Generate byte enables from sizes
     function length_to_sel(length : in std_logic_vector(3 downto 0)) return std_ulogic_vector is
@@ -515,18 +517,23 @@ begin
 
     end process;
 
-    ls1_log: process(clk)
+    l1_log: if LOG_LENGTH > 0 generate
+        signal log_data : std_ulogic_vector(9 downto 0);
     begin
-        if rising_edge(clk) then
-            log_data <= e_out.busy &
-                        e_out.exception &
-                        l_out.valid &
-                        m_out.valid &
-                        d_out.valid &
-                        m_in.done &
-                        r.dwords_done &
-                        std_ulogic_vector(to_unsigned(state_t'pos(r.state), 3));
-        end if;
-    end process;
-    log_out <= log_data;
+        ls1_log: process(clk)
+        begin
+            if rising_edge(clk) then
+                log_data <= e_out.busy &
+                            e_out.exception &
+                            l_out.valid &
+                            m_out.valid &
+                            d_out.valid &
+                            m_in.done &
+                            r.dwords_done &
+                            std_ulogic_vector(to_unsigned(state_t'pos(r.state), 3));
+            end if;
+        end process;
+        log_out <= log_data;
+    end generate;
+
 end;

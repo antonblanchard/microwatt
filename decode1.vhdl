@@ -7,6 +7,10 @@ use work.common.all;
 use work.decode_types.all;
 
 entity decode1 is
+    generic (
+        -- Non-zero to enable log data collection
+        LOG_LENGTH : natural := 0
+        );
     port (
         clk       : in std_ulogic;
         rst       : in std_ulogic;
@@ -357,8 +361,6 @@ architecture behaviour of decode1 is
     constant nop_instr      : decode_rom_t := (ALU,  OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
     constant fetch_fail_inst: decode_rom_t := (LDST, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
 
-    signal log_data : std_ulogic_vector(12 downto 0);
-
 begin
     decode1_0: process(clk)
     begin
@@ -524,15 +526,19 @@ begin
         flush_out <= f.redirect;
     end process;
 
-    dec1_log : process(clk)
+    d1_log: if LOG_LENGTH > 0 generate
+        signal log_data : std_ulogic_vector(12 downto 0);
     begin
-        if rising_edge(clk) then
-            log_data <= std_ulogic_vector(to_unsigned(insn_type_t'pos(r.decode.insn_type), 6)) &
-                        r.nia(5 downto 2) &
-                        std_ulogic_vector(to_unsigned(unit_t'pos(r.decode.unit), 2)) &
-                        r.valid;
-        end if;
-    end process;
-    log_out <= log_data;
+        dec1_log : process(clk)
+        begin
+            if rising_edge(clk) then
+                log_data <= std_ulogic_vector(to_unsigned(insn_type_t'pos(r.decode.insn_type), 6)) &
+                            r.nia(5 downto 2) &
+                            std_ulogic_vector(to_unsigned(unit_t'pos(r.decode.unit), 2)) &
+                            r.valid;
+            end if;
+        end process;
+        log_out <= log_data;
+    end generate;
 
 end architecture behaviour;
