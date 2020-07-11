@@ -282,6 +282,8 @@ architecture rtl of dcache is
         end_row_ix       : row_in_line_t;
         rows_valid       : row_per_line_valid_t;
         acks_pending     : unsigned(2 downto 0);
+        inc_acks         : std_ulogic;
+        dec_acks         : std_ulogic;
 
         -- Signals to complete (possibly with error)
         ls_valid         : std_ulogic;
@@ -1209,6 +1211,8 @@ begin
 		-- One cycle pulses reset
 		r1.slow_valid <= '0';
                 r1.write_bram <= '0';
+                r1.inc_acks <= '0';
+                r1.dec_acks <= '0';
 
                 r1.ls_valid <= '0';
                 -- complete tlbies and TLB loads in the third cycle
@@ -1409,6 +1413,14 @@ begin
                 when STORE_WAIT_ACK =>
 		    stbs_done := r1.wb.stb = '0';
                     acks := r1.acks_pending;
+                    if r1.inc_acks /= r1.dec_acks then
+                        if r1.inc_acks = '1' then
+                            acks := acks + 1;
+                        else
+                            acks := acks - 1;
+                        end if;
+                    end if;
+                    r1.acks_pending <= acks;
 		    -- Clear stb when slave accepted request
                     if wishbone_in.stall = '0' then
                         -- See if there is another store waiting to be done
@@ -1430,7 +1442,8 @@ begin
                             r1.slow_valid <= '1';
                             -- Store requests never come from the MMU
                             r1.ls_valid <= '1';
-                            acks := acks + 1;
+                            stbs_done := false;
+                            r1.inc_acks <= '1';
                         else
                             r1.wb.stb <= '0';
                             stbs_done := true;
@@ -1444,9 +1457,8 @@ begin
                             r1.wb.cyc <= '0';
                             r1.wb.stb <= '0';
                         end if;
-                        acks := acks - 1;
+                        r1.dec_acks <= '1';
 		    end if;
-                    r1.acks_pending <= acks;
 
                 when NC_LOAD_WAIT_ACK =>
 		    -- Clear stb when slave accepted request
