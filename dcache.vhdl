@@ -235,6 +235,7 @@ architecture rtl of dcache is
         byte_sel  : std_ulogic_vector(7 downto 0);
         hit_way   : way_t;
         same_tag  : std_ulogic;
+        mmu_req   : std_ulogic;
     end record;
 
     -- First stage register, contains state for stage 1 of load hits
@@ -282,15 +283,14 @@ architecture rtl of dcache is
         rows_valid       : row_per_line_valid_t;
         acks_pending     : unsigned(2 downto 0);
 
-        -- Signals to complete with error
+        -- Signals to complete (possibly with error)
+        ls_valid         : std_ulogic;
+        mmu_done         : std_ulogic;
         error_done       : std_ulogic;
         cache_paradox    : std_ulogic;
 
         -- Signal to complete a failed stcx.
         stcx_fail        : std_ulogic;
-
-        -- completion signal for tlbie
-        tlbie_done       : std_ulogic;
     end record;
 
     signal r1 : reg_stage_1_t;
@@ -940,15 +940,15 @@ begin
             end if;
         end loop;
 
-	d_out.valid <= '0';
+	d_out.valid <= r1.ls_valid;
 	d_out.data <= data_out;
-        d_out.store_done <= '0';
-        d_out.error <= '0';
-        d_out.cache_paradox <= '0';
+        d_out.store_done <= not r1.stcx_fail;
+        d_out.error <= r1.error_done;
+        d_out.cache_paradox <= r1.cache_paradox;
 
         -- Outputs to MMU
-        m_out.done <= r1.tlbie_done;
-        m_out.err <= '0';
+        m_out.done <= r1.mmu_done;
+        m_out.err <= r1.error_done;
         m_out.data <= data_out;
 
 	-- We have a valid load or store hit or we just completed a slow
@@ -974,47 +974,32 @@ begin
             -- Load hit case is the standard path
             if r1.hit_load_valid = '1' then
                 report "completing load hit data=" & to_hstring(data_out);
-                d_out.valid <= '1';
             end if;
 
             -- error cases complete without stalling
             if r1.error_done = '1' then
                 report "completing ld/st with error";
-                d_out.error <= '1';
-                d_out.cache_paradox <= r1.cache_paradox;
-                d_out.valid <= '1';
             end if;
 
             -- Slow ops (load miss, NC, stores)
             if r1.slow_valid = '1' then
-                d_out.store_done <= '1';
                 report "completing store or load miss data=" & to_hstring(data_out);
-                d_out.valid <= '1';
-            end if;
-
-            if r1.stcx_fail = '1' then
-                d_out.store_done <= '0';
-                d_out.valid <= '1';
             end if;
 
         else
             -- Request came from MMU
             if r1.hit_load_valid = '1' then
                 report "completing load hit to MMU, data=" & to_hstring(m_out.data);
-                m_out.done <= '1';
             end if;
 
             -- error cases complete without stalling
             if r1.error_done = '1' then
                 report "completing MMU ld with error";
-                m_out.err <= '1';
-                m_out.done <= '1';
             end if;
 
             -- Slow ops (i.e. load miss)
             if r1.slow_valid = '1' then
                 report "completing MMU load miss, data=" & to_hstring(m_out.data);
-                m_out.done <= '1';
             end if;
         end if;
 
@@ -1159,8 +1144,6 @@ begin
             r1.tlb_hit_way <= tlb_hit_way;
             r1.tlb_hit_index <= tlb_req_index;
 
-            -- complete tlbies and TLB loads in the third cycle
-            r1.tlbie_done <= r0_valid and (r0.tlbie or r0.tlbld);
 	end if;
     end process;
 
@@ -1217,6 +1200,8 @@ begin
 		r1.slow_valid <= '0';
                 r1.wb.cyc <= '0';
                 r1.wb.stb <= '0';
+                r1.ls_valid <= '0';
+                r1.mmu_done <= '0';
 
 		-- Not useful normally but helps avoiding tons of sim warnings
 		r1.wb.adr <= (others => '0');
@@ -1224,6 +1209,17 @@ begin
 		-- One cycle pulses reset
 		r1.slow_valid <= '0';
                 r1.write_bram <= '0';
+
+                r1.ls_valid <= '0';
+                -- complete tlbies and TLB loads in the third cycle
+                r1.mmu_done <= r0_valid and (r0.tlbie or r0.tlbld);
+                if req_op = OP_LOAD_HIT or req_op = OP_BAD or req_op = OP_STCX_FAIL then
+                    if r0.mmu_req = '0' then
+                        r1.ls_valid <= '1';
+                    else
+                        r1.mmu_done <= '1';
+                    end if;
+                end if;
 
                 if r1.write_tag = '1' then
                     -- Store new tag in selected way
@@ -1244,6 +1240,7 @@ begin
                 else
                     req.op := req_op;
                     req.valid := req_go;
+                    req.mmu_req := r0.mmu_req;
                     req.dcbz := r0.req.dcbz;
                     req.real_addr := ra;
                     req.data := r0.req.data;
@@ -1318,6 +1315,11 @@ begin
                             r1.acks_pending <= to_unsigned(1, 3);
                             r1.full <= '0';
                             r1.slow_valid <= '1';
+                            if req.mmu_req = '0' then
+                                r1.ls_valid <= '1';
+                            else
+                                r1.mmu_done <= '1';
+                            end if;
                             if req.op = OP_STORE_HIT then
                                 r1.write_bram <= '1';
                             end if;
@@ -1380,6 +1382,11 @@ begin
                             r1.store_row = get_row(r1.req.real_addr) then
                             r1.full <= '0';
                             r1.slow_valid <= '1';
+                            if r1.mmu_req = '0' then
+                                r1.ls_valid <= '1';
+                            else
+                                r1.mmu_done <= '1';
+                            end if;
                             r1.forward_sel <= (others => '1');
                             r1.use_forward1 <= '1';
 			end if;
@@ -1421,6 +1428,8 @@ begin
                             end if;
                             r1.full <= '0';
                             r1.slow_valid <= '1';
+                            -- Store requests never come from the MMU
+                            r1.ls_valid <= '1';
                             acks := acks + 1;
                         else
                             r1.wb.stb <= '0';
@@ -1450,6 +1459,11 @@ begin
                         r1.state <= IDLE;
                         r1.full <= '0';
 			r1.slow_valid <= '1';
+                        if r1.mmu_req = '0' then
+                            r1.ls_valid <= '1';
+                        else
+                            r1.mmu_done <= '1';
+                        end if;
                         r1.forward_sel <= (others => '1');
                         r1.use_forward1 <= '1';
 			r1.wb.cyc <= '0';
