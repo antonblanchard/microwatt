@@ -35,7 +35,7 @@ architecture behave of mmu is
                      RADIX_LOOKUP,
                      RADIX_READ_WAIT,
                      RADIX_LOAD_TLB,
-                     RADIX_ERROR
+                     RADIX_FINISH
                      );
 
     type reg_stage_t is record
@@ -51,6 +51,7 @@ architecture behave of mmu is
         pid       : std_ulogic_vector(31 downto 0);
         -- internal state
         state     : state_t;
+        done      : std_ulogic;
         pgtbl0    : std_ulogic_vector(63 downto 0);
         pt0_valid : std_ulogic;
         pgtbl3    : std_ulogic_vector(63 downto 0);
@@ -176,7 +177,6 @@ begin
     mmu_1: process(all)
         variable v : reg_stage_t;
         variable dcreq : std_ulogic;
-        variable done : std_ulogic;
         variable tlb_load : std_ulogic;
         variable itlb_load : std_ulogic;
         variable tlbie_req : std_ulogic;
@@ -199,7 +199,7 @@ begin
         v := r;
         v.valid := '0';
         dcreq := '0';
-        done := '0';
+        v.done := '0';
         v.invalid := '0';
         v.badtree := '0';
         v.segerror := '0';
@@ -262,7 +262,7 @@ begin
                         v.state := PROC_TBL_READ;
                     elsif mbits = 0 then
                         -- Use RPDS = 0 to disable radix tree walks
-                        v.state := RADIX_ERROR;
+                        v.state := RADIX_FINISH;
                         v.invalid := '1';
                     else
                         v.state := SEGMENT_CHECK;
@@ -291,8 +291,7 @@ begin
 
         when TLB_WAIT =>
             if d_in.done = '1' then
-                done := '1';
-                v.state := IDLE;
+                v.state := RADIX_FINISH;
             end if;
 
         when PROC_TBL_READ =>
@@ -319,13 +318,13 @@ begin
                     v.mask_size := mbits(4 downto 0);
                     v.pgbase := data(55 downto 8) & x"00";
                     if mbits = 0 then
-                        v.state := RADIX_ERROR;
+                        v.state := RADIX_FINISH;
                         v.invalid := '1';
                     else
                         v.state := SEGMENT_CHECK;
                     end if;
                 else
-                    v.state := RADIX_ERROR;
+                    v.state := RADIX_FINISH;
                     v.badtree := '1';
                 end if;
             end if;
@@ -335,10 +334,10 @@ begin
             v.shift := r.shift + (31 - 12) - mbits;
             nonzero := or(r.addr(61 downto 31) and not finalmask(30 downto 0));
             if r.addr(63) /= r.addr(62) or nonzero = '1' then
-                v.state := RADIX_ERROR;
+                v.state := RADIX_FINISH;
                 v.segerror := '1';
             elsif mbits < 5 or mbits > 16 or mbits > (r.shift + (31 - 12)) then
-                v.state := RADIX_ERROR;
+                v.state := RADIX_FINISH;
                 v.badtree := '1';
             else
                 v.state := RADIX_LOOKUP;
@@ -371,7 +370,7 @@ begin
                             if perm_ok = '1' and rc_ok = '1' then
                                 v.state := RADIX_LOAD_TLB;
                             else
-                                v.state := RADIX_ERROR;
+                                v.state := RADIX_FINISH;
                                 v.perm_err := not perm_ok;
                                 -- permission error takes precedence over RC error
                                 v.rc_error := perm_ok;
@@ -379,7 +378,7 @@ begin
                         else
                             mbits := unsigned('0' & data(4 downto 0));
                             if mbits < 5 or mbits > 16 or mbits > r.shift then
-                                v.state := RADIX_ERROR;
+                                v.state := RADIX_FINISH;
                                 v.badtree := '1';
                             else
                                 v.shift := v.shift - mbits;
@@ -390,11 +389,11 @@ begin
                         end if;
                     else
                         -- non-present PTE, generate a DSI
-                        v.state := RADIX_ERROR;
+                        v.state := RADIX_FINISH;
                         v.invalid := '1';
                     end if;
                 else
-                    v.state := RADIX_ERROR;
+                    v.state := RADIX_FINISH;
                     v.badtree := '1';
                 end if;
             end if;
@@ -406,15 +405,17 @@ begin
                 v.state := TLB_WAIT;
             else
                 itlb_load := '1';
-                done := '1';
                 v.state := IDLE;
             end if;
 
-        when RADIX_ERROR =>
-            done := '1';
+        when RADIX_FINISH =>
             v.state := IDLE;
 
         end case;
+
+        if v.state = RADIX_FINISH or (v.state = RADIX_LOAD_TLB and r.iside = '1') then
+            v.done := '1';
+        end if;
 
         if r.addr(63) = '1' then
             effpid := x"00000000";
@@ -451,7 +452,7 @@ begin
             tlb_data := (others => '0');
         end if;
 
-        l_out.done <= done;
+        l_out.done <= r.done;
         l_out.invalid <= r.invalid;
         l_out.badtree <= r.badtree;
         l_out.segerr <= r.segerror;
