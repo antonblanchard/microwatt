@@ -9,7 +9,7 @@
     "memtype":    "DDR3",      # DRAM type
 
     # PHY ----------------------------------------------------------------------
-    "cmd_latency":     0,             # Command additional latency
+    "cmd_latency":     1,             # Command additional latency
     "sdram_module":    "MT41J256M16", # SDRAM modules of the board or SO-DIMM
     "sdram_module_nb": 4,             # Number of byte groups
     "sdram_rank_nb":   1,             # Number of ranks
