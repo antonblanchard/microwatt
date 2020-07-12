@@ -241,47 +241,46 @@ begin
             v.last_dword := '0';
 
         when ACK_WAIT =>
+            if d_in.error = '1' then
+                -- dcache will discard the second request if it
+                -- gets an error on the 1st of two requests
+                if r.dwords_done = '1' then
+                    addr := next_addr;
+                else
+                    addr := r.addr;
+                end if;
+                if d_in.cache_paradox = '1' then
+                    -- signal an interrupt straight away
+                    exception := '1';
+                    dsisr(63 - 38) := not r.load;
+                    -- XXX there is no architected bit for this
+                    dsisr(63 - 35) := d_in.cache_paradox;
+                    v.state := IDLE;
+                else
+                    -- Look up the translation for TLB miss
+                    -- and also for permission error and RC error
+                    -- in case the PTE has been updated.
+                    mmureq := '1';
+                    v.state := MMU_LOOKUP;
+                end if;
+            end if;
             if d_in.valid = '1' then
-                if d_in.error = '1' then
-                    -- dcache will discard the second request if it
-                    -- gets an error on the 1st of two requests
-                    if r.dwords_done = '1' then
-                        addr := next_addr;
-                    else
-                        addr := r.addr;
-                    end if;
-                    if d_in.cache_paradox = '1' then
-                        -- signal an interrupt straight away
-                        exception := '1';
-                        dsisr(63 - 38) := not r.load;
-                        -- XXX there is no architected bit for this
-                        dsisr(63 - 35) := d_in.cache_paradox;
-                        v.state := IDLE;
-                    else
-                        -- Look up the translation for TLB miss
-                        -- and also for permission error and RC error
-                        -- in case the PTE has been updated.
-                        mmureq := '1';
-                        v.state := MMU_LOOKUP;
+                if r.last_dword = '0' then
+                    v.dwords_done := '1';
+                    v.last_dword := '1';
+                    if r.load = '1' then
+                        v.load_data := data_permuted;
                     end if;
                 else
-                    if r.last_dword = '0' then
-                        v.dwords_done := '1';
-                        v.last_dword := '1';
-                        if r.load = '1' then
-                            v.load_data := data_permuted;
-                        end if;
+                    write_enable := r.load;
+                    if r.load = '1' and r.update = '1' then
+                        -- loads with rA update need an extra cycle
+                        v.state := LD_UPDATE;
                     else
-                        write_enable := r.load;
-                        if r.load = '1' and r.update = '1' then
-                            -- loads with rA update need an extra cycle
-                            v.state := LD_UPDATE;
-                        else
-                            -- stores write back rA update in this cycle
-                            do_update := r.update;
-                            done := '1';
-                            v.state := IDLE;
-                        end if;
+                        -- stores write back rA update in this cycle
+                        do_update := r.update;
+                        done := '1';
+                        v.state := IDLE;
                     end if;
                 end if;
             end if;

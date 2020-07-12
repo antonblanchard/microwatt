@@ -287,8 +287,9 @@ architecture rtl of dcache is
 
         -- Signals to complete (possibly with error)
         ls_valid         : std_ulogic;
+        ls_error         : std_ulogic;
         mmu_done         : std_ulogic;
-        error_done       : std_ulogic;
+        mmu_error        : std_ulogic;
         cache_paradox    : std_ulogic;
 
         -- Signal to complete a failed stcx.
@@ -739,7 +740,7 @@ begin
         req_row <= get_row(r0.req.addr);
         req_tag <= get_tag(ra);
 
-        go := r0_valid and not (r0.tlbie or r0.tlbld) and not r1.error_done;
+        go := r0_valid and not (r0.tlbie or r0.tlbld) and not r1.ls_error;
 
 	-- Test if pending request is a hit on any way
         -- In order to make timing in virtual mode, when we are using the TLB,
@@ -945,12 +946,12 @@ begin
 	d_out.valid <= r1.ls_valid;
 	d_out.data <= data_out;
         d_out.store_done <= not r1.stcx_fail;
-        d_out.error <= r1.error_done;
+        d_out.error <= r1.ls_error;
         d_out.cache_paradox <= r1.cache_paradox;
 
         -- Outputs to MMU
         m_out.done <= r1.mmu_done;
-        m_out.err <= r1.error_done;
+        m_out.err <= r1.mmu_error;
         m_out.data <= data_out;
 
 	-- We have a valid load or store hit or we just completed a slow
@@ -979,7 +980,7 @@ begin
             end if;
 
             -- error cases complete without stalling
-            if r1.error_done = '1' then
+            if r1.ls_error = '1' then
                 report "completing ld/st with error";
             end if;
 
@@ -995,7 +996,7 @@ begin
             end if;
 
             -- error cases complete without stalling
-            if r1.error_done = '1' then
+            if r1.mmu_error = '1' then
                 report "completing MMU ld with error";
             end if;
 
@@ -1128,10 +1129,12 @@ begin
             if req_op = OP_BAD then
                 report "Signalling ld/st error valid_ra=" & std_ulogic'image(valid_ra) &
                     " rc_ok=" & std_ulogic'image(rc_ok) & " perm_ok=" & std_ulogic'image(perm_ok);
-                r1.error_done <= '1';
+                r1.ls_error <= not r0.mmu_req;
+                r1.mmu_error <= r0.mmu_req;
                 r1.cache_paradox <= access_ok;
             else
-                r1.error_done <= '0';
+                r1.ls_error <= '0';
+                r1.mmu_error <= '0';
                 r1.cache_paradox <= '0';
             end if;
 
@@ -1217,7 +1220,7 @@ begin
                 r1.ls_valid <= '0';
                 -- complete tlbies and TLB loads in the third cycle
                 r1.mmu_done <= r0_valid and (r0.tlbie or r0.tlbld);
-                if req_op = OP_LOAD_HIT or req_op = OP_BAD or req_op = OP_STCX_FAIL then
+                if req_op = OP_LOAD_HIT or req_op = OP_STCX_FAIL then
                     if r0.mmu_req = '0' then
                         r1.ls_valid <= '1';
                     else

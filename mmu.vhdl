@@ -301,32 +301,31 @@ begin
 
         when PROC_TBL_WAIT =>
             if d_in.done = '1' then
-                if d_in.err = '0' then
-                    if r.addr(63) = '1' then
-                        v.pgtbl3 := data;
-                        v.pt3_valid := '1';
-                    else
-                        v.pgtbl0 := data;
-                        v.pt0_valid := '1';
-                    end if;
-                    -- rts == radix tree size, # address bits being translated
-                    rts := unsigned('0' & data(62 downto 61) & data(7 downto 5));
-                    -- mbits == # address bits to index top level of tree
-                    mbits := unsigned('0' & data(4 downto 0));
-                    -- set v.shift to rts so that we can use finalmask for the segment check
-                    v.shift := rts;
-                    v.mask_size := mbits(4 downto 0);
-                    v.pgbase := data(55 downto 8) & x"00";
-                    if mbits = 0 then
-                        v.state := RADIX_FINISH;
-                        v.invalid := '1';
-                    else
-                        v.state := SEGMENT_CHECK;
-                    end if;
+                if r.addr(63) = '1' then
+                    v.pgtbl3 := data;
+                    v.pt3_valid := '1';
                 else
-                    v.state := RADIX_FINISH;
-                    v.badtree := '1';
+                    v.pgtbl0 := data;
+                    v.pt0_valid := '1';
                 end if;
+                -- rts == radix tree size, # address bits being translated
+                rts := unsigned('0' & data(62 downto 61) & data(7 downto 5));
+                -- mbits == # address bits to index top level of tree
+                mbits := unsigned('0' & data(4 downto 0));
+                -- set v.shift to rts so that we can use finalmask for the segment check
+                v.shift := rts;
+                v.mask_size := mbits(4 downto 0);
+                v.pgbase := data(55 downto 8) & x"00";
+                if mbits = 0 then
+                    v.state := RADIX_FINISH;
+                    v.invalid := '1';
+                else
+                    v.state := SEGMENT_CHECK;
+                end if;
+            end if;
+            if d_in.err = '1' then
+                v.state := RADIX_FINISH;
+                v.badtree := '1';
             end if;
 
         when SEGMENT_CHECK =>
@@ -349,53 +348,52 @@ begin
 
         when RADIX_READ_WAIT =>
             if d_in.done = '1' then
-                if d_in.err = '0' then
-                    v.pde := data;
-                    -- test valid bit
-                    if data(63) = '1' then
-                        -- test leaf bit
-                        if data(62) = '1' then
-                            -- check permissions and RC bits
-                            perm_ok := '0';
-                            if r.priv = '1' or data(3) = '0' then
-                                if r.iside = '0' then
-                                    perm_ok := data(1) or (data(2) and not r.store);
-                                else
-                                    -- no IAMR, so no KUEP support for now
-                                    -- deny execute permission if cache inhibited
-                                    perm_ok := data(0) and not data(5);
-                                end if;
-                            end if;
-                            rc_ok := data(8) and (data(7) or not r.store);
-                            if perm_ok = '1' and rc_ok = '1' then
-                                v.state := RADIX_LOAD_TLB;
+                v.pde := data;
+                -- test valid bit
+                if data(63) = '1' then
+                    -- test leaf bit
+                    if data(62) = '1' then
+                        -- check permissions and RC bits
+                        perm_ok := '0';
+                        if r.priv = '1' or data(3) = '0' then
+                            if r.iside = '0' then
+                                perm_ok := data(1) or (data(2) and not r.store);
                             else
-                                v.state := RADIX_FINISH;
-                                v.perm_err := not perm_ok;
-                                -- permission error takes precedence over RC error
-                                v.rc_error := perm_ok;
-                            end if;
-                        else
-                            mbits := unsigned('0' & data(4 downto 0));
-                            if mbits < 5 or mbits > 16 or mbits > r.shift then
-                                v.state := RADIX_FINISH;
-                                v.badtree := '1';
-                            else
-                                v.shift := v.shift - mbits;
-                                v.mask_size := mbits(4 downto 0);
-                                v.pgbase := data(55 downto 8) & x"00";
-                                v.state := RADIX_LOOKUP;
+                                -- no IAMR, so no KUEP support for now
+                                -- deny execute permission if cache inhibited
+                                perm_ok := data(0) and not data(5);
                             end if;
                         end if;
+                        rc_ok := data(8) and (data(7) or not r.store);
+                        if perm_ok = '1' and rc_ok = '1' then
+                            v.state := RADIX_LOAD_TLB;
+                        else
+                            v.state := RADIX_FINISH;
+                            v.perm_err := not perm_ok;
+                            -- permission error takes precedence over RC error
+                            v.rc_error := perm_ok;
+                        end if;
                     else
-                        -- non-present PTE, generate a DSI
-                        v.state := RADIX_FINISH;
-                        v.invalid := '1';
+                        mbits := unsigned('0' & data(4 downto 0));
+                        if mbits < 5 or mbits > 16 or mbits > r.shift then
+                            v.state := RADIX_FINISH;
+                            v.badtree := '1';
+                        else
+                            v.shift := v.shift - mbits;
+                            v.mask_size := mbits(4 downto 0);
+                            v.pgbase := data(55 downto 8) & x"00";
+                            v.state := RADIX_LOOKUP;
+                        end if;
                     end if;
                 else
+                    -- non-present PTE, generate a DSI
                     v.state := RADIX_FINISH;
-                    v.badtree := '1';
+                    v.invalid := '1';
                 end if;
+            end if;
+            if d_in.err = '1' then
+                v.state := RADIX_FINISH;
+                v.badtree := '1';
             end if;
 
         when RADIX_LOAD_TLB =>
