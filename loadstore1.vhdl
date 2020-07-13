@@ -152,6 +152,7 @@ begin
         variable req : std_ulogic;
         variable busy : std_ulogic;
         variable addr : std_ulogic_vector(63 downto 0);
+        variable maddr : std_ulogic_vector(63 downto 0);
         variable wdata : std_ulogic_vector(63 downto 0);
         variable write_enable : std_ulogic;
         variable do_update : std_ulogic;
@@ -173,6 +174,7 @@ begin
         req := '0';
         byte_sel := (others => '0');
         addr := lsu_sum;
+        maddr := l_in.addr2;    -- address from RB for tlbie
         v.mfspr := '0';
         mmu_mtspr := '0';
         itlb_fault := '0';
@@ -260,9 +262,9 @@ begin
                 -- dcache will discard the second request if it
                 -- gets an error on the 1st of two requests
                 if r.dwords_done = '1' then
-                    addr := next_addr;
+                    maddr := next_addr;
                 else
-                    addr := r.addr;
+                    maddr := r.addr;
                 end if;
                 if d_in.cache_paradox = '1' then
                     -- signal an interrupt straight away
@@ -427,8 +429,7 @@ begin
                     end if;
                 when OP_FETCH_FAILED =>
                     -- send it to the MMU to do the radix walk
-                    addr := l_in.nia;
-                    v.addr := l_in.nia;
+                    maddr := l_in.nia;
                     v.instr_fault := '1';
                     mmureq := '1';
                     v.state := MMU_LOOKUP;
@@ -490,7 +491,7 @@ begin
         m_out.tlbie <= v.tlbie;
         m_out.mtspr <= mmu_mtspr;
         m_out.sprn <= sprn;
-        m_out.addr <= addr;
+        m_out.addr <= maddr;
         m_out.slbia <= l_in.insn(7);
         m_out.rs <= l_in.data;
 
