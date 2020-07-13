@@ -315,6 +315,7 @@ package common is
 
     type MmuToLoadstore1Type is record
         done       : std_ulogic;
+        err        : std_ulogic;
         invalid    : std_ulogic;
         badtree    : std_ulogic;
         segerr     : std_ulogic;

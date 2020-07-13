@@ -80,6 +80,9 @@ architecture behave of loadstore1 is
         dsisr        : std_ulogic_vector(31 downto 0);
         instr_fault  : std_ulogic;
         sprval       : std_ulogic_vector(63 downto 0);
+        busy         : std_ulogic;
+        wait_dcache  : std_ulogic;
+        wait_mmu     : std_ulogic;
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -128,6 +131,9 @@ begin
         if rising_edge(clk) then
             if rst = '1' then
                 r.state <= IDLE;
+                r.busy <= '0';
+                r.wait_dcache <= '0';
+                r.wait_mmu <= '0';
             else
                 r <= rin;
             end if;
@@ -228,8 +234,17 @@ begin
         -- compute (addr + 8) & ~7 for the second doubleword when unaligned
         next_addr := std_ulogic_vector(unsigned(r.addr(63 downto 3)) + 1) & "000";
 
+        -- Busy calculation.
+        -- We need to minimize the delay from clock to busy valid because it
+        -- gates the start of execution of the next instruction.
+        busy := r.busy or (r.wait_dcache and not d_in.valid) or (r.wait_mmu and not m_in.done);
+
         done := '0';
+        if r.state /= IDLE and busy = '0' then
+            done := '1';
+        end if;
         exception := '0';
+
         case r.state is
         when IDLE =>
 
@@ -255,7 +270,6 @@ begin
                     dsisr(63 - 38) := not r.load;
                     -- XXX there is no architected bit for this
                     dsisr(63 - 35) := d_in.cache_paradox;
-                    v.state := IDLE;
                 else
                     -- Look up the translation for TLB miss
                     -- and also for permission error and RC error
@@ -279,8 +293,6 @@ begin
                     else
                         -- stores write back rA update in this cycle
                         do_update := r.update;
-                        done := '1';
-                        v.state := IDLE;
                     end if;
                 end if;
             end if;
@@ -294,53 +306,36 @@ begin
                 byte_sel := r.first_bytes;
             end if;
             if m_in.done = '1' then
-                if m_in.invalid = '0' and m_in.perm_error = '0' and m_in.rc_error = '0' and
-                    m_in.badtree = '0' and m_in.segerr = '0' then
-                    if r.instr_fault = '0' then
-                        -- retry the request now that the MMU has installed a TLB entry
-                        req := '1';
-                        if r.last_dword = '0' then
-                            v.state := SECOND_REQ;
-                        else
-                            v.state := ACK_WAIT;
-                        end if;
+                if r.instr_fault = '0' then
+                    -- retry the request now that the MMU has installed a TLB entry
+                    req := '1';
+                    if r.last_dword = '0' then
+                        v.state := SECOND_REQ;
                     else
-                        -- nothing to do, the icache retries automatically
-                        done := '1';
-                        v.state := IDLE;
+                        v.state := ACK_WAIT;
                     end if;
-                else
-                    exception := '1';
-                    dsisr(63 - 33) := m_in.invalid;
-                    dsisr(63 - 36) := m_in.perm_error;
-                    dsisr(63 - 38) := not r.load;
-                    dsisr(63 - 44) := m_in.badtree;
-                    dsisr(63 - 45) := m_in.rc_error;
-                    v.state := IDLE;
                 end if;
+            end if;
+            if m_in.err = '1' then
+                exception := '1';
+                dsisr(63 - 33) := m_in.invalid;
+                dsisr(63 - 36) := m_in.perm_error;
+                dsisr(63 - 38) := not r.load;
+                dsisr(63 - 44) := m_in.badtree;
+                dsisr(63 - 45) := m_in.rc_error;
             end if;
 
         when TLBIE_WAIT =>
-            if m_in.done = '1' then
-                -- tlbie is finished
-                done := '1';
-                v.state := IDLE;
-            end if;
 
         when LD_UPDATE =>
             do_update := '1';
-            v.state := IDLE;
-            done := '1';
 
         when SPR_CMPLT =>
-            done := '1';
-            v.state := IDLE;
 
         end case;
 
-        busy := '1';
-        if r.state = IDLE or done = '1' then
-            busy := '0';
+        if done = '1' or exception = '1' then
+            v.state := IDLE;
         end if;
 
         -- Note that l_in.valid is gated with busy inside execute1
@@ -449,6 +444,31 @@ begin
                 end if;
             end if;
         end if;
+
+        -- Work out whether we'll be busy next cycle
+        v.busy := '0';
+        v.wait_dcache := '0';
+        v.wait_mmu := '0';
+        case v.state is
+            when SECOND_REQ =>
+                v.busy := '1';
+            when ACK_WAIT =>
+                if v.last_dword = '0' or (v.load = '1' and v.update = '1') then
+                    v.busy := '1';
+                else
+                    v.wait_dcache := '1';
+                end if;
+            when MMU_LOOKUP =>
+                if v.instr_fault = '0' then
+                    v.busy := '1';
+                else
+                    v.wait_mmu := '1';
+                end if;
+            when TLBIE_WAIT =>
+                v.wait_mmu := '1';
+            when others =>
+                -- not busy next cycle
+        end case;
 
         -- Update outputs to dcache
         d_out.valid <= req;

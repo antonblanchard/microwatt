@@ -52,6 +52,7 @@ architecture behave of mmu is
         -- internal state
         state     : state_t;
         done      : std_ulogic;
+        err       : std_ulogic;
         pgtbl0    : std_ulogic_vector(63 downto 0);
         pt0_valid : std_ulogic;
         pgtbl3    : std_ulogic_vector(63 downto 0);
@@ -92,7 +93,10 @@ begin
                     report "MMU got tlb miss for " & to_hstring(rin.addr);
                 end if;
                 if l_out.done = '1' then
-                    report "MMU completing op with invalid=" & std_ulogic'image(l_out.invalid) &
+                    report "MMU completing op without error";
+                end if;
+                if l_out.err = '1' then
+                    report "MMU completing op with err invalid=" & std_ulogic'image(l_out.invalid) &
                         " badtree=" & std_ulogic'image(l_out.badtree);
                 end if;
                 if rin.state = RADIX_LOOKUP then
@@ -200,6 +204,7 @@ begin
         v.valid := '0';
         dcreq := '0';
         v.done := '0';
+        v.err := '0';
         v.invalid := '0';
         v.badtree := '0';
         v.segerror := '0';
@@ -412,7 +417,8 @@ begin
         end case;
 
         if v.state = RADIX_FINISH or (v.state = RADIX_LOAD_TLB and r.iside = '1') then
-            v.done := '1';
+            v.err := v.invalid or v.badtree or v.segerror or v.perm_err or v.rc_error;
+            v.done := not v.err;
         end if;
 
         if r.addr(63) = '1' then
@@ -451,6 +457,7 @@ begin
         end if;
 
         l_out.done <= r.done;
+        l_out.err <= r.err;
         l_out.invalid <= r.invalid;
         l_out.badtree <= r.badtree;
         l_out.segerr <= r.segerror;
