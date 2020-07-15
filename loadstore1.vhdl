@@ -44,10 +44,9 @@ architecture behave of loadstore1 is
     type state_t is (IDLE,              -- ready for instruction
                      SECOND_REQ,        -- send 2nd request of unaligned xfer
                      ACK_WAIT,          -- waiting for ack from dcache
-                     LD_UPDATE,         -- writing rA with computed addr on load
                      MMU_LOOKUP,        -- waiting for MMU to look up translation
                      TLBIE_WAIT,        -- waiting for MMU to finish doing a tlbie
-                     SPR_CMPLT          -- complete a mf/tspr operation
+                     COMPLETE           -- extra cycle to complete an operation
                      );
 
     type reg_stage_t is record
@@ -83,6 +82,8 @@ architecture behave of loadstore1 is
         busy         : std_ulogic;
         wait_dcache  : std_ulogic;
         wait_mmu     : std_ulogic;
+        do_update    : std_ulogic;
+        extra_cycle  : std_ulogic;
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -132,8 +133,7 @@ begin
             if rst = '1' then
                 r.state <= IDLE;
                 r.busy <= '0';
-                r.wait_dcache <= '0';
-                r.wait_mmu <= '0';
+                r.do_update <= '0';
             else
                 r <= rin;
             end if;
@@ -172,9 +172,6 @@ begin
     begin
         v := r;
         req := '0';
-        byte_sel := (others => '0');
-        addr := lsu_sum;
-        maddr := l_in.addr2;    -- address from RB for tlbie
         v.mfspr := '0';
         mmu_mtspr := '0';
         itlb_fault := '0';
@@ -183,7 +180,9 @@ begin
         mmureq := '0';
 
         write_enable := '0';
-        do_update := '0';
+
+        do_update := r.do_update;
+        v.do_update := '0';
 
         -- load data formatting
         byte_offset := unsigned(r.addr(2 downto 0));
@@ -239,7 +238,8 @@ begin
         -- Busy calculation.
         -- We need to minimize the delay from clock to busy valid because it
         -- gates the start of execution of the next instruction.
-        busy := r.busy or (r.wait_dcache and not d_in.valid) or (r.wait_mmu and not m_in.done);
+        busy := r.busy and not ((r.wait_dcache and d_in.valid) or (r.wait_mmu and m_in.done));
+        v.busy := busy;
 
         done := '0';
         if r.state /= IDLE and busy = '0' then
@@ -247,12 +247,19 @@ begin
         end if;
         exception := '0';
 
+        if r.dwords_done = '1' or r.state = SECOND_REQ then
+            maddr := next_addr;
+            byte_sel := r.second_bytes;
+        else
+            maddr := r.addr;
+            byte_sel := r.first_bytes;
+        end if;
+        addr := maddr;
+
         case r.state is
         when IDLE =>
 
         when SECOND_REQ =>
-            addr := next_addr;
-            byte_sel := r.second_bytes;
             req := '1';
             v.state := ACK_WAIT;
             v.last_dword := '0';
@@ -261,11 +268,6 @@ begin
             if d_in.error = '1' then
                 -- dcache will discard the second request if it
                 -- gets an error on the 1st of two requests
-                if r.dwords_done = '1' then
-                    maddr := next_addr;
-                else
-                    maddr := r.addr;
-                end if;
                 if d_in.cache_paradox = '1' then
                     -- signal an interrupt straight away
                     exception := '1';
@@ -289,24 +291,22 @@ begin
                     end if;
                 else
                     write_enable := r.load;
-                    if r.load = '1' and r.update = '1' then
+                    if r.extra_cycle = '1' then
                         -- loads with rA update need an extra cycle
-                        v.state := LD_UPDATE;
+                        v.state := COMPLETE;
+                        v.do_update := r.update;
                     else
                         -- stores write back rA update in this cycle
                         do_update := r.update;
                     end if;
+                    v.busy := '0';
                 end if;
             end if;
+            -- r.wait_dcache gets set one cycle after we come into ACK_WAIT state,
+            -- which is OK because the dcache always takes at least two cycles.
+            v.wait_dcache := r.last_dword and not r.extra_cycle;
 
         when MMU_LOOKUP =>
-            if r.dwords_done = '1' then
-                addr := next_addr;
-                byte_sel := r.second_bytes;
-            else
-                addr := r.addr;
-                byte_sel := r.first_bytes;
-            end if;
             if m_in.done = '1' then
                 if r.instr_fault = '0' then
                     -- retry the request now that the MMU has installed a TLB entry
@@ -329,15 +329,13 @@ begin
 
         when TLBIE_WAIT =>
 
-        when LD_UPDATE =>
-            do_update := '1';
-
-        when SPR_CMPLT =>
+        when COMPLETE =>
 
         end case;
 
         if done = '1' or exception = '1' then
             v.state := IDLE;
+            v.busy := '0';
         end if;
 
         -- Note that l_in.valid is gated with busy inside execute1
@@ -361,6 +359,13 @@ begin
             v.nc := l_in.ci;
             v.virt_mode := l_in.virt_mode;
             v.priv_mode := l_in.priv_mode;
+            v.wait_dcache := '0';
+            v.wait_mmu := '0';
+            v.do_update := '0';
+            v.extra_cycle := '0';
+
+            addr := lsu_sum;
+            maddr := l_in.addr2;    -- address from RB for tlbie
 
             -- XXX Temporary hack. Mark the op as non-cachable if the address
             -- is the form 0xc------- for a real-mode access.
@@ -392,6 +397,8 @@ begin
                 when OP_LOAD =>
                     req := '1';
                     v.load := '1';
+                    -- Allow an extra cycle for RA update on loads
+                    v.extra_cycle := l_in.update;
                 when OP_DCBZ =>
                     req := '1';
                     v.dcbz := '1';
@@ -399,6 +406,7 @@ begin
                     mmureq := '1';
                     v.tlbie := '1';
                     v.state := TLBIE_WAIT;
+                    v.wait_mmu := '1';
                 when OP_MFSPR =>
                     v.mfspr := '1';
                     -- partial decode on SPR number should be adequate given
@@ -413,7 +421,7 @@ begin
                         -- reading one of the SPRs in the MMU
                         v.sprval := m_in.sprval;
                     end if;
-                    v.state := SPR_CMPLT;
+                    v.state := COMPLETE;
                 when OP_MTSPR =>
                     if sprn(9) = '0' and sprn(5) = '0' then
                         if sprn(0) = '0' then
@@ -421,11 +429,12 @@ begin
                         else
                             v.dar := l_in.data;
                         end if;
-                        v.state := SPR_CMPLT;
+                        v.state := COMPLETE;
                     else
                         -- writing one of the SPRs in the MMU
                         mmu_mtspr := '1';
                         v.state := TLBIE_WAIT;
+                        v.wait_mmu := '1';
                     end if;
                 when OP_FETCH_FAILED =>
                     -- send it to the MMU to do the radix walk
@@ -433,6 +442,7 @@ begin
                     v.instr_fault := '1';
                     mmureq := '1';
                     v.state := MMU_LOOKUP;
+                    v.wait_mmu := '1';
                 when others =>
                     assert false report "unknown op sent to loadstore1";
             end case;
@@ -444,32 +454,9 @@ begin
                     v.state := SECOND_REQ;
                 end if;
             end if;
-        end if;
 
-        -- Work out whether we'll be busy next cycle
-        v.busy := '0';
-        v.wait_dcache := '0';
-        v.wait_mmu := '0';
-        case v.state is
-            when SECOND_REQ =>
-                v.busy := '1';
-            when ACK_WAIT =>
-                if v.last_dword = '0' or (v.load = '1' and v.update = '1') then
-                    v.busy := '1';
-                else
-                    v.wait_dcache := '1';
-                end if;
-            when MMU_LOOKUP =>
-                if v.instr_fault = '0' then
-                    v.busy := '1';
-                else
-                    v.wait_mmu := '1';
-                end if;
-            when TLBIE_WAIT =>
-                v.wait_mmu := '1';
-            when others =>
-                -- not busy next cycle
-        end case;
+            v.busy := req or mmureq or mmu_mtspr;
+        end if;
 
         -- Update outputs to dcache
         d_out.valid <= req;
