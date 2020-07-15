@@ -24,9 +24,20 @@ entity fpu is
 end entity fpu;
 
 architecture behaviour of fpu is
+    type fp_number_class is (ZERO, FINITE, INFINITY, NAN);
+
+    constant EXP_BITS : natural := 13;
+
+    type fpu_reg_type is record
+        class    : fp_number_class;
+        negative : std_ulogic;
+        exponent : signed(EXP_BITS-1 downto 0);         -- unbiased
+        mantissa : std_ulogic_vector(63 downto 0);      -- 10.54 format
+    end record;
 
     type state_t is (IDLE,
-                     DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF);
+                     DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
+                     DO_FMR);
 
     type reg_type is record
         state        : state_t;
@@ -41,9 +52,14 @@ architecture behaviour of fpu is
         is_cmp       : std_ulogic;
         single_prec  : std_ulogic;
         fpscr        : std_ulogic_vector(31 downto 0);
-        b            : std_ulogic_vector(63 downto 0);
+        a            : fpu_reg_type;
+        b            : fpu_reg_type;
         r            : std_ulogic_vector(63 downto 0);
+        result_sign  : std_ulogic;
+        result_class : fp_number_class;
+        result_exp   : signed(EXP_BITS-1 downto 0);
         writing_back : std_ulogic;
+        int_result   : std_ulogic;
         cr_result    : std_ulogic_vector(3 downto 0);
         cr_mask      : std_ulogic_vector(7 downto 0);
     end record;
@@ -51,6 +67,72 @@ architecture behaviour of fpu is
     signal r, rin : reg_type;
 
     signal fp_result     : std_ulogic_vector(63 downto 0);
+    signal opsel_r       : std_ulogic_vector(1 downto 0);
+    signal result        : std_ulogic_vector(63 downto 0);
+
+    -- Split a DP floating-point number into components and work out its class.
+    -- If is_int = 1, the input is considered an integer
+    function decode_dp(fpr: std_ulogic_vector(63 downto 0); is_int: std_ulogic) return fpu_reg_type is
+        variable r       : fpu_reg_type;
+        variable exp_nz  : std_ulogic;
+        variable exp_ao  : std_ulogic;
+        variable frac_nz : std_ulogic;
+        variable cls     : std_ulogic_vector(2 downto 0);
+    begin
+        r.negative := fpr(63);
+        exp_nz := or (fpr(62 downto 52));
+        exp_ao := and (fpr(62 downto 52));
+        frac_nz := or (fpr(51 downto 0));
+        if is_int = '0' then
+            r.exponent := signed(resize(unsigned(fpr(62 downto 52)), EXP_BITS)) - to_signed(1023, EXP_BITS);
+            if exp_nz = '0' then
+                r.exponent := to_signed(-1022, EXP_BITS);
+            end if;
+            r.mantissa := "000000000" & exp_nz & fpr(51 downto 0) & "00";
+            cls := exp_ao & exp_nz & frac_nz;
+            case cls is
+                when "000"  => r.class := ZERO;
+                when "001"  => r.class := FINITE;    -- denormalized
+                when "010"  => r.class := FINITE;
+                when "011"  => r.class := FINITE;
+                when "110"  => r.class := INFINITY;
+                when others => r.class := NAN;
+            end case;
+        else
+            r.mantissa := fpr;
+            r.exponent := (others => '0');
+            if (fpr(63) or exp_nz or frac_nz) = '1' then
+                r.class := FINITE;
+            else
+                r.class := ZERO;
+            end if;
+        end if;
+        return r;
+    end;
+
+    -- Construct a DP floating-point result from components
+    function pack_dp(sign: std_ulogic; class: fp_number_class; exp: signed(EXP_BITS-1 downto 0);
+                     mantissa: std_ulogic_vector) return std_ulogic_vector is
+        variable result : std_ulogic_vector(63 downto 0);
+    begin
+        result := (others => '0');
+        result(63) := sign;
+        case class is
+            when ZERO =>
+            when FINITE =>
+                if mantissa(54) = '1' then
+                    -- normalized number
+                    result(62 downto 52) := std_ulogic_vector(resize(exp, 11) + 1023);
+                end if;
+                result(51 downto 0) := mantissa(53 downto 2);
+            when INFINITY =>
+                result(62 downto 52) := "11111111111";
+            when NAN =>
+                result(62 downto 52) := "11111111111";
+                result(51 downto 0) := mantissa(53 downto 2);
+        end case;
+        return result;
+    end;
 
 begin
     fpu_0: process(clk)
@@ -85,14 +167,18 @@ begin
 
     fpu_1: process(all)
         variable v           : reg_type;
+        variable adec        : fpu_reg_type;
+        variable bdec        : fpu_reg_type;
         variable fpscr_mask  : std_ulogic_vector(31 downto 0);
         variable illegal     : std_ulogic;
         variable j, k        : integer;
         variable flm         : std_ulogic_vector(7 downto 0);
+        variable int_input   : std_ulogic;
     begin
         v := r;
         illegal := '0';
         v.busy := '0';
+        int_input := '0';
 
         -- capture incoming instruction
         if e_in.valid = '1' then
@@ -101,6 +187,7 @@ begin
             v.fe_mode := or (e_in.fe_mode);
             v.dest_fpr := e_in.frt;
             v.single_prec := e_in.single;
+            v.int_result := '0';
             v.rc := e_in.rc;
             v.is_cmp := e_in.out_cr;
             if e_in.out_cr = '0' then
@@ -108,11 +195,19 @@ begin
             else
                 v.cr_mask := num_to_fxm(to_integer(unsigned(insn_bf(e_in.insn))));
             end if;
-            v.b := e_in.frb;
+            int_input := '0';
+            if e_in.op = OP_FPOP_I then
+                int_input := '1';
+            end if;
+            adec := decode_dp(e_in.fra, int_input);
+            bdec := decode_dp(e_in.frb, int_input);
+            v.a := adec;
+            v.b := bdec;
         end if;
 
         v.writing_back := '0';
         v.instr_done := '0';
+        opsel_r <= "00";
         fpscr_mask := (others => '1');
 
         case r.state is
@@ -133,6 +228,8 @@ begin
                             else
                                 v.state := DO_MTFSF;
                             end if;
+                        when "01000" =>
+                            v.state := DO_FMR;
                         when others =>
                             illegal := '1';
                     end case;
@@ -177,7 +274,9 @@ begin
                 v.state := IDLE;
 
             when DO_MFFS =>
+                v.int_result := '1';
                 v.writing_back := '1';
+                opsel_r <= "10";
                 case r.insn(20 downto 16) is
                     when "00000" =>
                         -- mffs
@@ -191,7 +290,7 @@ begin
                         -- mffscrn
                         fpscr_mask := x"000000FF";
                         v.fpscr(FPSCR_RN+1 downto FPSCR_RN) :=
-                            r.b(FPSCR_RN+1 downto FPSCR_RN);
+                            r.b.mantissa(FPSCR_RN+1 downto FPSCR_RN);
                     when "10111" =>
                         -- mffscrni
                         fpscr_mask := x"000000FF";
@@ -216,19 +315,48 @@ begin
                 for i in 0 to 7 loop
                     k := i * 4;
                     if flm(i) = '1' then
-                        v.fpscr(k + 3 downto k) := r.b(k + 3 downto k);
+                        v.fpscr(k + 3 downto k) := r.b.mantissa(k + 3 downto k);
                     end if;
                 end loop;
+                v.instr_done := '1';
+                v.state := IDLE;
+
+            when DO_FMR =>
+                v.result_class := r.b.class;
+                v.result_exp := r.b.exponent;
+                if r.insn(9) = '1' then
+                    v.result_sign := '0';              -- fabs
+                elsif r.insn(8) = '1' then
+                    v.result_sign := '1';              -- fnabs
+                elsif r.insn(7) = '1' then
+                    v.result_sign := r.b.negative;     -- fmr
+                elsif r.insn(6) = '1' then
+                    v.result_sign := not r.b.negative; -- fneg
+                else
+                    v.result_sign := r.a.negative;     -- fcpsgn
+                end if;
+                v.writing_back := '1';
                 v.instr_done := '1';
                 v.state := IDLE;
 
         end case;
 
         -- Data path.
-        -- Just enough to read FPSCR for now.
-        v.r := x"00000000" & (r.fpscr and fpscr_mask);
+        case opsel_r is
+            when "00" =>
+                result <= r.b.mantissa;
+            when "10" =>
+                result <= x"00000000" & (r.fpscr and fpscr_mask);
+            when others =>
+                result <= (others => '0');
+        end case;
+        v.r := result;
 
-        fp_result <= r.r;
+        if r.int_result = '1' then
+            fp_result <= r.r;
+        else
+            fp_result <= pack_dp(r.result_sign, r.result_class, r.result_exp, r.r);
+        end if;
 
         v.fpscr(FPSCR_VX) := (or (v.fpscr(FPSCR_VXSNAN downto FPSCR_VXVC))) or
                              (or (v.fpscr(FPSCR_VXSOFT downto FPSCR_VXCVI)));

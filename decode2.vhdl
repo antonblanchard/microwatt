@@ -80,6 +80,8 @@ architecture behaviour of decode2 is
             return (is_fast_spr(ispr), ispr, reg_data);
         elsif t = CIA then
             return ('0', (others => '0'), instr_addr);
+        elsif HAS_FPU and t = FRA then
+            return ('1', fpr_to_gspr(insn_fra(insn_in)), reg_data);
         else
             return ('0', (others => '0'), (others => '0'));
         end if;
@@ -300,6 +302,7 @@ begin
     end process;
 
     r_out.read1_reg <= d_in.ispr1 when d_in.decode.input_reg_a = SPR
+                       else fpr_to_gspr(insn_fra(d_in.insn)) when d_in.decode.input_reg_a = FRA and HAS_FPU
                        else gpr_to_gspr(insn_ra(d_in.insn));
     r_out.read2_reg <= d_in.ispr2 when d_in.decode.input_reg_b = SPR
                        else fpr_to_gspr(insn_frb(d_in.insn)) when d_in.decode.input_reg_b = FRB and HAS_FPU

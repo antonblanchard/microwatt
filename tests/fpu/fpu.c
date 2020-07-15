@@ -438,6 +438,39 @@ int fpu_test_5(void)
 	return 0;
 }
 
+#define SIGN	0x8000000000000000ul
+
+int test6(long arg)
+{
+	long i;
+	unsigned long results[6];
+	unsigned long v;
+
+	for (i = 0; i < sizeof(sp_dp_equiv) / sizeof(sp_dp_equiv[0]); ++i) {
+		v = sp_dp_equiv[i].dp;
+		asm("lfd%U0%X0 3,%0; fmr 6,3; fneg 7,3; stfd 6,0(%1); stfd 7,8(%1)"
+		    : : "m" (sp_dp_equiv[i].dp), "b" (results) : "memory");
+		asm("fabs 9,6; fnabs 10,6; stfd 9,16(%0); stfd 10,24(%0)"
+		    : : "b" (results) : "memory");
+		asm("fcpsgn 4,9,3; stfd 4,32(%0); fcpsgn 5,10,3; stfd 5,40(%0)"
+		    : : "b" (results) : "memory");
+		if (results[0] != v ||
+		    results[1] != (v ^ SIGN) ||
+		    results[2] != (v & ~SIGN) ||
+		    results[3] != (v | SIGN) ||
+		    results[4] != (v & ~SIGN) ||
+		    results[5] != (v | SIGN))
+			return i + 1;
+	}
+	return 0;
+}
+
+int fpu_test_6(void)
+{
+	enable_fp();
+	return trapit(0, test6);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -469,6 +502,7 @@ int main(void)
 	do_test(3, fpu_test_3);
 	do_test(4, fpu_test_4);
 	do_test(5, fpu_test_5);
+	do_test(6, fpu_test_6);
 
 	return fail;
 }
