@@ -4,11 +4,15 @@
 
 #include "console.h"
 
+#define asm	__asm__ volatile
+
 #define MSR_FP	0x2000
 #define MSR_FE0	0x800
 #define MSR_FE1	0x100
 
 extern int trapit(long arg, int (*func)(long));
+extern void do_rfid(unsigned long msr);
+extern void do_blr(void);
 
 #define SRR0	26
 #define SRR1	27
@@ -17,31 +21,41 @@ static inline unsigned long mfspr(int sprnum)
 {
 	long val;
 
-	__asm__ volatile("mfspr %0,%1" : "=r" (val) : "i" (sprnum));
+	asm("mfspr %0,%1" : "=r" (val) : "i" (sprnum));
 	return val;
 }
 
 static inline void mtspr(int sprnum, unsigned long val)
 {
-	__asm__ volatile("mtspr %0,%1" : : "i" (sprnum), "r" (val));
+	asm("mtspr %0,%1" : : "i" (sprnum), "r" (val));
 }
 
 void disable_fp(void)
 {
 	unsigned long msr;
 
-	__asm__("mfmsr %0" : "=r" (msr));
+	asm("mfmsr %0" : "=r" (msr));
 	msr &= ~(MSR_FP | MSR_FE0 | MSR_FE1);
-	__asm__("mtmsrd %0" : : "r" (msr));
+	asm("mtmsrd %0" : : "r" (msr));
 }
 
 void enable_fp(void)
 {
 	unsigned long msr;
 
-	__asm__("mfmsr %0" : "=r" (msr));
+	asm("mfmsr %0" : "=r" (msr));
 	msr |= MSR_FP;
-	__asm__("mtmsrd %0" : : "r" (msr));
+	msr &= ~(MSR_FE0 | MSR_FE1);
+	asm("mtmsrd %0" : : "r" (msr));
+}
+
+void enable_fp_interrupts(void)
+{
+	unsigned long msr;
+
+	asm("mfmsr %0" : "=r" (msr));
+	msr |= MSR_FE0 | MSR_FE1;
+	asm("mtmsrd %0" : : "r" (msr));
 }
 
 void print_string(const char *str)
@@ -81,26 +95,26 @@ int do_fp_op(long arg)
 {
 	switch (arg) {
 	case 0:
-		__asm__("lfd 31,0(%0)" : : "b" (&foo));
+		asm("lfd 31,0(%0)" : : "b" (&foo));
 		break;
 	case 1:
-		__asm__("stfd 31,0(%0)" : : "b" (&foow) : "memory");
+		asm("stfd 31,0(%0)" : : "b" (&foow) : "memory");
 		break;
 	case 2:
-		__asm__("lfd 30,0(%0); stfd 30,0(%1)"
-			: : "b" (&foo), "b" (&foow) : "memory");
+		asm("lfd 30,0(%0); stfd 30,0(%1)"
+		    : : "b" (&foo), "b" (&foow) : "memory");
 		break;
 	case 3:
-		__asm__("lfiwax 29,0,%0; stfd 29,0(%1)"
-			: : "r" (&fooi), "b" (&foow) : "memory");
+		asm("lfiwax 29,0,%0; stfd 29,0(%1)"
+		    : : "r" (&fooi), "b" (&foow) : "memory");
 		break;
 	case 4:
-		__asm__("lfiwzx 28,0,%0; stfd 28,0(%1)"
-			: : "r" (&fooi), "b" (&foow) : "memory");
+		asm("lfiwzx 28,0,%0; stfd 28,0(%1)"
+		    : : "r" (&fooi), "b" (&foow) : "memory");
 		break;
 	case 5:
-		__asm__("lfdx 27,0,%0; stfiwx 27,0,%1"
-			: : "r" (&foow), "r" (&fooiw) : "memory");
+		asm("lfdx 27,0,%0; stfiwx 27,0,%1"
+		    : : "r" (&foow), "r" (&fooiw) : "memory");
 		break;
 	}
 	return 0;
@@ -184,8 +198,8 @@ int sp_to_dp(long arg)
 {
 	unsigned long dp;
 
-	__asm__("lfs 20,0(%0); stfd 20,0(%1)"
-		: : "b" (&sp_dp_equiv[arg].sp), "b" (&dp) : "memory");
+	asm("lfs 20,0(%0); stfd 20,0(%1)"
+	    : : "b" (&sp_dp_equiv[arg].sp), "b" (&dp) : "memory");
 	if (dp != sp_dp_equiv[arg].dp) {
 		print_hex(sp_dp_equiv[arg].sp, 8);
 		print_string(" ");
@@ -201,8 +215,8 @@ int dp_to_sp(long arg)
 {
 	unsigned int sp;
 
-	__asm__("lfd 21,0(%0); stfs 21,0(%1)"
-		: : "b" (&sp_dp_equiv[arg].dp), "b" (&sp) : "memory");
+	asm("lfd 21,0(%0); stfs 21,0(%1)"
+	    : : "b" (&sp_dp_equiv[arg].dp), "b" (&sp) : "memory");
 	return sp != sp_dp_equiv[arg].sp;
 }
 
@@ -226,6 +240,148 @@ int fpu_test_3(void)
 			return ret;
 		}
 	}
+	return 0;
+}
+
+unsigned long get_fpscr(void)
+{
+	unsigned long ret;
+
+	asm("mffs 10; stfd 10,0(%0)" : : "b" (&ret) : "memory");
+	return ret;
+}
+
+void set_fpscr(unsigned long fpscr)
+{
+	asm("lfd%U0%X0 7,%0; mtfsf 0,7,1,0" : : "m" (fpscr));
+}
+
+unsigned long fpscr_eval(unsigned long val)
+{
+	val &= ~0x60000000;	/* clear FEX and VX */
+	if (val & 0x1f80700)	/* test all VX* bits */
+		val |= 0x20000000;
+	if ((val >> 25) & (val >> 3) & 0x1f)
+		val |= 0x40000000;
+	return val;
+}
+
+unsigned int test4vals[] = {
+	0xdeadbeef, 0x1324679a, 0, 0xffffffff, 0xabcd
+};
+
+int test4(long arg)
+{
+	unsigned long fsi, fpscr;
+	long i;
+	unsigned long cr;
+
+	/* check we can do basic mtfsf and mffs */
+	i = 1;
+	for (fsi = 1; fsi < 0x100; fsi <<= 1) {
+		asm("lfd 7,0(%0); mtfsf 0,7,1,0" : : "b" (&fsi));
+		if (get_fpscr() != fsi)
+			return i;
+		++i;
+		fpscr = fsi;
+	}
+	for (i = 0; i < sizeof(test4vals) / sizeof(test4vals[0]); ++i) {
+		fsi = test4vals[i];
+		asm("lfd 7,0(%0); mtfsf 0x55,7,0,0" : : "b" (&fsi));
+		fpscr = fpscr_eval((fpscr & 0xf0f0f0f0) | (fsi & 0x0f0f0f0f));
+		if (get_fpscr() != fpscr)
+			return 16 * i + 16;
+		asm("mtfsf 0xaa,7,0,0");
+		fpscr = fpscr_eval((fpscr & 0x0f0f0f0f) | (fsi & 0xf0f0f0f0));
+		if (get_fpscr() != fpscr)
+			return 16 * i + 17;
+		asm("mffs. 6; mfcr %0" : "=r" (cr) : : "cr1");
+		if (((cr >> 24) & 0xf) != ((fpscr >> 28) & 0x1f))
+			return 16 * i + 18;
+	}
+	return 0;
+}
+
+int fpu_test_4(void)
+{
+	enable_fp();
+	return trapit(0, test4);
+}
+
+int test5a(long arg)
+{
+	set_fpscr(0);
+	enable_fp_interrupts();
+	set_fpscr(0x80);	/* set VE */
+	set_fpscr(0x480);	/* set VXSOFT */
+	set_fpscr(0);
+	return 1;		/* not supposed to get here */
+}
+
+int test5b(long arg)
+{
+	unsigned long msr;
+
+	enable_fp();
+	set_fpscr(0x80);	/* set VE */
+	set_fpscr(0x480);	/* set VXSOFT */
+	asm("mfmsr %0" : "=r" (msr));
+	msr |= MSR_FE0 | MSR_FE1;
+	asm("mtmsrd %0; xori 4,4,0" : : "r" (msr));
+	set_fpscr(0);
+	return 1;		/* not supposed to get here */
+}
+
+int test5c(long arg)
+{
+	unsigned long msr;
+
+	enable_fp();
+	set_fpscr(0x80);	/* set VE */
+	set_fpscr(0x480);	/* set VXSOFT */
+	asm("mfmsr %0" : "=r" (msr));
+	msr |= MSR_FE0 | MSR_FE1;
+	do_rfid(msr);
+	set_fpscr(0);
+	return 1;		/* not supposed to get here */
+}
+
+int fpu_test_5(void)
+{
+	int ret;
+	unsigned int *ip;
+
+	enable_fp();
+	ret = trapit(0, test5a);
+	if (ret != 0x700)
+		return 1;
+	ip = (unsigned int *)mfspr(SRR0);
+	/* check it's a mtfsf 0,7,1,0 instruction */
+	if (*ip != (63u << 26) + (1 << 25) + (7 << 11) + (711 << 1))
+		return 2;
+	if ((mfspr(SRR1) & 0x783f0000) != (1 << (63 - 43)))
+		return 3;
+
+	ret = trapit(0, test5b);
+	if (ret != 0x700)
+		return 4;
+	ip = (unsigned int *)mfspr(SRR0);
+	/* check it's an xori 4,4,0 instruction */
+	if (*ip != 0x68840000)
+		return 5;
+	if ((mfspr(SRR1) & 0x783f0000) != (1 << (63 - 43)) + (1 << (63 - 47)))
+		return 6;
+
+	ret = trapit(0, test5c);
+	if (ret != 0x700)
+		return 7;
+	ip = (unsigned int *)mfspr(SRR0);
+	/* check it's the destination of the rfid */
+	if (ip != (void *)&do_blr)
+		return 8;
+	if ((mfspr(SRR1) & 0x783f0000) != (1 << (63 - 43)) + (1 << (63 - 47)))
+		return 9;
+
 	return 0;
 }
 
@@ -258,6 +414,8 @@ int main(void)
 	do_test(1, fpu_test_1);
 	do_test(2, fpu_test_2);
 	do_test(3, fpu_test_3);
+	do_test(4, fpu_test_4);
+	do_test(5, fpu_test_5);
 
 	return fail;
 }

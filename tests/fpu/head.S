@@ -87,6 +87,18 @@ ret:
 	mtlr	%r0
 	blr
 
+	.global do_rfid
+do_rfid:
+	mtsrr1	%r3
+	LOAD_IMM64(%r4, do_blr)
+	mtsrr0	%r4
+	rfid
+	blr
+
+	.global do_blr
+do_blr:
+	blr
+
 #define EXCEPTION(nr)		\
 	.= nr			;\
 	mfsprg0	%r0		;\
