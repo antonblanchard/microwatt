@@ -64,7 +64,7 @@ void print_string(const char *str)
 		putchar(*str);
 }
 
-void print_hex(unsigned long val, int ndigits)
+void print_hex(unsigned long val, int ndigits, const char *str)
 {
 	int i, x;
 
@@ -75,6 +75,7 @@ void print_hex(unsigned long val, int ndigits)
 		else
 			putchar(x + '0');
 	}
+	print_string(str);
 }
 
 // i < 100
@@ -201,12 +202,9 @@ int sp_to_dp(long arg)
 	asm("lfs 20,0(%0); stfd 20,0(%1)"
 	    : : "b" (&sp_dp_equiv[arg].sp), "b" (&dp) : "memory");
 	if (dp != sp_dp_equiv[arg].dp) {
-		print_hex(sp_dp_equiv[arg].sp, 8);
-		print_string(" ");
-		print_hex(dp, 16);
-		print_string(" ");
-		print_hex(sp_dp_equiv[arg].dp, 16);
-		print_string(" ");
+		print_hex(sp_dp_equiv[arg].sp, 8, " ");
+		print_hex(dp, 16, " ");
+		print_hex(sp_dp_equiv[arg].dp, 16, " ");
 	}
 	return dp != sp_dp_equiv[arg].dp;
 }
@@ -465,10 +463,75 @@ int test6(long arg)
 	return 0;
 }
 
+struct int_fp_equiv {
+	long		ival;
+	unsigned long	fp;
+	unsigned long	fp_u;
+	unsigned long	fp_s;
+	unsigned long	fp_us;
+} intvals[] = {
+	{ 0,  0, 0, 0, 0 },
+	{ 1,  0x3ff0000000000000, 0x3ff0000000000000, 0x3ff0000000000000, 0x3ff0000000000000 },
+	{ -1, 0xbff0000000000000, 0x43f0000000000000, 0xbff0000000000000, 0x43f0000000000000 },
+	{ 2,  0x4000000000000000, 0x4000000000000000, 0x4000000000000000, 0x4000000000000000 },
+	{ -2, 0xc000000000000000, 0x43f0000000000000, 0xc000000000000000, 0x43f0000000000000 },
+	{ 0x12345678, 0x41b2345678000000, 0x41b2345678000000, 0x41b2345680000000, 0x41b2345680000000 },
+	{ 0x0008000000000000, 0x4320000000000000, 0x4320000000000000, 0x4320000000000000, 0x4320000000000000 },
+	{ 0x0010000000000000, 0x4330000000000000, 0x4330000000000000, 0x4330000000000000, 0x4330000000000000 },
+	{ 0x0020000000000000, 0x4340000000000000, 0x4340000000000000, 0x4340000000000000, 0x4340000000000000 },
+	{ 0x0020000000000001, 0x4340000000000000, 0x4340000000000000, 0x4340000000000000, 0x4340000000000000 },
+	{ 0x0020000000000002, 0x4340000000000001, 0x4340000000000001, 0x4340000000000000, 0x4340000000000000 },
+	{ 0x0020000000000003, 0x4340000000000002, 0x4340000000000002, 0x4340000000000000, 0x4340000000000000 },
+	{ 0x0020000010000000, 0x4340000008000000, 0x4340000008000000, 0x4340000000000000, 0x4340000000000000 },
+	{ 0x0020000020000000, 0x4340000010000000, 0x4340000010000000, 0x4340000000000000, 0x4340000000000000 },
+	{ 0x0020000030000000, 0x4340000018000000, 0x4340000018000000, 0x4340000020000000, 0x4340000020000000 },
+	{ 0x0020000040000000, 0x4340000020000000, 0x4340000020000000, 0x4340000020000000, 0x4340000020000000 },
+	{ 0x0020000080000000, 0x4340000040000000, 0x4340000040000000, 0x4340000040000000, 0x4340000040000000 },
+	{ 0x0040000000000000, 0x4350000000000000, 0x4350000000000000, 0x4350000000000000, 0x4350000000000000 },
+	{ 0x0040000000000001, 0x4350000000000000, 0x4350000000000000, 0x4350000000000000, 0x4350000000000000 },
+	{ 0x0040000000000002, 0x4350000000000000, 0x4350000000000000, 0x4350000000000000, 0x4350000000000000 },
+	{ 0x0040000000000003, 0x4350000000000001, 0x4350000000000001, 0x4350000000000000, 0x4350000000000000 },
+	{ 0x0040000000000004, 0x4350000000000001, 0x4350000000000001, 0x4350000000000000, 0x4350000000000000 },
+	{ 0x0040000000000005, 0x4350000000000001, 0x4350000000000001, 0x4350000000000000, 0x4350000000000000 },
+	{ 0x0040000000000006, 0x4350000000000002, 0x4350000000000002, 0x4350000000000000, 0x4350000000000000 },
+	{ 0x0040000000000007, 0x4350000000000002, 0x4350000000000002, 0x4350000000000000, 0x4350000000000000 },
+};
+
+int test7(long arg)
+{
+	long i;
+	unsigned long results[4];
+
+	for (i = 0; i < sizeof(intvals) / sizeof(intvals[0]); ++i) {
+		asm("lfd%U0%X0 3,%0; fcfid 6,3; fcfidu 7,3; stfd 6,0(%1); stfd 7,8(%1)"
+		    : : "m" (intvals[i].ival), "b" (results) : "memory");
+		asm("fcfids 9,3; stfd 9,16(%0); fcfidus 10,3; stfd 10,24(%0)"
+		    : : "b" (results) : "memory");
+		if (results[0] != intvals[i].fp ||
+		    results[1] != intvals[i].fp_u ||
+		    results[2] != intvals[i].fp_s ||
+		    results[3] != intvals[i].fp_us) {
+			print_string("\r\n");
+			print_hex(results[0], 16, " ");
+			print_hex(results[1], 16, " ");
+			print_hex(results[2], 16, " ");
+			print_hex(results[3], 16, " ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
 int fpu_test_6(void)
 {
 	enable_fp();
 	return trapit(0, test6);
+}
+
+int fpu_test_7(void)
+{
+	enable_fp();
+	return trapit(0, test7);
 }
 
 int fail = 0;
@@ -484,12 +547,9 @@ void do_test(int num, int (*test)(void))
 	} else {
 		fail = 1;
 		print_string("FAIL ");
-		print_hex(ret, 5);
-		print_string(" SRR0=");
-		print_hex(mfspr(SRR0), 16);
-		print_string(" SRR1=");
-		print_hex(mfspr(SRR1), 16);
-		print_string("\r\n");
+		print_hex(ret, 5, " SRR0=");
+		print_hex(mfspr(SRR0), 16, " SRR1=");
+		print_hex(mfspr(SRR1), 16, "\r\n");
 	}
 }
 
@@ -503,6 +563,7 @@ int main(void)
 	do_test(4, fpu_test_4);
 	do_test(5, fpu_test_5);
 	do_test(6, fpu_test_6);
+	do_test(7, fpu_test_7);
 
 	return fail;
 }
