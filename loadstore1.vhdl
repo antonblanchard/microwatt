@@ -159,6 +159,7 @@ begin
         variable done : std_ulogic;
         variable data_permuted : std_ulogic_vector(63 downto 0);
         variable data_trimmed : std_ulogic_vector(63 downto 0);
+        variable store_data : std_ulogic_vector(63 downto 0);
         variable use_second : byte_sel_t;
         variable trim_ctl : trim_ctl_t;
         variable negative : std_ulogic;
@@ -231,6 +232,23 @@ begin
                     data_trimmed(i * 8 + 7 downto i * 8) := x"00";
             end case;
         end loop;
+
+        -- Byte reversing and rotating for stores
+        -- Done in the first cycle (when l_in.valid = 1)
+        store_data := r.store_data;
+        if l_in.valid = '1' then
+            byte_offset := unsigned(lsu_sum(2 downto 0));
+            brev_lenm1 := "000";
+            if l_in.byte_reverse = '1' then
+                brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
+            end if;
+            for i in 0 to 7 loop
+                k := (to_unsigned(i, 3) - byte_offset) xor brev_lenm1;
+                j := to_integer(k) * 8;
+                store_data(i * 8 + 7 downto i * 8) := l_in.data(j + 7 downto j);
+            end loop;
+        end if;
+        v.store_data := store_data;
 
         -- compute (addr + 8) & ~7 for the second doubleword when unaligned
         next_addr := std_ulogic_vector(unsigned(r.addr(63 downto 3)) + 1) & "000";
@@ -379,18 +397,6 @@ begin
             v.first_bytes := byte_sel;
             v.second_bytes := long_sel(15 downto 8);
 
-            -- Do byte reversing and rotating for stores in the first cycle
-            byte_offset := unsigned(lsu_sum(2 downto 0));
-            brev_lenm1 := "000";
-            if l_in.byte_reverse = '1' then
-                brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
-            end if;
-            for i in 0 to 7 loop
-                k := (to_unsigned(i, 3) xor brev_lenm1) + byte_offset;
-                j := to_integer(k) * 8;
-                v.store_data(j + 7 downto j) := l_in.data(i * 8 + 7 downto i * 8);
-            end loop;
-
             case l_in.op is
                 when OP_STORE =>
                     req := '1';
@@ -465,7 +471,7 @@ begin
         d_out.nc <= v.nc;
         d_out.reserve <= v.reserve;
         d_out.addr <= addr;
-        d_out.data <= v.store_data;
+        d_out.data <= store_data;
         d_out.byte_sel <= byte_sel;
         d_out.virt_mode <= v.virt_mode;
         d_out.priv_mode <= v.priv_mode;
