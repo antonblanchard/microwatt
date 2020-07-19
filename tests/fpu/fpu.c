@@ -10,6 +10,17 @@
 #define MSR_FE0	0x800
 #define MSR_FE1	0x100
 
+#define FPS_RN_NEAR	0
+#define FPS_RN_ZERO	1
+#define FPS_RN_CEIL	2
+#define FPS_RN_FLOOR	3
+#define FPS_XE		0x8
+#define FPS_ZE		0x10
+#define FPS_UE		0x20
+#define FPS_OE		0x40
+#define FPS_VE		0x80
+#define FPS_VXSOFT	0x400
+
 extern int trapit(long arg, int (*func)(long));
 extern void do_rfid(unsigned long msr);
 extern void do_blr(void);
@@ -363,8 +374,8 @@ int test5a(long arg)
 {
 	set_fpscr(0);
 	enable_fp_interrupts();
-	set_fpscr(0x80);	/* set VE */
-	set_fpscr(0x480);	/* set VXSOFT */
+	set_fpscr(FPS_VE);		/* set VE */
+	set_fpscr(FPS_VXSOFT | FPS_VE);	/* set VXSOFT */
 	set_fpscr(0);
 	return 1;		/* not supposed to get here */
 }
@@ -374,8 +385,8 @@ int test5b(long arg)
 	unsigned long msr;
 
 	enable_fp();
-	set_fpscr(0x80);	/* set VE */
-	set_fpscr(0x480);	/* set VXSOFT */
+	set_fpscr(FPS_VE);		/* set VE */
+	set_fpscr(FPS_VXSOFT | FPS_VE);	/* set VXSOFT */
 	asm("mfmsr %0" : "=r" (msr));
 	msr |= MSR_FE0 | MSR_FE1;
 	asm("mtmsrd %0; xori 4,4,0" : : "r" (msr));
@@ -388,8 +399,8 @@ int test5c(long arg)
 	unsigned long msr;
 
 	enable_fp();
-	set_fpscr(0x80);	/* set VE */
-	set_fpscr(0x480);	/* set VXSOFT */
+	set_fpscr(FPS_VE);		/* set VE */
+	set_fpscr(FPS_VXSOFT | FPS_VE);	/* set VXSOFT */
 	asm("mfmsr %0" : "=r" (msr));
 	msr |= MSR_FE0 | MSR_FE1;
 	do_rfid(msr);
@@ -463,6 +474,12 @@ int test6(long arg)
 	return 0;
 }
 
+int fpu_test_6(void)
+{
+	enable_fp();
+	return trapit(0, test6);
+}
+
 struct int_fp_equiv {
 	long		ival;
 	unsigned long	fp;
@@ -522,16 +539,63 @@ int test7(long arg)
 	return 0;
 }
 
-int fpu_test_6(void)
-{
-	enable_fp();
-	return trapit(0, test6);
-}
-
 int fpu_test_7(void)
 {
 	enable_fp();
 	return trapit(0, test7);
+}
+
+struct roundvals {
+	unsigned long fpscr;
+	unsigned long dpval;
+	unsigned long spval;
+} roundvals[] = {
+	{ FPS_RN_NEAR,  0, 0 },
+	{ FPS_RN_CEIL,  0x8000000000000000, 0x8000000000000000 },
+	{ FPS_RN_NEAR,  0x402123456789abcd, 0x4021234560000000 },
+	{ FPS_RN_ZERO,  0x402123456789abcd, 0x4021234560000000 },
+	{ FPS_RN_CEIL,  0x402123456789abcd, 0x4021234580000000 },
+	{ FPS_RN_FLOOR, 0x402123456789abcd, 0x4021234560000000 },
+	{ FPS_RN_NEAR,  0x402123457689abcd, 0x4021234580000000 },
+	{ FPS_RN_ZERO,  0x402123457689abcd, 0x4021234560000000 },
+	{ FPS_RN_CEIL,  0x402123457689abcd, 0x4021234580000000 },
+	{ FPS_RN_FLOOR, 0x402123457689abcd, 0x4021234560000000 },
+	{ FPS_RN_NEAR,  0x4021234570000000, 0x4021234580000000 },
+	{ FPS_RN_NEAR,  0x4021234550000000, 0x4021234540000000 },
+	{ FPS_RN_NEAR,  0x7ff123456789abcd, 0x7ff9234560000000 },
+	{ FPS_RN_ZERO,  0x7ffa3456789abcde, 0x7ffa345660000000 },
+	{ FPS_RN_FLOOR, 0x7ff0000000000000, 0x7ff0000000000000 },
+	{ FPS_RN_NEAR,  0x47e1234550000000, 0x47e1234540000000 },
+	{ FPS_RN_NEAR,  0x47f1234550000000, 0x7ff0000000000000 },
+	{ FPS_RN_ZERO,  0x47f1234550000000, 0x47efffffe0000000 },
+	{ FPS_RN_CEIL,  0x47f1234550000000, 0x7ff0000000000000 },
+	{ FPS_RN_FLOOR, 0x47f1234550000000, 0x47efffffe0000000 },
+	{ FPS_RN_NEAR,  0x38012345b0000000, 0x38012345c0000000 },
+	{ FPS_RN_NEAR,  0x37c12345b0000000, 0x37c1234400000000 },
+};
+
+int test8(long arg)
+{
+	long i;
+	unsigned long result;
+
+	for (i = 0; i < sizeof(roundvals) / sizeof(roundvals[0]); ++i) {
+		asm("lfd 3,0(%0); lfd 4,8(%0); mtfsf 0,3,1,0; frsp 6,4; stfd 6,0(%1)"
+		    : : "b" (&roundvals[i]), "b" (&result) : "memory");
+		if (result != roundvals[i].spval) {
+			print_string("\r\n");
+			print_hex(i, 4, " ");
+			print_hex(result, 16, " ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_8(void)
+{
+	enable_fp();
+	return trapit(0, test8);
 }
 
 int fail = 0;
@@ -549,7 +613,9 @@ void do_test(int num, int (*test)(void))
 		print_string("FAIL ");
 		print_hex(ret, 5, " SRR0=");
 		print_hex(mfspr(SRR0), 16, " SRR1=");
-		print_hex(mfspr(SRR1), 16, "\r\n");
+		print_hex(mfspr(SRR1), 16, " FPSCR=");
+		enable_fp();
+		print_hex(get_fpscr(), 8, "\r\n");
 	}
 }
 
@@ -564,6 +630,7 @@ int main(void)
 	do_test(5, fpu_test_5);
 	do_test(6, fpu_test_6);
 	do_test(7, fpu_test_7);
+	do_test(8, fpu_test_8);
 
 	return fail;
 }
