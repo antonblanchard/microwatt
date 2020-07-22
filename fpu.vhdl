@@ -38,8 +38,10 @@ architecture behaviour of fpu is
     type state_t is (IDLE,
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
                      DO_FMR,
-                     DO_FCFID,
+                     DO_FCFID, DO_FCTI,
                      DO_FRSP,
+                     INT_SHIFT, INT_ROUND, INT_ISHIFT,
+                     INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
                      ROUND_UFLOW, ROUND_OFLOW,
                      ROUNDING, ROUNDING_2, ROUNDING_3,
@@ -363,6 +365,8 @@ begin
         variable clz         : std_ulogic_vector(5 downto 0);
         variable set_x       : std_ulogic;
         variable mshift      : signed(EXP_BITS-1 downto 0);
+        variable need_check  : std_ulogic;
+        variable msb         : std_ulogic;
     begin
         v := r;
         illegal := '0';
@@ -461,8 +465,15 @@ begin
                         when "01100" =>
                             v.state := DO_FRSP;
                         when "01110" =>
-                            -- fcfid[u][s]
-                            v.state := DO_FCFID;
+                            if int_input = '1' then
+                                -- fcfid[u][s]
+                                v.state := DO_FCFID;
+                            else
+                                v.state := DO_FCTI;
+                            end if;
+                        when "01111" =>
+                            v.round_mode := "001";
+                            v.state := DO_FCTI;
                         when others =>
                             illegal := '1';
                     end case;
@@ -603,6 +614,47 @@ begin
                     arith_done := '1';
                 end if;
 
+            when DO_FCTI =>
+                -- instr bit 9: 1=dword 0=word
+                -- instr bit 8: 1=unsigned 0=signed
+                -- instr bit 1: 1=round to zero 0=use fpscr[RN]
+                opsel_a <= AIN_B;
+                v.result_class := r.b.class;
+                v.result_sign := r.b.negative;
+                v.result_exp := r.b.exponent;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                if r.b.class = NAN and r.b.mantissa(53) = '0' then
+                    -- Signalling NAN
+                    v.fpscr(FPSCR_VXSNAN) := '1';
+                    invalid := '1';
+                end if;
+
+                v.int_result := '1';
+                case r.b.class is
+                    when ZERO =>
+                        arith_done := '1';
+                    when FINITE =>
+                        if r.b.exponent >= to_signed(64, EXP_BITS) or
+                            (r.insn(9) = '0' and r.b.exponent >= to_signed(32, EXP_BITS)) then
+                            v.state := INT_OFLOW;
+                        elsif r.b.exponent >= to_signed(52, EXP_BITS) then
+                            -- integer already, no rounding required,
+                            -- shift into final position
+                            v.shift := r.b.exponent - to_signed(54, EXP_BITS);
+                            if r.insn(8) = '1' and r.b.negative = '1' then
+                                v.state := INT_OFLOW;
+                            else
+                                v.state := INT_ISHIFT;
+                            end if;
+                        else
+                            v.shift := r.b.exponent - to_signed(52, EXP_BITS);
+                            v.state := INT_SHIFT;
+                        end if;
+                    when INFINITY | NAN =>
+                        v.state := INT_OFLOW;
+                end case;
+
             when DO_FCFID =>
                 v.result_sign := '0';
                 opsel_a <= AIN_B;
@@ -621,6 +673,81 @@ begin
                 else
                     v.state := FINISH;
                 end if;
+
+            when INT_SHIFT =>
+                opsel_r <= RES_SHIFT;
+                set_x := '1';
+                v.state := INT_ROUND;
+                v.shift := to_signed(-2, EXP_BITS);
+
+            when INT_ROUND =>
+                opsel_r <= RES_SHIFT;
+                round := fp_rounding(r.r, r.x, '0', r.round_mode, r.result_sign);
+                v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
+                -- Check for negative values that don't round to 0 for fcti*u*
+                if r.insn(8) = '1' and r.result_sign = '1' and
+                    (r_hi_nz or r_lo_nz or v.fpscr(FPSCR_FR)) = '1' then
+                    v.state := INT_OFLOW;
+                else
+                    v.state := INT_FINAL;
+                end if;
+
+            when INT_ISHIFT =>
+                opsel_r <= RES_SHIFT;
+                v.state := INT_FINAL;
+
+            when INT_FINAL =>
+                -- Negate if necessary, and increment for rounding if needed
+                opsel_ainv <= r.result_sign;
+                carry_in <= r.fpscr(FPSCR_FR) xor r.result_sign;
+                -- Check for possible overflows
+                case r.insn(9 downto 8) is
+                    when "00" =>        -- fctiw[z]
+                        need_check := r.r(31) or (r.r(30) and not r.result_sign);
+                    when "01" =>        -- fctiwu[z]
+                        need_check := r.r(31);
+                    when "10" =>        -- fctid[z]
+                        need_check := r.r(63) or (r.r(62) and not r.result_sign);
+                    when others =>      -- fctidu[z]
+                        need_check := r.r(63);
+                end case;
+                if need_check = '1' then
+                    v.state := INT_CHECK;
+                else
+                    if r.fpscr(FPSCR_FI) = '1' then
+                        v.fpscr(FPSCR_XX) := '1';
+                    end if;
+                    arith_done := '1';
+                end if;
+
+            when INT_CHECK =>
+                if r.insn(9) = '0' then
+                    msb := r.r(31);
+                else
+                    msb := r.r(63);
+                end if;
+                misc_sel <= '1' & r.insn(9 downto 8) & r.result_sign;
+                if (r.insn(8) = '0' and msb /= r.result_sign) or
+                    (r.insn(8) = '1' and msb /= '1') then
+                    opsel_r <= RES_MISC;
+                    v.fpscr(FPSCR_VXCVI) := '1';
+                    invalid := '1';
+                else
+                    if r.fpscr(FPSCR_FI) = '1' then
+                        v.fpscr(FPSCR_XX) := '1';
+                    end if;
+                end if;
+                arith_done := '1';
+
+            when INT_OFLOW =>
+                opsel_r <= RES_MISC;
+                misc_sel <= '1' & r.insn(9 downto 8) & r.result_sign;
+                if r.b.class = NAN then
+                    misc_sel(0) <= '1';
+                end if;
+                v.fpscr(FPSCR_VXCVI) := '1';
+                invalid := '1';
+                arith_done := '1';
 
             when FINISH =>
                 if r.r(63 downto 54) /= "0000000001" then
@@ -846,6 +973,30 @@ begin
                     when "0011" =>
                         -- mantissa of max representable SP number
                         misc := x"007fffff80000000";
+                    when "1000" =>
+                        -- max positive result for fctiw[z]
+                        misc := x"000000007fffffff";
+                    when "1001" =>
+                        -- max negative result for fctiw[z]
+                        misc := x"ffffffff80000000";
+                    when "1010" =>
+                        -- max positive result for fctiwu[z]
+                        misc := x"00000000ffffffff";
+                    when "1011" =>
+                        -- max negative result for fctiwu[z]
+                        misc := x"0000000000000000";
+                    when "1100" =>
+                        -- max positive result for fctid[z]
+                        misc := x"7fffffffffffffff";
+                    when "1101" =>
+                        -- max negative result for fctid[z]
+                        misc := x"8000000000000000";
+                    when "1110" =>
+                        -- max positive result for fctidu[z]
+                        misc := x"ffffffffffffffff";
+                    when "1111" =>
+                        -- max negative result for fctidu[z]
+                        misc := x"0000000000000000";
                     when others =>
                         misc := x"0000000000000000";
                 end case;

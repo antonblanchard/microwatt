@@ -19,6 +19,7 @@
 #define FPS_UE		0x20
 #define FPS_OE		0x40
 #define FPS_VE		0x80
+#define FPS_VXCVI	0x100
 #define FPS_VXSOFT	0x400
 
 extern int trapit(long arg, int (*func)(long));
@@ -598,6 +599,160 @@ int fpu_test_8(void)
 	return trapit(0, test8);
 }
 
+struct cvtivals {
+	unsigned long dval;
+	long lval;
+	unsigned long ulval;
+	int ival;
+	unsigned int uival;
+	unsigned char invalids[4];
+} cvtivals[] = {
+	{ 0x0000000000000000, 0, 0, 0, 0, {0, 0, 0, 0} },
+	{ 0x8000000000000000, 0, 0, 0, 0, {0, 0, 0, 0} },
+	{ 0x3fdfffffffffffff, 0, 0, 0, 0, {0, 0, 0, 0} },
+	{ 0x3ff0000000000000, 1, 1, 1, 1, {0, 0, 0, 0} },
+	{ 0xbff0000000000000, -1, 0, -1, 0, {0, 1, 0, 1} },
+	{ 0x402123456789abcd, 9, 9, 9, 9, {0, 0, 0, 0} },
+	{ 0x406123456789abcd, 137, 137, 137, 137, {0, 0, 0, 0} },
+	{ 0x409123456789abcd, 1097, 1097, 1097, 1097, {0, 0, 0, 0} },
+	{ 0x41c123456789abcd, 0x22468acf, 0x22468acf, 0x22468acf, 0x22468acf, {0, 0, 0, 0} },
+	{ 0x41d123456789abcd, 0x448d159e, 0x448d159e, 0x448d159e, 0x448d159e, {0, 0, 0, 0} },
+	{ 0x41e123456789abcd, 0x891a2b3c, 0x891a2b3c, 0x7fffffff, 0x891a2b3c, {0, 0, 1, 0} },
+	{ 0x41f123456789abcd, 0x112345679, 0x112345679, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0xc1f123456789abcd, -0x112345679, 0, 0x80000000, 0, {0, 1, 1, 1} },
+	{ 0x432123456789abcd, 0x891a2b3c4d5e6, 0x891a2b3c4d5e6, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0x433123456789abcd, 0x1123456789abcd, 0x1123456789abcd, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0x434123456789abcd, 0x22468acf13579a, 0x22468acf13579a, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0x43c123456789abcd, 0x22468acf13579a00, 0x22468acf13579a00, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0x43d123456789abcd, 0x448d159e26af3400, 0x448d159e26af3400, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0x43e123456789abcd, 0x7fffffffffffffff, 0x891a2b3c4d5e6800, 0x7fffffff, 0xffffffff, {1, 0, 1, 1} },
+	{ 0x43f123456789abcd, 0x7fffffffffffffff, 0xffffffffffffffff, 0x7fffffff, 0xffffffff, {1, 1, 1, 1} },
+	{ 0xc3f123456789abcd, 0x8000000000000000, 0, 0x80000000, 0, {1, 1, 1, 1} },
+	{ 0x7ff0000000000000, 0x7fffffffffffffff, 0xffffffffffffffff, 0x7fffffff, 0xffffffff, {1, 1, 1, 1} },
+	{ 0xfff0000000000000, 0x8000000000000000, 0, 0x80000000, 0, { 1, 1, 1, 1 } },
+	{ 0x7ff923456789abcd, 0x8000000000000000, 0, 0x80000000, 0, { 1, 1, 1, 1 } },
+	{ 0xfff923456789abcd, 0x8000000000000000, 0, 0x80000000, 0, { 1, 1, 1, 1 } },
+	{ 0xbfd123456789abcd, 0, 0, 0, 0, {0, 0, 0, 0} },
+};
+
+#define GET_VXCVI()	((get_fpscr() >> 8) & 1)
+
+int test9(long arg)
+{
+	long i;
+	int ires;
+	unsigned int ures;
+	long lres;
+	unsigned long ulres;
+	unsigned char inv[4];
+	struct cvtivals *vp = cvtivals;
+
+	for (i = 0; i < sizeof(cvtivals) / sizeof(cvtivals[0]); ++i, ++vp) {
+		set_fpscr(FPS_RN_NEAR);
+		asm("lfd 3,0(%0); fctid 4,3; stfd 4,0(%1)"
+		    : : "b" (&vp->dval), "b" (&lres) : "memory");
+		inv[0] = GET_VXCVI();
+		set_fpscr(FPS_RN_NEAR);
+		asm("fctidu 5,3; stfd 5,0(%0)" : : "b" (&ulres) : "memory");
+		inv[1] = GET_VXCVI();
+		set_fpscr(FPS_RN_NEAR);
+		asm("fctiw 6,3; stfiwx 6,0,%0" : : "b" (&ires) : "memory");
+		inv[2] = GET_VXCVI();
+		set_fpscr(FPS_RN_NEAR);
+		asm("fctiwu 7,3; stfiwx 7,0,%0" : : "b" (&ures) : "memory");
+		inv[3] = GET_VXCVI();
+
+		if (lres != vp->lval || ulres != vp->ulval || ires != vp->ival || ures != vp->uival ||
+		    inv[0] != vp->invalids[0] || inv[1] != vp->invalids[1] ||
+		    inv[2] != vp->invalids[2] || inv[3] != vp->invalids[3]) {
+			print_hex(lres, 16, inv[0]? "V ": "  ");
+			print_hex(ulres, 16, inv[1]? "V ": "  ");
+			print_hex(ires, 8, inv[2]? "V ": "  ");
+			print_hex(ures, 8, inv[3]? "V ": "  ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_9(void)
+{
+	enable_fp();
+	return trapit(0, test9);
+}
+
+struct cvtivals cvtizvals[] = {
+	{ 0x0000000000000000, 0, 0, 0, 0, {0, 0, 0, 0} },
+	{ 0x8000000000000000, 0, 0, 0, 0, {0, 0, 0, 0} },
+	{ 0x3fdfffffffffffff, 0, 0, 0, 0, {0, 0, 0, 0} },
+	{ 0x3ff0000000000000, 1, 1, 1, 1, {0, 0, 0, 0} },
+	{ 0xbff0000000000000, -1, 0, -1, 0, {0, 1, 0, 1} },
+	{ 0x402123456789abcd, 8, 8, 8, 8, {0, 0, 0, 0} },
+	{ 0x406123456789abcd, 137, 137, 137, 137, {0, 0, 0, 0} },
+	{ 0x409123456789abcd, 1096, 1096, 1096, 1096, {0, 0, 0, 0} },
+	{ 0x41c123456789abcd, 0x22468acf, 0x22468acf, 0x22468acf, 0x22468acf, {0, 0, 0, 0} },
+	{ 0x41d123456789abcd, 0x448d159e, 0x448d159e, 0x448d159e, 0x448d159e, {0, 0, 0, 0} },
+	{ 0x41e123456789abcd, 0x891a2b3c, 0x891a2b3c, 0x7fffffff, 0x891a2b3c, {0, 0, 1, 0} },
+	{ 0x41f123456789abcd, 0x112345678, 0x112345678, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0xc1f123456789abcd, -0x112345678, 0, 0x80000000, 0, {0, 1, 1, 1} },
+	{ 0x432123456789abcd, 0x891a2b3c4d5e6, 0x891a2b3c4d5e6, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0x433123456789abcd, 0x1123456789abcd, 0x1123456789abcd, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0x434123456789abcd, 0x22468acf13579a, 0x22468acf13579a, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0x43c123456789abcd, 0x22468acf13579a00, 0x22468acf13579a00, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0x43d123456789abcd, 0x448d159e26af3400, 0x448d159e26af3400, 0x7fffffff, 0xffffffff, {0, 0, 1, 1} },
+	{ 0x43e123456789abcd, 0x7fffffffffffffff, 0x891a2b3c4d5e6800, 0x7fffffff, 0xffffffff, {1, 0, 1, 1} },
+	{ 0x43f123456789abcd, 0x7fffffffffffffff, 0xffffffffffffffff, 0x7fffffff, 0xffffffff, {1, 1, 1, 1} },
+	{ 0xc3f123456789abcd, 0x8000000000000000, 0, 0x80000000, 0, {1, 1, 1, 1} },
+	{ 0x7ff0000000000000, 0x7fffffffffffffff, 0xffffffffffffffff, 0x7fffffff, 0xffffffff, {1, 1, 1, 1} },
+	{ 0xfff0000000000000, 0x8000000000000000, 0, 0x80000000, 0, { 1, 1, 1, 1 } },
+	{ 0x7ff923456789abcd, 0x8000000000000000, 0, 0x80000000, 0, { 1, 1, 1, 1 } },
+	{ 0xfff923456789abcd, 0x8000000000000000, 0, 0x80000000, 0, { 1, 1, 1, 1 } },
+};
+
+int test10(long arg)
+{
+	long i;
+	int ires;
+	unsigned int ures;
+	long lres;
+	unsigned long ulres;
+	unsigned char inv[4];
+	struct cvtivals *vp = cvtizvals;
+
+	for (i = 0; i < sizeof(cvtizvals) / sizeof(cvtizvals[0]); ++i, ++vp) {
+		set_fpscr(FPS_RN_NEAR);
+		asm("lfd 3,0(%0); fctidz 4,3; stfd 4,0(%1)"
+		    : : "b" (&vp->dval), "b" (&lres) : "memory");
+		inv[0] = GET_VXCVI();
+		set_fpscr(FPS_RN_NEAR);
+		asm("fctiduz 5,3; stfd 5,0(%0)" : : "b" (&ulres) : "memory");
+		inv[1] = GET_VXCVI();
+		set_fpscr(FPS_RN_NEAR);
+		asm("fctiwz 6,3; stfiwx 6,0,%0" : : "b" (&ires) : "memory");
+		inv[2] = GET_VXCVI();
+		set_fpscr(FPS_RN_NEAR);
+		asm("fctiwuz 7,3; stfiwx 7,0,%0" : : "b" (&ures) : "memory");
+		inv[3] = GET_VXCVI();
+
+		if (lres != vp->lval || ulres != vp->ulval || ires != vp->ival || ures != vp->uival ||
+		    inv[0] != vp->invalids[0] || inv[1] != vp->invalids[1] ||
+		    inv[2] != vp->invalids[2] || inv[3] != vp->invalids[3]) {
+			print_hex(lres, 16, inv[0]? "V ": "  ");
+			print_hex(ulres, 16, inv[1]? "V ": "  ");
+			print_hex(ires, 8, inv[2]? "V ": "  ");
+			print_hex(ures, 8, inv[3]? "V ": "  ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_10(void)
+{
+	enable_fp();
+	return trapit(0, test10);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -631,6 +786,8 @@ int main(void)
 	do_test(6, fpu_test_6);
 	do_test(7, fpu_test_7);
 	do_test(8, fpu_test_8);
+	do_test(9, fpu_test_9);
+	do_test(10, fpu_test_10);
 
 	return fail;
 }
