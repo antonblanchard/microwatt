@@ -37,7 +37,7 @@ architecture behaviour of fpu is
 
     type state_t is (IDLE,
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
-                     DO_FMR,
+                     DO_FMR, DO_FMRG,
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
                      FRI_1,
@@ -450,10 +450,14 @@ begin
                         when "00000" =>
                             v.state := DO_MCRFS;
                         when "00110" =>
-                            if e_in.insn(8) = '0' then
-                                v.state := DO_MTFSB;
+                            if e_in.insn(10) = '0' then
+                                if e_in.insn(8) = '0' then
+                                    v.state := DO_MTFSB;
+                                else
+                                    v.state := DO_MTFSFI;
+                                end if;
                             else
-                                v.state := DO_MTFSFI;
+                                v.state := DO_FMRG;
                             end if;
                         when "00111" =>
                             if e_in.insn(8) = '0' then
@@ -521,6 +525,15 @@ begin
                         end if;
                     end loop;
                 end if;
+                v.instr_done := '1';
+                v.state := IDLE;
+
+            when DO_FMRG =>
+                -- fmrgew, fmrgow
+                opsel_r <= RES_MISC;
+                misc_sel <= "01" & r.insn(8) & '0';
+                v.int_result := '1';
+                v.writing_back := '1';
                 v.instr_done := '1';
                 v.state := IDLE;
 
@@ -1009,6 +1022,12 @@ begin
                     when "0011" =>
                         -- mantissa of max representable SP number
                         misc := x"007fffff80000000";
+                    when "0100" =>
+                        -- fmrgow result
+                        misc := r.a.mantissa(31 downto 0) & r.b.mantissa(31 downto 0);
+                    when "0110" =>
+                        -- fmrgew result
+                        misc := r.a.mantissa(63 downto 32) & r.b.mantissa(63 downto 32);
                     when "1000" =>
                         -- max positive result for fctiw[z]
                         misc := x"000000007fffffff";

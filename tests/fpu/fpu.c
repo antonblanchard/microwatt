@@ -823,6 +823,26 @@ int fpu_test_11(void)
 	return trapit(0, test11);
 }
 
+int test12(long arg)
+{
+	unsigned long vals[2];
+	unsigned long results[2];
+
+	vals[0] = 0xf0f0f0f05a5a5a5aul;
+	vals[1] = 0x0123456789abcdeful;
+	asm("lfd 5,0(%0); lfd 6,8(%0); fmrgew 7,5,6; fmrgow 8,5,6; stfd 7,0(%1); stfd 8,8(%1)"
+	    : : "b" (vals), "b" (results) : "memory");
+	if (results[0] != 0xf0f0f0f001234567ul || results[1] != 0x5a5a5a5a89abcdeful)
+		return 1;
+	return 0;
+}
+
+int fpu_test_12(void)
+{
+	enable_fp();
+	return trapit(0, test12);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -859,6 +879,7 @@ int main(void)
 	do_test(9, fpu_test_9);
 	do_test(10, fpu_test_10);
 	do_test(11, fpu_test_11);
+	do_test(12, fpu_test_12);
 
 	return fail;
 }
