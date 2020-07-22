@@ -39,7 +39,8 @@ architecture behaviour of fpu is
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
                      DO_FMR,
                      DO_FCFID, DO_FCTI,
-                     DO_FRSP,
+                     DO_FRSP, DO_FRI,
+                     FRI_1,
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
@@ -461,7 +462,11 @@ begin
                                 v.state := DO_MTFSF;
                             end if;
                         when "01000" =>
-                            v.state := DO_FMR;
+                            if e_in.insn(9 downto 8) /= "11" then
+                                v.state := DO_FMR;
+                            else
+                                v.state := DO_FRI;
+                            end if;
                         when "01100" =>
                             v.state := DO_FRSP;
                         when "01110" =>
@@ -586,6 +591,31 @@ begin
                 v.writing_back := '1';
                 v.instr_done := '1';
                 v.state := IDLE;
+
+            when DO_FRI =>    -- fri[nzpm]
+                opsel_a <= AIN_B;
+                v.result_class := r.b.class;
+                v.result_sign := r.b.negative;
+                v.result_exp := r.b.exponent;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                if r.b.class = NAN and r.b.mantissa(53) = '0' then
+                    -- Signalling NAN
+                    v.fpscr(FPSCR_VXSNAN) := '1';
+                    invalid := '1';
+                end if;
+                if r.b.class = FINITE then
+                    if r.b.exponent >= to_signed(52, EXP_BITS) then
+                        -- integer already, no rounding required
+                        arith_done := '1';
+                    else
+                        v.shift := r.b.exponent - to_signed(52, EXP_BITS);
+                        v.state := FRI_1;
+                        v.round_mode := '1' & r.insn(7 downto 6);
+                    end if;
+                else
+                    arith_done := '1';
+                end if;
 
             when DO_FRSP =>
                 opsel_a <= AIN_B;
@@ -748,6 +778,12 @@ begin
                 v.fpscr(FPSCR_VXCVI) := '1';
                 invalid := '1';
                 arith_done := '1';
+
+            when FRI_1 =>
+                opsel_r <= RES_SHIFT;
+                set_x := '1';
+                v.shift := to_signed(-2, EXP_BITS);
+                v.state := ROUNDING;
 
             when FINISH =>
                 if r.r(63 downto 54) /= "0000000001" then

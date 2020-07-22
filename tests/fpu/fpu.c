@@ -753,6 +753,76 @@ int fpu_test_10(void)
 	return trapit(0, test10);
 }
 
+struct frivals {
+	unsigned long val;
+	unsigned long nval;
+	unsigned long zval;
+	unsigned long pval;
+	unsigned long mval;
+} frivals[] = {
+	{ 0x0000000000000000, 0, 0, 0, 0 },
+	{ 0x8000000000000000, 0x8000000000000000, 0x8000000000000000, 0x8000000000000000, 0x8000000000000000 },
+	{ 0x3fdfffffffffffff, 0, 0, 0x3ff0000000000000, 0 },
+	{ 0x3ff0000000000000, 0x3ff0000000000000, 0x3ff0000000000000, 0x3ff0000000000000, 0x3ff0000000000000 },
+	{ 0xbff0000000000000, 0xbff0000000000000, 0xbff0000000000000, 0xbff0000000000000, 0xbff0000000000000 },
+	{ 0x402123456789abcd, 0x4022000000000000, 0x4020000000000000, 0x4022000000000000, 0x4020000000000000 },
+	{ 0x406123456789abcd, 0x4061200000000000, 0x4061200000000000, 0x4061400000000000, 0x4061200000000000 },
+	{ 0x409123456789abcd, 0x4091240000000000, 0x4091200000000000, 0x4091240000000000, 0x4091200000000000 },
+	{ 0x41c123456789abcd, 0x41c1234567800000, 0x41c1234567800000, 0x41c1234568000000, 0x41c1234567800000 },
+	{ 0x41d123456789abcd, 0x41d1234567800000, 0x41d1234567800000, 0x41d1234567c00000, 0x41d1234567800000 },
+	{ 0x41e123456789abcd, 0x41e1234567800000, 0x41e1234567800000, 0x41e1234567a00000, 0x41e1234567800000 },
+	{ 0x41f123456789abcd, 0x41f1234567900000, 0x41f1234567800000, 0x41f1234567900000, 0x41f1234567800000 },
+	{ 0xc1f123456789abcd, 0xc1f1234567900000, 0xc1f1234567800000, 0xc1f1234567800000, 0xc1f1234567900000 },
+	{ 0xc1f1234567880000, 0xc1f1234567900000, 0xc1f1234567800000, 0xc1f1234567800000, 0xc1f1234567900000 },
+	{ 0x432123456789abcd, 0x432123456789abce, 0x432123456789abcc, 0x432123456789abce, 0x432123456789abcc },
+	{ 0x433123456789abcd, 0x433123456789abcd, 0x433123456789abcd, 0x433123456789abcd, 0x433123456789abcd },
+	{ 0x434123456789abcd, 0x434123456789abcd, 0x434123456789abcd, 0x434123456789abcd, 0x434123456789abcd },
+	{ 0x43c123456789abcd, 0x43c123456789abcd, 0x43c123456789abcd, 0x43c123456789abcd, 0x43c123456789abcd },
+	{ 0x43d123456789abcd, 0x43d123456789abcd, 0x43d123456789abcd, 0x43d123456789abcd, 0x43d123456789abcd },
+	{ 0x43e123456789abcd, 0x43e123456789abcd, 0x43e123456789abcd, 0x43e123456789abcd, 0x43e123456789abcd },
+	{ 0x43f123456789abcd, 0x43f123456789abcd, 0x43f123456789abcd, 0x43f123456789abcd, 0x43f123456789abcd },
+	{ 0xc3f123456789abcd, 0xc3f123456789abcd, 0xc3f123456789abcd, 0xc3f123456789abcd, 0xc3f123456789abcd },
+	{ 0x7ff0000000000000, 0x7ff0000000000000, 0x7ff0000000000000, 0x7ff0000000000000, 0x7ff0000000000000 },
+	{ 0xfff0000000000000, 0xfff0000000000000, 0xfff0000000000000, 0xfff0000000000000, 0xfff0000000000000 },
+	{ 0x7ff123456789abcd, 0x7ff923456789abcd, 0x7ff923456789abcd, 0x7ff923456789abcd, 0x7ff923456789abcd },
+	{ 0xfff923456789abcd, 0xfff923456789abcd, 0xfff923456789abcd, 0xfff923456789abcd, 0xfff923456789abcd },
+};
+
+int test11(long arg)
+{
+	long i;
+	unsigned long results[4];
+	struct frivals *vp = frivals;
+
+	for (i = 0; i < sizeof(frivals) / sizeof(frivals[0]); ++i, ++vp) {
+		set_fpscr(FPS_RN_FLOOR);
+		asm("lfd 3,0(%0); frin 4,3; stfd 4,0(%1)"
+		    : : "b" (&vp->val), "b" (results) : "memory");
+		set_fpscr(FPS_RN_NEAR);
+		asm("friz 5,3; stfd 5,8(%0)" : : "b" (results) : "memory");
+		set_fpscr(FPS_RN_ZERO);
+		asm("frip 5,3; stfd 5,16(%0)" : : "b" (results) : "memory");
+		set_fpscr(FPS_RN_CEIL);
+		asm("frim 5,3; stfd 5,24(%0)" : : "b" (results) : "memory");
+		if (results[0] != vp->nval || results[1] != vp->zval ||
+		    results[2] != vp->pval || results[3] != vp->mval) {
+			print_hex(i, 2, "\r\n");
+			print_hex(results[0], 16, " ");
+			print_hex(results[1], 16, " ");
+			print_hex(results[2], 16, " ");
+			print_hex(results[3], 16, " ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_11(void)
+{
+	enable_fp();
+	return trapit(0, test11);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -788,6 +858,7 @@ int main(void)
 	do_test(8, fpu_test_8);
 	do_test(9, fpu_test_9);
 	do_test(10, fpu_test_10);
+	do_test(11, fpu_test_11);
 
 	return fail;
 }
