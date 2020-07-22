@@ -12,7 +12,9 @@ use work.ppc_fx_insns.all;
 
 entity execute1 is
     generic (
-        EX1_BYPASS : boolean := true
+        EX1_BYPASS : boolean := true;
+        -- Non-zero to enable log data collection
+        LOG_LENGTH : natural := 0
         );
     port (
 	clk   : in std_ulogic;
@@ -97,7 +99,6 @@ architecture behaviour of execute1 is
     -- signals for logging
     signal exception_log : std_ulogic;
     signal irq_valid_log : std_ulogic;
-    signal log_data : std_ulogic_vector(14 downto 0);
 
     type privilege_level is (USER, SUPER);
     type op_privilege_array is array(insn_type_t) of privilege_level;
@@ -619,12 +620,12 @@ begin
                         end loop;
                     else
                         -- trap instructions (tw, twi, td, tdi)
+                        v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
+                        -- set bit 46 to say trap occurred
+                        ctrl_tmp.srr1(63 - 46) <= '1';
                         if or (trapval and insn_to(e_in.insn)) = '1' then
                             -- generate trap-type program interrupt
                             exception := '1';
-                            v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
-                            -- set bit 46 to say trap occurred
-                            ctrl_tmp.srr1(63 - 46) <= '1';
                             report "trap";
                         end if;
                     end if;
@@ -1083,21 +1084,25 @@ begin
         irq_valid_log <= irq_valid;
     end process;
 
-    ex1_log : process(clk)
+    e1_log: if LOG_LENGTH > 0 generate
+        signal log_data : std_ulogic_vector(14 downto 0);
     begin
-        if rising_edge(clk) then
-            log_data <= ctrl.msr(MSR_EE) & ctrl.msr(MSR_PR) &
-                        ctrl.msr(MSR_IR) & ctrl.msr(MSR_DR) &
-                        exception_log &
-                        irq_valid_log &
-                        std_ulogic_vector(to_unsigned(irq_state_t'pos(ctrl.irq_state), 1)) &
-                        "000" &
-                        r.e.write_enable &
-                        r.e.valid &
-                        f_out.redirect &
-                        r.busy &
-                        flush_out;
-        end if;
-    end process;
-    log_out <= log_data;
+        ex1_log : process(clk)
+        begin
+            if rising_edge(clk) then
+                log_data <= ctrl.msr(MSR_EE) & ctrl.msr(MSR_PR) &
+                            ctrl.msr(MSR_IR) & ctrl.msr(MSR_DR) &
+                            exception_log &
+                            irq_valid_log &
+                            std_ulogic_vector(to_unsigned(irq_state_t'pos(ctrl.irq_state), 1)) &
+                            "000" &
+                            r.e.write_enable &
+                            r.e.valid &
+                            f_out.redirect &
+                            r.busy &
+                            flush_out;
+            end if;
+        end process;
+        log_out <= log_data;
+    end generate;
 end architecture behaviour;

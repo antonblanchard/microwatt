@@ -15,123 +15,81 @@ entity zero_counter is
 end entity zero_counter;
 
 architecture behaviour of zero_counter is
-    type intermediate_result is record
-        v16: std_ulogic_vector(15 downto 0);
-        sel_hi: std_ulogic_vector(1 downto 0);
-        is_32bit: std_ulogic;
-        count_right: std_ulogic;
-    end record;
-
-    signal r, r_in  : intermediate_result;
-
-    -- Return the index of the leftmost or rightmost 1 in a set of 4 bits.
-    -- Assumes v is not "0000"; if it is, return (right ? "11" : "00").
-    function encoder(v: std_ulogic_vector(3 downto 0); right: std_ulogic) return std_ulogic_vector is
+    -- Reverse the order of bits in a word
+    function bit_reverse(a: std_ulogic_vector) return std_ulogic_vector is
+        variable ret: std_ulogic_vector(a'left downto a'right);
     begin
-	if right = '0' then
-	    if v(3) = '1' then
-		return "11";
-	    elsif v(2) = '1' then
-		return "10";
-	    elsif v(1) = '1' then
-		return "01";
-	    else
-		return "00";
-	    end if;
-	else
-	    if v(0) = '1' then
-		return "00";
-	    elsif v(1) = '1' then
-		return "01";
-	    elsif v(2) = '1' then
-		return "10";
-	    else
-		return "11";
-	    end if;
-	end if;
+        for i in a'right to a'left loop
+            ret(a'left + a'right - i) := a(i);
+        end loop;
+        return ret;
     end;
 
-begin
-    zerocounter_0: process(clk)
+    -- If there is only one bit set in a doubleword, return its bit number
+    -- (counting from the right).  Each bit of the result is obtained by
+    -- ORing together 32 bits of the input:
+    --  bit 0 = a[1] or a[3] or a[5] or ...
+    --  bit 1 = a[2] or a[3] or a[6] or a[7] or ...
+    --  bit 2 = a[4..7] or a[12..15] or ...
+    --  bit 5 = a[32..63] ORed together
+    function bit_number(a: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
+        variable ret: std_ulogic_vector(5 downto 0);
+        variable stride: natural;
+        variable bit: std_ulogic;
+        variable k: natural;
     begin
-	if rising_edge(clk) then
-            r <= r_in;
+        stride := 2;
+        for i in 0 to 5 loop
+            bit := '0';
+            for j in 0 to (64 / stride) - 1 loop
+                k := j * stride;
+                bit := bit or (or a(k + stride - 1 downto k + (stride / 2)));
+            end loop;
+            ret(i) := bit;
+            stride := stride * 2;
+        end loop;
+        return ret;
+    end;
+
+    signal inp : std_ulogic_vector(63 downto 0);
+    signal sum : std_ulogic_vector(64 downto 0);
+    signal msb_r : std_ulogic;
+    signal onehot : std_ulogic_vector(63 downto 0);
+    signal onehot_r : std_ulogic_vector(63 downto 0);
+    signal bitnum : std_ulogic_vector(5 downto 0);
+
+begin
+    countzero_r: process(clk)
+    begin
+        if rising_edge(clk) then
+            msb_r <= sum(64);
+            onehot_r <= onehot;
         end if;
     end process;
 
-    zerocounter_1: process(all)
-        variable v: intermediate_result;
-        variable y, z: std_ulogic_vector(3 downto 0);
-        variable sel: std_ulogic_vector(5 downto 0);
-        variable v4: std_ulogic_vector(3 downto 0);
-
+    countzero: process(all)
     begin
-	-- Test 4 groups of 16 bits each.
-	-- The top 2 groups are considered to be zero in 32-bit mode.
-	z(0) := or (rs(15 downto 0));
-	z(1) := or (rs(31 downto 16));
-	z(2) := or (rs(47 downto 32));
-	z(3) := or (rs(63 downto 48));
         if is_32bit = '0' then
-            v.sel_hi := encoder(z, count_right);
-        else
-            v.sel_hi(1) := '0';
             if count_right = '0' then
-                v.sel_hi(0) := z(1);
+                inp <= bit_reverse(rs);
             else
-                v.sel_hi(0) := not z(0);
+                inp <= rs;
+            end if;
+        else
+            inp(63 downto 32) <= x"FFFFFFFF";
+            if count_right = '0' then
+                inp(31 downto 0) <= bit_reverse(rs(31 downto 0));
+            else
+                inp(31 downto 0) <= rs(31 downto 0);
             end if;
         end if;
 
-	-- Select the leftmost/rightmost non-zero group of 16 bits
-	case v.sel_hi is
-	    when "00" =>
-		v.v16 := rs(15 downto 0);
-	    when "01" =>
-		v.v16 := rs(31 downto 16);
-	    when "10" =>
-		v.v16 := rs(47 downto 32);
-	    when others =>
-		v.v16 := rs(63 downto 48);
-	end case;
+        sum <= std_ulogic_vector(unsigned('0' & not inp) + 1);
+        onehot <= sum(63 downto 0) and inp;
 
-        -- Latch this and do the rest in the next cycle, for the sake of timing
-        v.is_32bit := is_32bit;
-        v.count_right := count_right;
-        r_in <= v;
-        sel(5 downto 4) := r.sel_hi;
+        -- The following occurs after a clock edge
+        bitnum <= bit_number(onehot_r);
 
-	-- Test 4 groups of 4 bits
-	y(0) := or (r.v16(3 downto 0));
-	y(1) := or (r.v16(7 downto 4));
-	y(2) := or (r.v16(11 downto 8));
-	y(3) := or (r.v16(15 downto 12));
-	sel(3 downto 2) := encoder(y, r.count_right);
-
-	-- Select the leftmost/rightmost non-zero group of 4 bits
-	case sel(3 downto 2) is
-	    when "00" =>
-		v4 := r.v16(3 downto 0);
-	    when "01" =>
-		v4 := r.v16(7 downto 4);
-	    when "10" =>
-		v4 := r.v16(11 downto 8);
-	    when others =>
-		v4 := r.v16(15 downto 12);
-	end case;
-
-	sel(1 downto 0) := encoder(v4, r.count_right);
-
-	-- sel is now the index of the leftmost/rightmost 1 bit in rs
-	if v4 = "0000" then
-	    -- operand is zero, return 32 for 32-bit, else 64
-	    result <= x"00000000000000" & '0' & not r.is_32bit & r.is_32bit & "00000";
-	elsif r.count_right = '0' then
-	    -- return (63 - sel), trimmed to 5 bits in 32-bit mode
-	    result <= x"00000000000000" & "00" & (not sel(5) and not r.is_32bit) & not sel(4 downto 0);
-	else
-	    result <= x"00000000000000" & "00" & sel;
-	end if;
-
+        result <= x"00000000000000" & "0" & msb_r & bitnum;
     end process;
 end behaviour;

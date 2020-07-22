@@ -31,7 +31,9 @@ entity dcache is
         -- L1 DTLB number of sets
         TLB_NUM_WAYS : positive := 2;
         -- L1 DTLB log_2(page_size)
-        TLB_LG_PGSZ : positive := 12
+        TLB_LG_PGSZ : positive := 12;
+        -- Non-zero to enable log data collection
+        LOG_LENGTH : natural := 0
         );
     port (
         clk          : in std_ulogic;
@@ -226,13 +228,14 @@ architecture rtl of dcache is
 
     type mem_access_request_t is record
         op        : op_t;
+        valid     : std_ulogic;
         dcbz      : std_ulogic;
         real_addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
         data      : std_ulogic_vector(63 downto 0);
         byte_sel  : std_ulogic_vector(7 downto 0);
         hit_way   : way_t;
-        repl_way  : way_t;
         same_tag  : std_ulogic;
+        mmu_req   : std_ulogic;
     end record;
 
     -- First stage register, contains state for stage 1 of load hits
@@ -247,6 +250,13 @@ architecture rtl of dcache is
 	-- Cache hit state
 	hit_way          : way_t;
 	hit_load_valid   : std_ulogic;
+        hit_index        : index_t;
+        cache_hit        : std_ulogic;
+
+        -- TLB hit state
+        tlb_hit          : std_ulogic;
+        tlb_hit_way      : tlb_way_t;
+        tlb_hit_index    : tlb_index_t;
 
 	-- 2-stage data buffer for data forwarded from writes to reads
 	forward_data1    : std_ulogic_vector(63 downto 0);
@@ -272,16 +282,18 @@ architecture rtl of dcache is
         end_row_ix       : row_in_line_t;
         rows_valid       : row_per_line_valid_t;
         acks_pending     : unsigned(2 downto 0);
+        inc_acks         : std_ulogic;
+        dec_acks         : std_ulogic;
 
-        -- Signals to complete with error
-        error_done       : std_ulogic;
+        -- Signals to complete (possibly with error)
+        ls_valid         : std_ulogic;
+        ls_error         : std_ulogic;
+        mmu_done         : std_ulogic;
+        mmu_error        : std_ulogic;
         cache_paradox    : std_ulogic;
 
         -- Signal to complete a failed stcx.
         stcx_fail        : std_ulogic;
-
-        -- completion signal for tlbie
-        tlbie_done       : std_ulogic;
     end record;
 
     signal r1 : reg_stage_1_t;
@@ -303,6 +315,7 @@ architecture rtl of dcache is
     signal req_op      : op_t;
     signal req_data    : std_ulogic_vector(63 downto 0);
     signal req_same_tag : std_ulogic;
+    signal req_go      : std_ulogic;
 
     signal early_req_row  : row_t;
 
@@ -455,8 +468,6 @@ architecture rtl of dcache is
         ptes(j + TLB_PTE_BITS - 1 downto j) := newpte;
     end;
 
-    signal log_data : std_ulogic_vector(19 downto 0);
-
 begin
 
     assert LINE_SIZE mod ROW_SIZE = 0 report "LINE_SIZE not multiple of ROW_SIZE" severity FAILURE;
@@ -566,15 +577,15 @@ begin
 		    lru => tlb_plru_out
 		    );
 
-	    process(tlb_req_index, tlb_hit, tlb_hit_way, tlb_plru_out)
+	    process(all)
 	    begin
 		-- PLRU interface
-		if tlb_hit = '1' and tlb_req_index = i then
-		    tlb_plru_acc_en <= '1';
+		if r1.tlb_hit_index = i then
+		    tlb_plru_acc_en <= r1.tlb_hit;
 		else
 		    tlb_plru_acc_en <= '0';
 		end if;
-		tlb_plru_acc <= std_ulogic_vector(to_unsigned(tlb_hit_way, TLB_WAY_BITS));
+		tlb_plru_acc <= std_ulogic_vector(to_unsigned(r1.tlb_hit_way, TLB_WAY_BITS));
 		tlb_plru_victim(i) <= tlb_plru_out;
 	    end process;
 	end generate;
@@ -677,16 +688,15 @@ begin
 		    lru => plru_out
 		    );
 
-	    process(req_index, req_op, req_hit_way, plru_out)
+	    process(all)
 	    begin
 		-- PLRU interface
-		if (req_op = OP_LOAD_HIT or
-		    req_op = OP_STORE_HIT) and req_index = i then
-		    plru_acc_en <= '1';
+		if r1.hit_index = i then
+		    plru_acc_en <= r1.cache_hit;
 		else
 		    plru_acc_en <= '0';
 		end if;
-		plru_acc <= std_ulogic_vector(to_unsigned(req_hit_way, WAY_BITS));
+		plru_acc <= std_ulogic_vector(to_unsigned(r1.hit_way, WAY_BITS));
 		plru_victim(i) <= plru_out;
 	    end process;
 	end generate;
@@ -730,7 +740,7 @@ begin
         req_row <= get_row(r0.req.addr);
         req_tag <= get_tag(ra);
 
-        go := r0_valid and not (r0.tlbie or r0.tlbld) and not r1.error_done;
+        go := r0_valid and not (r0.tlbie or r0.tlbld) and not r1.ls_error;
 
 	-- Test if pending request is a hit on any way
         -- In order to make timing in virtual mode, when we are using the TLB,
@@ -788,7 +798,7 @@ begin
             -- since it will be by the time we perform the store.
             -- For a load, check the appropriate row valid bit.
             is_hit := not r0.req.load or r1.rows_valid(req_row mod ROW_PER_LINE);
-            hit_way := r1.store_way;
+            hit_way := replace_way;
         end if;
 
         -- Whether to use forwarded data for a load or not
@@ -811,8 +821,12 @@ begin
 	-- The way that matched on a hit	       
 	req_hit_way <= hit_way;
 
-	-- The way to replace on a miss
-	replace_way <= to_integer(unsigned(plru_victim(req_index)));
+        -- The way to replace on a miss
+        if r1.write_tag = '1' then
+            replace_way <= to_integer(unsigned(plru_victim(r1.store_index)));
+        else
+            replace_way <= r1.store_way;
+        end if;
 
         -- work out whether we have permission for this access
         -- NB we don't yet implement AMR, thus no KUAP
@@ -847,6 +861,7 @@ begin
             end if;
         end if;
 	req_op <= op;
+        req_go <= go;
 
         -- Version of the row number that is valid one cycle earlier
         -- in the cases where we need to read the cache data BRAM.
@@ -928,15 +943,15 @@ begin
             end if;
         end loop;
 
-	d_out.valid <= '0';
+	d_out.valid <= r1.ls_valid;
 	d_out.data <= data_out;
-        d_out.store_done <= '0';
-        d_out.error <= '0';
-        d_out.cache_paradox <= '0';
+        d_out.store_done <= not r1.stcx_fail;
+        d_out.error <= r1.ls_error;
+        d_out.cache_paradox <= r1.cache_paradox;
 
         -- Outputs to MMU
-        m_out.done <= r1.tlbie_done;
-        m_out.err <= '0';
+        m_out.done <= r1.mmu_done;
+        m_out.err <= r1.mmu_error;
         m_out.data <= data_out;
 
 	-- We have a valid load or store hit or we just completed a slow
@@ -962,47 +977,32 @@ begin
             -- Load hit case is the standard path
             if r1.hit_load_valid = '1' then
                 report "completing load hit data=" & to_hstring(data_out);
-                d_out.valid <= '1';
             end if;
 
             -- error cases complete without stalling
-            if r1.error_done = '1' then
+            if r1.ls_error = '1' then
                 report "completing ld/st with error";
-                d_out.error <= '1';
-                d_out.cache_paradox <= r1.cache_paradox;
-                d_out.valid <= '1';
             end if;
 
             -- Slow ops (load miss, NC, stores)
             if r1.slow_valid = '1' then
-                d_out.store_done <= '1';
                 report "completing store or load miss data=" & to_hstring(data_out);
-                d_out.valid <= '1';
-            end if;
-
-            if r1.stcx_fail = '1' then
-                d_out.store_done <= '0';
-                d_out.valid <= '1';
             end if;
 
         else
             -- Request came from MMU
             if r1.hit_load_valid = '1' then
                 report "completing load hit to MMU, data=" & to_hstring(m_out.data);
-                m_out.done <= '1';
             end if;
 
             -- error cases complete without stalling
-            if r1.error_done = '1' then
+            if r1.mmu_error = '1' then
                 report "completing MMU ld with error";
-                m_out.err <= '1';
-                m_out.done <= '1';
             end if;
 
             -- Slow ops (i.e. load miss)
             if r1.slow_valid = '1' then
                 report "completing MMU load miss, data=" & to_hstring(m_out.data);
-                m_out.done <= '1';
             end if;
         end if;
 
@@ -1079,7 +1079,7 @@ begin
                 wr_addr <= std_ulogic_vector(to_unsigned(r1.store_row, ROW_BITS));
                 wr_sel <= (others => '1');
 
-                if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' and r1.store_way = i then
+                if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' and replace_way = i then
                     do_write <= '1';
                 end if;
 	    end if;
@@ -1113,20 +1113,28 @@ begin
             end if;
 
             -- Fast path for load/store hits. Set signals for the writeback controls.
+            r1.hit_way <= req_hit_way;
+            r1.hit_index <= req_index;
 	    if req_op = OP_LOAD_HIT then
-		r1.hit_way <= req_hit_way;
 		r1.hit_load_valid <= '1';
 	    else
 		r1.hit_load_valid <= '0';
 	    end if;
+            if req_op = OP_LOAD_HIT or req_op = OP_STORE_HIT then
+                r1.cache_hit <= '1';
+            else
+                r1.cache_hit <= '0';
+            end if;
 
             if req_op = OP_BAD then
                 report "Signalling ld/st error valid_ra=" & std_ulogic'image(valid_ra) &
                     " rc_ok=" & std_ulogic'image(rc_ok) & " perm_ok=" & std_ulogic'image(perm_ok);
-                r1.error_done <= '1';
+                r1.ls_error <= not r0.mmu_req;
+                r1.mmu_error <= r0.mmu_req;
                 r1.cache_paradox <= access_ok;
             else
-                r1.error_done <= '0';
+                r1.ls_error <= '0';
+                r1.mmu_error <= '0';
                 r1.cache_paradox <= '0';
             end if;
 
@@ -1136,8 +1144,11 @@ begin
                 r1.stcx_fail <= '0';
             end if;
 
-            -- complete tlbies and TLB loads in the third cycle
-            r1.tlbie_done <= r0_valid and (r0.tlbie or r0.tlbld);
+            -- Record TLB hit information for updating TLB PLRU
+            r1.tlb_hit <= tlb_hit;
+            r1.tlb_hit_way <= tlb_hit_way;
+            r1.tlb_hit_index <= tlb_req_index;
+
 	end if;
     end process;
 
@@ -1179,7 +1190,7 @@ begin
                     r1.forward_data1 <= wishbone_in.dat;
                 end if;
                 r1.forward_sel1 <= (others => '1');
-                r1.forward_way1 <= r1.store_way;
+                r1.forward_way1 <= replace_way;
                 r1.forward_row1 <= r1.store_row;
                 r1.forward_valid1 <= '0';
             end if;
@@ -1194,6 +1205,8 @@ begin
 		r1.slow_valid <= '0';
                 r1.wb.cyc <= '0';
                 r1.wb.stb <= '0';
+                r1.ls_valid <= '0';
+                r1.mmu_done <= '0';
 
 		-- Not useful normally but helps avoiding tons of sim warnings
 		r1.wb.adr <= (others => '0');
@@ -1201,15 +1214,29 @@ begin
 		-- One cycle pulses reset
 		r1.slow_valid <= '0';
                 r1.write_bram <= '0';
+                r1.inc_acks <= '0';
+                r1.dec_acks <= '0';
+
+                r1.ls_valid <= '0';
+                -- complete tlbies and TLB loads in the third cycle
+                r1.mmu_done <= r0_valid and (r0.tlbie or r0.tlbld);
+                if req_op = OP_LOAD_HIT or req_op = OP_STCX_FAIL then
+                    if r0.mmu_req = '0' then
+                        r1.ls_valid <= '1';
+                    else
+                        r1.mmu_done <= '1';
+                    end if;
+                end if;
 
                 if r1.write_tag = '1' then
                     -- Store new tag in selected way
                     for i in 0 to NUM_WAYS-1 loop
-                        if i = r1.store_way then
+                        if i = replace_way then
                             cache_tags(r1.store_index)((i + 1) * TAG_WIDTH - 1 downto i * TAG_WIDTH) <=
                                 (TAG_WIDTH - 1 downto TAG_BITS => '0') & r1.reload_tag;
                         end if;
                     end loop;
+                    r1.store_way <= replace_way;
                     r1.write_tag <= '0';
                 end if;
 
@@ -1219,12 +1246,23 @@ begin
                     req := r1.req;
                 else
                     req.op := req_op;
+                    req.valid := req_go;
+                    req.mmu_req := r0.mmu_req;
                     req.dcbz := r0.req.dcbz;
                     req.real_addr := ra;
-                    req.data := r0.req.data;
-                    req.byte_sel := r0.req.byte_sel;
+                    -- Force data to 0 for dcbz
+                    if r0.req.dcbz = '0' then
+                        req.data := r0.req.data;
+                    else
+                        req.data := (others => '0');
+                    end if;
+                    -- Select all bytes for dcbz and for cacheable loads
+                    if r0.req.dcbz = '1' or (r0.req.load = '1' and r0.req.nc = '0') then
+                        req.byte_sel := (others => '1');
+                    else
+                        req.byte_sel := r0.req.byte_sel;
+                    end if;
                     req.hit_way := req_hit_way;
-                    req.repl_way := replace_way;
                     req.same_tag := req_same_tag;
 
                     -- Store the incoming request from r0, if it is a slow request
@@ -1240,7 +1278,9 @@ begin
 		case r1.state is
                 when IDLE =>
                     r1.wb.adr <= req.real_addr(r1.wb.adr'left downto 0);
-                    r1.dcbz <= '0';
+                    r1.wb.sel <= req.byte_sel;
+                    r1.wb.dat <= req.data;
+                    r1.dcbz <= req.dcbz;
 
                     -- Keep track of our index and way for subsequent stores.
                     r1.store_index <= get_index(req.real_addr);
@@ -1251,8 +1291,6 @@ begin
 
                     if req.op = OP_STORE_HIT then
                         r1.store_way <= req.hit_way;
-                    else
-                        r1.store_way <= req.repl_way;
                     end if;
 
                     -- Reset per-row valid bits, ready for handling OP_LOAD_MISS
@@ -1269,11 +1307,9 @@ begin
 			--
 			report "cache miss real addr:" & to_hstring(req.real_addr) &
 			    " idx:" & integer'image(get_index(req.real_addr)) &
-			    " way:" & integer'image(req.repl_way) &
 			    " tag:" & to_hstring(get_tag(req.real_addr));
 
 			-- Start the wishbone cycle
-			r1.wb.sel <= (others => '1');
 			r1.wb.we  <= '0';
 			r1.wb.cyc <= '1';
 			r1.wb.stb <= '1';
@@ -1283,7 +1319,6 @@ begin
                         r1.write_tag <= '1';
 
 		    when OP_LOAD_NC =>
-                        r1.wb.sel <= req.byte_sel;
                         r1.wb.cyc <= '1';
                         r1.wb.stb <= '1';
 			r1.wb.we <= '0';
@@ -1291,27 +1326,25 @@ begin
 
                     when OP_STORE_HIT | OP_STORE_MISS =>
                         if req.dcbz = '0' then
-                            r1.wb.sel <= req.byte_sel;
-                            r1.wb.dat <= req.data;
                             r1.state <= STORE_WAIT_ACK;
                             r1.acks_pending <= to_unsigned(1, 3);
                             r1.full <= '0';
                             r1.slow_valid <= '1';
+                            if req.mmu_req = '0' then
+                                r1.ls_valid <= '1';
+                            else
+                                r1.mmu_done <= '1';
+                            end if;
                             if req.op = OP_STORE_HIT then
                                 r1.write_bram <= '1';
                             end if;
                         else
                             -- dcbz is handled much like a load miss except
                             -- that we are writing to memory instead of reading
-
-                            -- Start the wishbone writes
-                            r1.wb.sel <= (others => '1');
-                            r1.wb.dat <= (others => '0');
-
-                            -- Handle the rest like a load miss
                             r1.state <= RELOAD_WAIT_ACK;
-                            r1.write_tag <= '1';
-                            r1.dcbz <= '1';
+                            if req.op = OP_STORE_MISS then
+                                r1.write_tag <= '1';
+                            end if;
                         end if;
                         r1.wb.we <= '1';
                         r1.wb.cyc <= '1';
@@ -1357,6 +1390,11 @@ begin
                             r1.store_row = get_row(r1.req.real_addr) then
                             r1.full <= '0';
                             r1.slow_valid <= '1';
+                            if r1.mmu_req = '0' then
+                                r1.ls_valid <= '1';
+                            else
+                                r1.mmu_done <= '1';
+                            end if;
                             r1.forward_sel <= (others => '1');
                             r1.use_forward1 <= '1';
 			end if;
@@ -1379,15 +1417,26 @@ begin
                 when STORE_WAIT_ACK =>
 		    stbs_done := r1.wb.stb = '0';
                     acks := r1.acks_pending;
+                    if r1.inc_acks /= r1.dec_acks then
+                        if r1.inc_acks = '1' then
+                            acks := acks + 1;
+                        else
+                            acks := acks - 1;
+                        end if;
+                    end if;
+                    r1.acks_pending <= acks;
 		    -- Clear stb when slave accepted request
                     if wishbone_in.stall = '0' then
                         -- See if there is another store waiting to be done
                         -- which is in the same real page.
-                        if acks < 7 and req.same_tag = '1' and
-                            (req.op = OP_STORE_MISS or req.op = OP_STORE_HIT) then
-                            r1.wb.adr <= req.real_addr(r1.wb.adr'left downto 0);
+                        if req.valid = '1' then
+                            r1.wb.adr(SET_SIZE_BITS - 1 downto 0) <=
+                                req.real_addr(SET_SIZE_BITS - 1 downto 0);
                             r1.wb.dat <= req.data;
                             r1.wb.sel <= req.byte_sel;
+                        end if;
+                        if acks < 7 and req.same_tag = '1' and
+                            (req.op = OP_STORE_MISS or req.op = OP_STORE_HIT) then
                             r1.wb.stb <= '1';
                             stbs_done := false;
                             if req.op = OP_STORE_HIT then
@@ -1395,7 +1444,10 @@ begin
                             end if;
                             r1.full <= '0';
                             r1.slow_valid <= '1';
-                            acks := acks + 1;
+                            -- Store requests never come from the MMU
+                            r1.ls_valid <= '1';
+                            stbs_done := false;
+                            r1.inc_acks <= '1';
                         else
                             r1.wb.stb <= '0';
                             stbs_done := true;
@@ -1409,9 +1461,8 @@ begin
                             r1.wb.cyc <= '0';
                             r1.wb.stb <= '0';
                         end if;
-                        acks := acks - 1;
+                        r1.dec_acks <= '1';
 		    end if;
-                    r1.acks_pending <= acks;
 
                 when NC_LOAD_WAIT_ACK =>
 		    -- Clear stb when slave accepted request
@@ -1424,6 +1475,11 @@ begin
                         r1.state <= IDLE;
                         r1.full <= '0';
 			r1.slow_valid <= '1';
+                        if r1.mmu_req = '0' then
+                            r1.ls_valid <= '1';
+                        else
+                            r1.mmu_done <= '1';
+                        end if;
                         r1.forward_sel <= (others => '1');
                         r1.use_forward1 <= '1';
 			r1.wb.cyc <= '0';
@@ -1434,21 +1490,25 @@ begin
 	end if;
     end process;
 
-    dcache_log: process(clk)
+    dc_log: if LOG_LENGTH > 0 generate
+        signal log_data : std_ulogic_vector(19 downto 0);
     begin
-        if rising_edge(clk) then
-            log_data <= r1.wb.adr(5 downto 3) &
-                        wishbone_in.stall &
-                        wishbone_in.ack &
-                        r1.wb.stb & r1.wb.cyc &
-                        d_out.error &
-                        d_out.valid &
-                        std_ulogic_vector(to_unsigned(op_t'pos(req_op), 3)) &
-                        stall_out &
-                        std_ulogic_vector(to_unsigned(tlb_hit_way, 3)) &
-                        valid_ra &
-                        std_ulogic_vector(to_unsigned(state_t'pos(r1.state), 3));
-        end if;
-    end process;
-    log_out <= log_data;
+        dcache_log: process(clk)
+        begin
+            if rising_edge(clk) then
+                log_data <= r1.wb.adr(5 downto 3) &
+                            wishbone_in.stall &
+                            wishbone_in.ack &
+                            r1.wb.stb & r1.wb.cyc &
+                            d_out.error &
+                            d_out.valid &
+                            std_ulogic_vector(to_unsigned(op_t'pos(req_op), 3)) &
+                            stall_out &
+                            std_ulogic_vector(to_unsigned(tlb_hit_way, 3)) &
+                            valid_ra &
+                            std_ulogic_vector(to_unsigned(state_t'pos(r1.state), 3));
+            end if;
+        end process;
+        log_out <= log_data;
+    end generate;
 end;

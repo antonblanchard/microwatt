@@ -10,7 +10,9 @@ use work.insn_helpers.all;
 
 entity decode2 is
     generic (
-        EX1_BYPASS : boolean := true
+        EX1_BYPASS : boolean := true;
+        -- Non-zero to enable log data collection
+        LOG_LENGTH : natural := 0
         );
     port (
         clk   : in std_ulogic;
@@ -46,8 +48,6 @@ architecture behaviour of decode2 is
     signal r, rin : reg_type;
 
     signal deferred : std_ulogic;
-
-    signal log_data : std_ulogic_vector(9 downto 0);
 
     type decode_input_reg_t is record
         reg_valid : std_ulogic;
@@ -415,18 +415,22 @@ begin
         e_out <= r.e;
     end process;
 
-    dec2_log : process(clk)
+    d2_log: if LOG_LENGTH > 0 generate
+        signal log_data : std_ulogic_vector(9 downto 0);
     begin
-        if rising_edge(clk) then
-            log_data <= r.e.nia(5 downto 2) &
-                        r.e.valid &
-                        stopped_out &
-                        stall_out &
-                        r.e.bypass_data3 &
-                        r.e.bypass_data2 &
-                        r.e.bypass_data1;
-        end if;
-    end process;
-    log_out <= log_data;
+        dec2_log : process(clk)
+        begin
+            if rising_edge(clk) then
+                log_data <= r.e.nia(5 downto 2) &
+                            r.e.valid &
+                            stopped_out &
+                            stall_out &
+                            r.e.bypass_data3 &
+                            r.e.bypass_data2 &
+                            r.e.bypass_data1;
+            end if;
+        end process;
+        log_out <= log_data;
+    end generate;
 
 end architecture behaviour;

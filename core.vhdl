@@ -202,7 +202,8 @@ begin
             SIM => SIM,
             LINE_SIZE => 64,
             NUM_LINES => 64,
-	    NUM_WAYS => 2
+	    NUM_WAYS => 2,
+            LOG_LENGTH => LOG_LENGTH
             )
         port map(
             clk => clk,
@@ -222,6 +223,9 @@ begin
     icache_stall_in <= decode1_busy;
 
     decode1_0: entity work.decode1
+        generic map(
+            LOG_LENGTH => LOG_LENGTH
+            )
         port map (
             clk => clk,
             rst => rst_dec1,
@@ -239,7 +243,8 @@ begin
 
     decode2_0: entity work.decode2
         generic map (
-            EX1_BYPASS => EX1_BYPASS
+            EX1_BYPASS => EX1_BYPASS,
+            LOG_LENGTH => LOG_LENGTH
             )
         port map (
             clk => clk,
@@ -261,7 +266,8 @@ begin
 
     register_file_0: entity work.register_file
         generic map (
-            SIM => SIM
+            SIM => SIM,
+            LOG_LENGTH => LOG_LENGTH
             )
         port map (
             clk => clk,
@@ -279,7 +285,8 @@ begin
 
     cr_file_0: entity work.cr_file
         generic map (
-            SIM => SIM
+            SIM => SIM,
+            LOG_LENGTH => LOG_LENGTH
             )
         port map (
             clk => clk,
@@ -292,7 +299,8 @@ begin
 
     execute1_0: entity work.execute1
         generic map (
-            EX1_BYPASS => EX1_BYPASS
+            EX1_BYPASS => EX1_BYPASS,
+            LOG_LENGTH => LOG_LENGTH
             )
         port map (
             clk => clk,
@@ -315,6 +323,9 @@ begin
             );
 
     loadstore1_0: entity work.loadstore1
+        generic map (
+            LOG_LENGTH => LOG_LENGTH
+            )
         port map (
             clk => clk,
             rst => rst_ls1,
@@ -344,7 +355,8 @@ begin
         generic map(
             LINE_SIZE => 64,
             NUM_LINES => 64,
-	    NUM_WAYS => 2
+	    NUM_WAYS => 2,
+            LOG_LENGTH => LOG_LENGTH
             )
         port map (
             clk => clk,
