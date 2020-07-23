@@ -40,7 +40,9 @@ architecture behaviour of fpu is
                      DO_FMR, DO_FMRG,
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
+                     DO_FADD,
                      FRI_1,
+                     ADD_SHIFT, ADD_2, ADD_3,
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
@@ -79,6 +81,9 @@ architecture behaviour of fpu is
         tiny         : std_ulogic;
         denorm       : std_ulogic;
         round_mode   : std_ulogic_vector(2 downto 0);
+        is_subtract  : std_ulogic;
+        exp_cmp      : std_ulogic;
+        add_bsmall   : std_ulogic;
     end record;
 
     signal r, rin : reg_type;
@@ -89,6 +94,7 @@ architecture behaviour of fpu is
     signal opsel_r       : std_ulogic_vector(1 downto 0);
     signal opsel_ainv    : std_ulogic;
     signal opsel_amask   : std_ulogic;
+    signal opsel_binv    : std_ulogic;
     signal in_a          : std_ulogic_vector(63 downto 0);
     signal in_b          : std_ulogic_vector(63 downto 0);
     signal result        : std_ulogic_vector(63 downto 0);
@@ -368,6 +374,9 @@ begin
         variable mshift      : signed(EXP_BITS-1 downto 0);
         variable need_check  : std_ulogic;
         variable msb         : std_ulogic;
+        variable is_add      : std_ulogic;
+        variable qnan_result : std_ulogic;
+        variable longmask    : std_ulogic;
     begin
         v := r;
         illegal := '0';
@@ -397,10 +406,16 @@ begin
             v.tiny := '0';
             v.denorm := '0';
             v.round_mode := '0' & r.fpscr(FPSCR_RN+1 downto FPSCR_RN);
+            v.is_subtract := '0';
+            v.add_bsmall := '0';
             adec := decode_dp(e_in.fra, int_input);
             bdec := decode_dp(e_in.frb, int_input);
             v.a := adec;
             v.b := bdec;
+            v.exp_cmp := '0';
+            if adec.exponent > bdec.exponent then
+                v.exp_cmp := '1';
+            end if;
         end if;
 
         r_hi_nz <= or (r.r(55 downto 31));
@@ -433,6 +448,7 @@ begin
         opsel_ainv <= '0';
         opsel_amask <= '0';
         opsel_b <= BIN_ZERO;
+        opsel_binv <= '0';
         opsel_r <= RES_SUM;
         carry_in <= '0';
         misc_sel <= "0000";
@@ -442,6 +458,8 @@ begin
         invalid := '0';
         renormalize := '0';
         set_x := '0';
+        qnan_result := '0';
+        longmask := r.single_prec;
 
         case r.state is
             when IDLE =>
@@ -483,6 +501,8 @@ begin
                         when "01111" =>
                             v.round_mode := "001";
                             v.state := DO_FCTI;
+                        when "10100" | "10101" =>
+                            v.state := DO_FADD;
                         when others =>
                             illegal := '1';
                     end case;
@@ -717,6 +737,117 @@ begin
                     v.state := FINISH;
                 end if;
 
+            when DO_FADD =>
+                -- fadd[s] and fsub[s]
+                opsel_a <= AIN_A;
+                v.result_sign := r.a.negative;
+                v.result_class := r.a.class;
+                v.result_exp := r.a.exponent;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                is_add := r.a.negative xor r.b.negative xor r.insn(1);
+                if r.a.class = FINITE and r.b.class = FINITE then
+                    v.is_subtract := not is_add;
+                    v.add_bsmall := r.exp_cmp;
+                    if r.exp_cmp = '0' then
+                        v.shift := r.a.exponent - r.b.exponent;
+                        v.result_sign := r.b.negative xnor r.insn(1);
+                        if r.a.exponent = r.b.exponent then
+                            v.state := ADD_2;
+                        else
+                            v.state := ADD_SHIFT;
+                        end if;
+                    else
+                        opsel_a <= AIN_B;
+                        v.shift := r.b.exponent - r.a.exponent;
+                        v.result_exp := r.b.exponent;
+                        v.state := ADD_SHIFT;
+                    end if;
+                else
+                    if (r.a.class = NAN and r.a.mantissa(53) = '0') or
+                        (r.b.class = NAN and r.b.mantissa(53) = '0') then
+                        -- Signalling NAN
+                        v.fpscr(FPSCR_VXSNAN) := '1';
+                        invalid := '1';
+                    end if;
+                    if r.a.class = NAN then
+                        -- nothing to do, result is A
+                    elsif r.b.class = NAN then
+                        v.result_class := NAN;
+                        v.result_sign := r.b.negative;
+                        opsel_a <= AIN_B;
+                    elsif r.a.class = INFINITY and r.b.class = INFINITY and is_add = '0' then
+                        -- invalid operation, construct QNaN
+                        v.fpscr(FPSCR_VXISI) := '1';
+                        qnan_result := '1';
+                    elsif r.a.class = ZERO and r.b.class = ZERO and is_add = '0' then
+                        -- return -0 for rounding to -infinity
+                        v.result_sign := r.round_mode(1) and r.round_mode(0);
+                    elsif r.a.class = INFINITY or r.b.class = ZERO then
+                        -- nothing to do, result is A
+                    else
+                        -- result is +/- B
+                        v.result_sign := r.b.negative xnor r.insn(1);
+                        v.result_class := r.b.class;
+                        v.result_exp := r.b.exponent;
+                        opsel_a <= AIN_B;
+                    end if;
+                    arith_done := '1';
+                end if;
+
+            when ADD_SHIFT =>
+                opsel_r <= RES_SHIFT;
+                set_x := '1';
+                longmask := '0';
+                v.state := ADD_2;
+
+            when ADD_2 =>
+                if r.add_bsmall = '1' then
+                    opsel_a <= AIN_A;
+                else
+                    opsel_a <= AIN_B;
+                end if;
+                opsel_b <= BIN_R;
+                opsel_binv <= r.is_subtract;
+                carry_in <= r.is_subtract and not r.x;
+                v.shift := to_signed(-1, EXP_BITS);
+                v.state := ADD_3;
+
+            when ADD_3 =>
+                -- check for overflow or negative result (can't get both)
+                if r.r(63) = '1' then
+                    -- result is opposite sign to expected
+                    v.result_sign := not r.result_sign;
+                    opsel_ainv <= '1';
+                    carry_in <= '1';
+                    v.state := FINISH;
+                elsif r.r(55) = '1' then
+                    -- sum overflowed, shift right
+                    opsel_r <= RES_SHIFT;
+                    set_x := '1';
+                    v.shift := to_signed(-2, EXP_BITS);
+                    if exp_huge = '1' then
+                        v.state := ROUND_OFLOW;
+                    else
+                        v.state := ROUNDING;
+                    end if;
+                elsif r.r(54) = '1' then
+                    set_x := '1';
+                    v.shift := to_signed(-2, EXP_BITS);
+                    v.state := ROUNDING;
+                elsif (r_hi_nz or r_lo_nz or r.r(1) or r.r(0)) = '0' then
+                    -- r.x must be zero at this point
+                    v.result_class := ZERO;
+                    if r.is_subtract = '1' then
+                        -- set result sign depending on rounding mode
+                        v.result_sign := r.round_mode(1) and r.round_mode(0);
+                    end if;
+                    arith_done := '1';
+                else
+                    renormalize := '1';
+                    v.state := NORMALIZE;
+                end if;
+
             when INT_SHIFT =>
                 opsel_r <= RES_SHIFT;
                 set_x := '1';
@@ -927,6 +1058,10 @@ begin
                 mant_nz := r_hi_nz or (r_lo_nz and not r.single_prec);
                 if mant_nz = '0' then
                     v.result_class := ZERO;
+                    if r.is_subtract = '1' then
+                        -- set result sign depending on rounding mode
+                        v.result_sign := r.round_mode(1) and r.round_mode(0);
+                    end if;
                     arith_done := '1';
                 else
                     -- Renormalize result after rounding
@@ -946,6 +1081,13 @@ begin
 
         end case;
 
+        if qnan_result = '1' then
+            invalid := '1';
+            v.result_class := NAN;
+            v.result_sign := '0';
+            misc_sel <= "0001";
+            opsel_r <= RES_MISC;
+        end if;
         if arith_done = '1' then
             -- Enabled invalid exception doesn't write result or FPRF
             if (invalid and r.fpscr(FPSCR_VE)) = '0' then
@@ -960,7 +1102,7 @@ begin
         -- Data path.
         -- This has A and B input multiplexers, an adder, a shifter,
         -- count-leading-zeroes logic, and a result mux.
-        if r.single_prec = '1' then
+        if longmask = '1' then
             mshift := r.shift + to_signed(-29, EXP_BITS);
         else
             mshift := r.shift;
@@ -1000,6 +1142,9 @@ begin
             when others =>
                 in_b0 := (others => '0');
         end case;
+        if opsel_binv = '1' then
+            in_b0 := not in_b0;
+        end if;
         in_b <= in_b0;
         if r.shift >= to_signed(-64, EXP_BITS) and r.shift <= to_signed(63, EXP_BITS) then
             shift_res := shifter_64(r.r & x"00000000000000",
@@ -1016,6 +1161,9 @@ begin
                 case misc_sel is
                     when "0000" =>
                         misc := x"00000000" & (r.fpscr and fpscr_mask);
+                    when "0001" =>
+                        -- generated QNaN mantissa
+                        misc := x"0020000000000000";
                     when "0010" =>
                         -- mantissa of max representable DP number
                         misc := x"007ffffffffffffc";

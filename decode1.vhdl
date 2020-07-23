@@ -58,6 +58,7 @@ architecture behaviour of decode1 is
     type op_59_subop_array_t is array(0 to 31) of decode_rom_t;
     type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
     type op_63_subop_array_0_t is array(0 to 511) of decode_rom_t;
+    type op_63_subop_array_1_t is array(0 to 16) of decode_rom_t;
 
     constant major_decode_rom_array : major_rom_array_t := (
         --          unit     internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
@@ -415,6 +416,8 @@ architecture behaviour of decode1 is
         --             unit   internal       in1   in2   in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
         --                          op                               in   out   A   out  in    out  len        ext                                pipe
         2#01110#  =>  (FPU,   OP_FPOP_I,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fcfid[u]s
+        2#10100#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fsubs
+        2#10101#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fadds
         others => illegal_inst
         );
 
@@ -458,6 +461,15 @@ architecture behaviour of decode1 is
         2#111100100#  => (FPU,   OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), --  4/15=fctiwuz
         2#111111001#  => (FPU,   OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- 25/15=fctidz
         2#111111101#  => (FPU,   OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- 29/15=fctiduz
+        others => illegal_inst
+        );
+
+    -- indexed by bits 4..1 of instruction word
+    constant decode_op_63h_array : op_63_subop_array_1_t := (
+        --            unit   internal       in1   in2   in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+        --                         op                               in   out   A   out  in    out  len        ext                                pipe
+        2#0100#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fsub
+        2#0101#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fadd
         others => illegal_inst
         );
 
@@ -626,8 +638,11 @@ begin
         when 63 =>
             if HAS_FPU then
                 -- floating point operations, general and double-precision
-                v.decode := decode_op_63l_array(to_integer(unsigned(f_in.insn(4 downto 1) & f_in.insn(10 downto 6))));
-                vi.override := f_in.insn(5);
+                if f_in.insn(5) = '0' then
+                    v.decode := decode_op_63l_array(to_integer(unsigned(f_in.insn(4 downto 1) & f_in.insn(10 downto 6))));
+                else
+                    v.decode := decode_op_63h_array(to_integer(unsigned(f_in.insn(4 downto 1))));
+                end if;
             end if;
 
         when others =>
