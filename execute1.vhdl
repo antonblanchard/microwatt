@@ -89,8 +89,8 @@ architecture behaviour of execute1 is
     signal countzero_result: std_ulogic_vector(63 downto 0);
 
     -- multiply signals
-    signal x_to_multiply: Execute1ToMultiplyType;
-    signal multiply_to_x: MultiplyToExecute1Type;
+    signal x_to_multiply: MultiplyInputType;
+    signal multiply_to_x: MultiplyOutputType;
 
     -- divider signals
     signal x_to_divider: Execute1ToDividerType;
@@ -396,7 +396,7 @@ begin
             abs2 := - signed(b_in);
         end if;
 
-	x_to_multiply <= Execute1ToMultiplyInit;
+	x_to_multiply <= MultiplyInputInit;
 	x_to_multiply.is_32bit <= e_in.is_32bit;
 
         x_to_divider <= Execute1ToDividerInit;
@@ -406,7 +406,8 @@ begin
             x_to_divider.is_modulus <= '1';
         end if;
 
-        x_to_multiply.neg_result <= sign1 xor sign2;
+        x_to_multiply.not_result <= sign1 xor sign2;
+        x_to_multiply.addend <= (others => sign1 xor sign2);
         x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
         if e_in.is_32bit = '0' then
             -- 64-bit forms

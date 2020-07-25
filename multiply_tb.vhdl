@@ -17,8 +17,8 @@ architecture behave of multiply_tb is
 
     constant pipeline_depth : integer := 4;
 
-    signal m1               : Execute1ToMultiplyType := Execute1ToMultiplyInit;
-    signal m2               : MultiplyToExecute1Type;
+    signal m1               : MultiplyInputType := MultiplyInputInit;
+    signal m2               : MultiplyOutputType;
 
     function absval(x: std_ulogic_vector) return std_ulogic_vector is
     begin
@@ -45,6 +45,7 @@ begin
     stim_process: process
         variable ra, rb, rt, behave_rt: std_ulogic_vector(63 downto 0);
         variable si: std_ulogic_vector(15 downto 0);
+        variable sign: std_ulogic;
     begin
         wait for clk_period;
 
@@ -90,7 +91,9 @@ begin
 
             m1.data1 <= absval(ra);
             m1.data2 <= absval(rb);
-            m1.neg_result <= ra(63) xor rb(63);
+            sign := ra(63) xor rb(63);
+            m1.not_result <= sign;
+            m1.addend <= (others => sign);
             m1.valid <= '1';
 
             wait for clk_period;
@@ -114,7 +117,8 @@ begin
 
             m1.data1 <= ra;
             m1.data2 <= rb;
-            m1.neg_result <= '0';
+            m1.not_result <= '0';
+            m1.addend <= (others => '0');
             m1.valid <= '1';
 
             wait for clk_period;
@@ -138,7 +142,9 @@ begin
 
             m1.data1 <= absval(ra);
             m1.data2 <= absval(rb);
-            m1.neg_result <= ra(63) xor rb(63);
+            sign := ra(63) xor rb(63);
+            m1.not_result <= sign;
+            m1.addend <= (others => sign);
             m1.valid <= '1';
 
             wait for clk_period;
@@ -164,7 +170,9 @@ begin
             m1.data1(31 downto 0) <= absval(ra(31 downto 0));
             m1.data2 <= (others => '0');
             m1.data2(31 downto 0) <= absval(rb(31 downto 0));
-            m1.neg_result <= ra(31) xor rb(31);
+            sign := ra(31) xor rb(31);
+            m1.not_result <= sign;
+            m1.addend <= (others => sign);
             m1.valid <= '1';
 
             wait for clk_period;
@@ -190,7 +198,9 @@ begin
             m1.data1(31 downto 0) <= absval(ra(31 downto 0));
             m1.data2 <= (others => '0');
             m1.data2(31 downto 0) <= absval(rb(31 downto 0));
-            m1.neg_result <= ra(31) xor rb(31);
+            sign := ra(31) xor rb(31);
+            m1.not_result <= sign;
+            m1.addend <= (others => sign);
             m1.valid <= '1';
 
             wait for clk_period;
@@ -217,7 +227,8 @@ begin
             m1.data1(31 downto 0) <= ra(31 downto 0);
             m1.data2 <= (others => '0');
             m1.data2(31 downto 0) <= rb(31 downto 0);
-            m1.neg_result <= '0';
+            m1.not_result <= '0';
+            m1.addend <= (others => '0');
             m1.valid <= '1';
 
             wait for clk_period;
@@ -243,7 +254,9 @@ begin
             m1.data1 <= absval(ra);
             m1.data2 <= (others => '0');
             m1.data2(15 downto 0) <= absval(si);
-            m1.neg_result <= ra(63) xor si(15);
+            sign := ra(63) xor si(15);
+            m1.not_result <= sign;
+            m1.addend <= (others => sign);
             m1.valid <= '1';
 
             wait for clk_period;
