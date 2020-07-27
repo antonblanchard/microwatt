@@ -38,12 +38,15 @@ architecture behaviour of multiply is
     end record;
 
     signal r, rin : reg_type := (multiply_pipeline => MultiplyPipelineInit);
+    signal overflow : std_ulogic;
+    signal ovf_in   : std_ulogic;
 begin
     multiply_0: process(clk)
     begin
         if rising_edge(clk) then
             m <= m_in;
             r <= rin;
+            overflow <= ovf_in;
         end if;
     end process;
 
@@ -74,9 +77,10 @@ begin
         else
             ov := (or d(127 downto 63)) and not (and d(127 downto 63));
         end if;
+        ovf_in <= ov;
 
         m_out.result <= d;
-        m_out.overflow <= ov;
+        m_out.overflow <= overflow;
         m_out.valid <= v.multiply_pipeline(PIPELINE_DEPTH-1).valid;
 
         rin <= v;

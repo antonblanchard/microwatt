@@ -35,6 +35,7 @@ architecture behaviour of multiply is
     signal req_32bit, r32_1 : std_ulogic;
     signal req_not, rnot_1 : std_ulogic;
     signal valid_1 : std_ulogic;
+    signal overflow, ovf_in : std_ulogic;
 
 begin
     addend <= m_in.addend;
@@ -964,9 +965,10 @@ begin
             ov := not ((p1_pat and p0_pat and not product(31)) or
                        (p1_patb and p0_patb and product(31)));
         end if;
+        ovf_in <= ov;
 
         m_out.result <= product;
-        m_out.overflow <= ov;
+        m_out.overflow <= overflow;
     end process;
 
     process(clk)
@@ -979,6 +981,7 @@ begin
             r32_1 <= m_in.is_32bit;
             req_not <= rnot_1;
             rnot_1 <= m_in.not_result;
+            overflow <= ovf_in;
         end if;
     end process;
 

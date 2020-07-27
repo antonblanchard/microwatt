@@ -56,6 +56,7 @@ architecture behaviour of execute1 is
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
 	mul_in_progress : std_ulogic;
+        mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
         slow_op_insn : insn_type_t;
@@ -69,7 +70,7 @@ architecture behaviour of execute1 is
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, f => Execute1ToFetch1Init,
          busy => '0', lr_update => '0', terminate => '0',
-         mul_in_progress => '0', div_in_progress => '0', cntz_in_progress => '0',
+         mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
          slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
          next_lr => (others => '0'), last_nia => (others => '0'), others => (others => '0'));
 
@@ -371,6 +372,7 @@ begin
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
+        v.mul_finish := '0';
 
         -- signals to multiply and divide units
         sign1 := '0';
@@ -965,31 +967,47 @@ begin
                         when others =>
                             -- i.e. OP_MUL_L64
                             result := multiply_to_x.result(63 downto 0);
-                            overflow := multiply_to_x.overflow;
                     end case;
 		else
 		    result := divider_to_x.write_reg_data;
 		    overflow := divider_to_x.overflow;
 		end if;
-		result_en := '1';
-		v.e.write_reg := gpr_to_gspr(v.slow_op_dest);
-		v.e.rc := v.slow_op_rc;
-		v.e.xerc := v.slow_op_xerc;
-		v.e.write_xerc_enable := v.slow_op_oe;
-		-- We must test oe because the RC update code in writeback
-		-- will use the xerc value to set CR0:SO so we must not clobber
-		-- xerc if OE wasn't set.
-		if v.slow_op_oe = '1' then
-		    v.e.xerc.ov := overflow;
-		    v.e.xerc.ov32 := overflow;
-		    v.e.xerc.so := v.slow_op_xerc.so or overflow;
-		end if;
-		v.e.valid := '1';
+                if r.mul_in_progress = '1' and r.slow_op_oe = '1' then
+                    -- have to wait until next cycle for overflow indication
+                    v.mul_finish := '1';
+                    v.busy := '1';
+                else
+                    result_en := '1';
+                    v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
+                    v.e.rc := r.slow_op_rc;
+                    v.e.xerc := r.slow_op_xerc;
+                    v.e.write_xerc_enable := r.slow_op_oe;
+                    -- We must test oe because the RC update code in writeback
+                    -- will use the xerc value to set CR0:SO so we must not clobber
+                    -- xerc if OE wasn't set.
+                    if r.slow_op_oe = '1' then
+                        v.e.xerc.ov := overflow;
+                        v.e.xerc.ov32 := overflow;
+                        v.e.xerc.so := r.slow_op_xerc.so or overflow;
+                    end if;
+                    v.e.valid := '1';
+                end if;
 	    else
 		v.busy := '1';
 		v.mul_in_progress := r.mul_in_progress;
 		v.div_in_progress := r.div_in_progress;
 	    end if;
+        elsif r.mul_finish = '1' then
+            result := r.e.write_data;
+            result_en := '1';
+            v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
+            v.e.rc := r.slow_op_rc;
+            v.e.xerc := r.slow_op_xerc;
+            v.e.write_xerc_enable := r.slow_op_oe;
+            v.e.xerc.ov := multiply_to_x.overflow;
+            v.e.xerc.ov32 := multiply_to_x.overflow;
+            v.e.xerc.so := r.slow_op_xerc.so or multiply_to_x.overflow;
+            v.e.valid := '1';
 	end if;
 
         if illegal = '1' then
