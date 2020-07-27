@@ -152,6 +152,12 @@ architecture behaviour of decode2 is
                 else
                     return ('0', (others => '0'), (others => '0'));
                 end if;
+            when FRC =>
+                if HAS_FPU then
+                    return ('1', fpr_to_gspr(insn_frc(insn_in)), reg_data);
+                else
+                    return ('0', (others => '0'), (others => '0'));
+                end if;
             when NONE =>
                 return ('0', (others => '0'), (others => '0'));
         end case;
@@ -308,6 +314,7 @@ begin
                        else fpr_to_gspr(insn_frb(d_in.insn)) when d_in.decode.input_reg_b = FRB and HAS_FPU
                        else gpr_to_gspr(insn_rb(d_in.insn));
     r_out.read3_reg <= gpr_to_gspr(insn_rcreg(d_in.insn)) when d_in.decode.input_reg_c = RCR
+                       else fpr_to_gspr(insn_frc(d_in.insn)) when d_in.decode.input_reg_c = FRC and HAS_FPU
                        else fpr_to_gspr(insn_frt(d_in.insn)) when d_in.decode.input_reg_c = FRS and HAS_FPU
                        else gpr_to_gspr(insn_rs(d_in.insn));
 

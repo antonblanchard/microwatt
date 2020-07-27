@@ -40,15 +40,18 @@ architecture behaviour of fpu is
                      DO_FMR, DO_FMRG,
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
-                     DO_FADD,
+                     DO_FADD, DO_FMUL,
                      FRI_1,
                      ADD_SHIFT, ADD_2, ADD_3,
+                     MULT_1,
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
                      ROUND_UFLOW, ROUND_OFLOW,
                      ROUNDING, ROUNDING_2, ROUNDING_3,
-                     DENORM);
+                     DENORM,
+                     RENORM_A, RENORM_A2,
+                     RENORM_C, RENORM_C2);
 
     type reg_type is record
         state        : state_t;
@@ -65,8 +68,10 @@ architecture behaviour of fpu is
         fpscr        : std_ulogic_vector(31 downto 0);
         a            : fpu_reg_type;
         b            : fpu_reg_type;
+        c            : fpu_reg_type;
         r            : std_ulogic_vector(63 downto 0);  -- 10.54 format
         x            : std_ulogic;
+        p            : std_ulogic_vector(63 downto 0);  -- 8.56 format
         result_sign  : std_ulogic;
         result_class : fp_number_class;
         result_exp   : signed(EXP_BITS-1 downto 0);
@@ -84,6 +89,8 @@ architecture behaviour of fpu is
         is_subtract  : std_ulogic;
         exp_cmp      : std_ulogic;
         add_bsmall   : std_ulogic;
+        is_multiply  : std_ulogic;
+        first        : std_ulogic;
     end record;
 
     signal r, rin : reg_type;
@@ -103,11 +110,17 @@ architecture behaviour of fpu is
     signal r_hi_nz       : std_ulogic;
     signal r_lo_nz       : std_ulogic;
     signal misc_sel      : std_ulogic_vector(3 downto 0);
+    signal f_to_multiply : MultiplyInputType;
+    signal multiply_to_f : MultiplyOutputType;
+    signal msel_1        : std_ulogic_vector(1 downto 0);
+    signal msel_2        : std_ulogic_vector(1 downto 0);
+    signal msel_inv      : std_ulogic;
 
     -- opsel values
     constant AIN_R    : std_ulogic_vector(1 downto 0) := "00";
     constant AIN_A    : std_ulogic_vector(1 downto 0) := "01";
     constant AIN_B    : std_ulogic_vector(1 downto 0) := "10";
+    constant AIN_C    : std_ulogic_vector(1 downto 0) := "11";
 
     constant BIN_ZERO : std_ulogic_vector(1 downto 0) := "00";
     constant BIN_R    : std_ulogic_vector(1 downto 0) := "01";
@@ -115,7 +128,16 @@ architecture behaviour of fpu is
 
     constant RES_SUM   : std_ulogic_vector(1 downto 0) := "00";
     constant RES_SHIFT : std_ulogic_vector(1 downto 0) := "01";
+    constant RES_MULT  : std_ulogic_vector(1 downto 0) := "10";
     constant RES_MISC  : std_ulogic_vector(1 downto 0) := "11";
+
+    -- msel values
+    constant MUL1_A : std_ulogic_vector(1 downto 0) := "00";
+    constant MUL1_B : std_ulogic_vector(1 downto 0) := "01";
+    constant MUL1_R : std_ulogic_vector(1 downto 0) := "11";
+
+    constant MUL2_C   : std_ulogic_vector(1 downto 0) := "00";
+    constant MUL2_R   : std_ulogic_vector(1 downto 0) := "11";
 
     -- Left and right shifter with 120 bit input and 64 bit output.
     -- Shifts inp left by shift bits and returns the upper 64 bits of
@@ -313,6 +335,13 @@ architecture behaviour of fpu is
     end;
 
 begin
+    fpu_multiply_0: entity work.multiply
+        port map (
+            clk => clk,
+            m_in => f_to_multiply,
+            m_out => multiply_to_f
+            );
+
     fpu_0: process(clk)
     begin
         if rising_edge(clk) then
@@ -347,6 +376,7 @@ begin
         variable v           : reg_type;
         variable adec        : fpu_reg_type;
         variable bdec        : fpu_reg_type;
+        variable cdec        : fpu_reg_type;
         variable fpscr_mask  : std_ulogic_vector(31 downto 0);
         variable illegal     : std_ulogic;
         variable j, k        : integer;
@@ -377,6 +407,10 @@ begin
         variable is_add      : std_ulogic;
         variable qnan_result : std_ulogic;
         variable longmask    : std_ulogic;
+        variable set_a       : std_ulogic;
+        variable set_c       : std_ulogic;
+        variable px_nz       : std_ulogic;
+        variable maddend     : std_ulogic_vector(127 downto 0);
     begin
         v := r;
         illegal := '0';
@@ -407,11 +441,15 @@ begin
             v.denorm := '0';
             v.round_mode := '0' & r.fpscr(FPSCR_RN+1 downto FPSCR_RN);
             v.is_subtract := '0';
+            v.is_multiply := '0';
             v.add_bsmall := '0';
             adec := decode_dp(e_in.fra, int_input);
             bdec := decode_dp(e_in.frb, int_input);
+            cdec := decode_dp(e_in.frc, int_input);
             v.a := adec;
             v.b := bdec;
+            v.c := cdec;
+
             v.exp_cmp := '0';
             if adec.exponent > bdec.exponent then
                 v.exp_cmp := '1';
@@ -440,10 +478,14 @@ begin
             exp_huge := '1';
         end if;
 
+        -- Compare P with zero
+        px_nz := or (r.p(57 downto 4));
+
         v.writing_back := '0';
         v.instr_done := '0';
         v.update_fprf := '0';
         v.shift := to_signed(0, EXP_BITS);
+        v.first := '0';
         opsel_a <= AIN_R;
         opsel_ainv <= '0';
         opsel_amask <= '0';
@@ -460,6 +502,13 @@ begin
         set_x := '0';
         qnan_result := '0';
         longmask := r.single_prec;
+        set_a := '0';
+        set_c := '0';
+        f_to_multiply.is_32bit <= '0';
+        f_to_multiply.valid <= '0';
+        msel_1 <= MUL1_A;
+        msel_2 <= MUL2_C;
+        msel_inv <= '0';
 
         case r.state is
             when IDLE =>
@@ -503,6 +552,9 @@ begin
                             v.state := DO_FCTI;
                         when "10100" | "10101" =>
                             v.state := DO_FADD;
+                        when "11001" =>
+                            v.is_multiply := '1';
+                            v.state := DO_FMUL;
                         when others =>
                             illegal := '1';
                     end case;
@@ -795,6 +847,81 @@ begin
                     arith_done := '1';
                 end if;
 
+            when DO_FMUL =>
+                -- fmul[s]
+                opsel_a <= AIN_A;
+                v.result_sign := r.a.negative;
+                v.result_class := r.a.class;
+                v.result_exp := r.a.exponent;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                if r.a.class = FINITE and r.c.class = FINITE then
+                    v.result_sign := r.a.negative xor r.c.negative;
+                    v.result_exp := r.a.exponent + r.c.exponent;
+                    -- Renormalize denorm operands
+                    if r.a.mantissa(54) = '0' then
+                        v.state := RENORM_A;
+                    elsif r.c.mantissa(54) = '0' then
+                        opsel_a <= AIN_C;
+                        v.state := RENORM_C;
+                    else
+                        f_to_multiply.valid <= '1';
+                        v.state := MULT_1;
+                    end if;
+                else
+                    if (r.a.class = NAN and r.a.mantissa(53) = '0') or
+                        (r.c.class = NAN and r.c.mantissa(53) = '0') then
+                        -- Signalling NAN
+                        v.fpscr(FPSCR_VXSNAN) := '1';
+                        invalid := '1';
+                    end if;
+                    if r.a.class = NAN then
+                    -- result is A
+                    elsif r.c.class = NAN then
+                        v.result_class := NAN;
+                        v.result_sign := r.c.negative;
+                        opsel_a <= AIN_C;
+                    elsif (r.a.class = INFINITY and r.c.class = ZERO) or
+                        (r.a.class = ZERO and r.c.class = INFINITY) then
+                        -- invalid operation, construct QNaN
+                        v.fpscr(FPSCR_VXIMZ) := '1';
+                        qnan_result := '1';
+                    elsif r.a.class = ZERO or r.a.class = INFINITY then
+                        -- result is +/- A
+                        v.result_sign := r.a.negative xor r.c.negative;
+                    else
+                        -- r.c.class is ZERO or INFINITY
+                        v.result_class := r.c.class;
+                        v.result_sign := r.a.negative xor r.c.negative;
+                    end if;
+                    arith_done := '1';
+                end if;
+
+            when RENORM_A =>
+                renormalize := '1';
+                v.state := RENORM_A2;
+
+            when RENORM_A2 =>
+                set_a := '1';
+                v.result_exp := new_exp;
+                opsel_a <= AIN_C;
+                if r.c.mantissa(54) = '1' then
+                    v.first := '1';
+                    v.state := MULT_1;
+                else
+                    v.state := RENORM_C;
+                end if;
+
+            when RENORM_C =>
+                renormalize := '1';
+                v.state := RENORM_C2;
+
+            when RENORM_C2 =>
+                set_c := '1';
+                v.result_exp := new_exp;
+                v.first := '1';
+                v.state := MULT_1;
+
             when ADD_SHIFT =>
                 opsel_r <= RES_SHIFT;
                 set_x := '1';
@@ -846,6 +973,13 @@ begin
                 else
                     renormalize := '1';
                     v.state := NORMALIZE;
+                end if;
+
+            when MULT_1 =>
+                f_to_multiply.valid <= r.first;
+                opsel_r <= RES_MULT;
+                if multiply_to_f.valid = '1' then
+                    v.state := FINISH;
                 end if;
 
             when INT_SHIFT =>
@@ -930,6 +1064,9 @@ begin
                 v.state := ROUNDING;
 
             when FINISH =>
+                if r.is_multiply = '1' and px_nz = '1' then
+                    v.x := '1';
+                end if;
                 if r.r(63 downto 54) /= "0000000001" then
                     renormalize := '1';
                     v.state := NORMALIZE;
@@ -1099,6 +1236,32 @@ begin
             update_fx := '1';
         end if;
 
+        -- Multiplier data path
+        case msel_1 is
+            when MUL1_A =>
+                f_to_multiply.data1 <= r.a.mantissa(61 downto 0) & "00";
+            when MUL1_B =>
+                f_to_multiply.data1 <= r.b.mantissa(61 downto 0) & "00";
+            when others =>
+                f_to_multiply.data1 <= r.r(61 downto 0) & "00";
+        end case;
+        case msel_2 is
+            when MUL2_C =>
+                f_to_multiply.data2 <= r.c.mantissa(61 downto 0) & "00";
+            when others =>
+                f_to_multiply.data2 <= r.r(61 downto 0) & "00";
+        end case;
+        maddend := (others => '0');
+        if msel_inv = '1' then
+            f_to_multiply.addend <= not maddend;
+        else
+            f_to_multiply.addend <= maddend;
+        end if;
+        f_to_multiply.not_result <= msel_inv;
+        if multiply_to_f.valid = '1' then
+            v.p := multiply_to_f.result(63 downto 0);
+        end if;
+
         -- Data path.
         -- This has A and B input multiplexers, an adder, a shifter,
         -- count-leading-zeroes logic, and a result mux.
@@ -1119,8 +1282,10 @@ begin
                 in_a0 := r.r;
             when AIN_A =>
                 in_a0 := r.a.mantissa;
-            when others =>
+            when AIN_B =>
                 in_a0 := r.b.mantissa;
+            when others =>
+                in_a0 := r.c.mantissa;
         end case;
         if (or (mask and in_a0)) = '1' and set_x = '1' then
             v.x := '1';
@@ -1157,6 +1322,8 @@ begin
                 result <= std_ulogic_vector(unsigned(in_a) + unsigned(in_b) + carry_in);
             when RES_SHIFT =>
                 result <= shift_res;
+            when RES_MULT =>
+                result <= multiply_to_f.result(121 downto 58);
             when others =>
                 case misc_sel is
                     when "0000" =>
@@ -1206,6 +1373,15 @@ begin
                 result <= misc;
         end case;
         v.r := result;
+
+        if set_a = '1' then
+            v.a.exponent := new_exp;
+            v.a.mantissa := shift_res;
+        end if;
+        if set_c = '1' then
+            v.c.exponent := new_exp;
+            v.c.mantissa := shift_res;
+        end if;
 
         if opsel_r = RES_SHIFT then
             v.result_exp := new_exp;

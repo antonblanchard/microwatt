@@ -418,6 +418,7 @@ architecture behaviour of decode1 is
         2#01110#  =>  (FPU,   OP_FPOP_I,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fcfid[u]s
         2#10100#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fsubs
         2#10101#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fadds
+        2#11001#  =>  (FPU,   OP_FPOP,       FRA,  NONE, FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fmuls
         others => illegal_inst
         );
 
@@ -470,6 +471,7 @@ architecture behaviour of decode1 is
         --                         op                               in   out   A   out  in    out  len        ext                                pipe
         2#0100#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fsub
         2#0101#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fadd
+        2#1001#  =>  (FPU,   OP_FPOP,       FRA,  NONE, FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fmul
         others => illegal_inst
         );
 

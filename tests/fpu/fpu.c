@@ -205,6 +205,7 @@ struct sp_dp_equiv {
 	{ 0x00200000, 0x37f0000000000000 },
 	{ 0x00000002, 0x36b0000000000000 },
 	{ 0x00000001, 0x36a0000000000000 },
+	{ 0x7f7fffff, 0x47efffffe0000000 },
 };
 
 int sp_to_dp(long arg)
@@ -995,6 +996,83 @@ int fpu_test_14(void)
 	return trapit(0, test14);
 }
 
+struct mulvals {
+	unsigned long val_a;
+	unsigned long val_b;
+	unsigned long prod;
+} mulvals[] = {
+	{ 0x0000000000000000, 0x0000000000000000, 0x0000000000000000 },
+	{ 0x8000000000000000, 0x8000000000000000, 0x0000000000000000 },
+	{ 0x3ff0000000000000, 0x3ff0000000000000, 0x3ff0000000000000 },
+	{ 0xbff0000000000000, 0x3ff0000000000000, 0xbff0000000000000 },
+	{ 0xbf4fff801fffffff, 0x6d7fffff8000007f, 0xecdfff7fa001fffe },
+	{ 0x3fbd50275a65ed80, 0x0010000000000000, 0x0001d50275a65ed8 },
+};
+
+int test15(long arg)
+{
+	long i;
+	unsigned long result;
+	struct mulvals *vp = mulvals;
+
+	set_fpscr(FPS_RN_NEAR);
+	for (i = 0; i < sizeof(mulvals) / sizeof(mulvals[0]); ++i, ++vp) {
+		asm("lfd 5,0(%0); lfd 6,8(%0); fmul 7,5,6; stfd 7,0(%1)"
+		    : : "b" (&vp->val_a), "b" (&result) : "memory");
+		if (result != vp->prod) {
+			print_hex(i, 2, " ");
+			print_hex(result, 16, " ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_15(void)
+{
+	enable_fp();
+	return trapit(0, test15);
+}
+
+struct mulvals_sp {
+	unsigned int val_a;
+	unsigned int val_b;
+	unsigned int prod;
+} mulvals_sp[] = {
+	{ 0x00000000, 0x00000000, 0x00000000 },
+	{ 0x80000000, 0x80000000, 0x00000000 },
+	{ 0x3f800000, 0x3f800000, 0x3f800000 },
+	{ 0xbf800000, 0x3f800000, 0xbf800000 },
+	{ 0xbe7ff801, 0x6d7fffff, 0xec7ff800 },
+	{ 0xc100003d, 0xfe803ff8, 0x7f800000 },
+	{ 0x4f780080, 0x389003ff, 0x488b8427 },
+};
+
+int test16(long arg)
+{
+	long i;
+	unsigned int result;
+	struct mulvals_sp *vp = mulvals_sp;
+
+	set_fpscr(FPS_RN_NEAR);
+	for (i = 0; i < sizeof(mulvals_sp) / sizeof(mulvals_sp[0]); ++i, ++vp) {
+		asm("lfs 5,0(%0); lfs 6,4(%0); fmuls 7,5,6; stfs 7,0(%1)"
+		    : : "b" (&vp->val_a), "b" (&result) : "memory");
+		if (result != vp->prod) {
+			print_hex(i, 2, " ");
+			print_hex(result, 8, " ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_16(void)
+{
+	enable_fp();
+	return trapit(0, test16);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -1034,6 +1112,8 @@ int main(void)
 	do_test(12, fpu_test_12);
 	do_test(13, fpu_test_13);
 	do_test(14, fpu_test_14);
+	do_test(15, fpu_test_15);
+	do_test(16, fpu_test_16);
 
 	return fail;
 }
