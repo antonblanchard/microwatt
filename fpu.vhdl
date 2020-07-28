@@ -40,10 +40,12 @@ architecture behaviour of fpu is
                      DO_FMR, DO_FMRG,
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
-                     DO_FADD, DO_FMUL,
+                     DO_FADD, DO_FMUL, DO_FDIV,
                      FRI_1,
                      ADD_SHIFT, ADD_2, ADD_3,
                      MULT_1,
+                     LOOKUP,
+                     DIV_2, DIV_3, DIV_4, DIV_5, DIV_6,
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
@@ -51,6 +53,7 @@ architecture behaviour of fpu is
                      ROUNDING, ROUNDING_2, ROUNDING_3,
                      DENORM,
                      RENORM_A, RENORM_A2,
+                     RENORM_B, RENORM_B2,
                      RENORM_C, RENORM_C2);
 
     type reg_type is record
@@ -72,6 +75,7 @@ architecture behaviour of fpu is
         r            : std_ulogic_vector(63 downto 0);  -- 10.54 format
         x            : std_ulogic;
         p            : std_ulogic_vector(63 downto 0);  -- 8.56 format
+        y            : std_ulogic_vector(63 downto 0);  -- 8.56 format
         result_sign  : std_ulogic;
         result_class : fp_number_class;
         result_exp   : signed(EXP_BITS-1 downto 0);
@@ -91,7 +95,10 @@ architecture behaviour of fpu is
         add_bsmall   : std_ulogic;
         is_multiply  : std_ulogic;
         first        : std_ulogic;
+        count        : unsigned(1 downto 0);
     end record;
+
+    type lookup_table is array(0 to 255) of std_ulogic_vector(17 downto 0);
 
     signal r, rin : reg_type;
 
@@ -114,7 +121,9 @@ architecture behaviour of fpu is
     signal multiply_to_f : MultiplyOutputType;
     signal msel_1        : std_ulogic_vector(1 downto 0);
     signal msel_2        : std_ulogic_vector(1 downto 0);
+    signal msel_add      : std_ulogic_vector(1 downto 0);
     signal msel_inv      : std_ulogic;
+    signal inverse_est   : std_ulogic_vector(18 downto 0);
 
     -- opsel values
     constant AIN_R    : std_ulogic_vector(1 downto 0) := "00";
@@ -134,10 +143,60 @@ architecture behaviour of fpu is
     -- msel values
     constant MUL1_A : std_ulogic_vector(1 downto 0) := "00";
     constant MUL1_B : std_ulogic_vector(1 downto 0) := "01";
+    constant MUL1_Y : std_ulogic_vector(1 downto 0) := "10";
     constant MUL1_R : std_ulogic_vector(1 downto 0) := "11";
 
     constant MUL2_C   : std_ulogic_vector(1 downto 0) := "00";
+    constant MUL2_LUT : std_ulogic_vector(1 downto 0) := "01";
+    constant MUL2_P   : std_ulogic_vector(1 downto 0) := "10";
     constant MUL2_R   : std_ulogic_vector(1 downto 0) := "11";
+
+    constant MULADD_ZERO : std_ulogic_vector(1 downto 0) := "00";
+    constant MULADD_CONST : std_ulogic_vector(1 downto 0) := "01";
+    constant MULADD_A     : std_ulogic_vector(1 downto 0) := "10";
+
+    -- Inverse lookup table, indexed by the top 8 fraction bits
+    -- Output range is [0.5, 1) in 0.19 format, though the top
+    -- bit isn't stored since it is always 1.
+    -- Each output value is the inverse of the center of the input
+    -- range for the value, i.e. entry 0 is 1 / (1 + 1/512),
+    -- entry 1 is 1 / (1 + 3/512), etc.
+    signal inverse_table : lookup_table := (
+        -- 1/x lookup table
+        -- Unit bit is assumed to be 1, so input range is [1, 2)
+        18x"3fc01", 18x"3f411", 18x"3ec31", 18x"3e460", 18x"3dc9f", 18x"3d4ec", 18x"3cd49", 18x"3c5b5",
+        18x"3be2f", 18x"3b6b8", 18x"3af4f", 18x"3a7f4", 18x"3a0a7", 18x"39968", 18x"39237", 18x"38b14",
+        18x"383fe", 18x"37cf5", 18x"375f9", 18x"36f0a", 18x"36828", 18x"36153", 18x"35a8a", 18x"353ce",
+        18x"34d1e", 18x"3467a", 18x"33fe3", 18x"33957", 18x"332d7", 18x"32c62", 18x"325f9", 18x"31f9c",
+        18x"3194a", 18x"31303", 18x"30cc7", 18x"30696", 18x"30070", 18x"2fa54", 18x"2f443", 18x"2ee3d",
+        18x"2e841", 18x"2e250", 18x"2dc68", 18x"2d68b", 18x"2d0b8", 18x"2caee", 18x"2c52e", 18x"2bf79",
+        18x"2b9cc", 18x"2b429", 18x"2ae90", 18x"2a900", 18x"2a379", 18x"29dfb", 18x"29887", 18x"2931b",
+        18x"28db8", 18x"2885e", 18x"2830d", 18x"27dc4", 18x"27884", 18x"2734d", 18x"26e1d", 18x"268f6",
+        18x"263d8", 18x"25ec1", 18x"259b3", 18x"254ac", 18x"24fad", 18x"24ab7", 18x"245c8", 18x"240e1",
+        18x"23c01", 18x"23729", 18x"23259", 18x"22d90", 18x"228ce", 18x"22413", 18x"21f60", 18x"21ab4",
+        18x"2160f", 18x"21172", 18x"20cdb", 18x"2084b", 18x"203c2", 18x"1ff40", 18x"1fac4", 18x"1f64f",
+        18x"1f1e1", 18x"1ed79", 18x"1e918", 18x"1e4be", 18x"1e069", 18x"1dc1b", 18x"1d7d4", 18x"1d392",
+        18x"1cf57", 18x"1cb22", 18x"1c6f3", 18x"1c2ca", 18x"1bea7", 18x"1ba8a", 18x"1b672", 18x"1b261",
+        18x"1ae55", 18x"1aa50", 18x"1a64f", 18x"1a255", 18x"19e60", 18x"19a70", 18x"19686", 18x"192a2",
+        18x"18ec3", 18x"18ae9", 18x"18715", 18x"18345", 18x"17f7c", 18x"17bb7", 18x"177f7", 18x"1743d",
+        18x"17087", 18x"16cd7", 18x"1692c", 18x"16585", 18x"161e4", 18x"15e47", 18x"15ab0", 18x"1571d",
+        18x"1538e", 18x"15005", 18x"14c80", 18x"14900", 18x"14584", 18x"1420d", 18x"13e9b", 18x"13b2d",
+        18x"137c3", 18x"1345e", 18x"130fe", 18x"12da2", 18x"12a4a", 18x"126f6", 18x"123a7", 18x"1205c",
+        18x"11d15", 18x"119d2", 18x"11694", 18x"11359", 18x"11023", 18x"10cf1", 18x"109c2", 18x"10698",
+        18x"10372", 18x"10050", 18x"0fd31", 18x"0fa17", 18x"0f700", 18x"0f3ed", 18x"0f0de", 18x"0edd3",
+        18x"0eacb", 18x"0e7c7", 18x"0e4c7", 18x"0e1ca", 18x"0ded2", 18x"0dbdc", 18x"0d8eb", 18x"0d5fc",
+        18x"0d312", 18x"0d02b", 18x"0cd47", 18x"0ca67", 18x"0c78a", 18x"0c4b1", 18x"0c1db", 18x"0bf09",
+        18x"0bc3a", 18x"0b96e", 18x"0b6a5", 18x"0b3e0", 18x"0b11e", 18x"0ae5f", 18x"0aba3", 18x"0a8eb",
+        18x"0a636", 18x"0a383", 18x"0a0d4", 18x"09e28", 18x"09b80", 18x"098da", 18x"09637", 18x"09397",
+        18x"090fb", 18x"08e61", 18x"08bca", 18x"08936", 18x"086a5", 18x"08417", 18x"0818c", 18x"07f04",
+        18x"07c7e", 18x"079fc", 18x"0777c", 18x"074ff", 18x"07284", 18x"0700d", 18x"06d98", 18x"06b26",
+        18x"068b6", 18x"0664a", 18x"063e0", 18x"06178", 18x"05f13", 18x"05cb1", 18x"05a52", 18x"057f5",
+        18x"0559a", 18x"05342", 18x"050ed", 18x"04e9a", 18x"04c4a", 18x"049fc", 18x"047b0", 18x"04567",
+        18x"04321", 18x"040dd", 18x"03e9b", 18x"03c5c", 18x"03a1f", 18x"037e4", 18x"035ac", 18x"03376",
+        18x"03142", 18x"02f11", 18x"02ce2", 18x"02ab5", 18x"0288b", 18x"02663", 18x"0243d", 18x"02219",
+        18x"01ff7", 18x"01dd8", 18x"01bbb", 18x"019a0", 18x"01787", 18x"01570", 18x"0135b", 18x"01149",
+        18x"00f39", 18x"00d2a", 18x"00b1e", 18x"00914", 18x"0070c", 18x"00506", 18x"00302", 18x"00100"
+        );
 
     -- Left and right shifter with 120 bit input and 64 bit output.
     -- Shifts inp left by shift bits and returns the upper 64 bits of
@@ -359,6 +418,14 @@ begin
         end if;
     end process;
 
+    -- synchronous reads from lookup table
+    lut_access: process(clk)
+    begin
+        if rising_edge(clk) then
+            inverse_est <= '1' & inverse_table(to_integer(unsigned(r.b.mantissa(53 downto 46))));
+        end if;
+    end process;
+
     e_out.busy <= r.busy;
     e_out.exception <= r.fpscr(FPSCR_FEX);
     e_out.interrupt <= r.do_intr;
@@ -391,6 +458,7 @@ begin
         variable update_fx   : std_ulogic;
         variable arith_done  : std_ulogic;
         variable invalid     : std_ulogic;
+        variable zero_divide : std_ulogic;
         variable mant_nz     : std_ulogic;
         variable min_exp     : signed(EXP_BITS-1 downto 0);
         variable max_exp     : signed(EXP_BITS-1 downto 0);
@@ -408,9 +476,14 @@ begin
         variable qnan_result : std_ulogic;
         variable longmask    : std_ulogic;
         variable set_a       : std_ulogic;
+        variable set_b       : std_ulogic;
         variable set_c       : std_ulogic;
         variable px_nz       : std_ulogic;
         variable maddend     : std_ulogic_vector(127 downto 0);
+        variable set_y       : std_ulogic;
+        variable pcmpb_eq    : std_ulogic;
+        variable pcmpb_lt    : std_ulogic;
+        variable pshift      : std_ulogic;
     begin
         v := r;
         illegal := '0';
@@ -478,8 +551,16 @@ begin
             exp_huge := '1';
         end if;
 
-        -- Compare P with zero
+        -- Compare P with zero and with B
         px_nz := or (r.p(57 downto 4));
+        pcmpb_eq := '0';
+        if r.p(59 downto 4) = r.b.mantissa(55 downto 0) then
+            pcmpb_eq := '1';
+        end if;
+        pcmpb_lt := '0';
+        if unsigned(r.p(59 downto 4)) < unsigned(r.b.mantissa(55 downto 0)) then
+            pcmpb_lt := '1';
+        end if;
 
         v.writing_back := '0';
         v.instr_done := '0';
@@ -498,18 +579,22 @@ begin
         update_fx := '0';
         arith_done := '0';
         invalid := '0';
+        zero_divide := '0';
         renormalize := '0';
         set_x := '0';
         qnan_result := '0';
         longmask := r.single_prec;
         set_a := '0';
+        set_b := '0';
         set_c := '0';
         f_to_multiply.is_32bit <= '0';
         f_to_multiply.valid <= '0';
         msel_1 <= MUL1_A;
         msel_2 <= MUL2_C;
+        msel_add <= MULADD_ZERO;
         msel_inv <= '0';
-
+        set_y := '0';
+        pshift := '0';
         case r.state is
             when IDLE =>
                 if e_in.valid = '1' then
@@ -550,6 +635,8 @@ begin
                         when "01111" =>
                             v.round_mode := "001";
                             v.state := DO_FCTI;
+                        when "10010" =>
+                            v.state := DO_FDIV;
                         when "10100" | "10101" =>
                             v.state := DO_FADD;
                         when "11001" =>
@@ -897,6 +984,63 @@ begin
                     arith_done := '1';
                 end if;
 
+            when DO_FDIV =>
+                opsel_a <= AIN_A;
+                v.result_sign := r.a.negative;
+                v.result_class := r.a.class;
+                v.result_exp := r.a.exponent;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                v.result_sign := r.a.negative xor r.b.negative;
+                v.result_exp := r.a.exponent - r.b.exponent;
+                v.count := "00";
+                if r.a.class = FINITE and r.b.class = FINITE then
+                    -- Renormalize denorm operands
+                    if r.a.mantissa(54) = '0' then
+                        v.state := RENORM_A;
+                    elsif r.b.mantissa(54) = '0' then
+                        opsel_a <= AIN_B;
+                        v.state := RENORM_B;
+                    else
+                        v.first := '1';
+                        v.state := DIV_2;
+                    end if;
+                else
+                    if (r.a.class = NAN and r.a.mantissa(53) = '0') or
+                        (r.b.class = NAN and r.b.mantissa(53) = '0') then
+                        -- Signalling NAN
+                        v.fpscr(FPSCR_VXSNAN) := '1';
+                        invalid := '1';
+                    end if;
+                    if r.a.class = NAN then
+                        -- result is A
+                        v.result_sign := r.a.negative;
+                    elsif r.b.class = NAN then
+                        v.result_class := NAN;
+                        v.result_sign := r.b.negative;
+                        opsel_a <= AIN_B;
+                    elsif r.b.class = INFINITY then
+                        if r.a.class = INFINITY then
+                            v.fpscr(FPSCR_VXIDI) := '1';
+                            qnan_result := '1';
+                        else
+                            v.result_class := ZERO;
+                        end if;
+                    elsif r.b.class = ZERO then
+                        if r.a.class = ZERO then
+                            v.fpscr(FPSCR_VXZDZ) := '1';
+                            qnan_result := '1';
+                        else
+                            if r.a.class = FINITE then
+                                zero_divide := '1';
+                            end if;
+                            v.result_class := INFINITY;
+                        end if;
+                    -- else r.b.class = FINITE, result_class = r.a.class
+                    end if;
+                    arith_done := '1';
+                end if;
+
             when RENORM_A =>
                 renormalize := '1';
                 v.state := RENORM_A2;
@@ -904,13 +1048,32 @@ begin
             when RENORM_A2 =>
                 set_a := '1';
                 v.result_exp := new_exp;
-                opsel_a <= AIN_C;
-                if r.c.mantissa(54) = '1' then
-                    v.first := '1';
-                    v.state := MULT_1;
+                if r.insn(4) = '1' then
+                    opsel_a <= AIN_C;
+                    if r.c.mantissa(54) = '1' then
+                        v.first := '1';
+                        v.state := MULT_1;
+                    else
+                        v.state := RENORM_C;
+                    end if;
                 else
-                    v.state := RENORM_C;
+                        opsel_a <= AIN_B;
+                        if r.b.mantissa(54) = '1' then
+                            v.first := '1';
+                            v.state := DIV_2;
+                        else
+                            v.state := RENORM_B;
+                    end if;
                 end if;
+
+            when RENORM_B =>
+                renormalize := '1';
+                v.state := RENORM_B2;
+
+            when RENORM_B2 =>
+                set_b := '1';
+                v.result_exp := r.result_exp + r.shift;
+                v.state := LOOKUP;
 
             when RENORM_C =>
                 renormalize := '1';
@@ -981,6 +1144,82 @@ begin
                 if multiply_to_f.valid = '1' then
                     v.state := FINISH;
                 end if;
+
+            when LOOKUP =>
+                opsel_a <= AIN_B;
+                -- wait one cycle for inverse_table[B] lookup
+                v.first := '1';
+                v.state := DIV_2;
+
+            when DIV_2 =>
+                -- compute Y = inverse_table[B] (when count=0); P = 2 - B * Y
+                msel_1 <= MUL1_B;
+                msel_add <= MULADD_CONST;
+                msel_inv <= '1';
+                if r.count = 0 then
+                    msel_2 <= MUL2_LUT;
+                else
+                    msel_2 <= MUL2_P;
+                end if;
+                set_y := r.first;
+                pshift := '1';
+                f_to_multiply.valid <= r.first;
+                if multiply_to_f.valid = '1' then
+                    v.first := '1';
+                    v.count := r.count + 1;
+                    v.state := DIV_3;
+                end if;
+
+            when DIV_3 =>
+                -- compute Y = P = P * Y
+                msel_1 <= MUL1_Y;
+                msel_2 <= MUL2_P;
+                f_to_multiply.valid <= r.first;
+                pshift := '1';
+                if multiply_to_f.valid = '1' then
+                    v.first := '1';
+                    if r.count = 3 then
+                        v.state := DIV_4;
+                    else
+                        v.state := DIV_2;
+                    end if;
+                end if;
+
+            when DIV_4 =>
+                -- compute R = P = A * Y (quotient)
+                msel_1 <= MUL1_A;
+                msel_2 <= MUL2_P;
+                set_y := r.first;
+                f_to_multiply.valid <= r.first;
+                pshift := '1';
+                if multiply_to_f.valid = '1' then
+                    opsel_r <= RES_MULT;
+                    v.first := '1';
+                    v.state := DIV_5;
+                end if;
+
+            when DIV_5 =>
+                -- compute P = A - B * R (remainder)
+                msel_1 <= MUL1_B;
+                msel_2 <= MUL2_R;
+                msel_add <= MULADD_A;
+                msel_inv <= '1';
+                f_to_multiply.valid <= r.first;
+                if multiply_to_f.valid = '1' then
+                    v.state := DIV_6;
+                end if;
+
+            when DIV_6 =>
+                -- test if remainder is 0 or >= B
+                if pcmpb_lt = '1' then
+                    -- quotient is correct, set X if remainder non-zero
+                    v.x := r.p(58) or px_nz;
+                else
+                    -- quotient needs to be incremented by 1
+                    carry_in <= '1';
+                    v.x := not pcmpb_eq;
+                end if;
+                v.state := FINISH;
 
             when INT_SHIFT =>
                 opsel_r <= RES_SHIFT;
@@ -1218,6 +1457,9 @@ begin
 
         end case;
 
+        if zero_divide = '1' then
+            v.fpscr(FPSCR_ZX) := '1';
+        end if;
         if qnan_result = '1' then
             invalid := '1';
             v.result_class := NAN;
@@ -1227,7 +1469,9 @@ begin
         end if;
         if arith_done = '1' then
             -- Enabled invalid exception doesn't write result or FPRF
-            if (invalid and r.fpscr(FPSCR_VE)) = '0' then
+            -- Neither does enabled zero-divide exception
+            if (invalid and r.fpscr(FPSCR_VE)) = '0' and
+                (zero_divide and r.fpscr(FPSCR_ZE)) = '0' then
                 v.writing_back := '1';
                 v.update_fprf := '1';
             end if;
@@ -1236,30 +1480,52 @@ begin
             update_fx := '1';
         end if;
 
-        -- Multiplier data path
+        -- Multiplier and divide/square root data path
         case msel_1 is
             when MUL1_A =>
                 f_to_multiply.data1 <= r.a.mantissa(61 downto 0) & "00";
             when MUL1_B =>
                 f_to_multiply.data1 <= r.b.mantissa(61 downto 0) & "00";
+            when MUL1_Y =>
+                f_to_multiply.data1 <= r.y;
             when others =>
                 f_to_multiply.data1 <= r.r(61 downto 0) & "00";
         end case;
         case msel_2 is
             when MUL2_C =>
                 f_to_multiply.data2 <= r.c.mantissa(61 downto 0) & "00";
+            when MUL2_LUT =>
+                f_to_multiply.data2 <= x"00" & inverse_est & '0' & x"000000000";
+            when MUL2_P =>
+                f_to_multiply.data2 <= r.p;
             when others =>
                 f_to_multiply.data2 <= r.r(61 downto 0) & "00";
         end case;
         maddend := (others => '0');
+        case msel_add is
+            when MULADD_CONST =>
+                -- addend is 2.0 in 16.112 format
+                maddend(113) := '1';                -- 2.0
+            when MULADD_A =>
+                -- addend is A in 16.112 format
+                maddend(121 downto 58) := r.a.mantissa;
+            when others =>
+        end case;
         if msel_inv = '1' then
             f_to_multiply.addend <= not maddend;
         else
             f_to_multiply.addend <= maddend;
         end if;
         f_to_multiply.not_result <= msel_inv;
+        if set_y = '1' then
+            v.y := f_to_multiply.data2;
+        end if;
         if multiply_to_f.valid = '1' then
-            v.p := multiply_to_f.result(63 downto 0);
+            if pshift = '0' then
+                v.p := multiply_to_f.result(63 downto 0);
+            else
+                v.p := multiply_to_f.result(119 downto 56);
+            end if;
         end if;
 
         -- Data path.
@@ -1377,6 +1643,10 @@ begin
         if set_a = '1' then
             v.a.exponent := new_exp;
             v.a.mantissa := shift_res;
+        end if;
+        if set_b = '1' then
+            v.b.exponent := new_exp;
+            v.b.mantissa := shift_res;
         end if;
         if set_c = '1' then
             v.c.exponent := new_exp;

@@ -1007,6 +1007,7 @@ struct mulvals {
 	{ 0xbff0000000000000, 0x3ff0000000000000, 0xbff0000000000000 },
 	{ 0xbf4fff801fffffff, 0x6d7fffff8000007f, 0xecdfff7fa001fffe },
 	{ 0x3fbd50275a65ed80, 0x0010000000000000, 0x0001d50275a65ed8 },
+	{ 0x3fe95d8937acf1ce, 0x0000000000000001, 0x0000000000000001 },
 };
 
 int test15(long arg)
@@ -1073,6 +1074,43 @@ int fpu_test_16(void)
 	return trapit(0, test16);
 }
 
+struct divvals {
+	unsigned long val_a;
+	unsigned long val_b;
+	unsigned long prod;
+} divvals[] = {
+	{ 0x3ff0000000000000, 0x0000000000000000, 0x7ff0000000000000 },
+	{ 0x3ff0000000000000, 0x3ff0000000000000, 0x3ff0000000000000 },
+	{ 0xbff0000000000000, 0x3ff0000000000000, 0xbff0000000000000 },
+	{ 0x4000000000000000, 0x4008000000000000, 0x3fe5555555555555 },
+	{ 0xc01fff0007ffffff, 0xc03ffffffdffffbf, 0x3fcfff0009fff041 },
+};
+
+int test17(long arg)
+{
+	long i;
+	unsigned long result;
+	struct divvals *vp = divvals;
+
+	set_fpscr(FPS_RN_NEAR);
+	for (i = 0; i < sizeof(divvals) / sizeof(divvals[0]); ++i, ++vp) {
+		asm("lfd 5,0(%0); lfd 6,8(%0); fdiv 7,5,6; stfd 7,0(%1)"
+		    : : "b" (&vp->val_a), "b" (&result) : "memory");
+		if (result != vp->prod) {
+			print_hex(i, 2, " ");
+			print_hex(result, 16, " ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_17(void)
+{
+	enable_fp();
+	return trapit(0, test17);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -1114,6 +1152,7 @@ int main(void)
 	do_test(14, fpu_test_14);
 	do_test(15, fpu_test_15);
 	do_test(16, fpu_test_16);
+	do_test(17, fpu_test_17);
 
 	return fail;
 }
