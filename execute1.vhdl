@@ -949,9 +949,9 @@ begin
             -- cnt[lt]z always takes two cycles
             result := countzero_result;
             result_en := '1';
-            v.e.write_reg := gpr_to_gspr(v.slow_op_dest);
-            v.e.rc := v.slow_op_rc;
-            v.e.xerc := v.slow_op_xerc;
+            v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
+            v.e.rc := r.slow_op_rc;
+            v.e.xerc := r.slow_op_xerc;
             v.e.valid := '1';
 	elsif r.mul_in_progress = '1' or r.div_in_progress = '1' then
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
