@@ -41,11 +41,13 @@ architecture behaviour of fpu is
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
                      DO_FADD, DO_FMUL, DO_FDIV,
+                     DO_FRE,
                      FRI_1,
                      ADD_SHIFT, ADD_2, ADD_3,
                      MULT_1,
                      LOOKUP,
                      DIV_2, DIV_3, DIV_4, DIV_5, DIV_6,
+                     FRE_1,
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
@@ -639,6 +641,8 @@ begin
                             v.state := DO_FDIV;
                         when "10100" | "10101" =>
                             v.state := DO_FADD;
+                        when "11000" =>
+                            v.state := DO_FRE;
                         when "11001" =>
                             v.is_multiply := '1';
                             v.state := DO_FMUL;
@@ -1041,6 +1045,36 @@ begin
                     arith_done := '1';
                 end if;
 
+            when DO_FRE =>
+                opsel_a <= AIN_B;
+                v.result_class := r.b.class;
+                v.result_sign := r.b.negative;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                if r.b.class = NAN and r.b.mantissa(53) = '0' then
+                    v.fpscr(FPSCR_VXSNAN) := '1';
+                    invalid := '1';
+                end if;
+                case r.b.class is
+                    when FINITE =>
+                        v.result_exp := - r.b.exponent;
+                        if r.b.mantissa(54) = '0' then
+                            v.state := RENORM_B;
+                        else
+                            v.state := FRE_1;
+                        end if;
+                    when NAN =>
+                        -- result is B
+                        arith_done := '1';
+                    when INFINITY =>
+                        v.result_class := ZERO;
+                        arith_done := '1';
+                    when ZERO =>
+                        v.result_class := INFINITY;
+                        zero_divide := '1';
+                        arith_done := '1';
+                end case;
+
             when RENORM_A =>
                 renormalize := '1';
                 v.state := RENORM_A2;
@@ -1149,7 +1183,11 @@ begin
                 opsel_a <= AIN_B;
                 -- wait one cycle for inverse_table[B] lookup
                 v.first := '1';
-                v.state := DIV_2;
+                if r.insn(4) = '0' then
+                    v.state := DIV_2;
+                else
+                    v.state := FRE_1;
+                end if;
 
             when DIV_2 =>
                 -- compute Y = inverse_table[B] (when count=0); P = 2 - B * Y
@@ -1220,6 +1258,12 @@ begin
                     v.x := not pcmpb_eq;
                 end if;
                 v.state := FINISH;
+
+            when FRE_1 =>
+                opsel_r <= RES_MISC;
+                misc_sel <= "0111";
+                v.shift := to_signed(1, EXP_BITS);
+                v.state := NORMALIZE;
 
             when INT_SHIFT =>
                 opsel_r <= RES_SHIFT;
@@ -1609,6 +1653,8 @@ begin
                     when "0110" =>
                         -- fmrgew result
                         misc := r.a.mantissa(63 downto 32) & r.b.mantissa(63 downto 32);
+                    when "0111" =>
+                        misc := 10x"000" & inverse_est & 35x"000000000";
                     when "1000" =>
                         -- max positive result for fctiw[z]
                         misc := x"000000007fffffff";

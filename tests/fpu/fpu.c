@@ -1111,6 +1111,43 @@ int fpu_test_17(void)
 	return trapit(0, test17);
 }
 
+struct recipvals {
+	unsigned long val;
+	unsigned long inv;
+} recipvals[] = {
+	{ 0x0000000000000000, 0x7ff0000000000000 },
+	{ 0xfff0000000000000, 0x8000000000000000 },
+	{ 0x3ff0000000000000, 0x3feff00400000000 },
+	{ 0xbff0000000000000, 0xbfeff00400000000 },
+	{ 0x4008000000000000, 0x3fd54e3800000000 },
+	{ 0xc03ffffffdffffbf, 0xbfa0040000000000 },
+};
+
+int test18(long arg)
+{
+	long i;
+	unsigned long result;
+	struct recipvals *vp = recipvals;
+
+	set_fpscr(FPS_RN_NEAR);
+	for (i = 0; i < sizeof(recipvals) / sizeof(recipvals[0]); ++i, ++vp) {
+		asm("lfd 6,0(%0); fre 7,6; stfd 7,0(%1)"
+		    : : "b" (&vp->val), "b" (&result) : "memory");
+		if (result != vp->inv) {
+			print_hex(i, 2, " ");
+			print_hex(result, 16, " ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_18(void)
+{
+	enable_fp();
+	return trapit(0, test18);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -1153,6 +1190,7 @@ int main(void)
 	do_test(15, fpu_test_15);
 	do_test(16, fpu_test_16);
 	do_test(17, fpu_test_17);
+	do_test(18, fpu_test_18);
 
 	return fail;
 }
