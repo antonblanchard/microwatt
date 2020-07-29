@@ -42,6 +42,7 @@ architecture behaviour of fpu is
                      DO_FRSP, DO_FRI,
                      DO_FADD, DO_FMUL, DO_FDIV,
                      DO_FRE,
+                     DO_FSEL,
                      FRI_1,
                      ADD_SHIFT, ADD_2, ADD_3,
                      MULT_1,
@@ -641,6 +642,8 @@ begin
                             v.state := DO_FDIV;
                         when "10100" | "10101" =>
                             v.state := DO_FADD;
+                        when "10111" =>
+                            v.state := DO_FSEL;
                         when "11000" =>
                             v.state := DO_FRE;
                         when "11001" =>
@@ -1044,6 +1047,24 @@ begin
                     end if;
                     arith_done := '1';
                 end if;
+
+            when DO_FSEL =>
+                opsel_a <= AIN_A;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                if r.a.class = ZERO or (r.a.negative = '0' and r.a.class /= NAN) then
+                    v.result_sign := r.c.negative;
+                    v.result_exp := r.c.exponent;
+                    v.result_class := r.c.class;
+                    opsel_a <= AIN_C;
+                else
+                    v.result_sign := r.b.negative;
+                    v.result_exp := r.b.exponent;
+                    v.result_class := r.b.class;
+                    opsel_a <= AIN_B;
+                end if;
+                v.quieten_nan := '0';
+                arith_done := '1';
 
             when DO_FRE =>
                 opsel_a <= AIN_B;
