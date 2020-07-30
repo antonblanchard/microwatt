@@ -37,7 +37,7 @@ architecture behaviour of fpu is
 
     type state_t is (IDLE,
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
-                     DO_FMR, DO_FMRG,
+                     DO_FMR, DO_FMRG, DO_FCMP,
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
                      DO_FADD, DO_FMUL, DO_FDIV,
@@ -45,6 +45,7 @@ architecture behaviour of fpu is
                      DO_FSEL,
                      FRI_1,
                      ADD_SHIFT, ADD_2, ADD_3,
+                     CMP_1, CMP_2,
                      MULT_1,
                      LOOKUP,
                      DIV_2, DIV_3, DIV_4, DIV_5, DIV_6,
@@ -603,7 +604,11 @@ begin
                 if e_in.valid = '1' then
                     case e_in.insn(5 downto 1) is
                         when "00000" =>
-                            v.state := DO_MCRFS;
+                            if e_in.insn(7) = '1' then
+                                v.state := DO_MCRFS;
+                            else
+                                v.state := DO_FCMP;
+                            end if;
                         when "00110" =>
                             if e_in.insn(10) = '0' then
                                 if e_in.insn(8) = '0' then
@@ -668,6 +673,62 @@ begin
                 v.fpscr := r.fpscr and (fpscr_mask or x"6007F8FF");
                 v.instr_done := '1';
                 v.state := IDLE;
+
+            when DO_FCMP =>
+                -- fcmp[uo]
+                v.instr_done := '1';
+                v.state := IDLE;
+                update_fx := '1';
+                opsel_a <= AIN_B;
+                opsel_r <= RES_SUM;
+                v.result_exp := r.b.exponent;
+                if (r.a.class = NAN and r.a.mantissa(53) = '0') or
+                    (r.b.class = NAN and r.b.mantissa(53) = '0') then
+                    -- Signalling NAN
+                    v.fpscr(FPSCR_VXSNAN) := '1';
+                    if r.insn(6) = '1' and r.fpscr(FPSCR_VE) = '0' then
+                        v.fpscr(FPSCR_VXVC) := '1';
+                    end if;
+                    invalid := '1';
+                    v.cr_result := "0001";          -- unordered
+                elsif r.a.class = NAN or r.b.class = NAN then
+                    if r.insn(6) = '1' then
+                        -- fcmpo
+                        v.fpscr(FPSCR_VXVC) := '1';
+                        invalid := '1';
+                    end if;
+                    v.cr_result := "0001";          -- unordered
+                elsif r.a.class = ZERO and r.b.class = ZERO then
+                    v.cr_result := "0010";          -- equal
+                elsif r.a.negative /= r.b.negative then
+                    v.cr_result := r.a.negative & r.b.negative & "00";
+                elsif r.a.class = ZERO then
+                    -- A and B are the same sign from here down
+                    v.cr_result := not r.b.negative & r.b.negative & "00";
+                elsif r.a.class = INFINITY then
+                    if r.b.class = INFINITY then
+                        v.cr_result := "0010";
+                    else
+                        v.cr_result := r.a.negative & not r.a.negative & "00";
+                    end if;
+                elsif r.b.class = ZERO then
+                    -- A is finite from here down
+                    v.cr_result := r.a.negative & not r.a.negative & "00";
+                elsif r.b.class = INFINITY then
+                    v.cr_result := not r.b.negative & r.b.negative & "00";
+                elsif r.exp_cmp = '1' then
+                    -- A and B are both finite from here down
+                    v.cr_result := r.a.negative & not r.a.negative & "00";
+                elsif r.a.exponent /= r.b.exponent then
+                    -- A exponent is smaller than B
+                    v.cr_result := not r.a.negative & r.a.negative & "00";
+                else
+                    -- Prepare to subtract mantissas, put B in R
+                    v.cr_result := "0000";
+                    v.instr_done := '0';
+                    v.state := CMP_1;
+                end if;
+                v.fpscr(FPSCR_FL downto FPSCR_FU) := v.cr_result;
 
             when DO_MTFSB =>
                 -- mtfsb{0,1}
@@ -1192,6 +1253,26 @@ begin
                     renormalize := '1';
                     v.state := NORMALIZE;
                 end if;
+
+            when CMP_1 =>
+                opsel_a <= AIN_A;
+                opsel_b <= BIN_R;
+                opsel_binv <= '1';
+                carry_in <= '1';
+                v.state := CMP_2;
+
+            when CMP_2 =>
+                if r.r(63) = '1' then
+                    -- A is smaller in magnitude
+                    v.cr_result := not r.a.negative & r.a.negative & "00";
+                elsif (r_hi_nz or r_lo_nz) = '0' then
+                    v.cr_result := "0010";
+                else
+                    v.cr_result := r.a.negative & not r.a.negative & "00";
+                end if;
+                v.fpscr(FPSCR_FL downto FPSCR_FU) := v.cr_result;
+                v.instr_done := '1';
+                v.state := IDLE;
 
             when MULT_1 =>
                 f_to_multiply.valid <= r.first;
