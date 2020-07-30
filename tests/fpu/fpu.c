@@ -1244,6 +1244,53 @@ int fpu_test_20(void)
 	return trapit(0, test20);
 }
 
+struct isqrtvals {
+	unsigned long val;
+	unsigned long inv;
+} isqrtvals[] = {
+	{ 0x0000000000000000, 0x7ff0000000000000 },
+	{ 0x8000000000000000, 0xfff0000000000000 },
+	{ 0xfff0000000000000, 0x7ff8000000000000 },
+	{ 0x7ff0000000000000, 0x0000000000000000 },
+	{ 0xfff123456789abcd, 0xfff923456789abcd },
+	{ 0x3ff0000000000000, 0x3feff80000000000 },
+	{ 0x4000000000000000, 0x3fe69dc800000000 },
+	{ 0x4010000000000000, 0x3fdff80000000000 },
+	{ 0xbff0000000000000, 0x7ff8000000000000 },
+	{ 0x4008000000000000, 0x3fe2781800000000 },
+	{ 0x7fd0000000000000, 0x1ffff80000000000 },
+	{ 0x0008000000000000, 0x5fe69dc800000000 },
+	{ 0x0004000000000000, 0x5feff80000000000 },
+	{ 0x0002000000000000, 0x5ff69dc800000000 },
+	{ 0x0000000000000002, 0x61769dc800000000 },
+	{ 0x0000000000000001, 0x617ff80000000000 },
+};
+
+int test21(long arg)
+{
+	long i;
+	unsigned long result;
+	struct isqrtvals *vp = isqrtvals;
+
+	set_fpscr(FPS_RN_NEAR);
+	for (i = 0; i < sizeof(isqrtvals) / sizeof(isqrtvals[0]); ++i, ++vp) {
+		asm("lfd 6,0(%0); frsqrte 7,6; stfd 7,0(%1)"
+		    : : "b" (&vp->val), "b" (&result) : "memory");
+		if (result != vp->inv) {
+			print_hex(i, 2, " ");
+			print_hex(result, 16, " ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_21(void)
+{
+	enable_fp();
+	return trapit(0, test21);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -1289,6 +1336,7 @@ int main(void)
 	do_test(18, fpu_test_18);
 	do_test(19, fpu_test_19);
 	do_test(20, fpu_test_20);
+	do_test(21, fpu_test_21);
 
 	return fail;
 }

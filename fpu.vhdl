@@ -41,7 +41,7 @@ architecture behaviour of fpu is
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
                      DO_FADD, DO_FMUL, DO_FDIV,
-                     DO_FRE,
+                     DO_FRE, DO_FRSQRTE,
                      DO_FSEL,
                      FRI_1,
                      ADD_SHIFT, ADD_2, ADD_3,
@@ -50,6 +50,7 @@ architecture behaviour of fpu is
                      LOOKUP,
                      DIV_2, DIV_3, DIV_4, DIV_5, DIV_6,
                      FRE_1,
+                     RSQRT_1,
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
@@ -98,11 +99,12 @@ architecture behaviour of fpu is
         exp_cmp      : std_ulogic;
         add_bsmall   : std_ulogic;
         is_multiply  : std_ulogic;
+        is_sqrt      : std_ulogic;
         first        : std_ulogic;
         count        : unsigned(1 downto 0);
     end record;
 
-    type lookup_table is array(0 to 255) of std_ulogic_vector(17 downto 0);
+    type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
 
     signal r, rin : reg_type;
 
@@ -160,6 +162,8 @@ architecture behaviour of fpu is
     constant MULADD_A     : std_ulogic_vector(1 downto 0) := "10";
 
     -- Inverse lookup table, indexed by the top 8 fraction bits
+    -- The first 256 entries are the reciprocal (1/x) lookup table,
+    -- and the remaining 768 entries are the reciprocal square root table.
     -- Output range is [0.5, 1) in 0.19 format, though the top
     -- bit isn't stored since it is always 1.
     -- Each output value is the inverse of the center of the input
@@ -199,7 +203,109 @@ architecture behaviour of fpu is
         18x"04321", 18x"040dd", 18x"03e9b", 18x"03c5c", 18x"03a1f", 18x"037e4", 18x"035ac", 18x"03376",
         18x"03142", 18x"02f11", 18x"02ce2", 18x"02ab5", 18x"0288b", 18x"02663", 18x"0243d", 18x"02219",
         18x"01ff7", 18x"01dd8", 18x"01bbb", 18x"019a0", 18x"01787", 18x"01570", 18x"0135b", 18x"01149",
-        18x"00f39", 18x"00d2a", 18x"00b1e", 18x"00914", 18x"0070c", 18x"00506", 18x"00302", 18x"00100"
+        18x"00f39", 18x"00d2a", 18x"00b1e", 18x"00914", 18x"0070c", 18x"00506", 18x"00302", 18x"00100",
+        -- 1/sqrt(x) lookup table
+        -- Input is in the range [1, 4), i.e. two bits to the left of the
+        -- binary point.  Those 2 bits index the following 3 blocks of 256 values.
+        -- 1.0 ... 1.9999
+        18x"3fe00", 18x"3fa06", 18x"3f612", 18x"3f224", 18x"3ee3a", 18x"3ea58", 18x"3e67c", 18x"3e2a4",
+        18x"3ded2", 18x"3db06", 18x"3d73e", 18x"3d37e", 18x"3cfc2", 18x"3cc0a", 18x"3c85a", 18x"3c4ae",
+        18x"3c106", 18x"3bd64", 18x"3b9c8", 18x"3b630", 18x"3b29e", 18x"3af10", 18x"3ab86", 18x"3a802",
+        18x"3a484", 18x"3a108", 18x"39d94", 18x"39a22", 18x"396b6", 18x"3934e", 18x"38fea", 18x"38c8c",
+        18x"38932", 18x"385dc", 18x"3828a", 18x"37f3e", 18x"37bf6", 18x"378b2", 18x"37572", 18x"37236",
+        18x"36efe", 18x"36bca", 18x"3689a", 18x"36570", 18x"36248", 18x"35f26", 18x"35c06", 18x"358ea",
+        18x"355d4", 18x"352c0", 18x"34fb0", 18x"34ca4", 18x"3499c", 18x"34698", 18x"34398", 18x"3409c",
+        18x"33da2", 18x"33aac", 18x"337bc", 18x"334cc", 18x"331e2", 18x"32efc", 18x"32c18", 18x"32938",
+        18x"3265a", 18x"32382", 18x"320ac", 18x"31dd8", 18x"31b0a", 18x"3183e", 18x"31576", 18x"312b0",
+        18x"30fee", 18x"30d2e", 18x"30a74", 18x"307ba", 18x"30506", 18x"30254", 18x"2ffa4", 18x"2fcf8",
+        18x"2fa4e", 18x"2f7a8", 18x"2f506", 18x"2f266", 18x"2efca", 18x"2ed2e", 18x"2ea98", 18x"2e804",
+        18x"2e572", 18x"2e2e4", 18x"2e058", 18x"2ddce", 18x"2db48", 18x"2d8c6", 18x"2d646", 18x"2d3c8",
+        18x"2d14c", 18x"2ced4", 18x"2cc5e", 18x"2c9ea", 18x"2c77a", 18x"2c50c", 18x"2c2a2", 18x"2c038",
+        18x"2bdd2", 18x"2bb70", 18x"2b90e", 18x"2b6b0", 18x"2b454", 18x"2b1fa", 18x"2afa4", 18x"2ad4e",
+        18x"2aafc", 18x"2a8ac", 18x"2a660", 18x"2a414", 18x"2a1cc", 18x"29f86", 18x"29d42", 18x"29b00",
+        18x"298c2", 18x"29684", 18x"2944a", 18x"29210", 18x"28fda", 18x"28da6", 18x"28b74", 18x"28946",
+        18x"28718", 18x"284ec", 18x"282c4", 18x"2809c", 18x"27e78", 18x"27c56", 18x"27a34", 18x"27816",
+        18x"275fa", 18x"273e0", 18x"271c8", 18x"26fb0", 18x"26d9c", 18x"26b8a", 18x"2697a", 18x"2676c",
+        18x"26560", 18x"26356", 18x"2614c", 18x"25f46", 18x"25d42", 18x"25b40", 18x"2593e", 18x"25740",
+        18x"25542", 18x"25348", 18x"2514e", 18x"24f58", 18x"24d62", 18x"24b6e", 18x"2497c", 18x"2478c",
+        18x"2459e", 18x"243b0", 18x"241c6", 18x"23fde", 18x"23df6", 18x"23c10", 18x"23a2c", 18x"2384a",
+        18x"2366a", 18x"2348c", 18x"232ae", 18x"230d2", 18x"22efa", 18x"22d20", 18x"22b4a", 18x"22976",
+        18x"227a2", 18x"225d2", 18x"22402", 18x"22234", 18x"22066", 18x"21e9c", 18x"21cd2", 18x"21b0a",
+        18x"21944", 18x"2177e", 18x"215ba", 18x"213fa", 18x"21238", 18x"2107a", 18x"20ebc", 18x"20d00",
+        18x"20b46", 18x"2098e", 18x"207d6", 18x"20620", 18x"2046c", 18x"202b8", 18x"20108", 18x"1ff58",
+        18x"1fda8", 18x"1fbfc", 18x"1fa50", 18x"1f8a4", 18x"1f6fc", 18x"1f554", 18x"1f3ae", 18x"1f208",
+        18x"1f064", 18x"1eec2", 18x"1ed22", 18x"1eb82", 18x"1e9e4", 18x"1e846", 18x"1e6aa", 18x"1e510",
+        18x"1e378", 18x"1e1e0", 18x"1e04a", 18x"1deb4", 18x"1dd20", 18x"1db8e", 18x"1d9fc", 18x"1d86c",
+        18x"1d6de", 18x"1d550", 18x"1d3c4", 18x"1d238", 18x"1d0ae", 18x"1cf26", 18x"1cd9e", 18x"1cc18",
+        18x"1ca94", 18x"1c910", 18x"1c78c", 18x"1c60a", 18x"1c48a", 18x"1c30c", 18x"1c18e", 18x"1c010",
+        18x"1be94", 18x"1bd1a", 18x"1bba0", 18x"1ba28", 18x"1b8b2", 18x"1b73c", 18x"1b5c6", 18x"1b452",
+        18x"1b2e0", 18x"1b16e", 18x"1affe", 18x"1ae8e", 18x"1ad20", 18x"1abb4", 18x"1aa46", 18x"1a8dc",
+        -- 2.0 ... 2.9999
+        18x"1a772", 18x"1a608", 18x"1a4a0", 18x"1a33a", 18x"1a1d4", 18x"1a070", 18x"19f0c", 18x"19da8",
+        18x"19c48", 18x"19ae6", 18x"19986", 18x"19828", 18x"196ca", 18x"1956e", 18x"19412", 18x"192b8",
+        18x"1915e", 18x"19004", 18x"18eae", 18x"18d56", 18x"18c00", 18x"18aac", 18x"18958", 18x"18804",
+        18x"186b2", 18x"18562", 18x"18412", 18x"182c2", 18x"18174", 18x"18026", 18x"17eda", 18x"17d8e",
+        18x"17c44", 18x"17afa", 18x"179b2", 18x"1786a", 18x"17724", 18x"175de", 18x"17498", 18x"17354",
+        18x"17210", 18x"170ce", 18x"16f8c", 18x"16e4c", 18x"16d0c", 18x"16bcc", 18x"16a8e", 18x"16950",
+        18x"16814", 18x"166d8", 18x"1659e", 18x"16464", 18x"1632a", 18x"161f2", 18x"160ba", 18x"15f84",
+        18x"15e4e", 18x"15d1a", 18x"15be6", 18x"15ab2", 18x"15980", 18x"1584e", 18x"1571c", 18x"155ec",
+        18x"154bc", 18x"1538e", 18x"15260", 18x"15134", 18x"15006", 18x"14edc", 18x"14db0", 18x"14c86",
+        18x"14b5e", 18x"14a36", 18x"1490e", 18x"147e6", 18x"146c0", 18x"1459a", 18x"14476", 18x"14352",
+        18x"14230", 18x"1410c", 18x"13fea", 18x"13eca", 18x"13daa", 18x"13c8a", 18x"13b6c", 18x"13a4e",
+        18x"13930", 18x"13814", 18x"136f8", 18x"135dc", 18x"134c2", 18x"133a8", 18x"1328e", 18x"13176",
+        18x"1305e", 18x"12f48", 18x"12e30", 18x"12d1a", 18x"12c06", 18x"12af2", 18x"129de", 18x"128ca",
+        18x"127b8", 18x"126a6", 18x"12596", 18x"12486", 18x"12376", 18x"12266", 18x"12158", 18x"1204a",
+        18x"11f3e", 18x"11e32", 18x"11d26", 18x"11c1a", 18x"11b10", 18x"11a06", 18x"118fc", 18x"117f4",
+        18x"116ec", 18x"115e4", 18x"114de", 18x"113d8", 18x"112d2", 18x"111ce", 18x"110ca", 18x"10fc6",
+        18x"10ec2", 18x"10dc0", 18x"10cbe", 18x"10bbc", 18x"10abc", 18x"109bc", 18x"108bc", 18x"107be",
+        18x"106c0", 18x"105c2", 18x"104c4", 18x"103c8", 18x"102cc", 18x"101d0", 18x"100d6", 18x"0ffdc",
+        18x"0fee2", 18x"0fdea", 18x"0fcf0", 18x"0fbf8", 18x"0fb02", 18x"0fa0a", 18x"0f914", 18x"0f81e",
+        18x"0f72a", 18x"0f636", 18x"0f542", 18x"0f44e", 18x"0f35a", 18x"0f268", 18x"0f176", 18x"0f086",
+        18x"0ef94", 18x"0eea4", 18x"0edb4", 18x"0ecc6", 18x"0ebd6", 18x"0eae8", 18x"0e9fa", 18x"0e90e",
+        18x"0e822", 18x"0e736", 18x"0e64a", 18x"0e55e", 18x"0e474", 18x"0e38a", 18x"0e2a0", 18x"0e1b8",
+        18x"0e0d0", 18x"0dfe8", 18x"0df00", 18x"0de1a", 18x"0dd32", 18x"0dc4c", 18x"0db68", 18x"0da82",
+        18x"0d99e", 18x"0d8ba", 18x"0d7d6", 18x"0d6f4", 18x"0d612", 18x"0d530", 18x"0d44e", 18x"0d36c",
+        18x"0d28c", 18x"0d1ac", 18x"0d0cc", 18x"0cfee", 18x"0cf0e", 18x"0ce30", 18x"0cd54", 18x"0cc76",
+        18x"0cb9a", 18x"0cabc", 18x"0c9e0", 18x"0c906", 18x"0c82a", 18x"0c750", 18x"0c676", 18x"0c59c",
+        18x"0c4c4", 18x"0c3ea", 18x"0c312", 18x"0c23a", 18x"0c164", 18x"0c08c", 18x"0bfb6", 18x"0bee0",
+        18x"0be0a", 18x"0bd36", 18x"0bc62", 18x"0bb8c", 18x"0baba", 18x"0b9e6", 18x"0b912", 18x"0b840",
+        18x"0b76e", 18x"0b69c", 18x"0b5cc", 18x"0b4fa", 18x"0b42a", 18x"0b35a", 18x"0b28a", 18x"0b1bc",
+        18x"0b0ee", 18x"0b01e", 18x"0af50", 18x"0ae84", 18x"0adb6", 18x"0acea", 18x"0ac1e", 18x"0ab52",
+        18x"0aa86", 18x"0a9bc", 18x"0a8f0", 18x"0a826", 18x"0a75c", 18x"0a694", 18x"0a5ca", 18x"0a502",
+        18x"0a43a", 18x"0a372", 18x"0a2aa", 18x"0a1e4", 18x"0a11c", 18x"0a056", 18x"09f90", 18x"09ecc",
+        -- 3.0 ... 3.9999
+        18x"09e06", 18x"09d42", 18x"09c7e", 18x"09bba", 18x"09af6", 18x"09a32", 18x"09970", 18x"098ae",
+        18x"097ec", 18x"0972a", 18x"09668", 18x"095a8", 18x"094e8", 18x"09426", 18x"09368", 18x"092a8",
+        18x"091e8", 18x"0912a", 18x"0906c", 18x"08fae", 18x"08ef0", 18x"08e32", 18x"08d76", 18x"08cba",
+        18x"08bfe", 18x"08b42", 18x"08a86", 18x"089ca", 18x"08910", 18x"08856", 18x"0879c", 18x"086e2",
+        18x"08628", 18x"08570", 18x"084b6", 18x"083fe", 18x"08346", 18x"0828e", 18x"081d8", 18x"08120",
+        18x"0806a", 18x"07fb4", 18x"07efe", 18x"07e48", 18x"07d92", 18x"07cde", 18x"07c2a", 18x"07b76",
+        18x"07ac2", 18x"07a0e", 18x"0795a", 18x"078a8", 18x"077f4", 18x"07742", 18x"07690", 18x"075de",
+        18x"0752e", 18x"0747c", 18x"073cc", 18x"0731c", 18x"0726c", 18x"071bc", 18x"0710c", 18x"0705e",
+        18x"06fae", 18x"06f00", 18x"06e52", 18x"06da4", 18x"06cf6", 18x"06c4a", 18x"06b9c", 18x"06af0",
+        18x"06a44", 18x"06998", 18x"068ec", 18x"06840", 18x"06796", 18x"066ea", 18x"06640", 18x"06596",
+        18x"064ec", 18x"06442", 18x"0639a", 18x"062f0", 18x"06248", 18x"061a0", 18x"060f8", 18x"06050",
+        18x"05fa8", 18x"05f00", 18x"05e5a", 18x"05db4", 18x"05d0e", 18x"05c68", 18x"05bc2", 18x"05b1c",
+        18x"05a76", 18x"059d2", 18x"0592e", 18x"05888", 18x"057e4", 18x"05742", 18x"0569e", 18x"055fa",
+        18x"05558", 18x"054b6", 18x"05412", 18x"05370", 18x"052ce", 18x"0522e", 18x"0518c", 18x"050ec",
+        18x"0504a", 18x"04faa", 18x"04f0a", 18x"04e6a", 18x"04dca", 18x"04d2c", 18x"04c8c", 18x"04bee",
+        18x"04b50", 18x"04ab0", 18x"04a12", 18x"04976", 18x"048d8", 18x"0483a", 18x"0479e", 18x"04700",
+        18x"04664", 18x"045c8", 18x"0452c", 18x"04490", 18x"043f6", 18x"0435a", 18x"042c0", 18x"04226",
+        18x"0418a", 18x"040f0", 18x"04056", 18x"03fbe", 18x"03f24", 18x"03e8c", 18x"03df2", 18x"03d5a",
+        18x"03cc2", 18x"03c2a", 18x"03b92", 18x"03afa", 18x"03a62", 18x"039cc", 18x"03934", 18x"0389e",
+        18x"03808", 18x"03772", 18x"036dc", 18x"03646", 18x"035b2", 18x"0351c", 18x"03488", 18x"033f2",
+        18x"0335e", 18x"032ca", 18x"03236", 18x"031a2", 18x"03110", 18x"0307c", 18x"02fea", 18x"02f56",
+        18x"02ec4", 18x"02e32", 18x"02da0", 18x"02d0e", 18x"02c7c", 18x"02bec", 18x"02b5a", 18x"02aca",
+        18x"02a38", 18x"029a8", 18x"02918", 18x"02888", 18x"027f8", 18x"0276a", 18x"026da", 18x"0264a",
+        18x"025bc", 18x"0252e", 18x"024a0", 18x"02410", 18x"02384", 18x"022f6", 18x"02268", 18x"021da",
+        18x"0214e", 18x"020c0", 18x"02034", 18x"01fa8", 18x"01f1c", 18x"01e90", 18x"01e04", 18x"01d78",
+        18x"01cee", 18x"01c62", 18x"01bd8", 18x"01b4c", 18x"01ac2", 18x"01a38", 18x"019ae", 18x"01924",
+        18x"0189c", 18x"01812", 18x"01788", 18x"01700", 18x"01676", 18x"015ee", 18x"01566", 18x"014de",
+        18x"01456", 18x"013ce", 18x"01346", 18x"012c0", 18x"01238", 18x"011b2", 18x"0112c", 18x"010a4",
+        18x"0101e", 18x"00f98", 18x"00f12", 18x"00e8c", 18x"00e08", 18x"00d82", 18x"00cfe", 18x"00c78",
+        18x"00bf4", 18x"00b70", 18x"00aec", 18x"00a68", 18x"009e4", 18x"00960", 18x"008dc", 18x"00858",
+        18x"007d6", 18x"00752", 18x"006d0", 18x"0064e", 18x"005cc", 18x"0054a", 18x"004c8", 18x"00446",
+        18x"003c4", 18x"00342", 18x"002c2", 18x"00240", 18x"001c0", 18x"00140", 18x"000c0", 18x"00040"
         );
 
     -- Left and right shifter with 120 bit input and 64 bit output.
@@ -424,9 +530,17 @@ begin
 
     -- synchronous reads from lookup table
     lut_access: process(clk)
+        variable addrhi : std_ulogic_vector(1 downto 0);
+        variable addr   : std_ulogic_vector(9 downto 0);
     begin
         if rising_edge(clk) then
-            inverse_est <= '1' & inverse_table(to_integer(unsigned(r.b.mantissa(53 downto 46))));
+            if r.is_sqrt = '1' then
+                addrhi := r.b.mantissa(55 downto 54);
+            else
+                addrhi := "00";
+            end if;
+            addr := addrhi & r.b.mantissa(53 downto 46);
+            inverse_est <= '1' & inverse_table(to_integer(unsigned(addr)));
         end if;
     end process;
 
@@ -488,6 +602,8 @@ begin
         variable pcmpb_eq    : std_ulogic;
         variable pcmpb_lt    : std_ulogic;
         variable pshift      : std_ulogic;
+        variable renorm_sqrt : std_ulogic;
+        variable sqrt_exp    : signed(EXP_BITS-1 downto 0);
     begin
         v := r;
         illegal := '0';
@@ -519,6 +635,7 @@ begin
             v.round_mode := '0' & r.fpscr(FPSCR_RN+1 downto FPSCR_RN);
             v.is_subtract := '0';
             v.is_multiply := '0';
+            v.is_sqrt := '0';
             v.add_bsmall := '0';
             adec := decode_dp(e_in.fra, int_input);
             bdec := decode_dp(e_in.frb, int_input);
@@ -599,6 +716,7 @@ begin
         msel_inv <= '0';
         set_y := '0';
         pshift := '0';
+        renorm_sqrt := '0';
         case r.state is
             when IDLE =>
                 if e_in.valid = '1' then
@@ -654,6 +772,9 @@ begin
                         when "11001" =>
                             v.is_multiply := '1';
                             v.state := DO_FMUL;
+                        when "11010" =>
+                            v.is_sqrt := '1';
+                            v.state := DO_FRSQRTE;
                         when others =>
                             illegal := '1';
                     end case;
@@ -1157,6 +1278,48 @@ begin
                         arith_done := '1';
                 end case;
 
+            when DO_FRSQRTE =>
+                opsel_a <= AIN_B;
+                v.result_class := r.b.class;
+                v.result_sign := r.b.negative;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                if r.b.class = NAN and r.b.mantissa(53) = '0' then
+                    v.fpscr(FPSCR_VXSNAN) := '1';
+                    invalid := '1';
+                end if;
+                v.shift := to_signed(1, EXP_BITS);
+                case r.b.class is
+                    when FINITE =>
+                        v.result_exp := r.b.exponent;
+                        if r.b.negative = '1' then
+                            v.fpscr(FPSCR_VXSQRT) := '1';
+                            qnan_result := '1';
+                            arith_done := '1';
+                        elsif r.b.mantissa(54) = '0' then
+                            v.state := RENORM_B;
+                        elsif r.b.exponent(0) = '0' then
+                            v.state := RSQRT_1;
+                        else
+                            v.state := RENORM_B2;
+                        end if;
+                    when NAN =>
+                        -- result is B
+                        arith_done := '1';
+                    when INFINITY =>
+                        if r.b.negative = '1' then
+                            v.fpscr(FPSCR_VXSQRT) := '1';
+                            qnan_result := '1';
+                        else
+                            v.result_class := ZERO;
+                        end if;
+                        arith_done := '1';
+                    when ZERO =>
+                        v.result_class := INFINITY;
+                        zero_divide := '1';
+                        arith_done := '1';
+                end case;
+
             when RENORM_A =>
                 renormalize := '1';
                 v.state := RENORM_A2;
@@ -1184,11 +1347,16 @@ begin
 
             when RENORM_B =>
                 renormalize := '1';
+                renorm_sqrt := r.is_sqrt;
                 v.state := RENORM_B2;
 
             when RENORM_B2 =>
                 set_b := '1';
-                v.result_exp := r.result_exp + r.shift;
+                if r.is_sqrt = '0' then
+                    v.result_exp := r.result_exp + r.shift;
+                else
+                    v.result_exp := new_exp;
+                end if;
                 v.state := LOOKUP;
 
             when RENORM_C =>
@@ -1287,8 +1455,10 @@ begin
                 v.first := '1';
                 if r.insn(4) = '0' then
                     v.state := DIV_2;
-                else
+                elsif r.insn(2) = '0' then
                     v.state := FRE_1;
+                else
+                    v.state := RSQRT_1;
                 end if;
 
             when DIV_2 =>
@@ -1364,6 +1534,14 @@ begin
             when FRE_1 =>
                 opsel_r <= RES_MISC;
                 misc_sel <= "0111";
+                v.shift := to_signed(1, EXP_BITS);
+                v.state := NORMALIZE;
+
+            when RSQRT_1 =>
+                opsel_r <= RES_MISC;
+                misc_sel <= "0111";
+                sqrt_exp := r.b.exponent(EXP_BITS-1) & r.b.exponent(EXP_BITS-1 downto 1);
+                v.result_exp := - sqrt_exp;
                 v.shift := to_signed(1, EXP_BITS);
                 v.state := NORMALIZE;
 
@@ -1807,6 +1985,10 @@ begin
 
         if renormalize = '1' then
             clz := count_left_zeroes(r.r);
+            if renorm_sqrt = '1' then
+                -- make denormalized value end up with even exponent
+                clz(0) := '1';
+            end if;
             v.shift := resize(signed('0' & clz) - 9, EXP_BITS);
         end if;
 
