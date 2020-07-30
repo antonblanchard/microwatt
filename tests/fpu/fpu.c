@@ -1148,6 +1148,102 @@ int fpu_test_18(void)
 	return trapit(0, test18);
 }
 
+#define RES_B	0x7ffaaaaaaaaaaaaa
+#define RES_C	0x000bbbbbbbbbbbbb
+
+struct selvals {
+	unsigned long val;
+	unsigned long result;
+} selvals[] = {
+	{ 0x0000000000000000, RES_C },
+	{ 0x8000000000000000, RES_C },
+	{ 0x3ff0000000000000, RES_C },
+	{ 0xbff0000000000000, RES_B },
+	{ 0x7ff0000000000000, RES_C },
+	{ 0xfff0000000000000, RES_B },
+	{ 0x7ff8000000000000, RES_B },
+	{ 0xfff8000000000000, RES_B },
+	{ 0x0000000000000001, RES_C },
+	{ 0x8000000000000001, RES_B },
+	{ 0xffffffffffffffff, RES_B },
+};
+
+int test19(long arg)
+{
+	long i;
+	unsigned long result;
+	unsigned long frb = RES_B;
+	unsigned long frc = RES_C;
+	struct selvals *vp = selvals;
+
+	for (i = 0; i < sizeof(selvals) / sizeof(selvals[0]); ++i, ++vp) {
+		asm("lfd 6,0(%0); lfd 10,0(%1); lfd 22,0(%2); fsel 0,6,22,10; stfd 0,0(%3)"
+		    : : "b" (&vp->val), "b" (&frb), "b" (&frc), "b" (&result) : "memory");
+		if (result != vp->result) {
+			print_hex(i, 2, " ");
+			print_hex(result, 16, " ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_19(void)
+{
+	enable_fp();
+	return trapit(0, test19);
+}
+
+#define LT	8
+#define GT	4
+#define EQ	2
+#define UN	1
+
+struct cmpvals {
+	unsigned long vala, valb;
+	unsigned long result;
+} cmpvals[] = {
+	{ 0x0000000000000000, 0x0000000000000000, EQ },
+	{ 0x8000000000000000, 0x0000000000000000, EQ },
+	{ 0x3ff0000000000000, 0x3ff0000000000000, EQ },
+	{ 0x3ff0000000000001, 0x3ff0000000000000, GT },
+	{ 0x3ff0000000000000, 0x3ff0000000000001, LT },
+	{ 0xbff0000000000000, 0x3ff0000000000000, LT },
+	{ 0x7ff0000000000000, 0x7ff0000000000000, EQ },
+	{ 0xfff0000000000000, 0x7ff0000000000000, LT },
+	{ 0x7ff8000000000000, 0x7ff0000000000000, UN },
+	{ 0xfff8000000000000, 0x7ff0000000000000, UN },
+	{ 0x0000000000000001, 0x0000000000000001, EQ },
+	{ 0x8000000000000001, 0x7ff0000000000000, LT },
+	{ 0xffffffffffffffff, 0x7ff0000000000000, UN },
+	{ 0xffffffffffffffff, 0xffffffffffffffff, UN },
+};
+
+int test20(long arg)
+{
+	long i;
+	unsigned long cr;
+	struct cmpvals *vp = cmpvals;
+
+	for (i = 0; i < sizeof(cmpvals) / sizeof(cmpvals[0]); ++i, ++vp) {
+		asm("lfd 6,0(%1); lfd 10,8(%1); fcmpu 7,6,10; mfcr %0"
+		    : "=r" (cr) : "b" (&vp->vala) : "memory");
+		cr &= 0xf;
+		if (cr != vp->result) {
+			print_hex(i, 2, " ");
+			print_hex(cr, 1, " ");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_20(void)
+{
+	enable_fp();
+	return trapit(0, test20);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -1191,6 +1287,8 @@ int main(void)
 	do_test(16, fpu_test_16);
 	do_test(17, fpu_test_17);
 	do_test(18, fpu_test_18);
+	do_test(19, fpu_test_19);
+	do_test(20, fpu_test_20);
 
 	return fail;
 }
