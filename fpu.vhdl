@@ -37,7 +37,7 @@ architecture behaviour of fpu is
 
     type state_t is (IDLE,
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
-                     DO_FMR, DO_FMRG, DO_FCMP,
+                     DO_FMR, DO_FMRG, DO_FCMP, DO_FTDIV, DO_FTSQRT,
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
                      DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT,
@@ -51,6 +51,7 @@ architecture behaviour of fpu is
                      DIV_2, DIV_3, DIV_4, DIV_5, DIV_6,
                      FRE_1,
                      RSQRT_1,
+                     FTDIV_1,
                      SQRT_1, SQRT_2, SQRT_3, SQRT_4,
                      SQRT_5, SQRT_6, SQRT_7, SQRT_8,
                      SQRT_9, SQRT_10, SQRT_11, SQRT_12,
@@ -105,6 +106,7 @@ architecture behaviour of fpu is
         is_sqrt      : std_ulogic;
         first        : std_ulogic;
         count        : unsigned(1 downto 0);
+        doing_ftdiv  : std_ulogic_vector(1 downto 0);
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -642,6 +644,8 @@ begin
             v.is_multiply := '0';
             v.is_sqrt := '0';
             v.add_bsmall := '0';
+            v.doing_ftdiv := "00";
+
             adec := decode_dp(e_in.fra, int_input);
             bdec := decode_dp(e_in.frb, int_input);
             cdec := decode_dp(e_in.frc, int_input);
@@ -659,8 +663,16 @@ begin
         r_lo_nz <= or (r.r(30 downto 2));
 
         if r.single_prec = '0' then
-            max_exp := to_signed(1023, EXP_BITS);
-            min_exp := to_signed(-1022, EXP_BITS);
+            if r.doing_ftdiv(1) = '0' then
+                max_exp := to_signed(1023, EXP_BITS);
+            else
+                max_exp := to_signed(1020, EXP_BITS);
+            end if;
+            if r.doing_ftdiv(0) = '0' then
+                min_exp := to_signed(-1022, EXP_BITS);
+            else
+                min_exp := to_signed(-1021, EXP_BITS);
+            end if;
             bias_exp := to_signed(1536, EXP_BITS);
         else
             max_exp := to_signed(127, EXP_BITS);
@@ -728,7 +740,13 @@ begin
                 if e_in.valid = '1' then
                     case e_in.insn(5 downto 1) is
                         when "00000" =>
-                            if e_in.insn(7) = '1' then
+                            if e_in.insn(8) = '1' then
+                                if e_in.insn(6) = '0' then
+                                    v.state := DO_FTDIV;
+                                else
+                                    v.state := DO_FTSQRT;
+                                end if;
+                            elsif e_in.insn(7) = '1' then
                                 v.state := DO_MCRFS;
                             else
                                 v.state := DO_FCMP;
@@ -803,6 +821,38 @@ begin
                 v.fpscr := r.fpscr and (fpscr_mask or x"6007F8FF");
                 v.instr_done := '1';
                 v.state := IDLE;
+
+            when DO_FTDIV =>
+                v.instr_done := '1';
+                v.state := IDLE;
+                v.cr_result := "0000";
+                if r.a.class = INFINITY or r.b.class = ZERO or r.b.class = INFINITY or
+                    (r.b.class = FINITE and r.b.mantissa(53) = '0') then
+                    v.cr_result(2) := '1';
+                end if;
+                if r.a.class = NAN or r.a.class = INFINITY or
+                    r.b.class = NAN or r.b.class = ZERO or r.b.class = INFINITY or
+                    (r.a.class = FINITE and r.a.exponent <= to_signed(-970, EXP_BITS)) then
+                    v.cr_result(1) := '1';
+                else
+                    v.doing_ftdiv := "11";
+                    v.first := '1';
+                    v.state := FTDIV_1;
+                    v.instr_done := '0';
+                end if;
+
+            when DO_FTSQRT =>
+                v.instr_done := '1';
+                v.state := IDLE;
+                v.cr_result := "0000";
+                if r.b.class = ZERO or r.b.class = INFINITY or
+                    (r.b.class = FINITE and r.b.mantissa(53) = '0') then
+                    v.cr_result(2) := '1';
+                end if;
+                if r.b.class = NAN or r.b.class = INFINITY or r.b.class = ZERO
+                    or r.b.negative = '1' or r.b.exponent <= to_signed(-970, EXP_BITS) then
+                    v.cr_result(1) := '0';
+                end if;
 
             when DO_FCMP =>
                 -- fcmp[uo]
@@ -1586,6 +1636,16 @@ begin
                 misc_sel <= "0111";
                 v.shift := to_signed(1, EXP_BITS);
                 v.state := NORMALIZE;
+
+            when FTDIV_1 =>
+                v.cr_result(1) := exp_tiny or exp_huge;
+                if exp_tiny = '1' or exp_huge = '1' or r.a.class = ZERO or r.first = '0' then
+                    v.instr_done := '1';
+                    v.state := IDLE;
+                else
+                    v.shift := r.a.exponent;
+                    v.doing_ftdiv := "10";
+                end if;
 
             when RSQRT_1 =>
                 opsel_r <= RES_MISC;

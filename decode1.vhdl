@@ -441,6 +441,8 @@ architecture behaviour of decode1 is
         2#000000000#  => (FPU,   OP_FPOP,       FRA,  FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), --  0/0=fcmpu
         2#000000001#  => (FPU,   OP_FPOP,       FRA,  FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), --  1/0=fcmpo
         2#000000010#  => (FPU,   OP_FPOP,       NONE, NONE, NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), --  2/0=mcrfs
+        2#000000100#  => (FPU,   OP_FPOP,       FRA,  FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), --  4/0=ftdiv
+        2#000000101#  => (FPU,   OP_FPOP,       NONE, FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), --  5/0=ftsqrt
         2#011000001#  => (FPU,   OP_FPOP,       NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), --  1/6=mtfsb1
         2#011000010#  => (FPU,   OP_FPOP,       NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), --  2/6=mtfsb0
         2#011000100#  => (FPU,   OP_FPOP,       NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), --  4/6=mtfsfi
