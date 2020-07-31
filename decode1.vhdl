@@ -419,6 +419,7 @@ architecture behaviour of decode1 is
         2#10010#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fdivs
         2#10100#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fsubs
         2#10101#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fadds
+        2#10110#  =>  (FPU,   OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fsqrts
         2#11000#  =>  (FPU,   OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fres
         2#11001#  =>  (FPU,   OP_FPOP,       FRA,  NONE, FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- fmuls
         2#11010#  =>  (FPU,   OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- frsqrtes
@@ -477,6 +478,7 @@ architecture behaviour of decode1 is
         2#0010#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fdiv
         2#0100#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fsub
         2#0101#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fadd
+        2#0110#  =>  (FPU,   OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fsqrt
         2#0111#  =>  (FPU,   OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fsel
         2#1000#  =>  (FPU,   OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fre
         2#1001#  =>  (FPU,   OP_FPOP,       FRA,  NONE, FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- fmul

@@ -40,7 +40,7 @@ architecture behaviour of fpu is
                      DO_FMR, DO_FMRG, DO_FCMP,
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
-                     DO_FADD, DO_FMUL, DO_FDIV,
+                     DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT,
                      DO_FRE, DO_FRSQRTE,
                      DO_FSEL,
                      FRI_1,
@@ -51,6 +51,9 @@ architecture behaviour of fpu is
                      DIV_2, DIV_3, DIV_4, DIV_5, DIV_6,
                      FRE_1,
                      RSQRT_1,
+                     SQRT_1, SQRT_2, SQRT_3, SQRT_4,
+                     SQRT_5, SQRT_6, SQRT_7, SQRT_8,
+                     SQRT_9, SQRT_10, SQRT_11, SQRT_12,
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
@@ -140,6 +143,7 @@ architecture behaviour of fpu is
     constant BIN_ZERO : std_ulogic_vector(1 downto 0) := "00";
     constant BIN_R    : std_ulogic_vector(1 downto 0) := "01";
     constant BIN_MASK : std_ulogic_vector(1 downto 0) := "10";
+    constant BIN_PS6  : std_ulogic_vector(1 downto 0) := "11";
 
     constant RES_SUM   : std_ulogic_vector(1 downto 0) := "00";
     constant RES_SHIFT : std_ulogic_vector(1 downto 0) := "01";
@@ -604,6 +608,7 @@ begin
         variable pshift      : std_ulogic;
         variable renorm_sqrt : std_ulogic;
         variable sqrt_exp    : signed(EXP_BITS-1 downto 0);
+        variable shiftin     : std_ulogic;
     begin
         v := r;
         illegal := '0';
@@ -717,6 +722,7 @@ begin
         set_y := '0';
         pshift := '0';
         renorm_sqrt := '0';
+        shiftin := '0';
         case r.state is
             when IDLE =>
                 if e_in.valid = '1' then
@@ -765,6 +771,9 @@ begin
                             v.state := DO_FDIV;
                         when "10100" | "10101" =>
                             v.state := DO_FADD;
+                        when "10110" =>
+                            v.is_sqrt := '1';
+                            v.state := DO_FSQRT;
                         when "10111" =>
                             v.state := DO_FSEL;
                         when "11000" =>
@@ -1248,6 +1257,43 @@ begin
                 v.quieten_nan := '0';
                 arith_done := '1';
 
+            when DO_FSQRT =>
+                opsel_a <= AIN_B;
+                v.result_class := r.b.class;
+                v.result_sign := r.b.negative;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                if r.b.class = NAN and r.b.mantissa(53) = '0' then
+                    v.fpscr(FPSCR_VXSNAN) := '1';
+                    invalid := '1';
+                end if;
+                case r.b.class is
+                    when FINITE =>
+                        v.result_exp := r.b.exponent;
+                        if r.b.negative = '1' then
+                            v.fpscr(FPSCR_VXSQRT) := '1';
+                            qnan_result := '1';
+                            arith_done := '1';
+                        elsif r.b.mantissa(54) = '0' then
+                            v.state := RENORM_B;
+                        elsif r.b.exponent(0) = '0' then
+                            v.state := SQRT_1;
+                        else
+                            v.shift := to_signed(1, EXP_BITS);
+                            v.state := RENORM_B2;
+                        end if;
+                    when NAN | ZERO =>
+                        -- result is B
+                        arith_done := '1';
+                    when INFINITY =>
+                        if r.b.negative = '1' then
+                            v.fpscr(FPSCR_VXSQRT) := '1';
+                            qnan_result := '1';
+                        -- else result is B
+                        end if;
+                        arith_done := '1';
+                end case;
+
             when DO_FRE =>
                 opsel_a <= AIN_B;
                 v.result_class := r.b.class;
@@ -1454,7 +1500,11 @@ begin
                 -- wait one cycle for inverse_table[B] lookup
                 v.first := '1';
                 if r.insn(4) = '0' then
-                    v.state := DIV_2;
+                    if r.insn(3) = '0' then
+                        v.state := DIV_2;
+                    else
+                        v.state := SQRT_1;
+                    end if;
                 elsif r.insn(2) = '0' then
                     v.state := FRE_1;
                 else
@@ -1544,6 +1594,156 @@ begin
                 v.result_exp := - sqrt_exp;
                 v.shift := to_signed(1, EXP_BITS);
                 v.state := NORMALIZE;
+
+            when SQRT_1 =>
+                -- put invsqr[B] in R and compute P = invsqr[B] * B
+                -- also transfer B (in R) to A
+                set_a := '1';
+                opsel_r <= RES_MISC;
+                misc_sel <= "0111";
+                msel_1 <= MUL1_B;
+                msel_2 <= MUL2_LUT;
+                f_to_multiply.valid <= '1';
+                v.shift := to_signed(-1, EXP_BITS);
+                v.count := "00";
+                v.state := SQRT_2;
+
+            when SQRT_2 =>
+                -- shift R right one place
+                -- not expecting multiplier result yet
+                opsel_r <= RES_SHIFT;
+                v.first := '1';
+                v.state := SQRT_3;
+
+            when SQRT_3 =>
+                -- put R into Y, wait for product from multiplier
+                msel_2 <= MUL2_R;
+                set_y := r.first;
+                pshift := '1';
+                if multiply_to_f.valid = '1' then
+                    -- put result into R
+                    opsel_r <= RES_MULT;
+                    v.first := '1';
+                    v.state := SQRT_4;
+                end if;
+
+            when SQRT_4 =>
+                -- compute 1.5 - Y * P
+                msel_1 <= MUL1_Y;
+                msel_2 <= MUL2_P;
+                msel_add <= MULADD_CONST;
+                msel_inv <= '1';
+                f_to_multiply.valid <= r.first;
+                pshift := '1';
+                if multiply_to_f.valid = '1' then
+                    v.state := SQRT_5;
+                end if;
+
+            when SQRT_5 =>
+                -- compute Y = Y * P
+                msel_1 <= MUL1_Y;
+                msel_2 <= MUL2_P;
+                f_to_multiply.valid <= '1';
+                v.first := '1';
+                v.state := SQRT_6;
+
+            when SQRT_6 =>
+                -- pipeline in R = R * P
+                msel_1 <= MUL1_R;
+                msel_2 <= MUL2_P;
+                f_to_multiply.valid <= r.first;
+                pshift := '1';
+                if multiply_to_f.valid = '1' then
+                    v.first := '1';
+                    v.state := SQRT_7;
+                end if;
+
+            when SQRT_7 =>
+                -- first multiply is done, put result in Y
+                msel_2 <= MUL2_P;
+                set_y := r.first;
+                -- wait for second multiply (should be here already)
+                pshift := '1';
+                if multiply_to_f.valid = '1' then
+                    -- put result into R
+                    opsel_r <= RES_MULT;
+                    v.first := '1';
+                    v.count := r.count + 1;
+                    if r.count < 2 then
+                        v.state := SQRT_4;
+                    else
+                        v.first := '1';
+                        v.state := SQRT_8;
+                    end if;
+                end if;
+
+            when SQRT_8 =>
+                -- compute P = A - R * R, which can be +ve or -ve
+                -- we arranged for B to be put into A earlier
+                msel_1 <= MUL1_R;
+                msel_2 <= MUL2_R;
+                msel_add <= MULADD_A;
+                msel_inv <= '1';
+                pshift := '1';
+                f_to_multiply.valid <= r.first;
+                if multiply_to_f.valid = '1' then
+                    v.first := '1';
+                    v.state := SQRT_9;
+                end if;
+
+            when SQRT_9 =>
+                -- compute P = P * Y
+                -- since Y is an estimate of 1/sqrt(B), this makes P an
+                -- estimate of the adjustment needed to R.  Since the error
+                -- could be negative and we have an unsigned multiplier, the
+                -- upper bits can be wrong, but it turns out the lowest 8 bits
+                -- are correct and are all we need (given 3 iterations through
+                -- SQRT_4 to SQRT_7).
+                msel_1 <= MUL1_Y;
+                msel_2 <= MUL2_P;
+                pshift := '1';
+                f_to_multiply.valid <= r.first;
+                if multiply_to_f.valid = '1' then
+                    v.state := SQRT_10;
+                end if;
+
+            when SQRT_10 =>
+                -- Add the bottom 8 bits of P, sign-extended,
+                -- divided by 4, onto R.
+                -- The division by 4 is because R is 10.54 format
+                -- whereas P is 8.56 format.
+                opsel_b <= BIN_PS6;
+                sqrt_exp := r.b.exponent(EXP_BITS-1) & r.b.exponent(EXP_BITS-1 downto 1);
+                v.result_exp := sqrt_exp;
+                v.shift := to_signed(1, EXP_BITS);
+                v.first := '1';
+                v.state := SQRT_11;
+
+            when SQRT_11 =>
+                -- compute P = A - R * R (remainder)
+                -- also put 2 * R + 1 into B for comparison with P
+                msel_1 <= MUL1_R;
+                msel_2 <= MUL2_R;
+                msel_add <= MULADD_A;
+                msel_inv <= '1';
+                f_to_multiply.valid <= r.first;
+                shiftin := '1';
+                set_b := r.first;
+                if multiply_to_f.valid = '1' then
+                    v.state := SQRT_12;
+                end if;
+
+            when SQRT_12 =>
+                -- test if remainder is 0 or >= B = 2*R + 1
+                if pcmpb_lt = '1' then
+                    -- square root is correct, set X if remainder non-zero
+                    v.x := r.p(58) or px_nz;
+                else
+                    -- square root needs to be incremented by 1
+                    carry_in <= '1';
+                    v.x := not pcmpb_eq;
+                end if;
+                v.state := FINISH;
 
             when INT_SHIFT =>
                 opsel_r <= RES_SHIFT;
@@ -1828,8 +2028,12 @@ begin
         maddend := (others => '0');
         case msel_add is
             when MULADD_CONST =>
-                -- addend is 2.0 in 16.112 format
-                maddend(113) := '1';                -- 2.0
+                -- addend is 2.0 or 1.5 in 16.112 format
+                if r.is_sqrt = '0' then
+                    maddend(113) := '1';                -- 2.0
+                else
+                    maddend(112 downto 111) := "11";    -- 1.5
+                end if;
             when MULADD_A =>
                 -- addend is A in 16.112 format
                 maddend(121 downto 58) := r.a.mantissa;
@@ -1895,14 +2099,15 @@ begin
             when BIN_MASK =>
                 in_b0 := mask;
             when others =>
-                in_b0 := (others => '0');
+                -- BIN_PS6, 6 LSBs of P/4 sign-extended to 64
+                in_b0 := std_ulogic_vector(resize(signed(r.p(7 downto 2)), 64));
         end case;
         if opsel_binv = '1' then
             in_b0 := not in_b0;
         end if;
         in_b <= in_b0;
         if r.shift >= to_signed(-64, EXP_BITS) and r.shift <= to_signed(63, EXP_BITS) then
-            shift_res := shifter_64(r.r & x"00000000000000",
+            shift_res := shifter_64(r.r & shiftin & 55x"00000000000000",
                                     std_ulogic_vector(r.shift(6 downto 0)));
         else
             shift_res := (others => '0');
