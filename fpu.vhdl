@@ -40,13 +40,15 @@ architecture behaviour of fpu is
                      DO_FMR, DO_FMRG, DO_FCMP, DO_FTDIV, DO_FTSQRT,
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
-                     DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT,
+                     DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT, DO_FMADD,
                      DO_FRE, DO_FRSQRTE,
                      DO_FSEL,
                      FRI_1,
                      ADD_SHIFT, ADD_2, ADD_3,
                      CMP_1, CMP_2,
                      MULT_1,
+                     FMADD_1, FMADD_2, FMADD_3,
+                     FMADD_4, FMADD_5, FMADD_6,
                      LOOKUP,
                      DIV_2, DIV_3, DIV_4, DIV_5, DIV_6,
                      FRE_1,
@@ -82,6 +84,7 @@ architecture behaviour of fpu is
         b            : fpu_reg_type;
         c            : fpu_reg_type;
         r            : std_ulogic_vector(63 downto 0);  -- 10.54 format
+        s            : std_ulogic_vector(55 downto 0);  -- extended fraction
         x            : std_ulogic;
         p            : std_ulogic_vector(63 downto 0);  -- 8.56 format
         y            : std_ulogic_vector(63 downto 0);  -- 8.56 format
@@ -101,6 +104,7 @@ architecture behaviour of fpu is
         round_mode   : std_ulogic_vector(2 downto 0);
         is_subtract  : std_ulogic;
         exp_cmp      : std_ulogic;
+        madd_cmp     : std_ulogic;
         add_bsmall   : std_ulogic;
         is_multiply  : std_ulogic;
         is_sqrt      : std_ulogic;
@@ -117,6 +121,7 @@ architecture behaviour of fpu is
     signal opsel_a       : std_ulogic_vector(1 downto 0);
     signal opsel_b       : std_ulogic_vector(1 downto 0);
     signal opsel_r       : std_ulogic_vector(1 downto 0);
+    signal opsel_s       : std_ulogic_vector(1 downto 0);
     signal opsel_ainv    : std_ulogic;
     signal opsel_amask   : std_ulogic;
     signal opsel_binv    : std_ulogic;
@@ -127,6 +132,7 @@ architecture behaviour of fpu is
     signal lost_bits     : std_ulogic;
     signal r_hi_nz       : std_ulogic;
     signal r_lo_nz       : std_ulogic;
+    signal s_nz          : std_ulogic;
     signal misc_sel      : std_ulogic_vector(3 downto 0);
     signal f_to_multiply : MultiplyInputType;
     signal multiply_to_f : MultiplyOutputType;
@@ -152,6 +158,11 @@ architecture behaviour of fpu is
     constant RES_MULT  : std_ulogic_vector(1 downto 0) := "10";
     constant RES_MISC  : std_ulogic_vector(1 downto 0) := "11";
 
+    constant S_ZERO  : std_ulogic_vector(1 downto 0) := "00";
+    constant S_NEG   : std_ulogic_vector(1 downto 0) := "01";
+    constant S_SHIFT : std_ulogic_vector(1 downto 0) := "10";
+    constant S_MULT  : std_ulogic_vector(1 downto 0) := "11";
+
     -- msel values
     constant MUL1_A : std_ulogic_vector(1 downto 0) := "00";
     constant MUL1_B : std_ulogic_vector(1 downto 0) := "01";
@@ -163,9 +174,10 @@ architecture behaviour of fpu is
     constant MUL2_P   : std_ulogic_vector(1 downto 0) := "10";
     constant MUL2_R   : std_ulogic_vector(1 downto 0) := "11";
 
-    constant MULADD_ZERO : std_ulogic_vector(1 downto 0) := "00";
+    constant MULADD_ZERO  : std_ulogic_vector(1 downto 0) := "00";
     constant MULADD_CONST : std_ulogic_vector(1 downto 0) := "01";
     constant MULADD_A     : std_ulogic_vector(1 downto 0) := "10";
+    constant MULADD_RS    : std_ulogic_vector(1 downto 0) := "11";
 
     -- Inverse lookup table, indexed by the top 8 fraction bits
     -- The first 256 entries are the reciprocal (1/x) lookup table,
@@ -597,20 +609,22 @@ begin
         variable need_check  : std_ulogic;
         variable msb         : std_ulogic;
         variable is_add      : std_ulogic;
-        variable qnan_result : std_ulogic;
         variable longmask    : std_ulogic;
         variable set_a       : std_ulogic;
         variable set_b       : std_ulogic;
         variable set_c       : std_ulogic;
-        variable px_nz       : std_ulogic;
-        variable maddend     : std_ulogic_vector(127 downto 0);
         variable set_y       : std_ulogic;
+        variable set_s       : std_ulogic;
+        variable qnan_result : std_ulogic;
+        variable px_nz       : std_ulogic;
         variable pcmpb_eq    : std_ulogic;
         variable pcmpb_lt    : std_ulogic;
         variable pshift      : std_ulogic;
         variable renorm_sqrt : std_ulogic;
         variable sqrt_exp    : signed(EXP_BITS-1 downto 0);
         variable shiftin     : std_ulogic;
+        variable mulexp      : signed(EXP_BITS-1 downto 0);
+        variable maddend     : std_ulogic_vector(127 downto 0);
     begin
         v := r;
         illegal := '0';
@@ -657,10 +671,15 @@ begin
             if adec.exponent > bdec.exponent then
                 v.exp_cmp := '1';
             end if;
+            v.madd_cmp := '0';
+            if (adec.exponent + cdec.exponent + 1) >= bdec.exponent then
+                v.madd_cmp := '1';
+            end if;
         end if;
 
         r_hi_nz <= or (r.r(55 downto 31));
         r_lo_nz <= or (r.r(30 downto 2));
+        s_nz <= or (r.s);
 
         if r.single_prec = '0' then
             if r.doing_ftdiv(1) = '0' then
@@ -711,6 +730,7 @@ begin
         opsel_b <= BIN_ZERO;
         opsel_binv <= '0';
         opsel_r <= RES_SUM;
+        opsel_s <= S_ZERO;
         carry_in <= '0';
         misc_sel <= "0000";
         fpscr_mask := (others => '1');
@@ -725,6 +745,7 @@ begin
         set_a := '0';
         set_b := '0';
         set_c := '0';
+        set_s := '0';
         f_to_multiply.is_32bit <= '0';
         f_to_multiply.valid <= '0';
         msel_1 <= MUL1_A;
@@ -802,12 +823,15 @@ begin
                         when "11010" =>
                             v.is_sqrt := '1';
                             v.state := DO_FRSQRTE;
+                        when "11100" | "11101" | "11110" | "11111" =>
+                            v.state := DO_FMADD;
                         when others =>
                             illegal := '1';
                     end case;
                 end if;
                 v.x := '0';
                 v.old_exc := r.fpscr(FPSCR_VX downto FPSCR_XX);
+                set_s := '1';
 
             when DO_MCRFS =>
                 j := to_integer(unsigned(insn_bfa(r.insn)));
@@ -1416,6 +1440,99 @@ begin
                         arith_done := '1';
                 end case;
 
+            when DO_FMADD =>
+                -- fmadd, fmsub, fnmadd, fnmsub
+                opsel_a <= AIN_A;
+                v.result_sign := r.a.negative;
+                v.result_class := r.a.class;
+                v.result_exp := r.a.exponent;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                is_add := r.a.negative xor r.c.negative xor r.b.negative xor r.insn(1);
+                if r.a.class = FINITE and r.c.class = FINITE and
+                    (r.b.class = FINITE or r.b.class = ZERO) then
+                    v.is_subtract := not is_add;
+                    mulexp := r.a.exponent + r.c.exponent;
+                    v.result_exp := mulexp;
+                    opsel_a <= AIN_B;
+                    -- Make sure A and C are normalized
+                    if r.a.mantissa(54) = '0' then
+                        opsel_a <= AIN_A;
+                        v.state := RENORM_A;
+                    elsif r.c.mantissa(54) = '0' then
+                        opsel_a <= AIN_C;
+                        v.state := RENORM_C;
+                    elsif r.b.class = ZERO then
+                        -- no addend, degenerates to multiply
+                        v.result_sign := r.a.negative xor r.c.negative xor r.insn(2);
+                        f_to_multiply.valid <= '1';
+                        v.is_multiply := '1';
+                        v.state := MULT_1;
+                    elsif r.madd_cmp = '0' then
+                        -- addend is bigger, do multiply first
+                        v.result_sign := not (r.b.negative xor r.insn(1) xor r.insn(2));
+                        f_to_multiply.valid <= '1';
+                        v.state := FMADD_1;
+                    else
+                        -- product is bigger, shift B right and use it as the
+                        -- addend to the multiplier
+                        v.shift := r.b.exponent - mulexp + to_signed(64, EXP_BITS);
+                        -- for subtract, multiplier does B - A * C
+                        v.result_sign := not (r.a.negative xor r.c.negative xor r.insn(2) xor is_add);
+                        v.result_exp := r.b.exponent;
+                        v.state := FMADD_2;
+                    end if;
+                else
+                    if (r.a.class = NAN and r.a.mantissa(53) = '0') or
+                        (r.b.class = NAN and r.b.mantissa(53) = '0') or
+                        (r.c.class = NAN and r.c.mantissa(53) = '0') then
+                        -- Signalling NAN
+                        v.fpscr(FPSCR_VXSNAN) := '1';
+                        invalid := '1';
+                    end if;
+                    if r.a.class = NAN then
+                        -- nothing to do, result is A
+                    elsif r.b.class = NAN then
+                        -- result is B
+                        v.result_class := NAN;
+                        v.result_sign := r.b.negative;
+                        opsel_a <= AIN_B;
+                    elsif r.c.class = NAN then
+                        -- result is C
+                        v.result_class := NAN;
+                        v.result_sign := r.c.negative;
+                        opsel_a <= AIN_C;
+                    elsif (r.a.class = ZERO and r.c.class = INFINITY) or
+                        (r.a.class = INFINITY and r.c.class = ZERO) then
+                        -- invalid operation, construct QNaN
+                        v.fpscr(FPSCR_VXIMZ) := '1';
+                        qnan_result := '1';
+                    elsif r.a.class = INFINITY or r.c.class = INFINITY then
+                        if r.b.class = INFINITY and is_add = '0' then
+                            -- invalid operation, construct QNaN
+                            v.fpscr(FPSCR_VXISI) := '1';
+                            qnan_result := '1';
+                        else
+                            -- result is infinity
+                            v.result_class := INFINITY;
+                            v.result_sign := r.a.negative xor r.c.negative xor r.insn(2);
+                        end if;
+                    else
+                        -- Here A is zero, C is zero, or B is infinity
+                        -- Result is +/-B in all of those cases
+                        v.result_class := r.b.class;
+                        v.result_exp := r.b.exponent;
+                        if v.result_class /= ZERO or is_add = '1' then
+                            v.result_sign := not (r.b.negative xor r.insn(1) xor r.insn(2));
+                        else
+                            -- have to be careful about rule for 0 - 0 result sign
+                            v.result_sign := (r.round_mode(1) and r.round_mode(0)) xor r.insn(2);
+                        end if;
+                        opsel_a <= AIN_B;
+                    end if;
+                    arith_done := '1';
+                end if;
+
             when RENORM_A =>
                 renormalize := '1';
                 v.state := RENORM_A2;
@@ -1426,8 +1543,16 @@ begin
                 if r.insn(4) = '1' then
                     opsel_a <= AIN_C;
                     if r.c.mantissa(54) = '1' then
-                        v.first := '1';
-                        v.state := MULT_1;
+                        if r.insn(3) = '0' or r.b.class = ZERO then
+                            v.first := '1';
+                            v.state := MULT_1;
+                        else
+                            v.madd_cmp := '0';
+                            if new_exp + 1 >= r.b.exponent then
+                                v.madd_cmp := '1';
+                            end if;
+                            v.state := DO_FMADD;
+                        end if;
                     else
                         v.state := RENORM_C;
                     end if;
@@ -1462,11 +1587,20 @@ begin
             when RENORM_C2 =>
                 set_c := '1';
                 v.result_exp := new_exp;
-                v.first := '1';
-                v.state := MULT_1;
+                if r.insn(3) = '0' or r.b.class = ZERO then
+                    v.first := '1';
+                    v.state := MULT_1;
+                else
+                    v.madd_cmp := '0';
+                    if new_exp + 1 >= r.b.exponent then
+                        v.madd_cmp := '1';
+                    end if;
+                    v.state := DO_FMADD;
+                end if;
 
             when ADD_SHIFT =>
                 opsel_r <= RES_SHIFT;
+                v.x := s_nz;
                 set_x := '1';
                 longmask := '0';
                 v.state := ADD_2;
@@ -1543,6 +1677,78 @@ begin
                 opsel_r <= RES_MULT;
                 if multiply_to_f.valid = '1' then
                     v.state := FINISH;
+                end if;
+
+            when FMADD_1 =>
+                -- Addend is bigger here
+                v.result_sign := not (r.b.negative xor r.insn(1) xor r.insn(2));
+                -- note v.shift is at most -2 here
+                v.shift := r.result_exp - r.b.exponent;
+                opsel_r <= RES_MULT;
+                opsel_s <= S_MULT;
+                set_s := '1';
+                f_to_multiply.valid <= r.first;
+                if multiply_to_f.valid = '1' then
+                    v.state := ADD_SHIFT;
+                end if;
+
+            when FMADD_2 =>
+                -- Product is potentially bigger here
+                set_s := '1';
+                opsel_s <= S_SHIFT;
+                v.shift := r.shift - to_signed(64, EXP_BITS);
+                v.state := FMADD_3;
+
+            when FMADD_3 =>
+                opsel_r <= RES_SHIFT;
+                v.first := '1';
+                v.state := FMADD_4;
+
+            when FMADD_4 =>
+                msel_add <= MULADD_RS;
+                f_to_multiply.valid <= r.first;
+                msel_inv <= r.is_subtract;
+                opsel_r <= RES_MULT;
+                opsel_s <= S_MULT;
+                set_s := '1';
+                v.shift := to_signed(56, EXP_BITS);
+                if multiply_to_f.valid = '1' then
+                    if multiply_to_f.result(121) = '1' then
+                        v.state := FMADD_5;
+                    else
+                        v.state := FMADD_6;
+                    end if;
+                end if;
+
+            when FMADD_5 =>
+                -- negate R:S:X
+                v.result_sign := not r.result_sign;
+                opsel_ainv <= '1';
+                carry_in <= not (s_nz or r.x);
+                opsel_s <= S_NEG;
+                set_s := '1';
+                v.shift := to_signed(56, EXP_BITS);
+                v.state := FMADD_6;
+
+            when FMADD_6 =>
+                if (r.r(56) or r_hi_nz or r_lo_nz or r.r(1) or r.r(0)) = '0' then
+                    if s_nz = '0' then
+                        -- must be a subtraction, and r.x must be zero
+                        v.result_class := ZERO;
+                        v.result_sign := r.round_mode(1) and r.round_mode(0);
+                        arith_done := '1';
+                    else
+                        -- R is all zeroes but there are non-zero bits in S
+                        -- so shift them into R and set S to 0
+                        opsel_r <= RES_SHIFT;
+                        set_s := '1';
+                        -- stay in state FMADD_6
+                    end if;
+                elsif r.r(56 downto 54) = "001" then
+                    v.state := FINISH;
+                else
+                    renormalize := '1';
+                    v.state := NORMALIZE;
                 end if;
 
             when LOOKUP =>
@@ -2097,6 +2303,9 @@ begin
             when MULADD_A =>
                 -- addend is A in 16.112 format
                 maddend(121 downto 58) := r.a.mantissa;
+            when MULADD_RS =>
+                -- addend is concatenation of R and S in 16.112 format
+                maddend := "000000" & r.r & r.s & "00";
             when others =>
         end case;
         if msel_inv = '1' then
@@ -2167,7 +2376,7 @@ begin
         end if;
         in_b <= in_b0;
         if r.shift >= to_signed(-64, EXP_BITS) and r.shift <= to_signed(63, EXP_BITS) then
-            shift_res := shifter_64(r.r & shiftin & 55x"00000000000000",
+            shift_res := shifter_64(r.r & (shiftin or r.s(55)) & r.s(54 downto 0),
                                     std_ulogic_vector(r.shift(6 downto 0)));
         else
             shift_res := (others => '0');
@@ -2230,6 +2439,21 @@ begin
                 result <= misc;
         end case;
         v.r := result;
+        if set_s = '1' then
+            case opsel_s is
+                when S_NEG =>
+                    v.s := std_ulogic_vector(unsigned(not r.s) + (not r.x));
+                when S_MULT =>
+                    v.s := multiply_to_f.result(57 downto 2);
+                when S_SHIFT =>
+                    v.s := shift_res(63 downto 8);
+                    if shift_res(7 downto 0) /= x"00" then
+                        v.x := '1';
+                    end if;
+                when others =>
+                    v.s := (others => '0');
+            end case;
+        end if;
 
         if set_a = '1' then
             v.a.exponent := new_exp;

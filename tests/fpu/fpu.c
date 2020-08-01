@@ -1338,6 +1338,76 @@ int fpu_test_22(void)
 	return trapit(0, test22);
 }
 
+struct fmavals {
+	unsigned long ra;
+	unsigned long rc;
+	unsigned long rb;
+	unsigned long fma;
+	unsigned long fms;
+	unsigned long nfma;
+	unsigned long nfms;
+} fmavals[] = {
+	{ 0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
+	  0x0000000000000000, 0x0000000000000000, 0x8000000000000000, 0x8000000000000000 },
+	{ 0x0000000000000000, 0x7ffc000000000000, 0x0000000000000000,
+	  0x7ffc000000000000, 0x7ffc000000000000, 0x7ffc000000000000, 0x7ffc000000000000 },
+	{ 0x0000000000000000, 0x7ffc000000000000, 0x7ffb000000000000,
+	  0x7ffb000000000000, 0x7ffb000000000000, 0x7ffb000000000000, 0x7ffb000000000000 },
+	{ 0x7ffa000000000000, 0x7ffc000000000000, 0x7ffb000000000000,
+	  0x7ffa000000000000, 0x7ffa000000000000, 0x7ffa000000000000, 0x7ffa000000000000 },
+	{ 0x3ff0000000000000, 0x8000000000000000, 0x678123456789abcd, 
+	  0x678123456789abcd, 0xe78123456789abcd, 0xe78123456789abcd, 0x678123456789abcd },
+	{ 0x3ff0000000000000, 0xbff0000000000000, 0x678123456789abcd, 
+	  0x678123456789abcd, 0xe78123456789abcd, 0xe78123456789abcd, 0x678123456789abcd },
+	{ 0x7ff0000000000000, 0xbff0000000000000, 0x678123456789abcd, 
+	  0xfff0000000000000, 0xfff0000000000000, 0x7ff0000000000000, 0x7ff0000000000000 },
+	{ 0x7ff0000000000000, 0x0000000000000000, 0x678123456789abcd, 
+	  0x7ff8000000000000, 0x7ff8000000000000, 0x7ff8000000000000, 0x7ff8000000000000 },
+	{ 0x3ff0000000000000, 0x3ff0000000000000, 0x3ff0000020000000, 
+	  0x4000000010000000, 0xbe80000000000000, 0xc000000010000000, 0x3e80000000000000 },
+	{ 0x3ff0000000000001, 0x3ff0000000000001, 0x3ff0000000000000,
+	  0x4000000000000001, 0x3cc0000000000000, 0xc000000000000001, 0xbcc0000000000000 },
+	{ 0x3ff0000000000003, 0x3ff0000000000002, 0x3ff0000000000000,
+	  0x4000000000000002, 0x3cd4000000000002, 0xc000000000000002, 0xbcd4000000000002 },
+	{ 0x3006a09e667f3bcc, 0x4006a09e667f3bcd, 0xb020000000000000,
+	  0xaca765753908cd20, 0x3030000000000000, 0x2ca765753908cd20, 0xb030000000000000 },
+	{ 0x3006a09e667f3bcd, 0x4006a09e667f3bcd, 0xb020000000000000,
+	  0x2cd3b3efbf5e2229, 0x3030000000000000, 0xacd3b3efbf5e2229, 0xb030000000000000 },
+	{ 0x3006a09e667f3bcc, 0x4006a09e667f3bcd, 0xb060003450000000,
+	  0xb05e0068a0000000, 0x3061003450000000, 0x305e0068a0000000, 0xb061003450000000 },
+};
+
+int test23(long arg)
+{
+	long i;
+	unsigned long results[4];
+	struct fmavals *vp = fmavals;
+
+	set_fpscr(FPS_RN_NEAR);
+	for (i = 0; i < sizeof(fmavals) / sizeof(fmavals[0]); ++i, ++vp) {
+		asm("lfd 6,0(%0); lfd 7,8(%0); lfd 8,16(%0); fmadd 0,6,7,8; stfd 0,0(%1)"
+		    : : "b" (&vp->ra), "b" (results) : "memory");
+		asm("fmsub 1,6,7,8; fnmadd 2,6,7,8; fnmsub 3,6,7,8; stfd 1,8(%0); stfd 2,16(%0); stfd 3,24(%0)"
+		    : : "b" (results) : "memory");
+		if (results[0] != vp->fma || results[1] != vp->fms ||
+		    results[2] != vp->nfma || results[3] != vp->nfms) {
+			print_hex(i, 2, " ");
+			print_hex(results[0], 16, " ");
+			print_hex(results[1], 16, " ");
+			print_hex(results[2], 16, " ");
+			print_hex(results[3], 16, "\r\n");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
+int fpu_test_23(void)
+{
+	enable_fp();
+	return trapit(0, test23);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -1385,6 +1455,7 @@ int main(void)
 	do_test(20, fpu_test_20);
 	do_test(21, fpu_test_21);
 	do_test(22, fpu_test_22);
+	do_test(23, fpu_test_23);
 
 	return fail;
 }
