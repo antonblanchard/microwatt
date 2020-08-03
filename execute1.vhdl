@@ -633,6 +633,22 @@ begin
                         end if;
                     end if;
                 end if;
+            when OP_CMPRB =>
+                newcrf := ppc_cmprb(a_in, b_in, insn_l(e_in.insn));
+                bf := insn_bf(e_in.insn);
+                crnum := to_integer(unsigned(bf));
+                v.e.write_cr_enable := '1';
+                v.e.write_cr_mask := num_to_fxm(crnum);
+                v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
+                                     newcrf & newcrf & newcrf & newcrf;
+            when OP_CMPEQB =>
+                newcrf := ppc_cmpeqb(a_in, b_in);
+                bf := insn_bf(e_in.insn);
+                crnum := to_integer(unsigned(bf));
+                v.e.write_cr_enable := '1';
+                v.e.write_cr_mask := num_to_fxm(crnum);
+                v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
+                                     newcrf & newcrf & newcrf & newcrf;
 	    when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS | OP_BPERM =>
 		result := logical_result;
 		result_en := '1';
