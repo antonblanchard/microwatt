@@ -633,7 +633,7 @@ begin
                         end if;
                     end if;
                 end if;
-	    when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS =>
+	    when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS | OP_BPERM =>
 		result := logical_result;
 		result_en := '1';
 	    when OP_B =>

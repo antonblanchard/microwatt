@@ -158,7 +158,7 @@ architecture behaviour of decode1 is
         2#1011001010#  =>       (ALU,    OP_ADD,       RA,         NONE,        NONE, RT,   '0', '0', '0', '0', CA,   '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- addzeo
         2#0000011100#  =>       (ALU,    OP_AND,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- and
         2#0000111100#  =>       (ALU,    OP_AND,       NONE,       RB,          RS,   RA,   '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- andc
-        -- 2#0011111100# bperm
+        2#0011111100#  =>       (ALU,    OP_BPERM,     NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- bperm
         2#0000000000#  =>       (ALU,    OP_CMP,       RA,         RB,          NONE, NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0'), -- cmp
         2#0111111100#  =>       (ALU,    OP_CMPB,      NONE,       RB,          RS,   RA,   '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- cmpb
         -- 2#0011100000# cmpeqb

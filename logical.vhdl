@@ -35,11 +35,13 @@ architecture behaviour of logical is
     signal par0, par1 : std_ulogic;
     signal popcnt   : std_ulogic_vector(63 downto 0);
     signal parity   : std_ulogic_vector(63 downto 0);
+    signal permute  : std_ulogic_vector(7 downto 0);
 
 begin
     logical_0: process(all)
         variable rb_adj, tmp : std_ulogic_vector(63 downto 0);
         variable negative : std_ulogic;
+        variable j : integer;
     begin
         -- population counts
         for i in 0 to 31 loop
@@ -81,6 +83,16 @@ begin
             parity(32) <= par1;
         end if;
 
+        -- bit permutation
+        for i in 0 to 7 loop
+            j := i * 8;
+            if rs(j+7 downto j+6) = "00" then
+                permute(i) <= rb(to_integer(unsigned(rs(j+5 downto j))));
+            else
+                permute(i) <= '0';
+            end if;
+        end loop;
+
         rb_adj := rb;
         if invert_in = '1' then
             rb_adj := not rb;
@@ -106,6 +118,8 @@ begin
                 tmp := parity;
             when OP_CMPB =>
                 tmp := ppc_cmpb(rs, rb);
+            when OP_BPERM =>
+                tmp := std_ulogic_vector(resize(unsigned(permute), 64));
             when others =>
                 -- EXTS
                 -- note datalen is a 1-hot encoding
