@@ -875,6 +875,15 @@ begin
 		    set_carry(v.e, rotator_carry, rotator_carry);
 		end if;
 		result_en := '1';
+            when OP_SETB =>
+                bfa := insn_bfa(e_in.insn);
+                crbit := to_integer(unsigned(bfa)) * 4;
+                result := (others => '0');
+                if cr_in(31 - crbit) = '1' then
+                    result := (others => '1');
+                elsif cr_in(30 - crbit) = '1' then
+                    result(0) := '1';
+                end if;
 
 	    when OP_ISYNC =>
 		v.f.redirect := '1';
