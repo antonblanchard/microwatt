@@ -26,6 +26,7 @@ package common is
     constant SPR_XER    : spr_num_t := 1;
     constant SPR_LR     : spr_num_t := 8;
     constant SPR_CTR    : spr_num_t := 9;
+    constant SPR_TAR    : spr_num_t := 815;
     constant SPR_DSISR  : spr_num_t := 18;
     constant SPR_DAR    : spr_num_t := 19;
     constant SPR_TB     : spr_num_t := 268;
@@ -459,6 +460,8 @@ package body common is
            n := 11;
        when SPR_XER =>
            n := 12;
+       when SPR_TAR =>
+           n := 13;
        when others =>
            n := 0;
            return "000000";

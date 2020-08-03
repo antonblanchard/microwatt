@@ -94,7 +94,7 @@ architecture behaviour of decode1 is
         2#1100000010# => '1', 2#1100100010# => '1', 2#1101000010# => '1', 2#1101100010# => '1', 2#1110000010# => '1', 2#1110100010# => '1', 2#1111000010# => '1', 2#1111100010# => '1',
         2#1000010000# => '1', -- bcctr
         2#0000010000# => '1', -- bclr
-        2#1000110000# => '0', -- bctar
+        2#1000110000# => '1', -- bctar
         2#0100000001# => '1', -- crand
         2#0010000001# => '1', -- crandc
         2#0100100001# => '1', -- creqv
@@ -467,11 +467,12 @@ begin
                 if f_in.insn(23) = '0' then
                     v.ispr1 := fast_spr_num(SPR_CTR);
                 end if;
-                -- TODO: Add TAR
                 if f_in.insn(10) = '0' then
                     v.ispr2 := fast_spr_num(SPR_LR);
-                else
+                elsif f_in.insn(6) = '0' then
                     v.ispr2 := fast_spr_num(SPR_CTR);
+                else
+                    v.ispr2 := fast_spr_num(SPR_TAR);
                 end if;
             else
                 -- Could be OP_RFID
