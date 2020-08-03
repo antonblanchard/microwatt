@@ -739,6 +739,14 @@ begin
 			end if;
 		    end loop;
 		end if;
+            when OP_MCRXRX =>
+                newcrf := v.e.xerc.ov & v.e.xerc.ca & v.e.xerc.ov32 & v.e.xerc.ca32;
+                bf := insn_bf(e_in.insn);
+                crnum := to_integer(unsigned(bf));
+                v.e.write_cr_enable := '1';
+                v.e.write_cr_mask := num_to_fxm(crnum);
+                v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
+                                     newcrf & newcrf & newcrf & newcrf;
 	    when OP_MFMSR =>
 		result := ctrl.msr;
 		result_en := '1';

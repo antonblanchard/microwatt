@@ -91,10 +91,10 @@ const char *ops[64] =
 	"bperm  ", "cmp    ", "cmpb   ", "cmpeqb ", "cmprb  ", "cntz   ", "crop   ", "darn   ",
 	"dcbf   ", "dcbst  ", "dcbt   ", "dcbtst ", "dcbz   ", "div    ", "dive   ", "exts   ",
 	"extswsl", "icbi   ", "icbt   ", "isel   ", "isync  ", "ld     ", "st     ", "maddhd ",
-	"maddhdu", "maddld ", "mcrxr  ", "mcrxrx ", "mfcr   ", "mfmsr  ", "mfspr  ", "mod    ",
-	"mtcrf  ", "mtmsr  ", "mtspr  ", "mull64 ", "mulh64 ", "mulh32 ", "or     ", "popcnt ",
-	"prty   ", "rfid   ", "rlc    ", "rlcl   ", "rlcr   ", "sc     ", "setb   ", "shl    ",
-	"shr    ", "sync   ", "tlbie  ", "trap   ", "xor    ", "ffail  ", "?62    ", "?63    "
+	"maddhdu", "maddld ", "mcrxrx ", "mfcr   ", "mfmsr  ", "mfspr  ", "mod    ", "mtcrf  ",
+	"mtmsr  ", "mtspr  ", "mull64 ", "mulh64 ", "mulh32 ", "or     ", "popcnt ", "prty   ",
+	"rfid   ", "rlc    ", "rlcl   ", "rlcr   ", "sc     ", "setb   ", "shl    ", "shr    ",
+	"sync   ", "tlbie  ", "trap   ", "xor    ", "ffail  ", "?61    ", "?62    ", "?63    "
 };
 
 const char *spr_names[13] =
