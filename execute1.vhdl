@@ -309,6 +309,7 @@ begin
         variable taken_branch : std_ulogic;
         variable abs_branch : std_ulogic;
         variable spr_val : std_ulogic_vector(63 downto 0);
+        variable addend : std_ulogic_vector(127 downto 0);
     begin
 	result := (others => '0');
 	result_with_carry := (others => '0');
@@ -408,8 +409,20 @@ begin
             x_to_divider.is_modulus <= '1';
         end if;
 
+        addend := (others => '0');
+        if e_in.insn(26) = '0' then
+            -- integer multiply-add, major op 4 (if it is a multiply)
+            addend(63 downto 0) := c_in;
+            if e_in.is_signed = '1' then
+                addend(127 downto 64) := (others => c_in(63));
+            end if;
+        end if;
+        if (sign1 xor sign2) = '1' then
+            addend := not addend;
+        end if;
+
         x_to_multiply.not_result <= sign1 xor sign2;
-        x_to_multiply.addend <= (others => sign1 xor sign2);
+        x_to_multiply.addend <= addend;
         x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
         if e_in.is_32bit = '0' then
             -- 64-bit forms

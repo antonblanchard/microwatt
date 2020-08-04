@@ -135,6 +135,8 @@ architecture behaviour of decode2 is
         case t is
             when RS =>
                 return ('1', gpr_to_gspr(insn_rs(insn_in)), reg_data);
+            when RCR =>
+                return ('1', gpr_to_gspr(insn_rcreg(insn_in)), reg_data);
             when NONE =>
                 return ('0', (others => '0'), (others => '0'));
         end case;
@@ -282,7 +284,8 @@ begin
                        else gpr_to_gspr(insn_ra(d_in.insn));
     r_out.read2_reg <= d_in.ispr2 when d_in.decode.input_reg_b = SPR
                        else gpr_to_gspr(insn_rb(d_in.insn));
-    r_out.read3_reg <= insn_rs(d_in.insn);
+    r_out.read3_reg <= insn_rcreg(d_in.insn) when d_in.decode.input_reg_c = RCR
+                       else insn_rs(d_in.insn);
 
     c_out.read <= d_in.decode.input_cr;
 

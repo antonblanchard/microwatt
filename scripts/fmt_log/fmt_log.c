@@ -90,11 +90,11 @@ const char *ops[64] =
 	"illegal", "nop    ", "add    ", "and    ", "attn   ", "b      ", "bc     ", "bcreg  ",
 	"bperm  ", "cmp    ", "cmpb   ", "cmpeqb ", "cmprb  ", "cntz   ", "crop   ", "darn   ",
 	"dcbf   ", "dcbst  ", "dcbt   ", "dcbtst ", "dcbz   ", "div    ", "dive   ", "exts   ",
-	"extswsl", "icbi   ", "icbt   ", "isel   ", "isync  ", "ld     ", "st     ", "maddhd ",
-	"maddhdu", "maddld ", "mcrxrx ", "mfcr   ", "mfmsr  ", "mfspr  ", "mod    ", "mtcrf  ",
-	"mtmsr  ", "mtspr  ", "mull64 ", "mulh64 ", "mulh32 ", "or     ", "popcnt ", "prty   ",
-	"rfid   ", "rlc    ", "rlcl   ", "rlcr   ", "sc     ", "setb   ", "shl    ", "shr    ",
-	"sync   ", "tlbie  ", "trap   ", "xor    ", "ffail  ", "?61    ", "?62    ", "?63    "
+	"extswsl", "icbi   ", "icbt   ", "isel   ", "isync  ", "ld     ", "st     ", "mcrxrx ",
+	"mfcr   ", "mfmsr  ", "mfspr  ", "mod    ", "mtcrf  ", "mtmsr  ", "mtspr  ", "mull64 ",
+	"mulh64 ", "mulh32 ", "or     ", "popcnt ", "prty   ", "rfid   ", "rlc    ", "rlcl   ",
+	"rlcr   ", "sc     ", "setb   ", "shl    ", "shr    ", "sync   ", "tlbie  ", "trap   ",
+	"xor    ", "ffail  ", "?58    ", "?59    ", "?60    ", "?61    ", "?62    ", "?63    "
 };
 
 const char *spr_names[13] =

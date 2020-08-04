@@ -34,6 +34,8 @@ architecture behaviour of decode1 is
     subtype major_opcode_t is unsigned(5 downto 0);
     type major_rom_array_t is array(0 to 63) of decode_rom_t;
     type minor_valid_array_t is array(0 to 1023) of std_ulogic;
+    type minor_valid_array_2t is array(0 to 2047) of std_ulogic;
+    type op_4_subop_array_t is array(0 to 63) of decode_rom_t;
     type op_19_subop_array_t is array(0 to 7) of decode_rom_t;
     type op_30_subop_array_t is array(0 to 15) of decode_rom_t;
     type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
@@ -83,6 +85,24 @@ architecture behaviour of decode1 is
         26 =>       (ALU,    OP_XOR,       NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- xori
         27 =>       (ALU,    OP_XOR,       NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- xoris
         others   => illegal_inst
+        );
+
+    -- indexed by bits 5..0 and 10..6 of instruction word
+    constant decode_op_4_valid : minor_valid_array_2t := (
+        2#11000000000# to 2#11000011111# => '1',        -- maddhd
+        2#11000100000# to 2#11000111111# => '1',        -- maddhdu
+        2#11001100000# to 2#11001111111# => '1',        -- maddld
+        others => '0'
+        );
+
+    -- indexed by bits 5..0 of instruction word
+    constant decode_op_4_array : op_4_subop_array_t := (
+        --                   unit    internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+        --                                op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2#110000#  =>       (ALU,    OP_MUL_H64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- maddhd
+        2#110001#  =>       (ALU,    OP_MUL_H64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- maddhdu
+        2#110011#  =>       (ALU,    OP_MUL_L64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0'), -- maddld
+        others   => decode_rom_init
         );
 
     -- indexed by bits 10..1 of instruction word
@@ -390,6 +410,7 @@ begin
         variable v : Decode1ToDecode2Type;
         variable f : Decode1ToFetch1Type;
         variable majorop : major_opcode_t;
+        variable minor4op : std_ulogic_vector(10 downto 0);
         variable op_19_bits: std_ulogic_vector(2 downto 0);
         variable sprn : spr_num_t;
         variable br_nia    : std_ulogic_vector(61 downto 0);
@@ -417,6 +438,15 @@ begin
                 v.valid := '0';
             end if;
             v.decode := fetch_fail_inst;
+
+        elsif majorop = "000100" then
+            -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
+            minor4op := f_in.insn(5 downto 0) & f_in.insn(10 downto 6);
+            if decode_op_4_valid(to_integer(unsigned(minor4op))) = '1' then
+                v.decode := decode_op_4_array(to_integer(unsigned(f_in.insn(5 downto 0))));
+            else
+                v.decode := illegal_inst;
+            end if;
 
         elsif majorop = "011111" then
             -- major opcode 31, lots of things
