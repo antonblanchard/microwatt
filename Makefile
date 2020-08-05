@@ -58,7 +58,8 @@ uart_files = $(wildcard uart16550/*.v)
 
 soc_sim_files = $(soc_files) sim_console.vhdl sim_pp_uart.vhdl sim_bram_helpers.vhdl \
 	sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl dmi_dtm_xilinx.vhdl \
-	sim_16550_uart.vhdl
+	sim_16550_uart.vhdl \
+	random.vhdl glibc_random.vhdl glibc_random_helpers.vhdl
 
 soc_sim_c_files = sim_vhpi_c.c sim_bram_helpers_c.c sim_console_c.c \
 	sim_jtag_socket_c.c
@@ -177,7 +178,8 @@ toplevel=fpga/top-generic.vhdl
 dmi_dtm=dmi_dtm_dummy.vhdl
 
 fpga_files = $(core_files) $(soc_files) fpga/soc_reset.vhdl \
-	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram.vhdl
+	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram.vhdl \
+	nonrandom.vhdl
 
 synth_files = $(core_files) $(soc_files) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
 

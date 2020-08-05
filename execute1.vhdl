@@ -97,6 +97,11 @@ architecture behaviour of execute1 is
     signal x_to_divider: Execute1ToDividerType;
     signal divider_to_x: DividerToExecute1Type;
 
+    -- random number generator signals
+    signal random_raw  : std_ulogic_vector(63 downto 0);
+    signal random_cond : std_ulogic_vector(63 downto 0);
+    signal random_err  : std_ulogic;
+
     -- signals for logging
     signal exception_log : std_ulogic;
     signal irq_valid_log : std_ulogic;
@@ -185,6 +190,11 @@ architecture behaviour of execute1 is
 	return msr_out;
     end;
 
+    -- Tell vivado to keep the hierarchy for the random module so that the
+    -- net names in the xdc file match.
+    attribute keep_hierarchy : string;
+    attribute keep_hierarchy of random_0 : label is "yes";
+
 begin
 
     rotator_0: entity work.rotator
@@ -236,6 +246,14 @@ begin
             rst => rst,
             d_in => x_to_divider,
             d_out => divider_to_x
+            );
+
+    random_0: entity work.random
+        port map (
+            clk => clk,
+            data => random_cond,
+            raw => random_raw,
+            err => random_err
             );
 
     dbg_msr_out <= ctrl.msr;
@@ -776,6 +794,20 @@ begin
                 v.e.write_cr_mask := num_to_fxm(crnum);
                 v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
                                      newcrf & newcrf & newcrf & newcrf;
+            when OP_DARN =>
+                if random_err = '0' then
+                    case e_in.insn(17 downto 16) is
+                        when "00" =>
+                            result := x"00000000" & random_cond(31 downto 0);
+                        when "10" =>
+                            result := random_raw;
+                        when others =>
+                            result := random_cond;
+                    end case;
+                else
+                    result := (others => '1');
+                end if;
+                result_en := '1';
 	    when OP_MFMSR =>
 		result := ctrl.msr;
 		result_en := '1';
