@@ -164,6 +164,8 @@ architecture behaviour of execute1 is
 	    return '0';
 	when CA =>
 	    return xerc.ca;
+        when OV =>
+            return xerc.ov;
 	when ONE =>
 	    return '1';
 	end case;
@@ -594,7 +596,13 @@ begin
                 carry_64 := result_with_carry(64);
                 if e_in.insn_type = OP_ADD then
                     if e_in.output_carry = '1' then
-                        set_carry(v.e, carry_32, carry_64);
+                        if e_in.input_carry /= OV then
+                            set_carry(v.e, carry_32, carry_64);
+                        else
+                            v.e.xerc.ov := carry_64;
+                            v.e.xerc.ov32 := carry_32;
+                            v.e.write_xerc_enable := '1';
+                        end if;
                     end if;
                     if e_in.oe = '1' then
                         set_ov(v.e,

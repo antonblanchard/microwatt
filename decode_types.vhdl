@@ -26,7 +26,7 @@ package decode_types is
     type input_reg_c_t is (NONE, RS, RCR);
     type output_reg_a_t is (NONE, RT, RA, SPR);
     type rc_t is (NONE, ONE, RC);
-    type carry_in_t is (ZERO, CA, ONE);
+    type carry_in_t is (ZERO, CA, OV, ONE);
 
     constant SH_OFFSET : integer := 0;
     constant MB_OFFSET : integer := 1;
