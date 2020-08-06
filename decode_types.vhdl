@@ -18,6 +18,7 @@ package decode_types is
 			 OP_SHL, OP_SHR,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
 			 OP_XOR,
+                         OP_BCD, OP_ADDG6S,
                          OP_FETCH_FAILED
 			 );
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA);

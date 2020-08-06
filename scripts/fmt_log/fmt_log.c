@@ -94,7 +94,7 @@ const char *ops[64] =
 	"mfcr   ", "mfmsr  ", "mfspr  ", "mod    ", "mtcrf  ", "mtmsr  ", "mtspr  ", "mull64 ",
 	"mulh64 ", "mulh32 ", "or     ", "popcnt ", "prty   ", "rfid   ", "rlc    ", "rlcl   ",
 	"rlcr   ", "sc     ", "setb   ", "shl    ", "shr    ", "sync   ", "tlbie  ", "trap   ",
-	"xor    ", "ffail  ", "?58    ", "?59    ", "?60    ", "?61    ", "?62    ", "?63    "
+	"xor    ", "bcd    ", "addg6s ", "ffail  ", "?60    ", "?61    ", "?62    ", "?63    "
 };
 
 const char *spr_names[13] =

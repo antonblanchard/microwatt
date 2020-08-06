@@ -295,7 +295,7 @@ begin
 	variable a_inv : std_ulogic_vector(63 downto 0);
 	variable result : std_ulogic_vector(63 downto 0);
 	variable newcrf : std_ulogic_vector(3 downto 0);
-	variable result_with_carry : std_ulogic_vector(64 downto 0);
+	variable sum_with_carry : std_ulogic_vector(64 downto 0);
 	variable result_en : std_ulogic;
 	variable crnum : crnum_t;
 	variable crbit : integer range 0 to 31;
@@ -332,7 +332,7 @@ begin
         variable addend : std_ulogic_vector(127 downto 0);
     begin
 	result := (others => '0');
-	result_with_carry := (others => '0');
+	sum_with_carry := (others => '0');
 	result_en := '0';
 	newcrf := (others => '0');
         is_branch := '0';
@@ -394,6 +394,15 @@ begin
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
         v.mul_finish := '0';
+
+        -- Main adder
+        if e_in.invert_a = '0' then
+            a_inv := a_in;
+        else
+            a_inv := not a_in;
+        end if;
+        sum_with_carry := ppc_adde(a_inv, b_in,
+                                   decode_input_carry(e_in.input_carry, v.e.xerc));
 
         -- signals to multiply and divide units
         sign1 := '0';
@@ -584,16 +593,9 @@ begin
 	    when OP_NOP =>
 		-- Do nothing
 	    when OP_ADD | OP_CMP | OP_TRAP =>
-		if e_in.invert_a = '0' then
-		    a_inv := a_in;
-		else
-		    a_inv := not a_in;
-		end if;
-		result_with_carry := ppc_adde(a_inv, b_in,
-					      decode_input_carry(e_in.input_carry, v.e.xerc));
-		result := result_with_carry(63 downto 0);
+		result := sum_with_carry(63 downto 0);
                 carry_32 := result(32) xor a_inv(32) xor b_in(32);
-                carry_64 := result_with_carry(64);
+                carry_64 := sum_with_carry(64);
                 if e_in.insn_type = OP_ADD then
                     if e_in.output_carry = '1' then
                         if e_in.input_carry /= OV then
@@ -606,8 +608,8 @@ begin
                     end if;
                     if e_in.oe = '1' then
                         set_ov(v.e,
-                               calc_ov(a_inv(63), b_in(63), carry_64, result_with_carry(63)),
-                               calc_ov(a_inv(31), b_in(31), carry_32, result_with_carry(31)));
+                               calc_ov(a_inv(63), b_in(63), carry_64, sum_with_carry(63)),
+                               calc_ov(a_inv(31), b_in(31), carry_32, sum_with_carry(31)));
                     end if;
                     result_en := '1';
                 else
@@ -672,6 +674,19 @@ begin
                         end if;
                     end if;
                 end if;
+            when OP_ADDG6S =>
+                result := (others => '0');
+                for i in 0 to 14 loop
+                    lo := i * 4;
+                    hi := (i + 1) * 4;
+                    if (a_in(hi) xor b_in(hi) xor sum_with_carry(hi)) = '0' then
+                        result(lo + 3 downto lo) := "0110";
+                    end if;
+                end loop;
+                if sum_with_carry(64) = '0' then
+                    result(63 downto 60) := "0110";
+                end if;
+                result_en := '1';
             when OP_CMPRB =>
                 newcrf := ppc_cmprb(a_in, b_in, insn_l(e_in.insn));
                 bf := insn_bf(e_in.insn);
@@ -688,7 +703,8 @@ begin
                 v.e.write_cr_mask := num_to_fxm(crnum);
                 v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
                                      newcrf & newcrf & newcrf & newcrf;
-	    when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS | OP_BPERM =>
+            when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS |
+                    OP_BPERM | OP_BCD =>
 		result := logical_result;
 		result_en := '1';
 	    when OP_B =>
