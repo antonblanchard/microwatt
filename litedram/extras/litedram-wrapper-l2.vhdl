@@ -10,8 +10,10 @@ use work.helpers.all;
 
 entity litedram_wrapper is
     generic (
-	DRAM_ABITS     : positive;
-	DRAM_ALINES    : positive;
+	DRAM_ABITS      : positive;
+	DRAM_ALINES     : natural;
+	DRAM_DLINES     : natural;
+	DRAM_PORT_WIDTH : positive;
 
         -- Pseudo-ROM payload
         PAYLOAD_SIZE      : natural;    
@@ -63,10 +65,10 @@ entity litedram_wrapper is
         ddram_cas_n   : out std_ulogic;
         ddram_we_n    : out std_ulogic;
         ddram_cs_n    : out std_ulogic;
-        ddram_dm      : out std_ulogic_vector(1 downto 0);
-        ddram_dq      : inout std_ulogic_vector(15 downto 0);
-        ddram_dqs_p   : inout std_ulogic_vector(1 downto 0);
-        ddram_dqs_n   : inout std_ulogic_vector(1 downto 0);
+        ddram_dm      : out std_ulogic_vector(DRAM_DLINES/8-1 downto 0);
+        ddram_dq      : inout std_ulogic_vector(DRAM_DLINES-1 downto 0);
+        ddram_dqs_p   : inout std_ulogic_vector(DRAM_DLINES/8-1 downto 0);
+        ddram_dqs_n   : inout std_ulogic_vector(DRAM_DLINES/8-1 downto 0);
         ddram_clk_p   : out std_ulogic;
         ddram_clk_n   : out std_ulogic;
         ddram_cke     : out std_ulogic;
@@ -87,10 +89,10 @@ architecture behaviour of litedram_wrapper is
         ddram_cas_n                    : out std_ulogic;
         ddram_we_n                     : out std_ulogic;
         ddram_cs_n                     : out std_ulogic;
-        ddram_dm                       : out std_ulogic_vector(1 downto 0);
-        ddram_dq                       : inout std_ulogic_vector(15 downto 0);
-        ddram_dqs_p                    : inout std_ulogic_vector(1 downto 0);
-        ddram_dqs_n                    : inout std_ulogic_vector(1 downto 0);
+        ddram_dm                       : out std_ulogic_vector(DRAM_DLINES/8-1 downto 0);
+        ddram_dq                       : inout std_ulogic_vector(DRAM_DLINES-1 downto 0);
+        ddram_dqs_p                    : inout std_ulogic_vector(DRAM_DLINES/8-1 downto 0);
+        ddram_dqs_n                    : inout std_ulogic_vector(DRAM_DLINES/8-1 downto 0);
         ddram_clk_p                    : out std_ulogic;
         ddram_clk_n                    : out std_ulogic;
         ddram_cke                      : out std_ulogic;
@@ -117,11 +119,11 @@ architecture behaviour of litedram_wrapper is
         user_port_native_0_cmd_addr    : in std_ulogic_vector(DRAM_ABITS-1 downto 0);
         user_port_native_0_wdata_valid : in std_ulogic;
         user_port_native_0_wdata_ready : out std_ulogic;
-        user_port_native_0_wdata_we    : in std_ulogic_vector(15 downto 0);
-        user_port_native_0_wdata_data  : in std_ulogic_vector(127 downto 0);
+        user_port_native_0_wdata_we    : in std_ulogic_vector(DRAM_PORT_WIDTH/8-1 downto 0);
+        user_port_native_0_wdata_data  : in std_ulogic_vector(DRAM_PORT_WIDTH-1 downto 0);
         user_port_native_0_rdata_valid : out std_ulogic;
         user_port_native_0_rdata_ready : in std_ulogic;
-        user_port_native_0_rdata_data  : out std_ulogic_vector(127 downto 0)
+        user_port_native_0_rdata_data  : out std_ulogic_vector(DRAM_PORT_WIDTH-1 downto 0)
         );
     end component;
     
@@ -131,11 +133,11 @@ architecture behaviour of litedram_wrapper is
     signal user_port0_cmd_addr          : std_ulogic_vector(DRAM_ABITS-1 downto 0);
     signal user_port0_wdata_valid       : std_ulogic;
     signal user_port0_wdata_ready       : std_ulogic;
-    signal user_port0_wdata_we          : std_ulogic_vector(15 downto 0);
-    signal user_port0_wdata_data        : std_ulogic_vector(127 downto 0);
+    signal user_port0_wdata_we          : std_ulogic_vector(DRAM_PORT_WIDTH/8-1 downto 0);
+    signal user_port0_wdata_data        : std_ulogic_vector(DRAM_PORT_WIDTH-1 downto 0);
     signal user_port0_rdata_valid       : std_ulogic;
     signal user_port0_rdata_ready       : std_ulogic;
-    signal user_port0_rdata_data        : std_ulogic_vector(127 downto 0);
+    signal user_port0_rdata_data        : std_ulogic_vector(DRAM_PORT_WIDTH-1 downto 0);
 
     signal wb_ctrl_adr                  : std_ulogic_vector(29 downto 0);
     signal wb_ctrl_dat_w                : std_ulogic_vector(31 downto 0);
@@ -150,14 +152,24 @@ architecture behaviour of litedram_wrapper is
     signal wb_init_out                  : wb_io_slave_out;
 
     -- DRAM data port width
-    constant DRAM_DBITS                 : natural := 128;
+    constant DRAM_DBITS                 : natural := DRAM_PORT_WIDTH;
+    -- DRAM data port sel bits
     constant DRAM_SBITS                 : natural := (DRAM_DBITS / 8);
+
+    -- WB geometry (just a few shortcuts)
+    constant WBL                        : positive := wb_in.dat'length;
+    constant WBSL                       : positive := wb_in.sel'length;
+
+    -- Select a WB word inside DRAM port width
+    constant WB_WORD_COUNT              : positive := DRAM_DBITS/WBL;
+    constant WB_WSEL_BITS               : positive := log2(WB_WORD_COUNT);
+    constant WB_WSEL_RIGHT              : positive := log2(WBL/8);
 
     -- BRAM organisation: We never access more than wishbone_data_bits at
     -- a time so to save resources we make the array only that wide, and
     -- use consecutive indices for to make a cache "line"
     --
-    -- ROW_SIZE is the width in bytes of the BRAM (based on litedram, so 128-bits)
+    -- ROW_SIZE is the width in bytes of the BRAM, ie, litedram port width
     constant ROW_SIZE      : natural := DRAM_DBITS / 8;
     -- ROW_PER_LINE is the number of row (litedram transactions) in a line
     constant ROW_PER_LINE  : natural := LINE_SIZE / ROW_SIZE;
@@ -184,11 +196,12 @@ architecture behaviour of litedram_wrapper is
     -- TAG_BITS is the number of bits of the tag part of the address
     constant TAG_BITS      : natural := REAL_ADDR_BITS - SET_SIZE_BITS;
     -- WAY_BITS is the number of bits to select a way
-    constant WAY_BITS     : natural := log2(NUM_WAYS);
+    constant WAY_BITS      : natural := log2(NUM_WAYS);
 
     subtype row_t is integer range 0 to BRAM_ROWS-1;
     subtype index_t is integer range 0 to NUM_LINES-1;
     subtype way_t is integer range 0 to NUM_WAYS-1;
+    subtype row_in_line_t is unsigned(ROW_LINEBITS-1 downto 0);
 
     -- The cache data BRAM organized as described above for each way
     subtype cache_row_t is std_ulogic_vector(DRAM_DBITS-1 downto 0);
@@ -207,6 +220,9 @@ architecture behaviour of litedram_wrapper is
     subtype cache_way_valids_t is std_ulogic_vector(NUM_WAYS-1 downto 0);
     type cache_valids_t is array(index_t) of cache_way_valids_t;
 
+    -- "Temporary" valid bits for the rows of the currently refilled line
+    type row_per_line_valid_t is array(0 to ROW_PER_LINE - 1) of std_ulogic;
+
     -- Storage. Hopefully "cache_rows" is a BRAM, the rest is LUTs
     signal cache_tags   : cache_tags_array_t;
     signal cache_valids : cache_valids_t;
@@ -217,10 +233,10 @@ architecture behaviour of litedram_wrapper is
     --
     -- Store queue signals
     --
-    -- We store a single wishbone dword per entry (64-bit) but all
-    -- 16 sel bits for the DRAM.
-    -- XXX Investigate storing only AD3 and 8 sel bits if it's better
-    constant STOREQ_BITS  : positive := wishbone_data_bits + DRAM_SBITS;
+    -- We store a single wishbone dword per entry (64-bit)
+    -- along with the wishbone sel bits and the necessary address
+    -- bits to select which part of DRAM port to write to.
+    constant STOREQ_BITS  : positive := WBL + WBSL + WB_WSEL_BITS;
 
     signal storeq_rd_ready : std_ulogic;
     signal storeq_rd_valid : std_ulogic;
@@ -233,7 +249,7 @@ architecture behaviour of litedram_wrapper is
     -- Cache management signals
     --
 
-     -- Cache state machine
+    -- Cache state machine
     type state_t is (IDLE,             -- Normal load hit processing
                      REFILL_CLR_TAG,   -- Cache refill clear tag
                      REFILL_WAIT_ACK); -- Cache refill wait ack
@@ -247,8 +263,8 @@ architecture behaviour of litedram_wrapper is
     -- Read pipeline (to handle cache RAM latency)
     signal read_ack_0  : std_ulogic := '0';
     signal read_ack_1  : std_ulogic := '0';
-    signal read_ad3_0  : std_ulogic;
-    signal read_ad3_1  : std_ulogic;
+    signal read_wsl_0  : std_ulogic_vector(WB_WSEL_BITS-1 downto 0) := (others => '0');
+    signal read_wsl_1  : std_ulogic_vector(WB_WSEL_BITS-1 downto 0) := (others => '0');
     signal read_way_0  : way_t;
     signal read_way_1  : way_t;
 
@@ -261,7 +277,8 @@ architecture behaviour of litedram_wrapper is
                       OP_LOAD_HIT,
                       OP_LOAD_MISS,
                       OP_STORE_HIT,
-                      OP_STORE_MISS);
+                      OP_STORE_MISS,
+                      OP_STORE_DELAYED);
 
     signal req_index    : index_t;
     signal req_row      : row_t;
@@ -269,10 +286,9 @@ architecture behaviour of litedram_wrapper is
     signal req_tag      : cache_tag_t;
     signal req_op       : req_op_t;
     signal req_laddr    : std_ulogic_vector(REAL_ADDR_BITS-1 downto 0);
-    signal req_ad3      : std_ulogic;
+    signal req_wsl      : std_ulogic_vector(WB_WSEL_BITS-1 downto 0);
     signal req_we       : std_ulogic_vector(DRAM_SBITS-1 downto 0);
     signal req_wdata    : std_ulogic_vector(DRAM_DBITS-1 downto 0);
-    signal accept_store : std_ulogic;
     signal stall        : std_ulogic;
 
     -- Line refill command signals and latches
@@ -281,6 +297,8 @@ architecture behaviour of litedram_wrapper is
     signal refill_way       : way_t;
     signal refill_index     : index_t;
     signal refill_row       : row_t;
+    signal refill_end_row   : row_in_line_t;
+    signal refill_rows_vlid : row_per_line_valid_t;
 
     -- Cache RAM interface
     type cache_ram_out_t is array(way_t) of cache_row_t;
@@ -306,21 +324,25 @@ architecture behaviour of litedram_wrapper is
         return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto ROW_OFF_BITS)));
     end;
 
-    -- Returns whether this is the last row of a line. It takes a DRAM address
-    function is_last_row_addr(addr: std_ulogic_vector(REAL_ADDR_BITS-1 downto ROW_OFF_BITS))
-        return boolean is
-        constant ones : std_ulogic_vector(ROW_LINEBITS-1 downto 0) := (others => '1');
+    -- Return the index of a row within a line
+    function get_row_of_line(row: row_t) return row_in_line_t is
+	variable row_v : unsigned(ROW_BITS-1 downto 0);
     begin
-        return addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS) = ones;
+	row_v := to_unsigned(row, ROW_BITS);
+        return row_v(ROW_LINEBITS-1 downto 0);
+    end;
+    -- Returns whether this is the last row of a line. It takes a DRAM address
+    function is_last_row_addr(addr: std_ulogic_vector(REAL_ADDR_BITS-1 downto ROW_OFF_BITS);
+                              last: row_in_line_t)
+        return boolean is
+    begin
+        return unsigned(addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS)) = last;
     end;
 
     -- Returns whether this is the last row of a line
-    function is_last_row(row: row_t) return boolean is
-        variable row_v : std_ulogic_vector(ROW_BITS-1 downto 0);
-        constant ones  : std_ulogic_vector(ROW_LINEBITS-1 downto 0) := (others => '1');
+    function is_last_row(row: row_t; last: row_in_line_t) return boolean is
     begin
-        row_v := std_ulogic_vector(to_unsigned(row, ROW_BITS));
-        return row_v(ROW_LINEBITS-1 downto 0) = ones;
+        return get_row_of_line(row) = last;
     end;
 
     -- Return the address of the next row in the current cache line. It takes a
@@ -387,8 +409,6 @@ begin
         report "geometry bits don't add up" severity FAILURE;
     assert (REAL_ADDR_BITS = TAG_BITS + ROW_BITS + ROW_OFF_BITS)
         report "geometry bits don't add up" severity FAILURE;
-    assert (128 = DRAM_DBITS)
-        report "Can't yet handle a DRAM width that isn't 128-bits" severity FAILURE;
 
     -- alternate core reset address set when DRAM is not initialized.
     core_alt_reset <= not init_done;
@@ -493,7 +513,7 @@ begin
             --
             -- Write mux: cache refills from DRAM or writes from Wishbone
             --
-            if state = IDLE then
+            if req_op = OP_STORE_HIT and req_hit_way = i then
                 -- Write from wishbone
                 wr_addr <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
                 wr_data <= req_wdata;
@@ -570,7 +590,7 @@ begin
     end generate;
 
     --
-    -- Wishbone interface:
+    -- Wishbone request interface:
     --
     --  - Incoming wishbone request latch (to help with timing)
     --  - Read response pipeline (to match BRAM output buffer delay)
@@ -632,16 +652,15 @@ begin
     --
     -- Read response pipeline
     --
-    -- XXX Might have to put store acks in there too (see comment in wb_response)
     read_pipe: process(system_clk)
     begin
         if rising_edge(system_clk) then
             read_ack_0 <= '1' when req_op = OP_LOAD_HIT else '0';
-            read_ad3_0 <= req_ad3;
+            read_wsl_0 <= req_wsl;
             read_way_0 <= req_hit_way;
 
             read_ack_1 <= read_ack_0;
-            read_ad3_1 <= read_ad3_0;
+            read_wsl_1 <= read_wsl_0;
             read_way_1 <= read_way_0;
 
             if TRACE then
@@ -670,58 +689,54 @@ begin
         end if;
     end process;
 
-    wb_reponse: process(all)
-        variable rdata      : std_ulogic_vector(DRAM_DBITS-1 downto 0);
-        variable store_done : std_ulogic;
+    --
+    -- Wishbone response generation
+    --
+
+    wb_rseponse: process(all)
+        variable rdata        : std_ulogic_vector(DRAM_DBITS-1 downto 0);
+        variable store_done   : std_ulogic;
+        variable accept_store : std_ulogic;
+        variable wsel         : natural range 0 to WB_WORD_COUNT-1;
     begin
-        -- Can we accept a store ? This is set when IDLE and the store
-        -- queue & command queue are not full.
+        -- Can we accept a store ? This is set when the store queue & command
+        -- queue are not full.
         --
-        -- Note: This is only used to control the WB request latch, stall
-        -- and store "early complete". We don't want to use this to control
-        -- cmd_valid to DRAM as this would create a circular dependency inside
-        -- LiteDRAM as cmd_ready I think is driven from cmd_valid.
+        -- This does *not* mean that we will accept the store, there are other
+        -- reasons to delay them (see OP_STORE_DELAYED).
         --
-        -- The state machine that controls the command queue must thus
-        -- reproduce this logic at least partially.
+        -- A store is fully accepted when *both* req_op is not OP_STORE_DELAYED
+        -- and accept_store is '1'.
         --
-        -- Note also that user_port0_cmd_ready from LiteDRAM is combinational
-        -- from user_port0_cmd_valid. IE. we won't know that LiteDRAM cannot
-        -- accept a command until we try to send one.
+        -- The reason for this split is to avoid a circular dependency inside
+        -- LiteDRAM, since cmd_ready from litedram is driven from cmd_valid (*)
+        -- we don't want to generate cmd_valid from cmd_ready. So we generate
+        -- it instead from all the *other* conditions that make a store valid.
         --
-        if state = IDLE then
-            accept_store <= user_port0_cmd_ready and storeq_wr_ready;
+        -- (*) It's my understanding that user_port0_cmd_ready from LiteDRAM is
+        -- ombinational from user_port0_cmd_valid along with a bunch of other
+        -- internal signals. IE. we won't know that LiteDRAM cannot accept a
+        -- command until we try to send one.
+        --
+        accept_store := user_port0_cmd_ready and storeq_wr_ready;
 
-            -- Corner case !!! The read acks pipeline takes two extra cycles
-            -- which means a store ack can collide with a previous load hit
-            -- ack. Thus we stall stores if we have a load ack pending.
-            if read_ack_0 = '1' or read_ack_1 = '1' then
-                accept_store <= '0';
-            end if;
-        else
-            accept_store <= '0';
-        end if;
-
-        -- Generate stalls. For loads, we stall if we are going to take a load
-        -- miss or are in the middle of a refill. For stores, if we can't
-        -- accept it.
-        case state is
-        when IDLE =>
-            case req_op is
-            when OP_LOAD_MISS =>
-                stall <= '1';
-            when OP_STORE_MISS | OP_STORE_HIT =>
-                stall <= not accept_store;
-            when others =>
-                stall <= '0';
-            end case;
-        when others =>
+        -- Generate stalls. For stores we stall if we can't accept it.
+        -- For loads, we stall if we are going to take a load miss or
+        -- are in the middle of a refill and it isn't a partial hit.
+        if req_op = OP_STORE_MISS or req_op = OP_STORE_HIT then
+            stall <= not accept_store;
+        elsif req_op = OP_LOAD_MISS or req_op = OP_STORE_DELAYED then
             stall <= '1';
-        end case;
+        else
+            stall <= '0';
+        end if;
         
         -- Data out mux
         rdata := cache_out(read_way_1);
-        wb_out.dat <= rdata(127 downto 64) when read_ad3_1 = '1' else rdata(63 downto 0);
+
+        -- Hard wired for 64-bit wishbone
+        wsel := to_integer(unsigned(read_wsl_1));
+        wb_out.dat <= rdata((wsel+1)*WBL-1 downto wsel*WBL);
 
         -- Early-complete stores on wishbone.
         if req_op = OP_STORE_HIT or req_op = OP_STORE_MISS then
@@ -736,7 +751,8 @@ begin
         -- Generate Wishbone ACKs on read hits and store complete
         --
         -- This can happen on store right behind loads ! This is why
-        -- we don't accept a new store right behind a load ack above.
+        -- we delay a store when a load ack is in the pipeline in the
+        -- request decoder below.
         --
         wb_out.ack <= read_ack_1 or store_ack_1;
         assert read_ack_1 = '0' or store_ack_1 = '0' report
@@ -748,60 +764,99 @@ begin
     -- Cache request decode
     --
     request_decode: process(all)
-        variable valid   : std_ulogic;
-        variable is_hit  : std_ulogic;
-        variable hit_way : way_t;
+        variable valid       : boolean;
+        variable is_hit      : boolean;
+        variable store_delay : boolean;
+        variable hit_way     : way_t;
     begin
         -- Extract line, row and tag from request
         req_index <= get_index(wb_req.adr);
         req_row <= get_row(wb_req.adr(REAL_ADDR_BITS-1 downto 0));
         req_tag <= get_tag(wb_req.adr);
 
-        -- Calculate address of beginning of cache line, will be
+        -- Calculate address of beginning of cache row, will be
         -- used for cache miss processing if needed
-        req_laddr <= wb_req.adr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) &
-                     (LINE_OFF_BITS-1 downto 0 => '0');
+        req_laddr <= wb_req.adr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
+                     (ROW_OFF_BITS-1 downto 0 => '0');
 
 
         -- Do we have a valid request in the WB latch ?
-        if state = IDLE then
-            valid := wb_req.cyc and wb_req.stb;
-        else
-            valid := '0';
-        end if;
+        valid := wb_req.cyc = '1' and wb_req.stb = '1';
 
-        -- Store signals
-        req_ad3      <= wb_req.adr(3);
-        req_wdata    <= wb_req.dat & wb_req.dat;
-        req_we       <= wb_req.sel & "00000000" when req_ad3 = '1' else
-                        "00000000" & wb_req.sel;
+        -- Store signals (hard wired for 64-bit wishbone at the moment)
+        req_wsl <= wb_req.adr(WB_WSEL_RIGHT+WB_WSEL_BITS-1 downto WB_WSEL_RIGHT);
+        for i in 0 to WB_WORD_COUNT-1 loop
+            if to_integer(unsigned(req_wsl)) = i then
+                req_we(WBSL*(i+1)-1 downto WBSL*i) <= wb_req.sel;
+            else
+                req_we(WBSL*(i+1)-1 downto WBSL*i) <= x"00";
+            end if;
+            req_wdata(WBL*(i+1)-1 downto WBL*i) <= wb_req.dat;
+        end loop;
 
         -- Test if pending request is a hit on any way
         hit_way := 0;
-        is_hit := '0';
+        is_hit := false;
         for i in way_t loop
-            if valid = '1' and cache_valids(req_index)(i) = '1' then
+            if valid and
+                (cache_valids(req_index)(i) = '1' or
+                 (state = REFILL_WAIT_ACK and
+                  req_index = refill_index and i = refill_way and
+                  refill_rows_vlid(req_row mod ROW_PER_LINE) = '1')) then
                 if read_tag(i, cache_tags(req_index)) = req_tag then
                     hit_way := i;
-                    is_hit := '1';
+                    is_hit := true;
                 end if;
             end if;
         end loop;
+
+        -- We need to delay stores under some circumstances to avoid
+        -- collisions with the refill machine.
+        --
+        -- Corner case !!! The read acks pipeline takes two extra cycles
+        -- which means a store ack can collide with a previous load hit
+        -- ack. Thus we stall stores if we have a load ack pending.
+        --
+        if read_ack_0 = '1' or read_ack_1 = '1' then
+            -- Clash with pending read acks, delay..
+            store_delay := true;
+        elsif state /= IDLE then
+            -- If the reload machine is active, we cannot accept a store
+            -- for now.
+            --
+            -- We could improve this a bit by allowing stores if we have sent
+            -- all the requests down to litedram (we are only waiting for the
+            -- responses) *and* either of those conditions is true:
+            --
+            -- * It's a miss (doesn't require a write to BRAM) and isn't
+            --   for the line being reloaded (otherwise we might reload
+            --   stale data into the cache).
+            -- * It's a hit on a different way than the one being reloaded
+            --   in which case there is no conflict for BRAM access.
+            --
+            -- Otherwise we delay it...
+            --
+            store_delay := true;
+        else
+            store_delay := false;
+        end if;
 
         -- Generate the req op. We only allow OP_LOAD_* when in the
         -- IDLE state as our PLRU and ACK generation rely on this,
         -- stores are allowed in IDLE state.
         --
         req_op <= OP_NONE;
-        if valid = '1' then
+        if valid then
             if wb_req.we = '1' then
-                if is_hit = '1' then
+                if store_delay then
+                    req_op <= OP_STORE_DELAYED;
+                elsif is_hit then
                     req_op <= OP_STORE_HIT;
                 else
                     req_op <= OP_STORE_MISS;
                 end if;
             else
-                if is_hit = '1' then
+                if is_hit then
                     req_op <= OP_LOAD_HIT;
                 else
                     req_op <= OP_LOAD_MISS;
@@ -833,21 +888,38 @@ begin
 
     storeq_control : process(all)
         variable stq_data : wishbone_data_type;
-        variable stq_sel  : std_ulogic_vector(DRAM_SBITS-1 downto 0);
+        variable stq_sel  : wishbone_sel_type;
+        variable stq_wsl  : std_ulogic_vector(WB_WSEL_BITS-1 downto 0);
     begin
-        storeq_wr_data <= wb_req.dat & req_we;
+        storeq_wr_data <= wb_req.dat & wb_req.sel &
+                          wb_req.adr(WB_WSEL_RIGHT+WB_WSEL_BITS-1 downto WB_WSEL_RIGHT);
 
-        -- Only accept store if we can send a command
+        -- Only queue stores if we can also send a command
         if req_op = OP_STORE_HIT or req_op = OP_STORE_MISS then
             storeq_wr_valid <= user_port0_cmd_ready;
         else
             storeq_wr_valid <= '0';
         end if;
 
-        stq_data := storeq_rd_data(storeq_rd_data'left downto DRAM_SBITS);
-        stq_sel  := storeq_rd_data(DRAM_SBITS-1 downto 0);
-        user_port0_wdata_data  <= stq_data & stq_data;
-        user_port0_wdata_we    <= stq_sel;
+        -- Store signals (hard wired for 64-bit wishbone at the moment)
+        stq_data := storeq_rd_data(storeq_rd_data'left downto WBSL+WB_WSEL_BITS);
+        stq_sel  := storeq_rd_data(WBSL+WB_WSEL_BITS-1 downto WB_WSEL_BITS);
+        stq_wsl  := storeq_rd_data(WB_WSEL_BITS-1      downto 0);
+        for i in 0 to WB_WORD_COUNT-1 loop
+            if to_integer(unsigned(stq_wsl)) = i then
+                user_port0_wdata_we(WBSL*(i+1)-1 downto WBSL*i) <= stq_sel;
+            else
+                user_port0_wdata_we(WBSL*(i+1)-1 downto WBSL*i) <= x"00";
+            end if;
+            user_port0_wdata_data(WBL*(i+1)-1 downto WBL*i) <= stq_data;
+        end loop;
+
+        -- Note: Current litedram ignores user_port0_wdata_valid. We
+        -- must make sure to always have the data available at the
+        -- output of the store queue when we send the write command.
+        --
+        -- Thankfully this is always the case with this design.
+        --
         user_port0_wdata_valid <= storeq_rd_valid;
         storeq_rd_ready        <= user_port0_wdata_ready;
 
@@ -858,13 +930,13 @@ begin
                         to_hstring(wb_req.adr(DRAM_ABITS+3 downto 0)) &
                         " data:" & to_hstring(req_wdata) &
                         " we:" & to_hstring(req_we) &
-                        " V:" & std_ulogic'image(accept_store);
+                        " V:" & std_ulogic'image(user_port0_cmd_ready);
                 else
                     report "Store miss to:" &
                         to_hstring(wb_req.adr(DRAM_ABITS+3 downto 0)) &
                         " data:" & to_hstring(req_wdata) &
                         " we:" & to_hstring(req_we) &
-                        " V:" & std_ulogic'image(accept_store);
+                        " V:" & std_ulogic'image(user_port0_cmd_ready);
                 end if;
                 if storeq_wr_valid = '1' and storeq_wr_ready = '1' then
                     report "storeq push " & to_hstring(storeq_wr_data);
@@ -879,10 +951,10 @@ begin
     -- LiteDRAM command mux
     dram_commands: process(all)
     begin
-        if state = IDLE and (req_op = OP_STORE_HIT or req_op = OP_STORE_MISS) then
+        if req_op = OP_STORE_HIT or req_op = OP_STORE_MISS then
             -- For stores, forward signals directly. Only send command if
-            -- the FIFO can accept a store
-            user_port0_cmd_addr  <= wb_req.adr(DRAM_ABITS+3 downto 4);
+            -- the FIFO can accept a store.
+            user_port0_cmd_addr  <= wb_req.adr(DRAM_ABITS+ROW_OFF_BITS-1 downto ROW_OFF_BITS);
             user_port0_cmd_we    <= '1';
             user_port0_cmd_valid <= storeq_wr_ready;
         else
@@ -891,6 +963,9 @@ begin
             user_port0_cmd_valid <= refill_cmd_valid;
             user_port0_cmd_we    <= '0';
         end if;
+
+        -- Note: litedram  ignores this signal and assumes we are
+        -- always ready to accept read data.
         user_port0_rdata_ready <= '1'; -- Always 1
     end process;
 
@@ -918,6 +993,11 @@ begin
                     assert refill_cmd_valid = '0' report "refill cmd valid in IDLE state !"
                         severity failure;
 
+                    -- Reset per-row valid flags, only used in WAIT_ACK
+                    for i in 0 to ROW_PER_LINE - 1 loop
+                        refill_rows_vlid(i) <= '0';
+                    end loop;
+
                     -- If NO_LS_OVERLAP is set, disallow a load miss if the store
                     -- queue still has data in it.
                     wait_qdrain := false;
@@ -931,8 +1011,9 @@ begin
                         refill_way <= to_integer(unsigned(plru_victim(req_index)));
 
                         -- Keep track of our index and way for subsequent stores
-                        refill_index <= req_index;
-                        refill_row   <= get_row(req_laddr);
+                        refill_index   <= req_index;
+                        refill_row     <= get_row(req_laddr);
+                        refill_end_row <= get_row_of_line(get_row(req_laddr)) - 1;
 
                         -- Prep for first DRAM read
                         --
@@ -941,7 +1022,7 @@ begin
                         -- "dram_commands". In fact, we could make refill_cmd_addr
                         -- only contain the "counter" bits and wire it with the
                         -- other bits from req_laddr.
-                        refill_cmd_addr    <= req_laddr(DRAM_ABITS+3 downto 4);
+                        refill_cmd_addr    <= req_laddr(DRAM_ABITS+ROW_OFF_BITS-1 downto ROW_OFF_BITS);
                         refill_cmd_valid   <= '1';
 
                         if TRACE then
@@ -982,7 +1063,7 @@ begin
                         if TRACE then
                             report "got refill cmd ack !";
                         end if;
-                        if is_last_row_addr(refill_cmd_addr) then
+                        if is_last_row_addr(refill_cmd_addr, refill_end_row) then
                             refill_cmd_valid <= '0';
                             cmds_done := true;
                             if TRACE then
@@ -1003,8 +1084,12 @@ begin
                         if TRACE then
                             report "got refill data ack !";
                         end if;
+
+                        -- Mark partial line valid
+                        refill_rows_vlid(refill_row mod ROW_PER_LINE) <= '1';
+
                         -- Check for completion
-                        if cmds_done and is_last_row(refill_row) then
+                        if cmds_done and is_last_row(refill_row, refill_end_row) then
                             if TRACE then
                                 report "all refill data done !";
                             end if;

@@ -21,7 +21,7 @@ end entity dram_init_mem;
 
 architecture rtl of dram_init_mem is
 
-    constant INIT_RAM_SIZE    : integer := 16384;
+    constant INIT_RAM_SIZE    : integer := 24576;
     constant RND_PAYLOAD_SIZE : integer := round_up(EXTRA_PAYLOAD_SIZE, 8);
     constant TOTAL_RAM_SIZE   : integer := INIT_RAM_SIZE + RND_PAYLOAD_SIZE;
     constant INIT_RAM_ABITS   : integer := log2ceil(TOTAL_RAM_SIZE-1);

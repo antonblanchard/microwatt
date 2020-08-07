@@ -120,6 +120,8 @@ begin
         generic map(
             DRAM_ABITS => 24,
             DRAM_ALINES => 1,
+            DRAM_DLINES => 16,
+            DRAM_PORT_WIDTH => 128,
             PAYLOAD_FILE => DRAM_INIT_FILE,
             PAYLOAD_SIZE => ROM_SIZE
             )

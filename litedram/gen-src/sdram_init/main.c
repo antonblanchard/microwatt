@@ -7,10 +7,10 @@
 
 #include <generated/git.h>
 
+#include "console.h"
 #include "microwatt_soc.h"
 #include "io.h"
 #include "sdram.h"
-#include "console.h"
 #include "elf64.h"
 
 #define FLASH_LOADER_USE_MAP
@@ -225,9 +225,9 @@ dump:
 
 static void boot_sdram(void)
 {
-	void *s = (void *)(DRAM_INIT_BASE + 0x4000);
+	void *s = (void *)(DRAM_INIT_BASE + 0x6000);
 	void *d = (void *)DRAM_BASE;
-	int  sz = (0x10000 - 0x4000);
+	int  sz = (0x10000 - 0x6000);
 	printf("Copying payload to DRAM...\n");
 	memcpy(d, s, sz);
 	printf("Booting from DRAM...\n");
