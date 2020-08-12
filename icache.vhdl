@@ -98,7 +98,8 @@ architecture rtl of icache is
     -- SET_SIZE_BITS is the log base 2 of the set size
     constant SET_SIZE_BITS : natural := LINE_OFF_BITS + INDEX_BITS;
     -- TAG_BITS is the number of bits of the tag part of the address
-    constant TAG_BITS      : natural := REAL_ADDR_BITS - SET_SIZE_BITS;
+    -- the +1 is to allow the endianness to be stored in the tag
+    constant TAG_BITS      : natural := REAL_ADDR_BITS - SET_SIZE_BITS + 1;
     -- WAY_BITS is the number of bits to select a way
     constant WAY_BITS     : natural := log2(NUM_WAYS);
 
@@ -289,9 +290,10 @@ architecture rtl of icache is
     end;
 
     -- Get the tag value from the address
-    function get_tag(addr: std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0)) return cache_tag_t is
+    function get_tag(addr: std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+                     endian: std_ulogic) return cache_tag_t is
     begin
-        return addr(REAL_ADDR_BITS - 1 downto SET_SIZE_BITS);
+        return endian & addr(REAL_ADDR_BITS - 1 downto SET_SIZE_BITS);
     end;
 
     -- Read a tag from a tag memory row
@@ -327,9 +329,9 @@ begin
 	report "geometry bits don't add up" severity FAILURE;
     assert (LINE_OFF_BITS = ROW_OFF_BITS + ROW_LINEBITS)
 	report "geometry bits don't add up" severity FAILURE;
-    assert (REAL_ADDR_BITS = TAG_BITS + INDEX_BITS + LINE_OFF_BITS)
+    assert (REAL_ADDR_BITS + 1 = TAG_BITS + INDEX_BITS + LINE_OFF_BITS)
 	report "geometry bits don't add up" severity FAILURE;
-    assert (REAL_ADDR_BITS = TAG_BITS + ROW_BITS + ROW_OFF_BITS)
+    assert (REAL_ADDR_BITS + 1 = TAG_BITS + ROW_BITS + ROW_OFF_BITS)
 	report "geometry bits don't add up" severity FAILURE;
 
     sim_debug: if SIM generate
@@ -359,6 +361,7 @@ begin
 	signal wr_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
 	signal dout     : cache_row_t;
 	signal wr_sel   : std_ulogic_vector(ROW_SIZE-1 downto 0);
+        signal wr_dat   : std_ulogic_vector(wishbone_in.dat'left downto 0);
     begin
 	way: entity work.cache_ram
 	    generic map (
@@ -372,10 +375,20 @@ begin
 		rd_data => dout,
 		wr_sel  => wr_sel,
 		wr_addr => wr_addr,
-		wr_data => wishbone_in.dat
+		wr_data => wr_dat
 		);
 	process(all)
+            variable j: integer;
 	begin
+            -- byte-swap read data if big endian
+            if r.store_tag(TAG_BITS - 1) = '0' then
+                wr_dat <= wishbone_in.dat;
+            else
+                for i in 0 to (wishbone_in.dat'length / 8) - 1 loop
+                    j := ((i / 4) * 4) + (3 - (i mod 4));
+                    wr_dat(i * 8 + 7 downto i * 8) <= wishbone_in.dat(j * 8 + 7 downto j * 8);
+                end loop;
+            end if;
 	    do_read <= not (stall_in or use_previous);
 	    do_write <= '0';
 	    if wishbone_in.ack = '1' and replace_way = i then
@@ -494,7 +507,7 @@ begin
 	-- Extract line, row and tag from request
         req_index <= get_index(i_in.nia);
         req_row <= get_row(i_in.nia);
-        req_tag <= get_tag(real_addr);
+        req_tag <= get_tag(real_addr, i_in.big_endian);
 
 	-- Calculate address of beginning of cache row, will be
 	-- used for cache miss processing if needed

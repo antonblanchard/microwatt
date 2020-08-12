@@ -50,8 +50,9 @@ begin
             log_nia <= r.nia(63) & r.nia(43 downto 2);
 	    if r /= r_next then
 		report "fetch1 rst:" & std_ulogic'image(rst) &
-                    " IR:" & std_ulogic'image(e_in.virt_mode) &
-                    " P:" & std_ulogic'image(e_in.priv_mode) &
+                    " IR:" & std_ulogic'image(r_next.virt_mode) &
+                    " P:" & std_ulogic'image(r_next.priv_mode) &
+                    " E:" & std_ulogic'image(r_next.big_endian) &
 		    " R:" & std_ulogic'image(e_in.redirect) & std_ulogic'image(d_in.redirect) &
 		    " S:" & std_ulogic'image(stall_in) &
 		    " T:" & std_ulogic'image(stop_in) &
@@ -81,11 +82,13 @@ begin
 	    end if;
             v.virt_mode := '0';
             v.priv_mode := '1';
+            v.big_endian := '0';
 	    v_int.stop_state := RUNNING;
 	elsif e_in.redirect = '1' then
 	    v.nia := e_in.redirect_nia(63 downto 2) & "00";
             v.virt_mode := e_in.virt_mode;
             v.priv_mode := e_in.priv_mode;
+            v.big_endian := e_in.big_endian;
         elsif d_in.redirect = '1' then
             v.nia := d_in.redirect_nia(63 downto 2) & "00";
 	elsif stall_in = '0' then

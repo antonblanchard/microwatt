@@ -201,14 +201,20 @@ begin
         end loop;
 
         -- Work out the sign bit for sign extension.
-        -- Assumes we are not doing both sign extension and byte reversal,
-        -- in that for unaligned loads crossing two dwords we end up
-        -- using a bit from the second dword, whereas for a byte-reversed
-        -- (i.e. big-endian) load the sign bit would be in the first dword.
-        negative := (r.length(3) and data_permuted(63)) or
-                    (r.length(2) and data_permuted(31)) or
-                    (r.length(1) and data_permuted(15)) or
-                    (r.length(0) and data_permuted(7));
+        -- For unaligned loads crossing two dwords, the sign bit is in the
+        -- first dword for big-endian (byte_reverse = 1), or the second dword
+        -- for little-endian.
+        if r.dwords_done = '1' and r.byte_reverse = '1' then
+            negative := (r.length(3) and r.load_data(63)) or
+                        (r.length(2) and r.load_data(31)) or
+                        (r.length(1) and r.load_data(15)) or
+                        (r.length(0) and r.load_data(7));
+        else
+            negative := (r.length(3) and data_permuted(63)) or
+                        (r.length(2) and data_permuted(31)) or
+                        (r.length(1) and data_permuted(15)) or
+                        (r.length(0) and data_permuted(7));
+        end if;
 
         -- trim and sign-extend
         for i in 0 to 7 loop

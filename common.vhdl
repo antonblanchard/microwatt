@@ -108,6 +108,7 @@ package common is
 	req: std_ulogic;
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
+        big_endian : std_ulogic;
 	stop_mark: std_ulogic;
         sequential: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
@@ -245,10 +246,12 @@ package common is
 	redirect: std_ulogic;
         virt_mode: std_ulogic;
         priv_mode: std_ulogic;
+        big_endian: std_ulogic;
 	redirect_nia: std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToFetch1Init : Execute1ToFetch1Type := (redirect => '0', virt_mode => '0',
-                                                             priv_mode => '0', others => (others => '0'));
+                                                             priv_mode => '0', big_endian => '0',
+                                                             others => (others => '0'));
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
