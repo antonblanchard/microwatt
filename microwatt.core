@@ -85,6 +85,18 @@ filesets:
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
       - fpga/top-nexys-video.vhdl : {file_type : vhdlSource-2008}
 
+  acorn_cle_215:
+    files:
+      - fpga/acorn-cle-215.xdc : {file_type : xdc}
+      - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
+      - fpga/top-acorn-cle-215.vhdl : {file_type : vhdlSource-2008}
+
+  genesys2:
+    files:
+      - fpga/genesys2.xdc : {file_type : xdc}
+      - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
+      - fpga/top-genesys2.vhdl : {file_type : vhdlSource-2008}
+
   arty_a7:
     files:
       - fpga/arty_a7.xdc : {file_type : xdc}
@@ -120,6 +132,73 @@ targets:
       - uart_is_16550
     tools:
       vivado: {part : xc7a100tcsg324-1}
+    toplevel : toplevel
+
+  acorn-cle-215-nodram:
+    default_tool: vivado
+    filesets: [core, acorn_cle_215, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - clk_input
+      - clk_frequency
+      - disable_flatten_core
+      - spi_flash_offset=10485760
+      - log_length=2048
+      - uart_is_16550
+    tools:
+      vivado: {part : xc7a200tsbg484-2}
+    toplevel : toplevel
+
+  genesys2-nodram:
+    default_tool: vivado
+    filesets: [core, genesys2, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - clk_frequency
+      - use_litedram=false
+      - no_bram=false
+      - disable_flatten_core
+      - spi_flash_offset=10485760
+      - log_length=2048
+      - uart_is_16550=false
+    tools:
+      vivado: {part : xc7k325tffg900-2}
+    toplevel : toplevel
+
+  acorn-cle-215:
+    default_tool: vivado
+    filesets: [core, acorn_cle_215, soc, fpga, debug_xilinx, litedram, uart16550, xilinx_specific]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - use_litedram=true
+      - disable_flatten_core
+      - no_bram
+      - spi_flash_offset=10485760
+      - log_length=2048
+      - uart_is_16550
+    generate: [litedram_acorn_cle_215]
+    tools:
+      vivado: {part : xc7a200tsbg484-2}
+    toplevel : toplevel
+
+  genesys2:
+    default_tool: vivado
+    filesets: [core, genesys2, soc, fpga, debug_xilinx, litedram, uart16550, xilinx_specific]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - use_litedram=true
+      - disable_flatten_core
+      - no_bram
+      - spi_flash_offset=10485760
+      - log_length=2048
+      - uart_is_16550=false
+    generate: [litedram_genesys2]
+    tools:
+      vivado: {part : xc7k325tffg900-2}
     toplevel : toplevel
 
   nexys_video-nodram:
@@ -261,6 +340,14 @@ generate:
   litedram_nexys_video:
     generator: litedram_gen
     parameters: {board : nexys-video}
+
+  litedram_acorn_cle_215:
+    generator: litedram_gen
+    parameters: {board : acorn-cle-215}
+
+  litedram_genesys2:
+    generator: litedram_gen
+    parameters: {board : genesys2}
 
 parameters:
   memory_size:
