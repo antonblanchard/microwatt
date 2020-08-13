@@ -56,6 +56,7 @@ architecture behaviour of execute1 is
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
 	mul_in_progress : std_ulogic;
+        mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
         slow_op_insn : insn_type_t;
@@ -69,7 +70,7 @@ architecture behaviour of execute1 is
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, f => Execute1ToFetch1Init,
          busy => '0', lr_update => '0', terminate => '0',
-         mul_in_progress => '0', div_in_progress => '0', cntz_in_progress => '0',
+         mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
          slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
          next_lr => (others => '0'), last_nia => (others => '0'), others => (others => '0'));
 
@@ -89,12 +90,17 @@ architecture behaviour of execute1 is
     signal countzero_result: std_ulogic_vector(63 downto 0);
 
     -- multiply signals
-    signal x_to_multiply: Execute1ToMultiplyType;
-    signal multiply_to_x: MultiplyToExecute1Type;
+    signal x_to_multiply: MultiplyInputType;
+    signal multiply_to_x: MultiplyOutputType;
 
     -- divider signals
     signal x_to_divider: Execute1ToDividerType;
     signal divider_to_x: DividerToExecute1Type;
+
+    -- random number generator signals
+    signal random_raw  : std_ulogic_vector(63 downto 0);
+    signal random_cond : std_ulogic_vector(63 downto 0);
+    signal random_err  : std_ulogic;
 
     -- signals for logging
     signal exception_log : std_ulogic;
@@ -158,6 +164,8 @@ architecture behaviour of execute1 is
 	    return '0';
 	when CA =>
 	    return xerc.ca;
+        when OV =>
+            return xerc.ov;
 	when ONE =>
 	    return '1';
 	end case;
@@ -183,6 +191,11 @@ architecture behaviour of execute1 is
 	msr_out(15 downto 0)  := msr(15 downto 0);
 	return msr_out;
     end;
+
+    -- Tell vivado to keep the hierarchy for the random module so that the
+    -- net names in the xdc file match.
+    attribute keep_hierarchy : string;
+    attribute keep_hierarchy of random_0 : label is "yes";
 
 begin
 
@@ -237,6 +250,14 @@ begin
             d_out => divider_to_x
             );
 
+    random_0: entity work.random
+        port map (
+            clk => clk,
+            data => random_cond,
+            raw => random_raw,
+            err => random_err
+            );
+
     dbg_msr_out <= ctrl.msr;
     log_rd_addr <= r.log_addr_spr;
 
@@ -274,7 +295,7 @@ begin
 	variable a_inv : std_ulogic_vector(63 downto 0);
 	variable result : std_ulogic_vector(63 downto 0);
 	variable newcrf : std_ulogic_vector(3 downto 0);
-	variable result_with_carry : std_ulogic_vector(64 downto 0);
+	variable sum_with_carry : std_ulogic_vector(64 downto 0);
 	variable result_en : std_ulogic;
 	variable crnum : crnum_t;
 	variable crbit : integer range 0 to 31;
@@ -308,9 +329,10 @@ begin
         variable taken_branch : std_ulogic;
         variable abs_branch : std_ulogic;
         variable spr_val : std_ulogic_vector(63 downto 0);
+        variable addend : std_ulogic_vector(127 downto 0);
     begin
 	result := (others => '0');
-	result_with_carry := (others => '0');
+	sum_with_carry := (others => '0');
 	result_en := '0';
 	newcrf := (others => '0');
         is_branch := '0';
@@ -371,6 +393,16 @@ begin
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
+        v.mul_finish := '0';
+
+        -- Main adder
+        if e_in.invert_a = '0' then
+            a_inv := a_in;
+        else
+            a_inv := not a_in;
+        end if;
+        sum_with_carry := ppc_adde(a_inv, b_in,
+                                   decode_input_carry(e_in.input_carry, v.e.xerc));
 
         -- signals to multiply and divide units
         sign1 := '0';
@@ -396,7 +428,7 @@ begin
             abs2 := - signed(b_in);
         end if;
 
-	x_to_multiply <= Execute1ToMultiplyInit;
+	x_to_multiply <= MultiplyInputInit;
 	x_to_multiply.is_32bit <= e_in.is_32bit;
 
         x_to_divider <= Execute1ToDividerInit;
@@ -406,7 +438,20 @@ begin
             x_to_divider.is_modulus <= '1';
         end if;
 
-        x_to_multiply.neg_result <= sign1 xor sign2;
+        addend := (others => '0');
+        if e_in.insn(26) = '0' then
+            -- integer multiply-add, major op 4 (if it is a multiply)
+            addend(63 downto 0) := c_in;
+            if e_in.is_signed = '1' then
+                addend(127 downto 64) := (others => c_in(63));
+            end if;
+        end if;
+        if (sign1 xor sign2) = '1' then
+            addend := not addend;
+        end if;
+
+        x_to_multiply.not_result <= sign1 xor sign2;
+        x_to_multiply.addend <= addend;
         x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
         if e_in.is_32bit = '0' then
             -- 64-bit forms
@@ -548,24 +593,23 @@ begin
 	    when OP_NOP =>
 		-- Do nothing
 	    when OP_ADD | OP_CMP | OP_TRAP =>
-		if e_in.invert_a = '0' then
-		    a_inv := a_in;
-		else
-		    a_inv := not a_in;
-		end if;
-		result_with_carry := ppc_adde(a_inv, b_in,
-					      decode_input_carry(e_in.input_carry, v.e.xerc));
-		result := result_with_carry(63 downto 0);
+		result := sum_with_carry(63 downto 0);
                 carry_32 := result(32) xor a_inv(32) xor b_in(32);
-                carry_64 := result_with_carry(64);
+                carry_64 := sum_with_carry(64);
                 if e_in.insn_type = OP_ADD then
                     if e_in.output_carry = '1' then
-                        set_carry(v.e, carry_32, carry_64);
+                        if e_in.input_carry /= OV then
+                            set_carry(v.e, carry_32, carry_64);
+                        else
+                            v.e.xerc.ov := carry_64;
+                            v.e.xerc.ov32 := carry_32;
+                            v.e.write_xerc_enable := '1';
+                        end if;
                     end if;
                     if e_in.oe = '1' then
                         set_ov(v.e,
-                               calc_ov(a_inv(63), b_in(63), carry_64, result_with_carry(63)),
-                               calc_ov(a_inv(31), b_in(31), carry_32, result_with_carry(31)));
+                               calc_ov(a_inv(63), b_in(63), carry_64, sum_with_carry(63)),
+                               calc_ov(a_inv(31), b_in(31), carry_32, sum_with_carry(31)));
                     end if;
                     result_en := '1';
                 else
@@ -630,7 +674,37 @@ begin
                         end if;
                     end if;
                 end if;
-	    when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS =>
+            when OP_ADDG6S =>
+                result := (others => '0');
+                for i in 0 to 14 loop
+                    lo := i * 4;
+                    hi := (i + 1) * 4;
+                    if (a_in(hi) xor b_in(hi) xor sum_with_carry(hi)) = '0' then
+                        result(lo + 3 downto lo) := "0110";
+                    end if;
+                end loop;
+                if sum_with_carry(64) = '0' then
+                    result(63 downto 60) := "0110";
+                end if;
+                result_en := '1';
+            when OP_CMPRB =>
+                newcrf := ppc_cmprb(a_in, b_in, insn_l(e_in.insn));
+                bf := insn_bf(e_in.insn);
+                crnum := to_integer(unsigned(bf));
+                v.e.write_cr_enable := '1';
+                v.e.write_cr_mask := num_to_fxm(crnum);
+                v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
+                                     newcrf & newcrf & newcrf & newcrf;
+            when OP_CMPEQB =>
+                newcrf := ppc_cmpeqb(a_in, b_in);
+                bf := insn_bf(e_in.insn);
+                crnum := to_integer(unsigned(bf));
+                v.e.write_cr_enable := '1';
+                v.e.write_cr_mask := num_to_fxm(crnum);
+                v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
+                                     newcrf & newcrf & newcrf & newcrf;
+            when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS |
+                    OP_BPERM | OP_BCD =>
 		result := logical_result;
 		result_en := '1';
 	    when OP_B =>
@@ -736,6 +810,28 @@ begin
 			end if;
 		    end loop;
 		end if;
+            when OP_MCRXRX =>
+                newcrf := v.e.xerc.ov & v.e.xerc.ca & v.e.xerc.ov32 & v.e.xerc.ca32;
+                bf := insn_bf(e_in.insn);
+                crnum := to_integer(unsigned(bf));
+                v.e.write_cr_enable := '1';
+                v.e.write_cr_mask := num_to_fxm(crnum);
+                v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
+                                     newcrf & newcrf & newcrf & newcrf;
+            when OP_DARN =>
+                if random_err = '0' then
+                    case e_in.insn(17 downto 16) is
+                        when "00" =>
+                            result := x"00000000" & random_cond(31 downto 0);
+                        when "10" =>
+                            result := random_raw;
+                        when others =>
+                            result := random_cond;
+                    end case;
+                else
+                    result := (others => '1');
+                end if;
+                result_en := '1';
 	    when OP_MFMSR =>
 		result := ctrl.msr;
 		result_en := '1';
@@ -864,6 +960,15 @@ begin
 		    set_carry(v.e, rotator_carry, rotator_carry);
 		end if;
 		result_en := '1';
+            when OP_SETB =>
+                bfa := insn_bfa(e_in.insn);
+                crbit := to_integer(unsigned(bfa)) * 4;
+                result := (others => '0');
+                if cr_in(31 - crbit) = '1' then
+                    result := (others => '1');
+                elsif cr_in(30 - crbit) = '1' then
+                    result(0) := '1';
+                end if;
 
 	    when OP_ISYNC =>
 		v.f.redirect := '1';
@@ -946,9 +1051,9 @@ begin
             -- cnt[lt]z always takes two cycles
             result := countzero_result;
             result_en := '1';
-            v.e.write_reg := gpr_to_gspr(v.slow_op_dest);
-            v.e.rc := v.slow_op_rc;
-            v.e.xerc := v.slow_op_xerc;
+            v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
+            v.e.rc := r.slow_op_rc;
+            v.e.xerc := r.slow_op_xerc;
             v.e.valid := '1';
 	elsif r.mul_in_progress = '1' or r.div_in_progress = '1' then
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
@@ -964,31 +1069,47 @@ begin
                         when others =>
                             -- i.e. OP_MUL_L64
                             result := multiply_to_x.result(63 downto 0);
-                            overflow := multiply_to_x.overflow;
                     end case;
 		else
 		    result := divider_to_x.write_reg_data;
 		    overflow := divider_to_x.overflow;
 		end if;
-		result_en := '1';
-		v.e.write_reg := gpr_to_gspr(v.slow_op_dest);
-		v.e.rc := v.slow_op_rc;
-		v.e.xerc := v.slow_op_xerc;
-		v.e.write_xerc_enable := v.slow_op_oe;
-		-- We must test oe because the RC update code in writeback
-		-- will use the xerc value to set CR0:SO so we must not clobber
-		-- xerc if OE wasn't set.
-		if v.slow_op_oe = '1' then
-		    v.e.xerc.ov := overflow;
-		    v.e.xerc.ov32 := overflow;
-		    v.e.xerc.so := v.slow_op_xerc.so or overflow;
-		end if;
-		v.e.valid := '1';
+                if r.mul_in_progress = '1' and r.slow_op_oe = '1' then
+                    -- have to wait until next cycle for overflow indication
+                    v.mul_finish := '1';
+                    v.busy := '1';
+                else
+                    result_en := '1';
+                    v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
+                    v.e.rc := r.slow_op_rc;
+                    v.e.xerc := r.slow_op_xerc;
+                    v.e.write_xerc_enable := r.slow_op_oe;
+                    -- We must test oe because the RC update code in writeback
+                    -- will use the xerc value to set CR0:SO so we must not clobber
+                    -- xerc if OE wasn't set.
+                    if r.slow_op_oe = '1' then
+                        v.e.xerc.ov := overflow;
+                        v.e.xerc.ov32 := overflow;
+                        v.e.xerc.so := r.slow_op_xerc.so or overflow;
+                    end if;
+                    v.e.valid := '1';
+                end if;
 	    else
 		v.busy := '1';
 		v.mul_in_progress := r.mul_in_progress;
 		v.div_in_progress := r.div_in_progress;
 	    end if;
+        elsif r.mul_finish = '1' then
+            result := r.e.write_data;
+            result_en := '1';
+            v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
+            v.e.rc := r.slow_op_rc;
+            v.e.xerc := r.slow_op_xerc;
+            v.e.write_xerc_enable := r.slow_op_oe;
+            v.e.xerc.ov := multiply_to_x.overflow;
+            v.e.xerc.ov32 := multiply_to_x.overflow;
+            v.e.xerc.so := r.slow_op_xerc.so or multiply_to_x.overflow;
+            v.e.valid := '1';
 	end if;
 
         if illegal = '1' then

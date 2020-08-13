@@ -9,8 +9,8 @@ package decode_types is
 			 OP_DARN, OP_DCBF, OP_DCBST, OP_DCBT, OP_DCBTST,
 			 OP_DCBZ, OP_DIV, OP_DIVE, OP_EXTS,
 			 OP_EXTSWSLI, OP_ICBI, OP_ICBT, OP_ISEL, OP_ISYNC,
-			 OP_LOAD, OP_STORE, OP_MADDHD, OP_MADDHDU, OP_MADDLD,
-			 OP_MCRXR, OP_MCRXRX, OP_MFCR, OP_MFMSR, OP_MFSPR, OP_MOD,
+			 OP_LOAD, OP_STORE,
+			 OP_MCRXRX, OP_MFCR, OP_MFMSR, OP_MFSPR, OP_MOD,
 			 OP_MTCRF, OP_MTMSRD, OP_MTSPR, OP_MUL_L64,
 			 OP_MUL_H64, OP_MUL_H32, OP_OR,
 			 OP_POPCNT, OP_PRTY, OP_RFID,
@@ -18,15 +18,16 @@ package decode_types is
 			 OP_SHL, OP_SHR,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
 			 OP_XOR,
+                         OP_BCD, OP_ADDG6S,
                          OP_FETCH_FAILED
 			 );
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA);
     type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
                            CONST_DXHI4, CONST_DS, CONST_M1, CONST_SH, CONST_SH32, SPR);
-    type input_reg_c_t is (NONE, RS);
+    type input_reg_c_t is (NONE, RS, RCR);
     type output_reg_a_t is (NONE, RT, RA, SPR);
     type rc_t is (NONE, ONE, RC);
-    type carry_in_t is (ZERO, CA, ONE);
+    type carry_in_t is (ZERO, CA, OV, ONE);
 
     constant SH_OFFSET : integer := 0;
     constant MB_OFFSET : integer := 1;

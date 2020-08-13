@@ -12,8 +12,8 @@ entity multiply is
     port (
         clk   : in std_logic;
 
-        m_in  : in Execute1ToMultiplyType;
-        m_out : out MultiplyToExecute1Type
+        m_in  : in MultiplyInputType;
+        m_out : out MultiplyOutputType
         );
 end entity multiply;
 
@@ -33,11 +33,12 @@ architecture behaviour of multiply is
     signal p1_pat, p1_patb : std_ulogic;
 
     signal req_32bit, r32_1 : std_ulogic;
-    signal req_neg, rneg_1 : std_ulogic;
+    signal req_not, rnot_1 : std_ulogic;
     signal valid_1 : std_ulogic;
+    signal overflow, ovf_in : std_ulogic;
 
 begin
-    addend <= (others => m_in.neg_result);
+    addend <= m_in.addend;
 
     m00: DSP48E1
         generic map (
@@ -73,7 +74,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -129,7 +130,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -184,7 +185,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -239,7 +240,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -295,7 +296,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -351,7 +352,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -408,7 +409,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -464,7 +465,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -520,7 +521,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -575,7 +576,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -630,7 +631,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -685,7 +686,7 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '1',
+            CEM => m_in.valid,
             CEP => '0',
             CLK => clk,
             D => (others => '0'),
@@ -734,12 +735,12 @@ begin
             CARRYINSEL => "000",
             CARRYOUT => s0_carry,
             CEA1 => '0',
-            CEA2 => '1',
+            CEA2 => valid_1,
             CEAD => '0',
             CEALUMODE => '0',
             CEB1 => '0',
-            CEB2 => '1',
-            CEC => '1',
+            CEB2 => valid_1,
+            CEC => valid_1,
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
@@ -792,12 +793,12 @@ begin
             CARRYIN => s0_carry(3),
             CARRYINSEL => "000",
             CEA1 => '0',
-            CEA2 => '1',
+            CEA2 => valid_1,
             CEAD => '0',
             CEALUMODE => '0',
             CEB1 => '0',
-            CEB2 => '1',
-            CEC => '1',
+            CEB2 => valid_1,
+            CEC => valid_1,
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
@@ -848,7 +849,7 @@ begin
         port map (
             A => m21_p(22 downto 0) & m03_p(5 downto 0) & '0',
             ACIN => (others => '0'),
-            ALUMODE => "00" & rneg_1 & '0',
+            ALUMODE => "00" & rnot_1 & '0',
             B => (others => '0'),
             BCIN => (others => '0'),
             C => p0_mask,
@@ -857,12 +858,12 @@ begin
             CARRYINSEL => "000",
             CARRYOUT => p0_carry,
             CEA1 => '0',
-            CEA2 => '1',
+            CEA2 => valid_1,
             CEAD => '0',
-            CEALUMODE => '1',
+            CEALUMODE => valid_1,
             CEB1 => '0',
-            CEB2 => '1',
-            CEC => '1',
+            CEB2 => valid_1,
+            CEC => valid_1,
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
@@ -911,7 +912,7 @@ begin
         port map (
             A => x"0000000" & '0' & m21_p(41),
             ACIN => (others => '0'),
-            ALUMODE => "00" & rneg_1 & '0',
+            ALUMODE => "00" & rnot_1 & '0',
             B => m21_p(40 downto 23),
             BCIN => (others => '0'),
             C => (others => '0'),
@@ -919,11 +920,11 @@ begin
             CARRYIN => p0_carry(3),
             CARRYINSEL => "000",
             CEA1 => '0',
-            CEA2 => '1',
+            CEA2 => valid_1,
             CEAD => '0',
-            CEALUMODE => '1',
+            CEALUMODE => valid_1,
             CEB1 => '0',
-            CEB2 => '1',
+            CEB2 => valid_1,
             CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
@@ -952,7 +953,7 @@ begin
             RSTP => '0'
             );
 
-    product(31 downto 0) <= product_lo xor (31 downto 0 => req_neg);
+    product(31 downto 0) <= product_lo xor (31 downto 0 => req_not);
 
     mult_out: process(all)
         variable ov : std_ulogic;
@@ -964,9 +965,10 @@ begin
             ov := not ((p1_pat and p0_pat and not product(31)) or
                        (p1_patb and p0_patb and product(31)));
         end if;
+        ovf_in <= ov;
 
         m_out.result <= product;
-        m_out.overflow <= ov;
+        m_out.overflow <= overflow;
     end process;
 
     process(clk)
@@ -977,8 +979,9 @@ begin
             valid_1 <= m_in.valid;
             req_32bit <= r32_1;
             r32_1 <= m_in.is_32bit;
-            req_neg <= rneg_1;
-            rneg_1 <= m_in.neg_result;
+            req_not <= rnot_1;
+            rnot_1 <= m_in.not_result;
+            overflow <= ovf_in;
         end if;
     end process;
 

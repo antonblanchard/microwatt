@@ -26,6 +26,7 @@ package common is
     constant SPR_XER    : spr_num_t := 1;
     constant SPR_LR     : spr_num_t := 8;
     constant SPR_CTR    : spr_num_t := 9;
+    constant SPR_TAR    : spr_num_t := 815;
     constant SPR_DSISR  : spr_num_t := 18;
     constant SPR_DAR    : spr_num_t := 19;
     constant SPR_TB     : spr_num_t := 268;
@@ -182,16 +183,25 @@ package common is
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'), read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'), cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'), others => (others => '0'));
 
-    type Execute1ToMultiplyType is record
+    type MultiplyInputType is record
 	valid: std_ulogic;
 	data1: std_ulogic_vector(63 downto 0);
 	data2: std_ulogic_vector(63 downto 0);
+        addend: std_ulogic_vector(127 downto 0);
 	is_32bit: std_ulogic;
-        neg_result: std_ulogic;
+        not_result: std_ulogic;
     end record;
-    constant Execute1ToMultiplyInit : Execute1ToMultiplyType := (valid => '0',
-								 is_32bit => '0', neg_result => '0',
-								 others => (others => '0'));
+    constant MultiplyInputInit : MultiplyInputType := (valid => '0',
+                                                       is_32bit => '0', not_result => '0',
+                                                       others => (others => '0'));
+
+    type MultiplyOutputType is record
+	valid: std_ulogic;
+	result: std_ulogic_vector(127 downto 0);
+        overflow : std_ulogic;
+    end record;
+    constant MultiplyOutputInit : MultiplyOutputType := (valid => '0', overflow => '0',
+                                                         others => (others => '0'));
 
     type Execute1ToDividerType is record
 	valid: std_ulogic;
@@ -382,14 +392,6 @@ package common is
                                    write_cr_data => (others => '0'), write_reg => (others => '0'),
                                    exc_write_reg => (others => '0'), exc_write_data => (others => '0'));
 
-    type MultiplyToExecute1Type is record
-	valid: std_ulogic;
-	result: std_ulogic_vector(127 downto 0);
-        overflow : std_ulogic;
-    end record;
-    constant MultiplyToExecute1Init : MultiplyToExecute1Type := (valid => '0', overflow => '0',
-								 others => (others => '0'));
-
     type DividerToExecute1Type is record
 	valid: std_ulogic;
 	write_reg_data: std_ulogic_vector(63 downto 0);
@@ -458,6 +460,8 @@ package body common is
            n := 11;
        when SPR_XER =>
            n := 12;
+       when SPR_TAR =>
+           n := 13;
        when others =>
            n := 0;
            return "000000";
