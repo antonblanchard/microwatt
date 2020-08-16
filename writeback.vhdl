@@ -99,8 +99,13 @@ begin
             -- Perform CR0 update for RC forms
             -- Note that loads never have a form with an RC bit, therefore this can test e_in.write_data
             if e_in.rc = '1' and e_in.write_enable = '1' then
-                sign := e_in.write_data(63);
-                zero := not (or e_in.write_data);
+                zero := not (or e_in.write_data(31 downto 0));
+                if e_in.mode_32bit = '0' then
+                    sign := e_in.write_data(63);
+                    zero := zero and not (or e_in.write_data(63 downto 32));
+                else
+                    sign := e_in.write_data(31);
+                end if;
                 c_out.write_cr_enable <= '1';
                 c_out.write_cr_mask <= num_to_fxm(0);
                 cf(3) := sign;

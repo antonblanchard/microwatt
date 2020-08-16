@@ -84,6 +84,7 @@ architecture behave of loadstore1 is
         wait_mmu     : std_ulogic;
         do_update    : std_ulogic;
         extra_cycle  : std_ulogic;
+        mode_32bit   : std_ulogic;
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -272,13 +273,16 @@ begin
         exception := '0';
 
         if r.dwords_done = '1' or r.state = SECOND_REQ then
-            maddr := next_addr;
+            addr := next_addr;
             byte_sel := r.second_bytes;
         else
-            maddr := r.addr;
+            addr := r.addr;
             byte_sel := r.first_bytes;
         end if;
-        addr := maddr;
+        if r.mode_32bit = '1' then
+            addr(63 downto 32) := (others => '0');
+        end if;
+        maddr := addr;
 
         case r.state is
         when IDLE =>
@@ -365,6 +369,7 @@ begin
         -- Note that l_in.valid is gated with busy inside execute1
         if l_in.valid = '1' then
             v.addr := lsu_sum;
+            v.mode_32bit := l_in.mode_32bit;
             v.load := '0';
             v.dcbz := '0';
             v.tlbie := '0';
@@ -389,6 +394,9 @@ begin
             v.extra_cycle := '0';
 
             addr := lsu_sum;
+            if l_in.mode_32bit = '1' then
+                addr(63 downto 32) := (others => '0');
+            end if;
             maddr := l_in.addr2;    -- address from RB for tlbie
 
             -- XXX Temporary hack. Mark the op as non-cachable if the address
