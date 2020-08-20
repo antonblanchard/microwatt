@@ -624,7 +624,7 @@ begin
 		result_en := '1';
 	    when OP_B =>
 		f_out.redirect <= '1';
-		if (insn_aa(e_in.insn)) then
+		if (insn_aa(e_in.insn) = '1') then
 		    f_out.redirect_nia <= b_in;
 		else
 		    f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
@@ -640,7 +640,7 @@ begin
 		end if;
 		if ppc_bc_taken(bo, bi, e_in.cr, a_in) = 1 then
 		    f_out.redirect <= '1';
-		    if (insn_aa(e_in.insn)) then
+		    if (insn_aa(e_in.insn) = '1') then
 			f_out.redirect_nia <= b_in;
 		    else
 			f_out.redirect_nia <= std_ulogic_vector(signed(e_in.nia) + signed(b_in));
@@ -753,7 +753,7 @@ begin
 	    when OP_MFSPR =>
 		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(a_in);
-		if is_fast_spr(e_in.read_reg1) then
+		if (is_fast_spr(e_in.read_reg1) = '1') then
 		    result := a_in;
 		    if decode_spr_num(e_in.insn) = SPR_XER then
 			-- bits 0:31 and 35:43 are treated as reserved and return 0s when read using mfxer
@@ -824,7 +824,7 @@ begin
 	    when OP_MTSPR =>
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(c_in);
-		if is_fast_spr(e_in.write_reg) then
+		if ( is_fast_spr(e_in.write_reg) = '1' ) then
 		    result := c_in;
 		    result_en := '1';
 		    if decode_spr_num(e_in.insn) = SPR_XER then
