@@ -3,7 +3,7 @@
 # Script to update console related tests from source
 #
 
-for i in sc illegal decrementer xics privileged mmu misc ; do
+for i in sc illegal decrementer xics privileged mmu misc modes ; do
     cd $i
     make
     cd -
