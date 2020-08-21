@@ -78,6 +78,7 @@ architecture behave of loadstore1 is
         dar          : std_ulogic_vector(63 downto 0);
         dsisr        : std_ulogic_vector(31 downto 0);
         instr_fault  : std_ulogic;
+        align_intr   : std_ulogic;
         sprval       : std_ulogic_vector(63 downto 0);
         busy         : std_ulogic;
         wait_dcache  : std_ulogic;
@@ -171,6 +172,7 @@ begin
         variable dsisr : std_ulogic_vector(31 downto 0);
         variable mmu_mtspr : std_ulogic;
         variable itlb_fault : std_ulogic;
+        variable misaligned : std_ulogic;
     begin
         v := r;
         req := '0';
@@ -358,6 +360,7 @@ begin
         when TLBIE_WAIT =>
 
         when COMPLETE =>
+            exception := r.align_intr;
 
         end case;
 
@@ -374,6 +377,7 @@ begin
             v.dcbz := '0';
             v.tlbie := '0';
             v.instr_fault := '0';
+            v.align_intr := '0';
             v.dwords_done := '0';
             v.last_dword := '1';
             v.write_reg := l_in.write_reg;
@@ -411,6 +415,10 @@ begin
             v.first_bytes := byte_sel;
             v.second_bytes := long_sel(15 downto 8);
 
+            -- check alignment for larx/stcx
+            misaligned := or (std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1) and addr(2 downto 0));
+            v.align_intr := l_in.reserve and misaligned;
+
             case l_in.op is
                 when OP_STORE =>
                     req := '1';
@@ -420,6 +428,7 @@ begin
                     -- Allow an extra cycle for RA update on loads
                     v.extra_cycle := l_in.update;
                 when OP_DCBZ =>
+                    v.align_intr := v.nc;
                     req := '1';
                     v.dcbz := '1';
                 when OP_TLBIE =>
@@ -468,7 +477,9 @@ begin
             end case;
 
             if req = '1' then
-                if long_sel(15 downto 8) = "00000000" then
+                if v.align_intr = '1' then
+                    v.state := COMPLETE;
+                elsif long_sel(15 downto 8) = "00000000" then
                     v.state := ACK_WAIT;
                 else
                     v.state := SECOND_REQ;
@@ -479,7 +490,7 @@ begin
         end if;
 
         -- Update outputs to dcache
-        d_out.valid <= req;
+        d_out.valid <= req and not v.align_intr;
         d_out.load <= v.load;
         d_out.dcbz <= v.dcbz;
         d_out.nc <= v.nc;
@@ -526,6 +537,7 @@ begin
         -- update exception info back to execute1
         e_out.busy <= busy;
         e_out.exception <= exception;
+        e_out.alignment <= r.align_intr;
         e_out.instr_fault <= r.instr_fault;
         e_out.invalid <= m_in.invalid;
         e_out.badtree <= m_in.badtree;
@@ -534,7 +546,7 @@ begin
         e_out.segment_fault <= m_in.segerr;
         if exception = '1' and r.instr_fault = '0' then
             v.dar := addr;
-            if m_in.segerr = '0' then
+            if m_in.segerr = '0' and r.align_intr = '0' then
                 v.dsisr := dsisr;
             end if;
         end if;

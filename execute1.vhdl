@@ -1139,7 +1139,9 @@ begin
         -- generate DSI or DSegI for load/store exceptions
         -- or ISI or ISegI for instruction fetch exceptions
         if l_in.exception = '1' then
-            if l_in.instr_fault = '0' then
+            if l_in.alignment = '1' then
+                v.f.redirect_nia := std_logic_vector(to_unsigned(16#600#, 64));
+            elsif l_in.instr_fault = '0' then
                 if l_in.segment_fault = '0' then
                     v.f.redirect_nia := std_logic_vector(to_unsigned(16#300#, 64));
                 else

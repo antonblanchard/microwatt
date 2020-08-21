@@ -286,6 +286,7 @@ package common is
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
         exception : std_ulogic;
+        alignment : std_ulogic;
         invalid : std_ulogic;
         perm_error : std_ulogic;
         rc_error : std_ulogic;
