@@ -128,7 +128,7 @@ begin
 			    end if;
 			end if;
 		    else
-			--report("DMI read from " & to_string(dmi_addr));
+				report("DMI read from " & to_hstring(dmi_addr));
 		    end if;
 		end if;
 
