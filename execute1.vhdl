@@ -425,7 +425,7 @@ begin
 	-- Next insn adder used in a couple of places
 	next_nia := std_ulogic_vector(unsigned(e_in.nia) + 4);
 
-	--rotator coontrol signals --Syntax edit to remove vhdl 2009 features
+	--rotator control signals --Syntax edit to remove vhdl 2008 features
 	if (e_in.insn_type = OP_SHR) then
 		right_shift <= '1';
 	else
@@ -445,11 +445,6 @@ begin
 	end if;
 		
 
-
-	-- rotator control signals
-	--right_shift <= '1' when e_in.insn_type = OP_SHR else '0';
-	--rot_clear_left <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCL else '0';
-	--rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
 
 	ctrl_tmp.irq_state <= WRITE_SRR0;
 	exception := '0';
