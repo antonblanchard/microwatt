@@ -1044,6 +1044,8 @@ begin
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
                 lv.valid := '1';
+            elsif e_in.unit = NONE then
+                illegal := '1';
             end if;
 
         elsif r.f.redirect = '1' then
