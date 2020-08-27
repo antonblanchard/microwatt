@@ -108,6 +108,7 @@ package common is
 	req: std_ulogic;
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
+        big_endian : std_ulogic;
 	stop_mark: std_ulogic;
         sequential: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
@@ -245,10 +246,13 @@ package common is
 	redirect: std_ulogic;
         virt_mode: std_ulogic;
         priv_mode: std_ulogic;
+        big_endian: std_ulogic;
+        mode_32bit: std_ulogic;
 	redirect_nia: std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToFetch1Init : Execute1ToFetch1Type := (redirect => '0', virt_mode => '0',
-                                                             priv_mode => '0', others => (others => '0'));
+                                                             priv_mode => '0', big_endian => '0',
+                                                             mode_32bit => '0', others => (others => '0'));
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
@@ -270,17 +274,19 @@ package common is
         rc : std_ulogic;                                -- set for stcx.
         virt_mode : std_ulogic;                         -- do translation through TLB
         priv_mode : std_ulogic;                         -- privileged mode (MSR[PR] = 0)
+        mode_32bit : std_ulogic;                        -- trim addresses to 32 bits
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
                                                                      reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
                                                                      nia => (others => '0'), insn => (others => '0'),
                                                                      addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'), length => (others => '0'),
-                                                                     others => (others => '0'));
+                                                                     mode_32bit => '0', others => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
         exception : std_ulogic;
+        alignment : std_ulogic;
         invalid : std_ulogic;
         perm_error : std_ulogic;
         rc_error : std_ulogic;
@@ -373,6 +379,7 @@ package common is
     type Execute1ToWritebackType is record
 	valid: std_ulogic;
 	rc : std_ulogic;
+        mode_32bit : std_ulogic;
 	write_enable : std_ulogic;
 	write_reg: gspr_index_t;
 	write_data: std_ulogic_vector(63 downto 0);
@@ -385,7 +392,7 @@ package common is
         exc_write_reg : gspr_index_t;
         exc_write_data : std_ulogic_vector(63 downto 0);
     end record;
-    constant Execute1ToWritebackInit : Execute1ToWritebackType := (valid => '0', rc => '0', write_enable => '0',
+    constant Execute1ToWritebackInit : Execute1ToWritebackType := (valid => '0', rc => '0', mode_32bit => '0', write_enable => '0',
 								   write_cr_enable => '0', exc_write_enable => '0',
 								   write_xerc_enable => '0', xerc => xerc_init,
                                    write_data => (others => '0'), write_cr_mask => (others => '0'),

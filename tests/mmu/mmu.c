@@ -4,8 +4,10 @@
 
 #include "console.h"
 
+#define MSR_LE	0x1
 #define MSR_DR	0x10
 #define MSR_IR	0x20
+#define MSR_SF	0x8000000000000000ul
 
 extern int test_read(long *addr, long *ret, long init);
 extern int test_write(long *addr, long val);
@@ -445,10 +447,11 @@ int mmu_test_11(void)
 	unsigned long ptr = 0x523000;
 
 	/* this should fail */
-	if (test_exec(0, ptr, MSR_IR))
+	if (test_exec(0, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
-	if (mfspr(SRR0) != (long) ptr || mfspr(SRR1) != 0x40000020)
+	if (mfspr(SRR0) != (long) ptr ||
+	    mfspr(SRR1) != (MSR_SF | 0x40000000 | MSR_IR | MSR_LE))
 		return 2;
 	return 0;
 }
@@ -462,12 +465,12 @@ int mmu_test_12(void)
 	/* create PTE */
 	map((void *)ptr, (void *)mem, PERM_EX | REF);
 	/* this should succeed and be a cache miss */
-	if (!test_exec(0, ptr, MSR_IR))
+	if (!test_exec(0, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 1;
 	/* create a second PTE */
 	map((void *)ptr2, (void *)mem, PERM_EX | REF);
 	/* this should succeed and be a cache hit */
-	if (!test_exec(0, ptr2, MSR_IR))
+	if (!test_exec(0, ptr2, MSR_SF | MSR_IR | MSR_LE))
 		return 2;
 	return 0;
 }
@@ -481,17 +484,18 @@ int mmu_test_13(void)
 	/* create a PTE */
 	map((void *)ptr, (void *)mem, PERM_EX | REF);
 	/* this should succeed */
-	if (!test_exec(1, ptr, MSR_IR))
+	if (!test_exec(1, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 1;
 	/* invalidate the PTE */
 	unmap((void *)ptr);
 	/* install a second PTE */
 	map((void *)ptr2, (void *)mem, PERM_EX | REF);
 	/* this should fail */
-	if (test_exec(1, ptr, MSR_IR))
+	if (test_exec(1, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 2;
 	/* SRR0 and SRR1 should be set correctly */
-	if (mfspr(SRR0) != (long) ptr || mfspr(SRR1) != 0x40000020)
+	if (mfspr(SRR0) != (long) ptr ||
+	    mfspr(SRR1) != (MSR_SF | 0x40000000 | MSR_IR | MSR_LE))
 		return 3;
 	return 0;
 }
@@ -506,15 +510,16 @@ int mmu_test_14(void)
 	/* create a PTE */
 	map((void *)ptr, (void *)mem, PERM_EX | REF);
 	/* this should fail due to second page not being mapped */
-	if (test_exec(2, ptr, MSR_IR))
+	if (test_exec(2, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
-	if (mfspr(SRR0) != ptr2 || mfspr(SRR1) != 0x40000020)
+	if (mfspr(SRR0) != ptr2 ||
+	    mfspr(SRR1) != (MSR_SF | 0x40000000 | MSR_IR | MSR_LE))
 		return 2;
 	/* create a PTE for the second page */
 	map((void *)ptr2, (void *)mem2, PERM_EX | REF);
 	/* this should succeed */
-	if (!test_exec(2, ptr, MSR_IR))
+	if (!test_exec(2, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 3;
 	return 0;
 }
@@ -527,10 +532,11 @@ int mmu_test_15(void)
 	/* create a PTE without execute permission */
 	map((void *)ptr, (void *)mem, DFLT_PERM);
 	/* this should fail */
-	if (test_exec(0, ptr, MSR_IR))
+	if (test_exec(0, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
-	if (mfspr(SRR0) != ptr || mfspr(SRR1) != 0x10000020)
+	if (mfspr(SRR0) != ptr ||
+	    mfspr(SRR1) != (MSR_SF | 0x10000000 | MSR_IR | MSR_LE))
 		return 2;
 	return 0;
 }
@@ -547,15 +553,16 @@ int mmu_test_16(void)
 	/* create a PTE for the second page without execute permission */
 	map((void *)ptr2, (void *)mem2, PERM_RD | REF);
 	/* this should fail due to second page being no-execute */
-	if (test_exec(2, ptr, MSR_IR))
+	if (test_exec(2, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
-	if (mfspr(SRR0) != ptr2 || mfspr(SRR1) != 0x10000020)
+	if (mfspr(SRR0) != ptr2 ||
+	    mfspr(SRR1) != (MSR_SF | 0x10000000 | MSR_IR | MSR_LE))
 		return 2;
 	/* create a PTE for the second page with execute permission */
 	map((void *)ptr2, (void *)mem2, PERM_RD | PERM_EX | REF);
 	/* this should succeed */
-	if (!test_exec(2, ptr, MSR_IR))
+	if (!test_exec(2, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 3;
 	return 0;
 }
@@ -568,20 +575,22 @@ int mmu_test_17(void)
 	/* create a PTE without the ref bit set */
 	map((void *)ptr, (void *)mem, PERM_EX);
 	/* this should fail */
-	if (test_exec(2, ptr, MSR_IR))
+	if (test_exec(2, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
-	if (mfspr(SRR0) != (long) ptr || mfspr(SRR1) != 0x00040020)
+	if (mfspr(SRR0) != (long) ptr ||
+	    mfspr(SRR1) != (MSR_SF | 0x00040000 | MSR_IR | MSR_LE))
 		return 2;
 	/* create a PTE without ref or execute permission */
 	unmap((void *)ptr);
 	map((void *)ptr, (void *)mem, 0);
 	/* this should fail */
-	if (test_exec(2, ptr, MSR_IR))
+	if (test_exec(2, ptr, MSR_SF | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
 	/* RC update fail bit should not be set */
-	if (mfspr(SRR0) != (long) ptr || mfspr(SRR1) != 0x10000020)
+	if (mfspr(SRR0) != (long) ptr ||
+	    mfspr(SRR1) != (MSR_SF | 0x10000000 | MSR_IR | MSR_LE))
 		return 2;
 	return 0;
 }

@@ -78,12 +78,14 @@ architecture behave of loadstore1 is
         dar          : std_ulogic_vector(63 downto 0);
         dsisr        : std_ulogic_vector(31 downto 0);
         instr_fault  : std_ulogic;
+        align_intr   : std_ulogic;
         sprval       : std_ulogic_vector(63 downto 0);
         busy         : std_ulogic;
         wait_dcache  : std_ulogic;
         wait_mmu     : std_ulogic;
         do_update    : std_ulogic;
         extra_cycle  : std_ulogic;
+        mode_32bit   : std_ulogic;
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -170,6 +172,7 @@ begin
         variable dsisr : std_ulogic_vector(31 downto 0);
         variable mmu_mtspr : std_ulogic;
         variable itlb_fault : std_ulogic;
+        variable misaligned : std_ulogic;
     begin
         v := r;
         req := '0';
@@ -201,14 +204,20 @@ begin
         end loop;
 
         -- Work out the sign bit for sign extension.
-        -- Assumes we are not doing both sign extension and byte reversal,
-        -- in that for unaligned loads crossing two dwords we end up
-        -- using a bit from the second dword, whereas for a byte-reversed
-        -- (i.e. big-endian) load the sign bit would be in the first dword.
-        negative := (r.length(3) and data_permuted(63)) or
-                    (r.length(2) and data_permuted(31)) or
-                    (r.length(1) and data_permuted(15)) or
-                    (r.length(0) and data_permuted(7));
+        -- For unaligned loads crossing two dwords, the sign bit is in the
+        -- first dword for big-endian (byte_reverse = 1), or the second dword
+        -- for little-endian.
+        if r.dwords_done = '1' and r.byte_reverse = '1' then
+            negative := (r.length(3) and r.load_data(63)) or
+                        (r.length(2) and r.load_data(31)) or
+                        (r.length(1) and r.load_data(15)) or
+                        (r.length(0) and r.load_data(7));
+        else
+            negative := (r.length(3) and data_permuted(63)) or
+                        (r.length(2) and data_permuted(31)) or
+                        (r.length(1) and data_permuted(15)) or
+                        (r.length(0) and data_permuted(7));
+        end if;
 
         -- trim and sign-extend
         for i in 0 to 7 loop
@@ -266,13 +275,16 @@ begin
         exception := '0';
 
         if r.dwords_done = '1' or r.state = SECOND_REQ then
-            maddr := next_addr;
+            addr := next_addr;
             byte_sel := r.second_bytes;
         else
-            maddr := r.addr;
+            addr := r.addr;
             byte_sel := r.first_bytes;
         end if;
-        addr := maddr;
+        if r.mode_32bit = '1' then
+            addr(63 downto 32) := (others => '0');
+        end if;
+        maddr := addr;
 
         case r.state is
         when IDLE =>
@@ -348,6 +360,7 @@ begin
         when TLBIE_WAIT =>
 
         when COMPLETE =>
+            exception := r.align_intr;
 
         end case;
 
@@ -359,10 +372,12 @@ begin
         -- Note that l_in.valid is gated with busy inside execute1
         if l_in.valid = '1' then
             v.addr := lsu_sum;
+            v.mode_32bit := l_in.mode_32bit;
             v.load := '0';
             v.dcbz := '0';
             v.tlbie := '0';
             v.instr_fault := '0';
+            v.align_intr := '0';
             v.dwords_done := '0';
             v.last_dword := '1';
             v.write_reg := l_in.write_reg;
@@ -383,6 +398,9 @@ begin
             v.extra_cycle := '0';
 
             addr := lsu_sum;
+            if l_in.mode_32bit = '1' then
+                addr(63 downto 32) := (others => '0');
+            end if;
             maddr := l_in.addr2;    -- address from RB for tlbie
 
             -- XXX Temporary hack. Mark the op as non-cachable if the address
@@ -397,6 +415,10 @@ begin
             v.first_bytes := byte_sel;
             v.second_bytes := long_sel(15 downto 8);
 
+            -- check alignment for larx/stcx
+            misaligned := or (std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1) and addr(2 downto 0));
+            v.align_intr := l_in.reserve and misaligned;
+
             case l_in.op is
                 when OP_STORE =>
                     req := '1';
@@ -406,6 +428,7 @@ begin
                     -- Allow an extra cycle for RA update on loads
                     v.extra_cycle := l_in.update;
                 when OP_DCBZ =>
+                    v.align_intr := v.nc;
                     req := '1';
                     v.dcbz := '1';
                 when OP_TLBIE =>
@@ -454,7 +477,9 @@ begin
             end case;
 
             if req = '1' then
-                if long_sel(15 downto 8) = "00000000" then
+                if v.align_intr = '1' then
+                    v.state := COMPLETE;
+                elsif long_sel(15 downto 8) = "00000000" then
                     v.state := ACK_WAIT;
                 else
                     v.state := SECOND_REQ;
@@ -465,7 +490,7 @@ begin
         end if;
 
         -- Update outputs to dcache
-        d_out.valid <= req;
+        d_out.valid <= req and not v.align_intr;
         d_out.load <= v.load;
         d_out.dcbz <= v.dcbz;
         d_out.nc <= v.nc;
@@ -512,6 +537,7 @@ begin
         -- update exception info back to execute1
         e_out.busy <= busy;
         e_out.exception <= exception;
+        e_out.alignment <= r.align_intr;
         e_out.instr_fault <= r.instr_fault;
         e_out.invalid <= m_in.invalid;
         e_out.badtree <= m_in.badtree;
@@ -520,7 +546,7 @@ begin
         e_out.segment_fault <= m_in.segerr;
         if exception = '1' and r.instr_fault = '0' then
             v.dar := addr;
-            if m_in.segerr = '0' then
+            if m_in.segerr = '0' and r.align_intr = '0' then
                 v.dsisr := dsisr;
             end if;
         end if;

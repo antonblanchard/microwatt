@@ -38,6 +38,7 @@ architecture behaviour of fetch1 is
     type stop_state_t is (RUNNING, STOPPED, RESTARTING);
     type reg_internal_t is record
 	stop_state: stop_state_t;
+        mode_32bit: std_ulogic;
     end record;
     signal r, r_next : Fetch1ToIcacheType;
     signal r_int, r_next_int : reg_internal_t;
@@ -50,8 +51,10 @@ begin
             log_nia <= r.nia(63) & r.nia(43 downto 2);
 	    if r /= r_next then
 		report "fetch1 rst:" & std_ulogic'image(rst) &
-                    " IR:" & std_ulogic'image(e_in.virt_mode) &
-                    " P:" & std_ulogic'image(e_in.priv_mode) &
+                    " IR:" & std_ulogic'image(r_next.virt_mode) &
+                    " P:" & std_ulogic'image(r_next.priv_mode) &
+                    " E:" & std_ulogic'image(r_next.big_endian) &
+                    " 32:" & std_ulogic'image(r_next_int.mode_32bit) &
 		    " R:" & std_ulogic'image(e_in.redirect) & std_ulogic'image(d_in.redirect) &
 		    " S:" & std_ulogic'image(stall_in) &
 		    " T:" & std_ulogic'image(stop_in) &
@@ -81,13 +84,23 @@ begin
 	    end if;
             v.virt_mode := '0';
             v.priv_mode := '1';
+            v.big_endian := '0';
 	    v_int.stop_state := RUNNING;
+            v_int.mode_32bit := '0';
 	elsif e_in.redirect = '1' then
 	    v.nia := e_in.redirect_nia(63 downto 2) & "00";
+            if e_in.mode_32bit = '1' then
+                v.nia(63 downto 32) := (others => '0');
+            end if;
             v.virt_mode := e_in.virt_mode;
             v.priv_mode := e_in.priv_mode;
+            v.big_endian := e_in.big_endian;
+            v_int.mode_32bit := e_in.mode_32bit;
         elsif d_in.redirect = '1' then
             v.nia := d_in.redirect_nia(63 downto 2) & "00";
+            if r_int.mode_32bit = '1' then
+                v.nia(63 downto 32) := (others => '0');
+            end if;
 	elsif stall_in = '0' then
 
 	    -- For debug stop/step to work properly we need a little bit of
@@ -133,7 +146,11 @@ begin
 	    end case;
 
 	    if increment then
-		v.nia := std_logic_vector(unsigned(v.nia) + 4);
+                if r_int.mode_32bit = '0' then
+                    v.nia := std_ulogic_vector(unsigned(r.nia) + 4);
+                else
+                    v.nia := x"00000000" & std_ulogic_vector(unsigned(r.nia(31 downto 0)) + 4);
+                end if;
                 v.sequential := '1';
 	    end if;
 	end if;

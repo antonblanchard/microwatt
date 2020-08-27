@@ -496,9 +496,11 @@ begin
 	v.terminate := '0';
 	icache_inval <= '0';
 	v.busy := '0';
-        -- send MSR[IR] and ~MSR[PR] up to fetch1
+        -- send MSR[IR], ~MSR[PR], ~MSR[LE] and ~MSR[SF] up to fetch1
         v.f.virt_mode := ctrl.msr(MSR_IR);
         v.f.priv_mode := not ctrl.msr(MSR_PR);
+        v.f.big_endian := not ctrl.msr(MSR_LE);
+        v.f.mode_32bit := not ctrl.msr(MSR_SF);
 
 	-- Next insn adder used in a couple of places
 	next_nia := std_ulogic_vector(unsigned(e_in.nia) + 4);
@@ -520,6 +522,8 @@ begin
         if valid_in = '1' then
             v.last_nia := e_in.nia;
         end if;
+
+        v.e.mode_32bit := not ctrl.msr(MSR_SF);
 
  	if ctrl.irq_state = WRITE_SRR1 then
  	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
@@ -740,6 +744,8 @@ begin
 	    when OP_RFID =>
                 v.f.virt_mode := a_in(MSR_IR) or a_in(MSR_PR);
                 v.f.priv_mode := not a_in(MSR_PR);
+                v.f.big_endian := not a_in(MSR_LE);
+                v.f.mode_32bit := not a_in(MSR_SF);
                 -- Can't use msr_copy here because the partial function MSR
                 -- bits should be left unchanged, not zeroed.
                 ctrl_tmp.msr(63 downto 31) <= a_in(63 downto 31);
@@ -1133,7 +1139,9 @@ begin
         -- generate DSI or DSegI for load/store exceptions
         -- or ISI or ISegI for instruction fetch exceptions
         if l_in.exception = '1' then
-            if l_in.instr_fault = '0' then
+            if l_in.alignment = '1' then
+                v.f.redirect_nia := std_logic_vector(to_unsigned(16#600#, 64));
+            elsif l_in.instr_fault = '0' then
                 if l_in.segment_fault = '0' then
                     v.f.redirect_nia := std_logic_vector(to_unsigned(16#300#, 64));
                 else
@@ -1161,6 +1169,9 @@ begin
             v.f.redirect := '1';
             v.f.virt_mode := '0';
             v.f.priv_mode := '1';
+            -- XXX need an interrupt LE bit here, e.g. from LPCR
+            v.f.big_endian := '0';
+            v.f.mode_32bit := '0';
         end if;
 
         if v.f.redirect = '1' then
@@ -1176,7 +1187,7 @@ begin
         lv.data := c_in;
         lv.write_reg := gspr_to_gpr(e_in.write_reg);
         lv.length := e_in.data_len;
-        lv.byte_reverse := e_in.byte_reverse;
+        lv.byte_reverse := e_in.byte_reverse xnor ctrl.msr(MSR_LE);
         lv.sign_extend := e_in.sign_extend;
         lv.update := e_in.update;
         lv.update_reg := gspr_to_gpr(e_in.read_reg1);
@@ -1191,6 +1202,7 @@ begin
         end if;
         lv.virt_mode := ctrl.msr(MSR_DR);
         lv.priv_mode := not ctrl.msr(MSR_PR);
+        lv.mode_32bit := not ctrl.msr(MSR_SF);
 
 	-- Update registers
 	rin <= v;
