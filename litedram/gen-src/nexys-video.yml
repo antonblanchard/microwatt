@@ -3,8 +3,8 @@
 
 {
     # General ------------------------------------------------------------------
-    "cpu":        "vexriscv",  # Type of CPU used for init/calib (vexriscv, lm32)
-    "cpu_variant":"minimal",
+    "cpu":        "None",  # Type of CPU used for init/calib (vexriscv, lm32)
+    "cpu_variant":"standard",
     "speedgrade": -1,          # FPGA speedgrade
     "memtype":    "DDR3",      # DRAM type
 
@@ -37,6 +37,6 @@
     },
 
     # CSR Port -----------------------------------------------------------------
-    "csr_expose": "False", # expose access to CSR (I/O) ports
-    "csr_align" : 32, # 64-bit alignment
+    "csr_alignment"  : 32,
+    "csr_data_width" : 32,
 }

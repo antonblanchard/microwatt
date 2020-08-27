@@ -9,14 +9,17 @@ CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
 
-CFLAGS = -Os -g -Wall -std=c99 -msoft-float -mno-string -mno-multiple -mno-vsx -mno-altivec -mlittle-endian -fno-stack-protector -mstrict-align -ffreestanding -fdata-sections -ffunction-sections -I ../../hello_world -I ../../include
+CFLAGS = -Os -g -Wall -std=c99 -nostdinc -msoft-float -mno-string -mno-multiple -mno-vsx -mno-altivec -mlittle-endian -fno-stack-protector -mstrict-align -ffreestanding -fdata-sections -ffunction-sections -I ../../include -isystem $(shell $(CC) -print-file-name=include)
 ASFLAGS = $(CFLAGS)
 LDFLAGS = -T powerpc.lds
 
 all: $(TEST).hex
 
-$(TEST).elf: $(TEST).o head.o ../../hello_world/console.o
-	$(LD) $(LDFLAGS) -o $(TEST).elf $(TEST).o head.o ../../hello_world/console.o
+console.o: ../../lib/console.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(TEST).elf: $(TEST).o head.o console.o
+	$(LD) $(LDFLAGS) -o $(TEST).elf $(TEST).o head.o console.o
 
 $(TEST).bin: $(TEST).elf
 	$(OBJCOPY) -O binary $(TEST).elf $(TEST).bin

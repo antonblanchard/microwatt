@@ -127,6 +127,11 @@ architecture behaviour of dmi_dtm is
     constant DMI_RSP_OK  : std_ulogic_vector(1 downto 0) := "00";
     constant DMI_RSP_BSY : std_ulogic_vector(1 downto 0) := "11";
 
+    attribute ASYNC_REG : string;
+    attribute ASYNC_REG of jtag_req_0: signal is "TRUE";
+    attribute ASYNC_REG of jtag_req_1: signal is "TRUE";
+    attribute ASYNC_REG of dmi_ack_0: signal is "TRUE";
+    attribute ASYNC_REG of dmi_ack_1: signal is "TRUE";
 begin
 
     -- Implement the Xilinx bscan2 for series 7 devices (TODO: use PoC to
@@ -160,7 +165,6 @@ begin
 	    I => tck,
 	    O => jtag_clk
 	    );
-
 
     -- dmi_req synchronization
     dmi_req_sync : process(sys_clk)

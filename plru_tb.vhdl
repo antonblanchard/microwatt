@@ -103,7 +103,6 @@ begin
 	wait for clk_period;
 	report "lru:" & to_hstring(lru);
 
-        assert false report "end of test" severity failure;
-        wait;
+        std.env.finish;
     end process;
 end;

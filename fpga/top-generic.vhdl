@@ -1,6 +1,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
+library work;
+use work.wishbone_types.all;
+
 entity toplevel is
     generic (
 	MEMORY_SIZE   : positive := (384*1024);
@@ -8,7 +11,8 @@ entity toplevel is
 	RESET_LOW     : boolean  := true;
 	CLK_INPUT     : positive := 100000000;
 	CLK_FREQUENCY : positive := 100000000;
-	DISABLE_FLATTEN_CORE : boolean := false
+	DISABLE_FLATTEN_CORE : boolean := false;
+        UART_IS_16550 : boolean  := true
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -29,10 +33,6 @@ architecture behaviour of toplevel is
     -- Internal clock signals:
     signal system_clk : std_ulogic;
     signal system_clk_locked : std_ulogic;
-
-    -- Dummy DRAM
-    signal wb_dram_in : wishbone_master_out;
-    signal wb_dram_out : wishbone_slave_out;
 
 begin
 
@@ -66,9 +66,10 @@ begin
 	generic map(
 	    MEMORY_SIZE   => MEMORY_SIZE,
 	    RAM_INIT_FILE => RAM_INIT_FILE,
-	    RESET_LOW     => RESET_LOW,
 	    SIM           => false,
-	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
+	    CLK_FREQ      => CLK_FREQUENCY,
+	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
+            UART0_IS_16550     => UART_IS_16550
 	    )
 	port map (
 	    system_clk        => system_clk,
@@ -76,10 +77,5 @@ begin
 	    uart0_txd         => uart0_txd,
 	    uart0_rxd         => uart0_rxd
 	    );
-
-    -- Dummy DRAM
-    wb_dram_out.ack <= wb_dram_in.cyc and wb_dram_in.stb;
-    wb_dram_out.dat <= x"FFFFFFFFFFFFFFFF";
-    wb_dram_out.stall <= wb_dram_in.cyc and not wb_dram_out.ack;
 
 end architecture behaviour;

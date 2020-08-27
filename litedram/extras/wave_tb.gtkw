@@ -1,0 +1,83 @@
+[*]
+[*] GTKWave Analyzer v3.3.86 (w)1999-2017 BSI
+[*] Mon Jun 22 06:32:16 2020
+[*]
+[dumpfile] "/home/ANT.AMAZON.COM/benh/hackplace/microwatt/foo.ghw"
+[dumpfile_mtime] "Mon Jun 22 06:28:35 2020"
+[dumpfile_size] 1680014
+[savefile] "/home/ANT.AMAZON.COM/benh/hackplace/microwatt/litedram/extras/wave_tb.gtkw"
+[timestart] 1920580000
+[size] 2509 1371
+[pos] -1 -1
+*-24.248457 1935000000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] top.
+[treeopen] top.dram_tb.
+[treeopen] top.dram_tb.dram.
+[sst_width] 301
+[signals_width] 433
+[sst_expanded] 1
+[sst_vpaned_height] 410
+@28
+top.dram_tb.reset_acks
+@420
+top.dram_tb.acks
+@28
+top.dram_tb.rst
+top.dram_tb.clk
+@22
+#{top.dram_tb.wb_in.dat[63:0]} top.dram_tb.wb_in.dat[63] top.dram_tb.wb_in.dat[62] top.dram_tb.wb_in.dat[61] top.dram_tb.wb_in.dat[60] top.dram_tb.wb_in.dat[59] top.dram_tb.wb_in.dat[58] top.dram_tb.wb_in.dat[57] top.dram_tb.wb_in.dat[56] top.dram_tb.wb_in.dat[55] top.dram_tb.wb_in.dat[54] top.dram_tb.wb_in.dat[53] top.dram_tb.wb_in.dat[52] top.dram_tb.wb_in.dat[51] top.dram_tb.wb_in.dat[50] top.dram_tb.wb_in.dat[49] top.dram_tb.wb_in.dat[48] top.dram_tb.wb_in.dat[47] top.dram_tb.wb_in.dat[46] top.dram_tb.wb_in.dat[45] top.dram_tb.wb_in.dat[44] top.dram_tb.wb_in.dat[43] top.dram_tb.wb_in.dat[42] top.dram_tb.wb_in.dat[41] top.dram_tb.wb_in.dat[40] top.dram_tb.wb_in.dat[39] top.dram_tb.wb_in.dat[38] top.dram_tb.wb_in.dat[37] top.dram_tb.wb_in.dat[36] top.dram_tb.wb_in.dat[35] top.dram_tb.wb_in.dat[34] top.dram_tb.wb_in.dat[33] top.dram_tb.wb_in.dat[32] top.dram_tb.wb_in.dat[31] top.dram_tb.wb_in.dat[30] top.dram_tb.wb_in.dat[29] top.dram_tb.wb_in.dat[28] top.dram_tb.wb_in.dat[27] top.dram_tb.wb_in.dat[26] top.dram_tb.wb_in.dat[25] top.dram_tb.wb_in.dat[24] top.dram_tb.wb_in.dat[23] top.dram_tb.wb_in.dat[22] top.dram_tb.wb_in.dat[21] top.dram_tb.wb_in.dat[20] top.dram_tb.wb_in.dat[19] top.dram_tb.wb_in.dat[18] top.dram_tb.wb_in.dat[17] top.dram_tb.wb_in.dat[16] top.dram_tb.wb_in.dat[15] top.dram_tb.wb_in.dat[14] top.dram_tb.wb_in.dat[13] top.dram_tb.wb_in.dat[12] top.dram_tb.wb_in.dat[11] top.dram_tb.wb_in.dat[10] top.dram_tb.wb_in.dat[9] top.dram_tb.wb_in.dat[8] top.dram_tb.wb_in.dat[7] top.dram_tb.wb_in.dat[6] top.dram_tb.wb_in.dat[5] top.dram_tb.wb_in.dat[4] top.dram_tb.wb_in.dat[3] top.dram_tb.wb_in.dat[2] top.dram_tb.wb_in.dat[1] top.dram_tb.wb_in.dat[0]
+#{top.dram_tb.wb_in.adr[31:0]} top.dram_tb.wb_in.adr[31] top.dram_tb.wb_in.adr[30] top.dram_tb.wb_in.adr[29] top.dram_tb.wb_in.adr[28] top.dram_tb.wb_in.adr[27] top.dram_tb.wb_in.adr[26] top.dram_tb.wb_in.adr[25] top.dram_tb.wb_in.adr[24] top.dram_tb.wb_in.adr[23] top.dram_tb.wb_in.adr[22] top.dram_tb.wb_in.adr[21] top.dram_tb.wb_in.adr[20] top.dram_tb.wb_in.adr[19] top.dram_tb.wb_in.adr[18] top.dram_tb.wb_in.adr[17] top.dram_tb.wb_in.adr[16] top.dram_tb.wb_in.adr[15] top.dram_tb.wb_in.adr[14] top.dram_tb.wb_in.adr[13] top.dram_tb.wb_in.adr[12] top.dram_tb.wb_in.adr[11] top.dram_tb.wb_in.adr[10] top.dram_tb.wb_in.adr[9] top.dram_tb.wb_in.adr[8] top.dram_tb.wb_in.adr[7] top.dram_tb.wb_in.adr[6] top.dram_tb.wb_in.adr[5] top.dram_tb.wb_in.adr[4] top.dram_tb.wb_in.adr[3] top.dram_tb.wb_in.adr[2] top.dram_tb.wb_in.adr[1] top.dram_tb.wb_in.adr[0]
+#{top.dram_tb.wb_in.sel[7:0]} top.dram_tb.wb_in.sel[7] top.dram_tb.wb_in.sel[6] top.dram_tb.wb_in.sel[5] top.dram_tb.wb_in.sel[4] top.dram_tb.wb_in.sel[3] top.dram_tb.wb_in.sel[2] top.dram_tb.wb_in.sel[1] top.dram_tb.wb_in.sel[0]
+@28
+top.dram_tb.wb_in.cyc
+top.dram_tb.wb_in.stb
+top.dram_tb.wb_in.we
+top.dram_tb.wb_out.ack
+top.dram_tb.wb_out.stall
+@22
+#{top.dram_tb.wb_out.dat[63:0]} top.dram_tb.wb_out.dat[63] top.dram_tb.wb_out.dat[62] top.dram_tb.wb_out.dat[61] top.dram_tb.wb_out.dat[60] top.dram_tb.wb_out.dat[59] top.dram_tb.wb_out.dat[58] top.dram_tb.wb_out.dat[57] top.dram_tb.wb_out.dat[56] top.dram_tb.wb_out.dat[55] top.dram_tb.wb_out.dat[54] top.dram_tb.wb_out.dat[53] top.dram_tb.wb_out.dat[52] top.dram_tb.wb_out.dat[51] top.dram_tb.wb_out.dat[50] top.dram_tb.wb_out.dat[49] top.dram_tb.wb_out.dat[48] top.dram_tb.wb_out.dat[47] top.dram_tb.wb_out.dat[46] top.dram_tb.wb_out.dat[45] top.dram_tb.wb_out.dat[44] top.dram_tb.wb_out.dat[43] top.dram_tb.wb_out.dat[42] top.dram_tb.wb_out.dat[41] top.dram_tb.wb_out.dat[40] top.dram_tb.wb_out.dat[39] top.dram_tb.wb_out.dat[38] top.dram_tb.wb_out.dat[37] top.dram_tb.wb_out.dat[36] top.dram_tb.wb_out.dat[35] top.dram_tb.wb_out.dat[34] top.dram_tb.wb_out.dat[33] top.dram_tb.wb_out.dat[32] top.dram_tb.wb_out.dat[31] top.dram_tb.wb_out.dat[30] top.dram_tb.wb_out.dat[29] top.dram_tb.wb_out.dat[28] top.dram_tb.wb_out.dat[27] top.dram_tb.wb_out.dat[26] top.dram_tb.wb_out.dat[25] top.dram_tb.wb_out.dat[24] top.dram_tb.wb_out.dat[23] top.dram_tb.wb_out.dat[22] top.dram_tb.wb_out.dat[21] top.dram_tb.wb_out.dat[20] top.dram_tb.wb_out.dat[19] top.dram_tb.wb_out.dat[18] top.dram_tb.wb_out.dat[17] top.dram_tb.wb_out.dat[16] top.dram_tb.wb_out.dat[15] top.dram_tb.wb_out.dat[14] top.dram_tb.wb_out.dat[13] top.dram_tb.wb_out.dat[12] top.dram_tb.wb_out.dat[11] top.dram_tb.wb_out.dat[10] top.dram_tb.wb_out.dat[9] top.dram_tb.wb_out.dat[8] top.dram_tb.wb_out.dat[7] top.dram_tb.wb_out.dat[6] top.dram_tb.wb_out.dat[5] top.dram_tb.wb_out.dat[4] top.dram_tb.wb_out.dat[3] top.dram_tb.wb_out.dat[2] top.dram_tb.wb_out.dat[1] top.dram_tb.wb_out.dat[0]
+@28
+top.dram_tb.rd_valid
+top.dram_tb.rd_ready
+@22
+#{top.dram_tb.rd_data[63:0]} top.dram_tb.rd_data[63] top.dram_tb.rd_data[62] top.dram_tb.rd_data[61] top.dram_tb.rd_data[60] top.dram_tb.rd_data[59] top.dram_tb.rd_data[58] top.dram_tb.rd_data[57] top.dram_tb.rd_data[56] top.dram_tb.rd_data[55] top.dram_tb.rd_data[54] top.dram_tb.rd_data[53] top.dram_tb.rd_data[52] top.dram_tb.rd_data[51] top.dram_tb.rd_data[50] top.dram_tb.rd_data[49] top.dram_tb.rd_data[48] top.dram_tb.rd_data[47] top.dram_tb.rd_data[46] top.dram_tb.rd_data[45] top.dram_tb.rd_data[44] top.dram_tb.rd_data[43] top.dram_tb.rd_data[42] top.dram_tb.rd_data[41] top.dram_tb.rd_data[40] top.dram_tb.rd_data[39] top.dram_tb.rd_data[38] top.dram_tb.rd_data[37] top.dram_tb.rd_data[36] top.dram_tb.rd_data[35] top.dram_tb.rd_data[34] top.dram_tb.rd_data[33] top.dram_tb.rd_data[32] top.dram_tb.rd_data[31] top.dram_tb.rd_data[30] top.dram_tb.rd_data[29] top.dram_tb.rd_data[28] top.dram_tb.rd_data[27] top.dram_tb.rd_data[26] top.dram_tb.rd_data[25] top.dram_tb.rd_data[24] top.dram_tb.rd_data[23] top.dram_tb.rd_data[22] top.dram_tb.rd_data[21] top.dram_tb.rd_data[20] top.dram_tb.rd_data[19] top.dram_tb.rd_data[18] top.dram_tb.rd_data[17] top.dram_tb.rd_data[16] top.dram_tb.rd_data[15] top.dram_tb.rd_data[14] top.dram_tb.rd_data[13] top.dram_tb.rd_data[12] top.dram_tb.rd_data[11] top.dram_tb.rd_data[10] top.dram_tb.rd_data[9] top.dram_tb.rd_data[8] top.dram_tb.rd_data[7] top.dram_tb.rd_data[6] top.dram_tb.rd_data[5] top.dram_tb.rd_data[4] top.dram_tb.rd_data[3] top.dram_tb.rd_data[2] top.dram_tb.rd_data[1] top.dram_tb.rd_data[0]
+@200
+-
+-
+-wrapper
+@28
+top.dram_tb.dram.accept_store
+@420
+top.dram_tb.dram.req_op
+top.dram_tb.dram.state
+@28
+top.dram_tb.dram.read_ack_1
+top.dram_tb.dram.read_ack_0
+top.dram_tb.dram.storeq_wr_valid
+top.dram_tb.dram.storeq_wr_ready
+top.dram_tb.dram.storeq_rd_valid
+top.dram_tb.dram.storeq_rd_ready
+top.dram_tb.dram.user_port0_rdata_ready
+top.dram_tb.dram.user_port0_rdata_valid
+top.dram_tb.dram.user_port0_wdata_ready
+top.dram_tb.dram.user_port0_wdata_valid
+top.dram_tb.dram.user_port0_cmd_we
+top.dram_tb.dram.user_port0_cmd_ready
+top.dram_tb.dram.user_port0_cmd_valid
+top.dram_tb.dram.refill_cmd_valid
+@420
+top.dram_tb.dram.req_index
+@421
+top.dram_tb.dram.req_row
+@420
+top.dram_tb.dram.req_hit_way
+@28
+top.dram_tb.dram.req_ad3
+@420
+top.dram_tb.dram.refill_row
+top.dram_tb.dram.refill_index
+top.dram_tb.dram.refill_way
+@28
+top.dram_tb.dram.system_clk
+[pattern_trace] 1
+[pattern_trace] 0

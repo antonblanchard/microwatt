@@ -22,7 +22,7 @@ def make_new_dir(base, added):
     return r
     
 gen_src_dir = os.path.dirname(os.path.realpath(__file__))
-base_dir = os.path.join(gen_src_dir, os.pardir)
+base_dir = os.path.normpath(os.path.join(gen_src_dir, os.pardir))
 build_top_dir = make_new_dir(base_dir, "build")
 gen_src_dir = os.path.join(base_dir, "gen-src")
 gen_dir = make_new_dir(base_dir, "generated")
@@ -31,23 +31,21 @@ gen_dir = make_new_dir(base_dir, "generated")
 #
 # XXX Not working yet
 #
-def build_init_code(build_dir):
+def build_init_code(build_dir, is_sim):
 
     # More path fudging
     sw_dir = os.path.join(build_dir, "software");
     sw_inc_dir = os.path.join(sw_dir, "include")
     gen_inc_dir = os.path.join(sw_inc_dir, "generated")
     src_dir = os.path.join(gen_src_dir, "sdram_init")
-    lxbios_src_dir = os.path.join(soc_directory, "software", "bios")
-    lxbios_inc_dir = os.path.join(soc_directory, "software", "include")
+    lxbios_src_dir = os.path.join(soc_directory, "software")
     print("     sw dir:", sw_dir)
     print("gen_inc_dir:", gen_inc_dir)
     print("    src dir:", src_dir)
     print(" lx src dir:", lxbios_src_dir)
-    print(" lx inc dir:", lxbios_inc_dir)
 
-    # Generate mem.h
-    mem_h = "#define MAIN_RAM_BASE 0x40000000"
+    # Generate mem.h (hard wire size, it's not important)
+    mem_h = "#define MAIN_RAM_BASE 0x40000000\n#define MAIN_RAM_SIZE 0x10000000"
     write_to_file(os.path.join(gen_inc_dir, "mem.h"), mem_h)
 
     # Environment
@@ -61,7 +59,8 @@ def build_init_code(build_dir):
     add_var("SRC_DIR", src_dir)
     add_var("GENINC_DIR", sw_inc_dir)
     add_var("LXSRC_DIR", lxbios_src_dir)
-    add_var("LXINC_DIR", lxbios_inc_dir)
+    if is_sim:
+        add_var("EXTRA_CFLAGS", "-D__SIM__")
     write_to_file(os.path.join(gen_inc_dir, "variables.mak"), "".join(env_vars))
 
     # Build init code
@@ -72,9 +71,12 @@ def build_init_code(build_dir):
 
     return os.path.join(sw_dir, "obj", "sdram_init.hex")
 
-def generate_one(t, mw_init):
+def generate_one(t):
 
     print("Generating target:", t)
+
+    # Is it a simulation ?
+    is_sim = t is "sim"
 
     # Muck with directory path
     build_dir = make_new_dir(build_top_dir, t)
@@ -101,21 +103,17 @@ def generate_one(t, mw_init):
         if k == "sdram_phy":
             core_config[k] = getattr(litedram_phys, core_config[k])
 
-    # Override values for mw_init
-    if mw_init:
-        core_config["cpu"] = None
-        core_config["csr_expose"] = True
-        core_config["csr_align"] = 64
-
     # Generate core
-    if core_config["sdram_phy"] in [litedram_phys.ECP5DDRPHY]:
+    if is_sim:
+        platform = SimPlatform("", io=[])
+    elif core_config["sdram_phy"] in [litedram_phys.ECP5DDRPHY]:
         platform = LatticePlatform("LFE5UM5G-45F-8BG381C", io=[], toolchain="trellis")
     elif core_config["sdram_phy"] in [litedram_phys.A7DDRPHY, litedram_phys.K7DDRPHY, litedram_phys.V7DDRPHY]:
         platform = XilinxPlatform("", io=[], toolchain="vivado")
     else:
         raise ValueError("Unsupported SDRAM PHY: {}".format(core_config["sdram_phy"]))
 
-    soc      = LiteDRAMCore(platform, core_config, integrated_rom_size=0x6000, csr_data_width=32)
+    soc      = LiteDRAMCore(platform, core_config, is_sim = is_sim, integrated_rom_size=0x6000)
 
     # Build into build_dir
     builder  = Builder(soc, output_dir=build_dir, compile_gateware=False)
@@ -124,34 +122,27 @@ def generate_one(t, mw_init):
     # Grab generated gatewar dir
     gw_dir = os.path.join(build_dir, "gateware")
 
-    # Generate init-cpu.txt if any and generate init code if none
-    cpu = core_config["cpu"]
-    if mw_init:
-        src_wrap_file = os.path.join(gen_src_dir, "wrapper-mw-init.vhdl")
-        src_init_file = build_init_code(build_dir)
-    else:
-        write_to_file(os.path.join(t_dir, "init-cpu.txt"), cpu)
-        src_wrap_file = os.path.join(gen_src_dir, "wrapper-self-init.vhdl")
-        src_init_file = os.path.join(gw_dir, "mem.init")
+    # Generate init code
+    src_init_file = build_init_code(build_dir, is_sim)
+    src_initram_file = os.path.join(gen_src_dir, "dram-init-mem.vhdl")
 
     # Copy generated files to target dir, amend them if necessary
+    initfile_name = "litedram_core.init"
     core_file = os.path.join(gw_dir, "litedram_core.v")
-    dst_init_file = os.path.join(t_dir, "litedram_core.init")
-    dst_wrap_file = os.path.join(t_dir, "litedram-wrapper.vhdl")
-    replace_in_file(core_file, "mem.init", "litedram_core.init")
-    shutil.copy(core_file, t_dir)
+    dst_init_file = os.path.join(t_dir, initfile_name)
+    dst_initram_file = os.path.join(t_dir, "litedram-initmem.vhdl")
     shutil.copyfile(src_init_file, dst_init_file)    
-    shutil.copyfile(src_wrap_file, dst_wrap_file)
+    shutil.copyfile(src_initram_file, dst_initram_file)
+    if is_sim:
+        initfile_path = os.path.join("litedram", "generated", "sim", initfile_name)
+        replace_in_file(dst_initram_file, initfile_name, initfile_path)
+    shutil.copy(core_file, t_dir)
 
 def main():
 
-    targets = ['arty','nexys-video']
-
-    # XXX Set mw_init to False to use a local VexRiscV for memory inits
+    targets = ['arty','nexys-video', 'genesys2', 'acorn-cle-215', 'sim']
     for t in targets:
-        generate_one(t, mw_init = True)
-
-    # XXX TODO: Remove build dir unless told not to via cmdline option
+        generate_one(t)
     
 if __name__ == "__main__":
     main()

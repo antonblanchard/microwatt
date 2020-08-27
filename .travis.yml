@@ -1,8 +1,0 @@
-language: minimal
-install: skip
-
-services: docker
-
-before_install: docker pull ghdl/vunit:llvm
-
-script: docker run --rm -t -v `pwd`:/build -w /build ghdl/vunit:llvm bash -c "apt update && apt install -y python3-pexpect && make GNATMAKE='gnatmake -j'$(nproc) && if [ -n \"$TRAVIS_FULL_CHECK\" ] ; then  make -j$(nproc) check; else make -j$(nproc) check_light ; fi"

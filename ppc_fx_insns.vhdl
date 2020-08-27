@@ -87,13 +87,15 @@ package ppc_fx_insns is
                            so: std_ulogic) return std_ulogic_vector;
 
 	function ppc_cmpb (rs, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
+        function ppc_cmpeqb (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
+        function ppc_cmprb (ra, rb: std_ulogic_vector(63 downto 0); l: std_ulogic) return std_ulogic_vector;
 
 	function ppc_divw (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 	function ppc_divdu (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 	function ppc_divd (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 	function ppc_divwu (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
 
-	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return integer;
+	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return std_ulogic;
 end package ppc_fx_insns;
 
 package body ppc_fx_insns is
@@ -746,6 +748,34 @@ package body ppc_fx_insns is
 		return ret;
 	end;
 
+        function ppc_cmpeqb (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
+            variable match: std_ulogic;
+            variable j: integer;
+        begin
+            match := '0';
+            for i in 0 to 7 loop
+                j := i * 8;
+                if ra(7 downto 0) = rb(j + 7 downto j) then
+                    match := '1';
+                end if;
+            end loop;
+            return '0' & match & "00";
+        end;
+
+        function ppc_cmprb (ra, rb: std_ulogic_vector(63 downto 0); l: std_ulogic) return std_ulogic_vector is
+            variable match: std_ulogic;
+            variable v: unsigned(7 downto 0);
+        begin
+            match := '0';
+            v := unsigned(ra(7 downto 0));
+            if v >= unsigned(rb(7 downto 0)) and v <= unsigned(rb(15 downto 8)) then
+                match := '1';
+            elsif l = '1' and v >= unsigned(rb(23 downto 16)) and v <= unsigned(rb(31 downto 24)) then
+                match := '1';
+            end if;
+            return '0' & match & "00";
+        end;
+
 	-- Not synthesizable
 	function ppc_divw (ra, rb: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
 		variable tmp: signed(31 downto 0);
@@ -785,13 +815,12 @@ package body ppc_fx_insns is
 		return std_ulogic_vector(resize(tmp, ra'length));
 	end;
 
-	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return integer is
+	function ppc_bc_taken(bo, bi: std_ulogic_vector(4 downto 0); cr: std_ulogic_vector(31 downto 0); ctr: std_ulogic_vector(63 downto 0)) return std_ulogic is
 		variable crfield: integer;
 		variable crbit_match: std_ulogic;
 		variable ctr_not_zero: std_ulogic;
 		variable ctr_ok: std_ulogic;
 		variable cond_ok: std_ulogic;
-		variable ret: integer;
 	begin
 		crfield := to_integer(unsigned(bi));
 		-- BE bit numbering
@@ -800,12 +829,7 @@ package body ppc_fx_insns is
 		ctr_not_zero := '1' when ctr /= x"0000000000000001" else '0';
 		ctr_ok := bo(4-2) or (ctr_not_zero xor bo(4-3));
 		cond_ok := bo(4-0) or crbit_match;
-		if ctr_ok = '1' and cond_ok = '1' then
-			ret := 1;
-		else
-			ret := 0;
-		end if;
-		return ret;
+                return ctr_ok and cond_ok;
 	end;
 
 end package body ppc_fx_insns;

@@ -15,6 +15,9 @@ LDFLAGS = -T powerpc.lds
 
 all: hello_world.hex
 
+console.o: ../lib/console.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
 hello_world.elf: hello_world.o head.o console.o
 	$(LD) $(LDFLAGS) -o $@ $^
 
@@ -26,3 +29,6 @@ hello_world.hex: hello_world.bin
 
 clean:
 	@rm -f *.o hello_world.elf hello_world.bin hello_world.hex
+distclean: clean
+	rm -f *~
+

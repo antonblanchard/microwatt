@@ -17,8 +17,18 @@ architecture behave of multiply_tb is
 
     constant pipeline_depth : integer := 4;
 
-    signal m1               : Execute1ToMultiplyType;
-    signal m2               : MultiplyToExecute1Type;
+    signal m1               : MultiplyInputType := MultiplyInputInit;
+    signal m2               : MultiplyOutputType;
+
+    function absval(x: std_ulogic_vector) return std_ulogic_vector is
+    begin
+        if x(x'left) = '1' then
+            return std_ulogic_vector(- signed(x));
+        else
+            return x;
+        end if;
+    end;
+
 begin
     multiply_0: entity work.multiply
         generic map (PIPELINE_DEPTH => pipeline_depth)
@@ -35,13 +45,13 @@ begin
     stim_process: process
         variable ra, rb, rt, behave_rt: std_ulogic_vector(63 downto 0);
         variable si: std_ulogic_vector(15 downto 0);
+        variable sign: std_ulogic;
     begin
         wait for clk_period;
 
         m1.valid <= '1';
-        m1.insn_type <= OP_MUL_L64;
-        m1.data1 <= '0' & x"0000000000001000";
-        m1.data2 <= '0' & x"0000000000001111";
+        m1.data1 <= x"0000000000001000";
+        m1.data2 <= x"0000000000001111";
 
         wait for clk_period;
         assert m2.valid = '0';
@@ -56,7 +66,7 @@ begin
 
         wait for clk_period;
         assert m2.valid = '1';
-        assert m2.write_reg_data = x"0000000001111000";
+        assert m2.result = x"00000000000000000000000001111000";
 
         wait for clk_period;
         assert m2.valid = '0';
@@ -70,7 +80,7 @@ begin
 
         wait for clk_period * (pipeline_depth-1);
         assert m2.valid = '1';
-        assert m2.write_reg_data = x"0000000001111000";
+        assert m2.result = x"00000000000000000000000001111000";
 
         -- test mulld
         mulld_loop : for i in 0 to 1000 loop
@@ -79,10 +89,12 @@ begin
 
             behave_rt := ppc_mulld(ra, rb);
 
-            m1.data1 <= '0' & ra;
-            m1.data2 <= '0' & rb;
+            m1.data1 <= absval(ra);
+            m1.data2 <= absval(rb);
+            sign := ra(63) xor rb(63);
+            m1.not_result <= sign;
+            m1.addend <= (others => sign);
             m1.valid <= '1';
-            m1.insn_type <= OP_MUL_L64;
 
             wait for clk_period;
 
@@ -92,8 +104,8 @@ begin
 
             assert m2.valid = '1';
 
-            assert to_hstring(behave_rt) = to_hstring(m2.write_reg_data)
-                report "bad mulld expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.write_reg_data);
+            assert to_hstring(behave_rt) = to_hstring(m2.result(63 downto 0))
+                report "bad mulld expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(63 downto 0));
         end loop;
 
         -- test mulhdu
@@ -103,10 +115,11 @@ begin
 
             behave_rt := ppc_mulhdu(ra, rb);
 
-            m1.data1 <= '0' & ra;
-            m1.data2 <= '0' & rb;
+            m1.data1 <= ra;
+            m1.data2 <= rb;
+            m1.not_result <= '0';
+            m1.addend <= (others => '0');
             m1.valid <= '1';
-            m1.insn_type <= OP_MUL_H64;
 
             wait for clk_period;
 
@@ -116,8 +129,8 @@ begin
 
             assert m2.valid = '1';
 
-            assert to_hstring(behave_rt) = to_hstring(m2.write_reg_data)
-                report "bad mulhdu expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.write_reg_data);
+            assert to_hstring(behave_rt) = to_hstring(m2.result(127 downto 64))
+                report "bad mulhdu expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(127 downto 64));
         end loop;
 
         -- test mulhd
@@ -127,10 +140,12 @@ begin
 
             behave_rt := ppc_mulhd(ra, rb);
 
-            m1.data1 <= ra(63) & ra;
-            m1.data2 <= rb(63) & rb;
+            m1.data1 <= absval(ra);
+            m1.data2 <= absval(rb);
+            sign := ra(63) xor rb(63);
+            m1.not_result <= sign;
+            m1.addend <= (others => sign);
             m1.valid <= '1';
-            m1.insn_type <= OP_MUL_H64;
 
             wait for clk_period;
 
@@ -140,8 +155,8 @@ begin
 
             assert m2.valid = '1';
 
-            assert to_hstring(behave_rt) = to_hstring(m2.write_reg_data)
-                report "bad mulhd expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.write_reg_data);
+            assert to_hstring(behave_rt) = to_hstring(m2.result(127 downto 64))
+                report "bad mulhd expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(127 downto 64));
         end loop;
 
         -- test mullw
@@ -151,12 +166,14 @@ begin
 
             behave_rt := ppc_mullw(ra, rb);
 
-            m1.data1 <= (others => ra(31));
-            m1.data1(31 downto 0) <= ra(31 downto 0);
-            m1.data2 <= (others => rb(31));
-            m1.data2(31 downto 0) <= rb(31 downto 0);
+            m1.data1 <= (others => '0');
+            m1.data1(31 downto 0) <= absval(ra(31 downto 0));
+            m1.data2 <= (others => '0');
+            m1.data2(31 downto 0) <= absval(rb(31 downto 0));
+            sign := ra(31) xor rb(31);
+            m1.not_result <= sign;
+            m1.addend <= (others => sign);
             m1.valid <= '1';
-            m1.insn_type <= OP_MUL_L64;
 
             wait for clk_period;
 
@@ -166,8 +183,8 @@ begin
 
             assert m2.valid = '1';
 
-            assert to_hstring(behave_rt) = to_hstring(m2.write_reg_data)
-                report "bad mullw expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.write_reg_data);
+            assert to_hstring(behave_rt) = to_hstring(m2.result(63 downto 0))
+                report "bad mullw expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(63 downto 0));
         end loop;
 
         -- test mulhw
@@ -177,12 +194,14 @@ begin
 
             behave_rt := ppc_mulhw(ra, rb);
 
-            m1.data1 <= (others => ra(31));
-            m1.data1(31 downto 0) <= ra(31 downto 0);
-            m1.data2 <= (others => rb(31));
-            m1.data2(31 downto 0) <= rb(31 downto 0);
+            m1.data1 <= (others => '0');
+            m1.data1(31 downto 0) <= absval(ra(31 downto 0));
+            m1.data2 <= (others => '0');
+            m1.data2(31 downto 0) <= absval(rb(31 downto 0));
+            sign := ra(31) xor rb(31);
+            m1.not_result <= sign;
+            m1.addend <= (others => sign);
             m1.valid <= '1';
-            m1.insn_type <= OP_MUL_H32;
 
             wait for clk_period;
 
@@ -192,8 +211,9 @@ begin
 
             assert m2.valid = '1';
 
-            assert to_hstring(behave_rt) = to_hstring(m2.write_reg_data)
-                report "bad mulhw expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.write_reg_data);
+            assert to_hstring(behave_rt) = to_hstring(m2.result(63 downto 32) & m2.result(63 downto 32))
+                report "bad mulhw expected " & to_hstring(behave_rt) & " got " &
+                to_hstring(m2.result(63 downto 32) & m2.result(63 downto 32));
         end loop;
 
         -- test mulhwu
@@ -207,8 +227,9 @@ begin
             m1.data1(31 downto 0) <= ra(31 downto 0);
             m1.data2 <= (others => '0');
             m1.data2(31 downto 0) <= rb(31 downto 0);
+            m1.not_result <= '0';
+            m1.addend <= (others => '0');
             m1.valid <= '1';
-            m1.insn_type <= OP_MUL_H32;
 
             wait for clk_period;
 
@@ -218,8 +239,9 @@ begin
 
             assert m2.valid = '1';
 
-            assert to_hstring(behave_rt) = to_hstring(m2.write_reg_data)
-                report "bad mulhwu expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.write_reg_data);
+            assert to_hstring(behave_rt) = to_hstring(m2.result(63 downto 32) & m2.result(63 downto 32))
+                report "bad mulhwu expected " & to_hstring(behave_rt) & " got " &
+                to_hstring(m2.result(63 downto 32) & m2.result(63 downto 32));
         end loop;
 
         -- test mulli
@@ -229,11 +251,13 @@ begin
 
             behave_rt := ppc_mulli(ra, si);
 
-            m1.data1 <= ra(63) & ra;
-            m1.data2 <= (others => si(15));
-            m1.data2(15 downto 0) <= si;
+            m1.data1 <= absval(ra);
+            m1.data2 <= (others => '0');
+            m1.data2(15 downto 0) <= absval(si);
+            sign := ra(63) xor si(15);
+            m1.not_result <= sign;
+            m1.addend <= (others => sign);
             m1.valid <= '1';
-            m1.insn_type <= OP_MUL_L64;
 
             wait for clk_period;
 
@@ -243,11 +267,11 @@ begin
 
             assert m2.valid = '1';
 
-            assert to_hstring(behave_rt) = to_hstring(m2.write_reg_data)
-                report "bad mulli expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.write_reg_data);
+            assert to_hstring(behave_rt) = to_hstring(m2.result(63 downto 0))
+                report "bad mulli expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(63 downto 0));
         end loop;
 
-        assert false report "end of test" severity failure;
+        std.env.finish;
         wait;
     end process;
 end behave;

@@ -1,0 +1,32 @@
+The Xilinx SPI flashing proxies come from here:
+
+https://github.com/quartiq/bscan_spi_bitstreams/blob/single-tap/bscan_spi_xc7a35t.bit?raw=true
+https://github.com/quartiq/bscan_spi_bitstreams/blob/single-tap/bscan_spi_xc7a100t.bit?raw=true
+
+These are the "old" single tap versions that are supported by the openocd
+release packaged in distros (0.10). If you use the wrong versions you see this:
+
+$ ./openocd/flash-arty microwatt_0.bit
+Open On-Chip Debugger 0.10.0
+Licensed under GNU GPL v2
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+none separate
+Info : auto-selecting first available session transport "jtag". To override use 'transport select <transport>'.
+adapter speed: 25000 kHz
+fpga_program
+Info : ftdi: if you experience problems at higher adapter clocks, try the command "ftdi_tdo_sample_edge falling"
+Info : clock speed 25000 kHz
+Info : JTAG tap: xc7.tap tap/device found: 0x0362d093 (mfg: 0x049 (Xilinx), part: 0x362d, ver: 0x0)
+loaded file openocd/bscan_spi_xc7a35t.bit to pld device 0 in 0s 152803us
+Info : JTAG tap: xc7.tap tap/device found: 0x0362d093 (mfg: 0x049 (Xilinx), part: 0x362d, ver: 0x0)
+Error: Unknown flash device (ID 0x00ffffff)
+
+If you find yourself with a later openocd version that contians 867bdb2e9248
+("jtagspi: new protocol that includes transfer length") you should fetch the
+bitstream from the master branch:
+
+https://github.com/quartiq/bscan_spi_bitstreams/blob/master/bscan_spi_xc7a35t.bit?raw=true
+https://github.com/quartiq/bscan_spi_bitstreams/blob/master/bscan_spi_xc7a100t.bit?raw=true
+
+

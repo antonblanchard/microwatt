@@ -1,0 +1,15 @@
+CAPI=2:
+
+name : :microwatt:liteeth:0
+
+generators:
+  liteeth_gen:
+    interpreter: python3
+    command: fusesoc-add-files.py
+    description: Generate a liteeth ethernet controller
+    usage: |
+      liteeth_gen adds the pre-generated LiteX LiteEth memory controller
+      based on the board type.
+
+      Parameters:
+        board: The board type (arty)

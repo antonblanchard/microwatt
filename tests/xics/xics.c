@@ -1,13 +1,20 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <limits.h>
 
 #include "console.h"
 #include "xics.h"
 
 #undef DEBUG
 //#define DEBUG 1
+
+void delay(void)
+{
+	static volatile int i;
+
+	for (i = 0; i < 16; ++i)
+		__asm__ volatile("" : : : "memory");
+}
 
 void print_number(unsigned int i) // only for i = 0-999
 {
@@ -29,29 +36,29 @@ void print_number(unsigned int i) // only for i = 0-999
 }
 
 #ifdef DEBUG
-#define DEBUG_STR "\r\nDEBUG: "
+#define DEBUG_STR "\nDEBUG: "
 void debug_print(int i)
 {
-	putstr(DEBUG_STR, strlen(DEBUG_STR));
+	puts(DEBUG_STR);
 	print_number(i);
-	putstr("\r\n", 2);
+	puts("\n");
 }
 
-#define debug_putstr(a, b) putstr(a,b)
+#define debug_puts(a) puts(a)
 #else
-#define debug_putstr(a, b)
+#define debug_puts(a)
 #define debug_print(i)
 #endif
 
-#define ASSERT_FAIL "() ASSERT_FAILURE!\r\n "
+#define ASSERT_FAIL "() ASSERT_FAILURE!\n "
 #define assert(cond)	\
 	if (!(cond))  { \
-		putstr(__FILE__, strlen(__FILE__)); \
-		putstr(":", 1);	    \
+		puts(__FILE__); \
+		putchar(':');	    \
 		print_number(__LINE__);	\
-		putstr(":", 1);	    \
-		putstr(__FUNCTION__, strlen(__FUNCTION__));\
-		putstr(ASSERT_FAIL, strlen(ASSERT_FAIL)); \
+		putchar(':');	    \
+		puts(__FUNCTION__);\
+		puts(ASSERT_FAIL); \
 		__asm__ ("attn"); \
 	}
 
@@ -62,27 +69,29 @@ volatile uint64_t isrs_run;
 #define ISR_UART     0x0000000000000002
 #define ISR_SPURIOUS 0x0000000000000004
 
-#define IPI "IPI\r\n"
+#define IPI "IPI\n"
 void ipi_isr(void) {
-	debug_putstr(IPI, strlen(IPI));
+	debug_puts(IPI);
 
 	isrs_run |= ISR_IPI;
+
+	icp_write8(XICS_MFRR, 0xff);
 }
 
 
-#define UART "UART\r\n"
+#define UART "UART\n"
 void uart_isr(void) {
-	debug_putstr(UART, strlen(UART));
+	debug_puts(UART);
 
-	potato_uart_irq_dis(); // disable interrupt to ack it
+	console_set_irq_en(false, false);
 
 	isrs_run |= ISR_UART;
 }
 
 // The hardware doesn't support this but it's part of XICS so add it.
-#define SPURIOUS "SPURIOUS\r\n"
+#define SPURIOUS "SPURIOUS\n"
 void spurious_isr(void) {
-	debug_putstr(SPURIOUS, strlen(SPURIOUS));
+	debug_puts(SPURIOUS);
 
 	isrs_run |= ISR_SPURIOUS;
 }
@@ -102,6 +111,8 @@ struct isr_op isr_table[] = {
 bool ipi_running;
 
 #define ISR "ISR XISR="
+#define PRIO " PRIO="
+#define CPPR " CPPR="
 void isr(void)
 {
 	struct isr_op *op;
@@ -110,12 +121,16 @@ void isr(void)
 	assert(!ipi_running); // check we aren't reentrant
 	ipi_running = true;
 
-	xirr = xics_read32(XICS_XIRR); // read hardware irq source
+	xirr = icp_read32(XICS_XIRR); // read hardware irq source
 
 #ifdef DEBUG
-	putstr(ISR, strlen(ISR));
+	puts(ISR);
 	print_number(xirr & 0xff);
-	putstr("\r\n", 2);
+	puts(PRIO);
+	print_number(xirr >> 24);
+	puts(CPPR);
+	print_number(icp_read8(XICS_XIRR_POLL));
+	puts("\n");
 #endif
 
 	op = isr_table;
@@ -128,7 +143,7 @@ void isr(void)
 		op++;
 	}
 
-	xics_write32(XICS_XIRR, xirr); // EOI
+	icp_write32(XICS_XIRR, xirr); // EOI
 
 	ipi_running = false;
 }
@@ -137,53 +152,105 @@ void isr(void)
 
 int xics_test_0(void)
 {
-	// setup
-	xics_write8(XICS_XIRR, 0x00); // mask all interrupts
-	isrs_run = 0;
+	uint32_t v0, v1;
 
-	xics_write8(XICS_XIRR, 0x00); // mask all interrupts
+	v0 = ics_read_xive(0);
+	v1 = ics_read_xive(1);
+#ifdef DEBUG
+	puts("\n");
+	puts("xive(0) bfr: ");
+	print_number(v0);
+	puts("\n");
+	puts("xive(1) bfr: ");
+	print_number(v1);
+	puts("\n");
+#endif
+	assert(v0 = 0xff);
+	assert(v1 = 0xff);
 
-	// trigger two interrupts
-	potato_uart_irq_en(); // cause 0x500 interrupt
-	xics_write8(XICS_MFRR, 0x05); // cause 0x500 interrupt
+	ics_write_xive(0xa, 0);
+	ics_write_xive(0x5, 1);
+	v0 = ics_read_xive(0);
+	v1 = ics_read_xive(1);
+#ifdef DEBUG
+	puts("\n");
+	puts("xive(0) aft: ");
+	print_number(v0);
+	puts("\n");
+	puts("xive(1) aft: ");
+	print_number(v1);
+	puts("\n");
+#endif
+	assert(v0 = 0xa);
+	assert(v1 = 0x5);
 
-	// still masked, so shouldn't happen yet
-	assert(isrs_run == 0);
-
-	// unmask IPI only
-	xics_write8(XICS_XIRR, 0x40);
-	assert(isrs_run == ISR_IPI);
-
-	// unmask UART
-	xics_write8(XICS_XIRR, 0xc0);
-	assert(isrs_run == (ISR_IPI | ISR_UART));
-
-	// cleanup
-	xics_write8(XICS_XIRR, 0x00); // mask all interrupts
-	isrs_run = 0;
-
+	ics_write_xive(0xff, 0);
+	ics_write_xive(0xff, 1);
+	v0 = ics_read_xive(0);
+	v1 = ics_read_xive(1);
+	assert(v0 = 0xff);
+	assert(v1 = 0xff);
 	return 0;
 }
 
 int xics_test_1(void)
 {
 	// setup
-	xics_write8(XICS_XIRR, 0x00); // mask all interrupts
+	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
 	isrs_run = 0;
 
-	xics_write8(XICS_XIRR, 0xff); // allow all interrupts
+	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
 
-	// should be none pending
+	// trigger two interrupts
+	console_set_irq_en(true,true);// cause serial interrupt
+	ics_write_xive(0x6, 0);      // set source to prio 6
+	icp_write8(XICS_MFRR, 0x04); // cause ipi interrupt at prio 5
+
+	// still masked, so shouldn't happen yet
+	delay();
 	assert(isrs_run == 0);
 
-	// trigger both
-	potato_uart_irq_en(); // cause 0x500 interrupt
-	xics_write8(XICS_MFRR, 0x05); // cause 0x500 interrupt
+	// unmask IPI only
+	icp_write8(XICS_XIRR, 0x6);
+	delay();
+	assert(isrs_run == ISR_IPI);
 
+	// unmask UART
+	icp_write8(XICS_XIRR, 0x7);
+	delay();
 	assert(isrs_run == (ISR_IPI | ISR_UART));
 
 	// cleanup
-	xics_write8(XICS_XIRR, 0x00); // mask all interrupts
+	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
+	console_set_irq_en(false, false);
+	ics_write_xive(0, 0xff);
+	isrs_run = 0;
+
+	return 0;
+}
+
+int xics_test_2(void)
+{
+	// setup
+	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
+	isrs_run = 0;
+
+	icp_write8(XICS_XIRR, 0xff); // allow all interrupts
+
+	// should be none pending
+	delay();
+	assert(isrs_run == 0);
+
+	// trigger both
+	console_set_irq_en(true, true);
+	icp_write8(XICS_MFRR, 0x05); // cause 0x500 interrupt
+
+	delay();
+	assert(isrs_run == (ISR_IPI | ISR_UART));
+
+	// cleanup
+	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
+	console_set_irq_en(false, false);
 	isrs_run = 0;
 
 	return 0;
@@ -194,40 +261,43 @@ void mtmsrd(uint64_t val)
 	__asm__ volatile("mtmsrd %0" : : "r" (val));
 }
 
-int xics_test_2(void)
+int xics_test_3(void)
 {
 	// setup
-	xics_write8(XICS_XIRR, 0x00); // mask all interrupts
+	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
 	isrs_run = 0;
 
 	// trigger interrupts with MSR[EE]=0 and show they are not run
 	mtmsrd(0x9000000000000003); // EE off
 
-	xics_write8(XICS_XIRR, 0xff); // allow all interrupts
+	icp_write8(XICS_XIRR, 0xff); // allow all interrupts
 
 	// trigger an IPI
-	xics_write8(XICS_MFRR, 0x05); // cause 0x500 interrupt
+	icp_write8(XICS_MFRR, 0x05); // cause 0x500 interrupt
 
+	delay();
 	assert(isrs_run == 0);
 
 	mtmsrd(0x9000000000008003); // EE on
+	delay();
 	assert(isrs_run == ISR_IPI);
 
 	// cleanup
-	xics_write8(XICS_XIRR, 0x00); // mask all interrupts
+	icp_write8(XICS_XIRR, 0x00); // mask all interrupts
 	isrs_run = 0;
 
 	return 0;
 }
 
 #define TEST "Test "
-#define PASS "PASS\r\n"
-#define FAIL "FAIL\r\n"
+#define PASS "PASS\n"
+#define FAIL "FAIL\n"
 
 int (*tests[])(void) = {
 	xics_test_0,
 	xics_test_1,
 	xics_test_2,
+	xics_test_3,
 	NULL
 };
 
@@ -237,7 +307,7 @@ int main(void)
 	int i = 0;
 	int (*t)(void);
 
-	potato_uart_init();
+	console_init();
 	ipi_running = false;
 
 	/* run the tests */
@@ -246,14 +316,14 @@ int main(void)
 		if (!t)
 			break;
 
-		putstr(TEST, strlen(TEST));
+		puts(TEST);
 		print_number(i);
-		putstr(": ", 1);
+		putchar(':');
 		if (t() != 0) {
 			fail = 1;
-			putstr(FAIL, strlen(FAIL));
+			puts(FAIL);
 		} else
-			putstr(PASS, strlen(PASS));
+			puts(PASS);
 
 		i++;
 	}

@@ -7,7 +7,9 @@ use work.common.all;
 
 entity cr_file is
     generic (
-        SIM : boolean := false
+        SIM : boolean := false;
+        -- Non-zero to enable log data collection
+        LOG_LENGTH : natural := 0
         );
     port(
         clk   : in std_logic;
@@ -18,7 +20,9 @@ entity cr_file is
         w_in  : in WritebackToCrFileType;
 
         -- debug
-        sim_dump : in std_ulogic
+        sim_dump : in std_ulogic;
+
+        log_out : out std_ulogic_vector(12 downto 0)
         );
 end entity cr_file;
 
@@ -86,6 +90,20 @@ begin
 		assert false report "end of test" severity failure;
             end if;
         end process;
+    end generate;
+
+    cf_log: if LOG_LENGTH > 0 generate
+        signal log_data : std_ulogic_vector(12 downto 0);
+    begin
+        cr_log: process(clk)
+        begin
+            if rising_edge(clk) then
+                log_data <= w_in.write_cr_enable &
+                            w_in.write_cr_data(31 downto 28) &
+                            w_in.write_cr_mask;
+            end if;
+        end process;
+        log_out <= log_data;
     end generate;
 
 end architecture behaviour;

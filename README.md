@@ -37,7 +37,7 @@ cd ../../../
   appears not to). ghdl with the LLVM backend is likely easier to build.
 
   If building ghdl from scratch is too much for you, the microwatt Makefile
-  supports using Docker or podman images. Read through the Makefile for details.
+  supports using Docker or Podman.
 
 - Next build microwatt:
 
@@ -45,6 +45,17 @@ cd ../../../
 git clone https://github.com/antonblanchard/microwatt
 cd microwatt
 make
+```
+
+   To build using Docker:
+```
+make DOCKER=1
+```
+
+   and to build using Podman:
+
+```
+make PODMAN=1
 ```
 
 - Link in the micropython image:

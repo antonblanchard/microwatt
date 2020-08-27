@@ -1,0 +1,42 @@
+#!/usr/bin/python3
+
+import argparse
+import os
+import subprocess
+import sys
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+CONFIG = os.path.join(BASE, "xilinx-xc7.cfg")
+
+def flash(config, flash_proxy, address, data, filetype="", set_qe=False):
+    script = "; ".join([
+        "init",
+        "jtagspi_init 0 {{{}}}".format(flash_proxy),
+        "jtagspi set_qe 0 1" if set_qe else "",
+        "jtagspi_program {{{}}} 0x{:x} {}".format(data, address, filetype),
+        "fpga_program",
+        "exit"
+    ])
+    print(script)
+    subprocess.call(["openocd", "-f", config, "-c", script])
+
+parser = argparse.ArgumentParser()
+parser.add_argument("file", help="file to write to flash")
+parser.add_argument("-a", "--address", help="offset in flash", type=lambda x: int(x,0), default=0)
+parser.add_argument("-f", "--fpga", help="a35, a100 or a200", default="a35")
+parser.add_argument("-t", "--filetype", help="file type such as 'bin'", default="")
+args = parser.parse_args()
+
+if args.fpga.lower() == "a35":
+        proxy = "bscan_spi_xc7a35t.bit"
+elif args.fpga.lower() == "a100":
+        proxy = "bscan_spi_xc7a100t.bit"
+elif args.fpga.lower() == "a200":
+        proxy = "bscan_spi_xc7a200t.bit"
+else:
+    print("error: specify a35, a100 or a200 when flashing")
+    sys.exit()
+
+proxy = os.path.join(BASE, proxy)
+
+flash(CONFIG, proxy, args.address, args.file, args.filetype.lower())

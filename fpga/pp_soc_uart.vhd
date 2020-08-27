@@ -107,10 +107,9 @@ architecture behaviour of pp_soc_uart is
     type wb_state_type is (IDLE, WRITE_ACK, READ_ACK);
     signal wb_state : wb_state_type;
 
-    signal wb_ack : std_logic; --! Wishbone acknowledge signal
-
     signal rxd2 : std_logic := '1';
     signal rxd3 : std_logic := '1';
+    signal txd2 : std_ulogic := '1';
 begin
 
     irq <= (irq_recv_enable and (not recv_buffer_empty))
@@ -123,9 +122,12 @@ begin
     -- Add a few FFs on the RX input to avoid metastability issues
     process (clk) is
     begin
-        rxd3 <= rxd2;
-        rxd2 <= rxd;
+	if rising_edge(clk) then
+            rxd3 <= rxd2;
+            rxd2 <= rxd;
+        end if;
     end process;
+    txd <= txd2;
 
     uart_receive: process(clk)
     begin
@@ -202,7 +204,7 @@ begin
     begin
 	if rising_edge(clk) then
 	    if reset = '1' then
-		txd <= '1';
+		txd2 <= '1';
 		tx_state <= IDLE;
 		send_buffer_pop <= '0';
 		tx_current_bit <= 0;
@@ -210,26 +212,26 @@ begin
 		case tx_state is
 		when IDLE =>
 		    if send_buffer_empty = '0' and uart_tx_clk = '1' then
-			txd <= '0';
+			txd2 <= '0';
 			send_buffer_pop <= '1';
 			tx_current_bit <= 0;
 			tx_state <= TRANSMIT;
 		    elsif uart_tx_clk = '1' then
-			txd <= '1';
+			txd2 <= '1';
 		    end if;
 		when TRANSMIT =>
 		    if send_buffer_pop = '1' then
 			send_buffer_pop <= '0';
 		    elsif uart_tx_clk = '1' and tx_current_bit = 7 then
-			txd <= tx_byte(tx_current_bit);
+			txd2 <= tx_byte(tx_current_bit);
 			tx_state <= STOPBIT;
 		    elsif uart_tx_clk = '1' then
-			txd <= tx_byte(tx_current_bit);
+			txd2 <= tx_byte(tx_current_bit);
 			tx_current_bit <= tx_current_bit + 1;
 		    end if;
 		when STOPBIT =>
 		    if uart_tx_clk = '1' then
-			txd <= '1';
+			txd2 <= '1';
 			tx_state <= IDLE;
 		    end if;
 		end case;
@@ -315,13 +317,11 @@ begin
 
     ---------- Wishbone Interface ---------- 
 
-    wb_ack_out <= wb_ack and wb_cyc_in and wb_stb_in;
-
     wishbone: process(clk)
     begin
 	if rising_edge(clk) then
 	    if reset = '1' then
-		wb_ack <= '0';
+		wb_ack_out <= '0';
 		wb_state <= IDLE;
 		send_buffer_push <= '0';
 		recv_buffer_pop <= '0';
@@ -344,7 +344,7 @@ begin
 			    end if;
 
 			    -- Invalid writes are acked and ignored.
-			    wb_ack <= '1';
+			    wb_ack_out <= '1';
 			    wb_state <= WRITE_ACK;
 			else -- Read from register
 			    if wb_adr_in = x"008" then
@@ -352,18 +352,18 @@ begin
 			    elsif wb_adr_in = x"010" then
 				wb_dat_out <= x"0" & send_buffer_full & recv_buffer_full &
 					      send_buffer_empty & recv_buffer_empty;
-				wb_ack <= '1';
+				wb_ack_out <= '1';
 			    elsif wb_adr_in = x"018" then
 				wb_dat_out <= sample_clk_divisor;
-				wb_ack <= '1';
+				wb_ack_out <= '1';
 			    elsif wb_adr_in = x"020" then
 				wb_dat_out <= (0 => irq_recv_enable,
 					       1 => irq_tx_ready_enable,
 					       others => '0');
-				wb_ack <= '1';
+				wb_ack_out <= '1';
 			    else
 				wb_dat_out <= (others => '0');
-				wb_ack <= '1';
+				wb_ack_out <= '1';
 			    end if;
 			    wb_state <= READ_ACK;
 			end if;
@@ -372,7 +372,7 @@ begin
 		    send_buffer_push <= '0';
 
 		    if wb_stb_in = '0' then
-			wb_ack <= '0';
+			wb_ack_out <= '0';
 			wb_state <= IDLE;
 		    end if;
 		when READ_ACK =>
@@ -380,11 +380,11 @@ begin
 			recv_buffer_pop <= '0';
 		    else
 			wb_dat_out <= recv_buffer_output;
-			wb_ack <= '1';
+			wb_ack_out <= '1';
 		    end if;
 
 		    if wb_stb_in = '0' then
-			wb_ack <= '0';
+			wb_ack_out <= '0';
 			wb_state <= IDLE;
 		    end if;
 		end case;
