@@ -145,7 +145,7 @@ begin
 	    do_icreset <= '0';
             do_dmi_log_rd <= '0';
 
-	    if (rst = '1') then
+	    if (rst) then
 		stopping <= '0';
 		terminated <= '0';
 	    else
@@ -182,7 +182,7 @@ begin
                             do_dmi_log_rd <= '1';
 			end if;
 		    else
-			report("DMI read from " & to_hstring(dmi_addr));
+			report("DMI read from " & to_string(dmi_addr));
 		    end if;
 
                 elsif dmi_read_log_data = '0' and dmi_read_log_data_1 = '1' then
