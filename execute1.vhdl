@@ -505,11 +505,30 @@ begin
 	-- Next insn adder used in a couple of places
 	next_nia := std_ulogic_vector(unsigned(e_in.nia) + 4);
 
-	-- rotator control signals
-	right_shift <= '1' when e_in.insn_type = OP_SHR else '0';
-	rot_clear_left <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCL else '0';
-	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
-        rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
+    -- rotator control signals
+    if ( (e_in.insn_type = OP_SHR) ) then
+        right_shift <= '1';
+        else
+        right_shift <= '0';
+    end if;
+
+    if ( e_in.insn_type = OP_RLC ) then
+        rot_clear_left <= '1';
+        else
+        rot_clear_left <= '0';
+    end if;
+
+    if ( (e_in.insn_type = OP_RLC) or (e_in.insn_type = OP_RLCR) ) then
+        rot_clear_right <= '1';
+        else
+        rot_clear_right <= '0';
+    end if;
+
+    if ( e_in.insn_type = OP_EXTSWSLI ) then
+        rot_sign_ext <= '1';
+        else
+        rot_sign_ext <= '0';
+    end if;
 
         ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
 	ctrl_tmp.irq_state <= WRITE_SRR0;
