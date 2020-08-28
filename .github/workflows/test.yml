@@ -63,6 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - run: make git.vhdl
     - uses: docker://ghdl/vunit:llvm
       with:
         args: python3 ./run.py -p10

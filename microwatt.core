@@ -51,6 +51,7 @@ filesets:
       - sync_fifo.vhdl
       - spi_rxtx.vhdl
       - spi_flash_ctrl.vhdl
+      - git.vhdl
     file_type : vhdlSource-2008
 
   fpga:
@@ -136,6 +137,7 @@ targets:
   nexys_a7:
     default_tool: vivado
     filesets: [core, nexys_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
+    generate: [git_hash]
     parameters :
       - memory_size
       - ram_init_file
@@ -153,6 +155,7 @@ targets:
   acorn-cle-215-nodram:
     default_tool: vivado
     filesets: [core, acorn_cle_215, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
+    generate: [git_hash]
     parameters :
       - memory_size
       - ram_init_file
@@ -179,6 +182,7 @@ targets:
       - spi_flash_offset=10485760
       - log_length=2048
       - uart_is_16550=false
+    generate: [git_hash]
     tools:
       vivado: {part : xc7k325tffg900-2}
     toplevel : toplevel
@@ -195,7 +199,7 @@ targets:
       - spi_flash_offset=10485760
       - log_length=2048
       - uart_is_16550
-    generate: [litedram_acorn_cle_215]
+    generate: [litedram_acorn_cle_215, git_hash]
     tools:
       vivado: {part : xc7a200tsbg484-2}
     toplevel : toplevel
@@ -212,7 +216,7 @@ targets:
       - spi_flash_offset=10485760
       - log_length=2048
       - uart_is_16550=false
-    generate: [litedram_genesys2]
+    generate: [litedram_genesys2, git_hash]
     tools:
       vivado: {part : xc7k325tffg900-2}
     toplevel : toplevel
@@ -231,6 +235,7 @@ targets:
       - uart_is_16550
       - has_fpu
       - has_btc
+    generate: [git_hash]
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -251,7 +256,7 @@ targets:
       - uart_is_16550
       - has_fpu
       - has_btc
-    generate: [litedram_nexys_video, liteeth_nexys_video, litesdcard_nexys_video]
+    generate: [litedram_nexys_video, liteeth_nexys_video, litesdcard_nexys_video, git_hash]
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -272,6 +277,7 @@ targets:
       - has_fpu=false
       - has_btc=false
       - use_litesdcard
+    generate: [git_hash]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
@@ -293,7 +299,7 @@ targets:
       - has_uart1
       - has_fpu=false
       - has_btc=false
-    generate: [litedram_arty, liteeth_arty, litesdcard_arty]
+    generate: [litedram_arty, liteeth_arty, litesdcard_arty, git_hash]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
@@ -314,6 +320,7 @@ targets:
       - has_fpu
       - has_btc
       - use_litesdcard
+    generate: [git_hash]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -335,7 +342,7 @@ targets:
       - has_uart1
       - has_fpu
       - has_btc
-    generate: [litedram_arty, liteeth_arty, litesdcard_arty]
+    generate: [litedram_arty, liteeth_arty, litesdcard_arty, git_hash]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -356,7 +363,7 @@ targets:
       - uart_is_16550
       - has_fpu
       - has_btc
-    generate: [litesdcard_wukong-v2]
+    generate: [litesdcard_wukong-v2, git_hash]
     tools:
       vivado: {part : xc7a100tfgg676-1}
     toplevel : toplevel
@@ -377,7 +384,7 @@ targets:
       - uart_is_16550
       - has_fpu
       - has_btc
-    generate: [litedram_wukong-v2, liteeth_wukong-v2, litesdcard_wukong-v2]
+    generate: [litedram_wukong-v2, liteeth_wukong-v2, litesdcard_wukong-v2, git_hash]
     tools:
       vivado: {part : xc7a100tfgg676-1}
     toplevel : toplevel
@@ -396,17 +403,26 @@ targets:
       - uart_is_16550
       - has_fpu=false
       - has_btc=false
+    generate: [git_hash]
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel
 
   synth:
     filesets: [core, soc, xilinx_specific]
+    generate: [git_hash]
     tools:
       vivado: {pnr : none}
     toplevel: core
 
+generators:
+  git_hash_gen:
+    command: scripts/make_version_fusesoc.py
+
 generate:
+  git_hash:
+    generator : git_hash_gen
+
   litedram_arty:
     generator: litedram_gen
     parameters: {board : arty}

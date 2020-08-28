@@ -55,6 +55,11 @@ all = core_tb icache_tb dcache_tb dmi_dtm_tb \
 
 all: $(all)
 
+# This updates git.vhdl only when needed. Make runs this before doing
+# dependancy checks hence make will only rebuild dependancies if the
+# git status has actually changed.
+$(shell scripts/make_version.sh git.vhdl)
+
 core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
 	utils.vhdl plru.vhdl cache_ram.vhdl icache.vhdl predecode.vhdl \
 	decode1.vhdl helpers.vhdl insn_helpers.vhdl \
@@ -66,7 +71,7 @@ core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
 
 soc_files = wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_fifo.vhdl \
 	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl gpio.vhdl soc.vhdl \
-	spi_rxtx.vhdl spi_flash_ctrl.vhdl
+	spi_rxtx.vhdl spi_flash_ctrl.vhdl git.vhdl
 
 uart_files = $(wildcard uart16550/*.v)
 
@@ -324,6 +329,7 @@ _clean:
 	rm -f scripts/mw_debug/mw_debug
 	rm -f microwatt.bin microwatt.json microwatt.svf microwatt_out.config
 	rm -f microwatt.v microwatt-verilator
+	rm -f git.vhdl
 	rm -rf obj_dir/
 
 clean: _clean
