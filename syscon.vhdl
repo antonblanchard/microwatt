@@ -93,7 +93,7 @@ architecture behaviour of syscon is
 
     -- GIT info register bits
     --
-    --  0 ..55  : git hash (56 bits)
+    --  0 ..27  : git hash (7 digits = 28 bits)
     --      63  : dirty flag
     --
 
@@ -175,7 +175,7 @@ begin
 
     -- GIT info register composition
     reg_gitinfo <= (63          => GIT_DIRTY,
-                    55 downto 0 => GIT_HASH,
+                    27 downto 0 => GIT_HASH,
                     others      => '0');
 
     -- Wishbone response
