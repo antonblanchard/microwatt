@@ -50,6 +50,9 @@ core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
 	loadstore1.vhdl mmu.vhdl dcache.vhdl writeback.vhdl core_debug.vhdl \
 	core.vhdl
 
+git.vhdl: git.vhdl.in
+	./make_version.sh $@
+
 soc_files = $(core_files) wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_fifo.vhdl \
 	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl \
 	spi_rxtx.vhdl spi_flash_ctrl.vhdl git.vhdl
@@ -272,5 +275,5 @@ distclean: _clean
 	make -f scripts/mw_debug/Makefile distclean
 	make -f hello_world/Makefile distclean
 
-.PHONY: all prog check check_light clean distclean
+.PHONY: all prog check check_light clean distclean git.vhdl
 .PRECIOUS: microwatt.json microwatt_out.config microwatt.bit
