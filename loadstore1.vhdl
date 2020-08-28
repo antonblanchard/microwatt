@@ -5,12 +5,15 @@ use ieee.numeric_std.all;
 library work;
 use work.decode_types.all;
 use work.common.all;
+use work.insn_helpers.all;
+use work.helpers.all;
 
 -- 2 cycle LSU
 -- We calculate the address in the first cycle
 
 entity loadstore1 is
     generic (
+        HAS_FPU : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -58,7 +61,7 @@ architecture behave of loadstore1 is
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	load_data    : std_ulogic_vector(63 downto 0);
-	write_reg    : gpr_index_t;
+	write_reg    : gspr_index_t;
 	length       : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
 	sign_extend  : std_ulogic;
@@ -431,6 +434,17 @@ begin
                     v.align_intr := v.nc;
                     req := '1';
                     v.dcbz := '1';
+                when OP_FPSTORE =>
+                    if HAS_FPU then
+                        req := '1';
+                    end if;
+                when OP_FPLOAD =>
+                    if HAS_FPU then
+                        v.load := '1';
+                        req := '1';
+                        -- Allow an extra cycle for RA update
+                        v.extra_cycle := l_in.update;
+                    end if;
                 when OP_TLBIE =>
                     mmureq := '1';
                     v.tlbie := '1';
@@ -523,7 +537,7 @@ begin
             l_out.write_data <= r.sprval;
         elsif do_update = '1' then
             l_out.write_enable <= '1';
-            l_out.write_reg <= r.update_reg;
+            l_out.write_reg <= gpr_to_gspr(r.update_reg);
             l_out.write_data <= r.addr;
         else
             l_out.write_enable <= write_enable;

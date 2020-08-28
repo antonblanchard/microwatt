@@ -11,6 +11,7 @@ use work.insn_helpers.all;
 entity decode2 is
     generic (
         EX1_BYPASS : boolean := true;
+        HAS_FPU : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -73,7 +74,7 @@ architecture behaviour of decode2 is
             -- If it's all 0, we don't treat it as a dependency as slow SPRs
             -- operations are single issue.
             --
-            assert is_fast_spr(ispr) =  '1' or ispr = "000000"
+            assert is_fast_spr(ispr) =  '1' or ispr = "0000000"
                 report "Decode A says SPR but ISPR is invalid:" &
                 to_hstring(ispr) severity failure;
             return (is_fast_spr(ispr), ispr, reg_data);
@@ -118,7 +119,7 @@ architecture behaviour of decode2 is
                 -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
                 -- If it's all 0, we don't treat it as a dependency as slow SPRs
                 -- operations are single issue.
-                assert is_fast_spr(ispr) = '1' or ispr = "000000"
+                assert is_fast_spr(ispr) = '1' or ispr = "0000000"
                     report "Decode B says SPR but ISPR is invalid:" &
                     to_hstring(ispr) severity failure;
                 ret := (is_fast_spr(ispr), ispr, reg_data);
@@ -137,6 +138,12 @@ architecture behaviour of decode2 is
                 return ('1', gpr_to_gspr(insn_rs(insn_in)), reg_data);
             when RCR =>
                 return ('1', gpr_to_gspr(insn_rcreg(insn_in)), reg_data);
+            when FRS =>
+                if HAS_FPU then
+                    return ('1', fpr_to_gspr(insn_frt(insn_in)), reg_data);
+                else
+                    return ('0', (others => '0'), (others => '0'));
+                end if;
             when NONE =>
                 return ('0', (others => '0'), (others => '0'));
         end case;
@@ -150,16 +157,22 @@ architecture behaviour of decode2 is
                 return ('1', gpr_to_gspr(insn_rt(insn_in)));
             when RA =>
                 return ('1', gpr_to_gspr(insn_ra(insn_in)));
+            when FRT =>
+                if HAS_FPU then
+                    return ('1', fpr_to_gspr(insn_frt(insn_in)));
+                else
+                    return ('0', "0000000");
+                end if;
             when SPR =>
                 -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
                 -- If it's all 0, we don't treat it as a dependency as slow SPRs
                 -- operations are single issue.
-                assert is_fast_spr(ispr) = '1' or ispr = "000000"
+                assert is_fast_spr(ispr) = '1' or ispr = "0000000"
                     report "Decode B says SPR but ISPR is invalid:" &
                     to_hstring(ispr) severity failure;
                 return (is_fast_spr(ispr), ispr);
             when NONE =>
-                return ('0', "000000");
+                return ('0', "0000000");
         end case;
     end;
 
@@ -212,7 +225,7 @@ architecture behaviour of decode2 is
     signal gpr_b_bypass : std_ulogic;
 
     signal gpr_c_read_valid : std_ulogic;
-    signal gpr_c_read : gpr_index_t;
+    signal gpr_c_read : gspr_index_t;
     signal gpr_c_bypass : std_ulogic;
 
     signal cr_write_valid  : std_ulogic;
@@ -284,8 +297,9 @@ begin
                        else gpr_to_gspr(insn_ra(d_in.insn));
     r_out.read2_reg <= d_in.ispr2 when d_in.decode.input_reg_b = SPR
                        else gpr_to_gspr(insn_rb(d_in.insn));
-    r_out.read3_reg <= insn_rcreg(d_in.insn) when d_in.decode.input_reg_c = RCR
-                       else insn_rs(d_in.insn);
+    r_out.read3_reg <= gpr_to_gspr(insn_rcreg(d_in.insn)) when d_in.decode.input_reg_c = RCR
+                       else fpr_to_gspr(insn_frt(d_in.insn)) when d_in.decode.input_reg_c = FRS and HAS_FPU
+                       else gpr_to_gspr(insn_rs(d_in.insn));
 
     c_out.read <= d_in.decode.input_cr;
 
@@ -394,7 +408,7 @@ begin
         gpr_b_read <= decoded_reg_b.reg;
 
         gpr_c_read_valid <= decoded_reg_c.reg_valid;
-        gpr_c_read <= gspr_to_gpr(decoded_reg_c.reg);
+        gpr_c_read <= decoded_reg_c.reg;
 
         cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
         cr_bypass_avail <= '0';

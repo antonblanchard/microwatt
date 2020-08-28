@@ -13,8 +13,11 @@ package common is
     constant MSR_SF  : integer := (63 - 0);     -- Sixty-Four bit mode
     constant MSR_EE  : integer := (63 - 48);    -- External interrupt Enable
     constant MSR_PR  : integer := (63 - 49);    -- PRoblem state
+    constant MSR_FP  : integer := (63 - 50);    -- Floating Point available
+    constant MSR_FE0 : integer := (63 - 52);    -- Floating Exception mode
     constant MSR_SE  : integer := (63 - 53);    -- Single-step bit of TE field
     constant MSR_BE  : integer := (63 - 54);    -- Branch trace bit of TE field
+    constant MSR_FE1 : integer := (63 - 55);    -- Floating Exception mode
     constant MSR_IR  : integer := (63 - 58);    -- Instruction Relocation
     constant MSR_DR  : integer := (63 - 59);    -- Data Relocation
     constant MSR_RI  : integer := (63 - 62);    -- Recoverable Interrupt
@@ -53,8 +56,11 @@ package common is
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
 
-    -- Extended GPR indice (can hold an SPR)
-    subtype gspr_index_t is std_ulogic_vector(5 downto 0);
+    -- Extended GPR index (can hold an SPR or a FPR)
+    subtype gspr_index_t is std_ulogic_vector(6 downto 0);
+
+    -- FPR indices
+    subtype fpr_index_t is std_ulogic_vector(4 downto 0);
 
     -- Some SPRs are stored in the register file, they use the magic
     -- GPR numbers above 31.
@@ -64,6 +70,9 @@ package common is
     -- indicates if this is indeed a fast SPR. If clear, then
     -- the SPR is not stored in the GPR file.
     --
+    -- FPRs are also stored in the register file, using GSPR
+    -- numbers from 64 to 95.
+    --
     function fast_spr_num(spr: spr_num_t) return gspr_index_t;
 
     -- Indices conversion functions
@@ -71,6 +80,7 @@ package common is
     function gpr_to_gspr(i: gpr_index_t) return gspr_index_t;
     function gpr_or_spr_to_gspr(g: gpr_index_t; s: gspr_index_t) return gspr_index_t;
     function is_fast_spr(s: gspr_index_t) return std_ulogic;
+    function fpr_to_gspr(f: fpr_index_t) return gspr_index_t;
 
     -- The XER is split: the common bits (CA, OV, SO, OV32 and CA32) are
     -- in the CR file as a kind of CR extension (with a separate write
@@ -226,7 +236,7 @@ package common is
 	read2_enable : std_ulogic;
 	read2_reg : gspr_index_t;
 	read3_enable : std_ulogic;
-	read3_reg : gpr_index_t;
+	read3_reg : gspr_index_t;
     end record;
 
     type RegisterFileToDecode2Type is record
@@ -264,7 +274,7 @@ package common is
 	addr1 : std_ulogic_vector(63 downto 0);
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
-	write_reg : gpr_index_t;
+	write_reg : gspr_index_t;
 	length : std_ulogic_vector(3 downto 0);
         ci : std_ulogic;                                -- cache-inhibited load/store
 	byte_reverse : std_ulogic;
@@ -282,7 +292,8 @@ package common is
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
                                                                      reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
                                                                      nia => (others => '0'), insn => (others => '0'),
-                                                                     addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'), length => (others => '0'),
+                                                                     addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'),
+                                                                     write_reg => (others => '0'), length => (others => '0'),
                                                                      mode_32bit => '0', others => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
@@ -369,7 +380,7 @@ package common is
     type Loadstore1ToWritebackType is record
 	valid : std_ulogic;
 	write_enable: std_ulogic;
-	write_reg : gpr_index_t;
+	write_reg : gspr_index_t;
 	write_data : std_ulogic_vector(63 downto 0);
 	xerc : xer_common_t;
         rc : std_ulogic;
@@ -473,10 +484,10 @@ package body common is
            n := 13;
        when others =>
            n := 0;
-           return "000000";
+           return "0000000";
        end case;
        tmp := std_ulogic_vector(to_unsigned(n, 5));
-       return "1" & tmp;
+       return "01" & tmp;
     end;
 
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t is
@@ -486,7 +497,7 @@ package body common is
 
     function gpr_to_gspr(i: gpr_index_t) return gspr_index_t is
     begin
-	return "0" & i;
+	return "00" & i;
     end;
 
     function gpr_or_spr_to_gspr(g: gpr_index_t; s: gspr_index_t) return gspr_index_t is
@@ -501,5 +512,10 @@ package body common is
     function is_fast_spr(s: gspr_index_t) return std_ulogic is
     begin
 	return s(5);
+    end;
+
+    function fpr_to_gspr(f: fpr_index_t) return gspr_index_t is
+    begin
+        return "10" & f;
     end;
 end common;

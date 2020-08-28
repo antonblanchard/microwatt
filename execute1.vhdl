@@ -13,6 +13,7 @@ use work.ppc_fx_insns.all;
 entity execute1 is
     generic (
         EX1_BYPASS : boolean := true;
+        HAS_FPU : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -542,6 +543,9 @@ begin
             ctrl_tmp.msr(MSR_PR) <= '0';
             ctrl_tmp.msr(MSR_SE) <= '0';
             ctrl_tmp.msr(MSR_BE) <= '0';
+            ctrl_tmp.msr(MSR_FP) <= '0';
+            ctrl_tmp.msr(MSR_FE0) <= '0';
+            ctrl_tmp.msr(MSR_FE1) <= '0';
             ctrl_tmp.msr(MSR_IR) <= '0';
             ctrl_tmp.msr(MSR_DR) <= '0';
             ctrl_tmp.msr(MSR_RI) <= '0';
@@ -578,7 +582,19 @@ begin
             -- set bit 45 to indicate privileged instruction type interrupt
             ctrl_tmp.srr1(63 - 45) <= '1';
             report "privileged instruction";
-            
+
+        elsif not HAS_FPU and valid_in = '1' and
+            (e_in.insn_type = OP_FPLOAD or e_in.insn_type = OP_FPSTORE) then
+            -- make lfd/stfd/lfs/stfs etc. illegal in no-FPU implementations
+            illegal := '1';
+
+        elsif HAS_FPU and valid_in = '1' and ctrl.msr(MSR_FP) = '0' and
+            (e_in.insn_type = OP_FPLOAD or e_in.insn_type = OP_FPSTORE) then
+            -- generate a floating-point unavailable interrupt
+            exception := '1';
+            v.f.redirect_nia := std_logic_vector(to_unsigned(16#800#, 64));
+            report "FP unavailable interrupt";
+
 	elsif valid_in = '1' and e_in.unit = ALU then
 
 	    report "execute nia " & to_hstring(e_in.nia);
@@ -1225,7 +1241,7 @@ begin
         lv.addr1 := a_in;
         lv.addr2 := b_in;
         lv.data := c_in;
-        lv.write_reg := gspr_to_gpr(e_in.write_reg);
+        lv.write_reg := e_in.write_reg;
         lv.length := e_in.data_len;
         lv.byte_reverse := e_in.byte_reverse xnor ctrl.msr(MSR_LE);
         lv.sign_extend := e_in.sign_extend;

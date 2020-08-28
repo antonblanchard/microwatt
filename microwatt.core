@@ -132,6 +132,7 @@ targets:
       - disable_flatten_core
       - log_length=2048
       - uart_is_16550
+      - has_fpu
     tools:
       vivado: {part : xc7a100tcsg324-1}
     toplevel : toplevel
@@ -215,6 +216,7 @@ targets:
       - spi_flash_offset=10485760
       - log_length=2048
       - uart_is_16550
+      - has_fpu
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -231,6 +233,7 @@ targets:
       - spi_flash_offset=10485760
       - log_length=2048
       - uart_is_16550
+      - has_fpu
     generate: [litedram_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
@@ -249,6 +252,7 @@ targets:
       - log_length=512
       - uart_is_16550
       - has_uart1
+      - has_fpu=false
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
@@ -267,6 +271,7 @@ targets:
       - log_length=512
       - uart_is_16550
       - has_uart1
+      - has_fpu=false
     generate: [litedram_arty, liteeth_arty]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -285,6 +290,7 @@ targets:
       - log_length=2048
       - uart_is_16550
       - has_uart1
+      - has_fpu
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -303,6 +309,7 @@ targets:
       - log_length=2048
       - uart_is_16550
       - has_uart1
+      - has_fpu
     generate: [litedram_arty, liteeth_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
@@ -320,6 +327,7 @@ targets:
       - disable_flatten_core
       - log_length=512
       - uart_is_16550
+      - has_fpu=false
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel
@@ -379,6 +387,12 @@ parameters:
     description : Generated system clock frequency in HZ (for top-generic based boards)
     paramtype   : generic
     default     : 100000000
+
+  has_fpu:
+    datatype    : bool
+    description : Include a floating-point unit in the core
+    paramtype   : generic
+    default     : true
 
   disable_flatten_core:
     datatype    : bool

@@ -11,6 +11,7 @@ entity core is
         SIM : boolean := false;
 	DISABLE_FLATTEN : boolean := false;
         EX1_BYPASS : boolean := true;
+        HAS_FPU : boolean := true;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512
         );
@@ -244,6 +245,7 @@ begin
     decode2_0: entity work.decode2
         generic map (
             EX1_BYPASS => EX1_BYPASS,
+            HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -267,6 +269,7 @@ begin
     register_file_0: entity work.register_file
         generic map (
             SIM => SIM,
+            HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -280,7 +283,7 @@ begin
             dbg_gpr_data => dbg_gpr_data,
 	    sim_dump => terminate,
 	    sim_dump_done => sim_cr_dump,
-            log_out => log_data(255 downto 185)
+            log_out => log_data(255 downto 184)
 	    );
 
     cr_file_0: entity work.cr_file
@@ -294,12 +297,13 @@ begin
             d_out => cr_file_to_decode2,
             w_in => writeback_to_cr_file,
             sim_dump => sim_cr_dump,
-            log_out => log_data(184 downto 172)
+            log_out => log_data(183 downto 171)
             );
 
     execute1_0: entity work.execute1
         generic map (
             EX1_BYPASS => EX1_BYPASS,
+            HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -324,6 +328,7 @@ begin
 
     loadstore1_0: entity work.loadstore1
         generic map (
+            HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -368,7 +373,7 @@ begin
             stall_out => dcache_stall_out,
             wishbone_in => wishbone_data_in,
             wishbone_out => wishbone_data_out,
-            log_out => log_data(171 downto 152)
+            log_out => log_data(170 downto 151)
             );
 
     writeback_0: entity work.writeback
@@ -381,7 +386,7 @@ begin
             complete_out => complete
             );
 
-    log_data(151 downto 150) <= "00";
+    log_data(150) <= '0';
     log_data(139 downto 135) <= "00000";
 
     debug_0: entity work.core_debug
