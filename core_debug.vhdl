@@ -182,7 +182,7 @@ begin
                             do_dmi_log_rd <= '1';
 			end if;
 		    else
-			report("DMI read from " & to_string(dmi_addr));
+			report("DMI read from " & to_hstring(dmi_addr));
 		    end if;
 
                 elsif dmi_read_log_data = '0' and dmi_read_log_data_1 = '1' then
