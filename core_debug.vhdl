@@ -145,7 +145,7 @@ begin
 	    do_icreset <= '0';
             do_dmi_log_rd <= '0';
 
-	    if (rst) then
+	    if (rst = '1') then
 		stopping <= '0';
 		terminated <= '0';
 	    else
