@@ -56,6 +56,8 @@
 #define SYS_REG_UART0_INFO		0x40
 #define SYS_REG_UART1_INFO		0x48
 #define   SYS_REG_UART_IS_16550			(1ull << 32)
+#define SYS_REG_GIT_INFO		0x50
+#define   SYS_REG_GIT_IS_DIRTY			(1ull << 63)
 
 
 /*

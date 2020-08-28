@@ -4,6 +4,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
+use work.git.all;
 use work.wishbone_types.all;
 
 entity syscon is
@@ -52,6 +53,7 @@ architecture behaviour of syscon is
     constant SYS_REG_SPIFLASHINFO : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "000111";
     constant SYS_REG_UART0_INFO   : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001000";
     constant SYS_REG_UART1_INFO   : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001001";
+    constant SYS_REG_GIT_INFO     : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001010";
 
     -- Muxed reg read signal
     signal reg_out	: std_ulogic_vector(63 downto 0);
@@ -89,6 +91,12 @@ architecture behaviour of syscon is
     --      32  : UART is 16550 (otherwise pp)
     --
 
+    -- GIT info register bits
+    --
+    --  0 ..55  : git hash (56 bits)
+    --      63  : dirty flag
+    --
+
     -- Ctrl register
     signal reg_ctrl	: std_ulogic_vector(SYS_REG_CTRL_BITS-1 downto 0);
     signal reg_ctrl_out	: std_ulogic_vector(63 downto 0);
@@ -102,6 +110,7 @@ architecture behaviour of syscon is
     signal reg_spiinfo   : std_ulogic_vector(63 downto 0);
     signal reg_uart0info : std_ulogic_vector(63 downto 0);
     signal reg_uart1info : std_ulogic_vector(63 downto 0);
+    signal reg_gitinfo   : std_ulogic_vector(63 downto 0);
     signal info_has_dram : std_ulogic;
     signal info_has_bram : std_ulogic;
     signal info_has_uart : std_ulogic;
@@ -164,6 +173,11 @@ begin
                       31 downto 0  => uinfo_freq,
                       others       => '0');
 
+    -- GIT info register composition
+    reg_gitinfo <= (63          => GIT_DIRTY,
+                    55 downto 0 => GIT_HASH,
+                    others      => '0');
+
     -- Wishbone response
     wb_rsp.ack <= wishbone_in.cyc and wishbone_in.stb;
     with wishbone_in.adr(SYS_REG_BITS+2 downto 3) select reg_out <=
@@ -177,6 +191,7 @@ begin
 	reg_spiinfo	when SYS_REG_SPIFLASHINFO,
         reg_uart0info   when SYS_REG_UART0_INFO,
         reg_uart1info   when SYS_REG_UART1_INFO,
+        reg_gitinfo     when SYS_REG_GIT_INFO,
 	(others => '0') when others;
     wb_rsp.dat   <= reg_out(63 downto 32) when wishbone_in.adr(2) = '1' else
                   reg_out(31 downto 0);
