@@ -1259,6 +1259,7 @@ begin
         lv.virt_mode := ctrl.msr(MSR_DR);
         lv.priv_mode := not ctrl.msr(MSR_PR);
         lv.mode_32bit := not ctrl.msr(MSR_SF);
+        lv.is_32bit := e_in.is_32bit;
 
 	-- Update registers
 	rin <= v;

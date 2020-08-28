@@ -25,6 +25,10 @@ package helpers is
     function byte_reverse(val: std_ulogic_vector(63 downto 0); size: integer) return std_ulogic_vector;
 
     function sign_extend(val: std_ulogic_vector(63 downto 0); size: natural) return std_ulogic_vector;
+
+    function bit_reverse(a: std_ulogic_vector) return std_ulogic_vector;
+    function bit_number(a: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
+    function count_left_zeroes(val: std_ulogic_vector) return std_ulogic_vector;
 end package helpers;
 
 package body helpers is
@@ -205,5 +209,54 @@ package body helpers is
 
         return std_ulogic_vector(ret);
 
+    end;
+
+    -- Reverse the order of bits in a word
+    function bit_reverse(a: std_ulogic_vector) return std_ulogic_vector is
+        variable ret: std_ulogic_vector(a'left downto a'right);
+    begin
+        for i in a'right to a'left loop
+            ret(a'left + a'right - i) := a(i);
+        end loop;
+        return ret;
+    end;
+
+    -- If there is only one bit set in a doubleword, return its bit number
+    -- (counting from the right).  Each bit of the result is obtained by
+    -- ORing together 32 bits of the input:
+    --  bit 0 = a[1] or a[3] or a[5] or ...
+    --  bit 1 = a[2] or a[3] or a[6] or a[7] or ...
+    --  bit 2 = a[4..7] or a[12..15] or ...
+    --  bit 5 = a[32..63] ORed together
+    function bit_number(a: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
+        variable ret: std_ulogic_vector(5 downto 0);
+        variable stride: natural;
+        variable bit: std_ulogic;
+        variable k: natural;
+    begin
+        stride := 2;
+        for i in 0 to 5 loop
+            bit := '0';
+            for j in 0 to (64 / stride) - 1 loop
+                k := j * stride;
+                bit := bit or (or a(k + stride - 1 downto k + (stride / 2)));
+            end loop;
+            ret(i) := bit;
+            stride := stride * 2;
+        end loop;
+        return ret;
+    end;
+
+    -- Count leading zeroes operation
+    -- Assumes the value passed in is not zero (if it is, zero is returned)
+    function count_left_zeroes(val: std_ulogic_vector) return std_ulogic_vector is
+        variable rev: std_ulogic_vector(val'left downto val'right);
+        variable sum: std_ulogic_vector(val'left downto val'right);
+        variable onehot: std_ulogic_vector(val'left downto val'right);
+    begin
+        rev := bit_reverse(val);
+        sum := std_ulogic_vector(- signed(rev));
+        onehot := sum and rev;
+        return bit_number(std_ulogic_vector(resize(unsigned(onehot), 64)));
     end;
 end package body helpers;

@@ -287,6 +287,7 @@ package common is
         virt_mode : std_ulogic;                         -- do translation through TLB
         priv_mode : std_ulogic;                         -- privileged mode (MSR[PR] = 0)
         mode_32bit : std_ulogic;                        -- trim addresses to 32 bits
+        is_32bit : std_ulogic;
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
@@ -294,7 +295,7 @@ package common is
                                                                      nia => (others => '0'), insn => (others => '0'),
                                                                      addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'),
                                                                      write_reg => (others => '0'), length => (others => '0'),
-                                                                     mode_32bit => '0', others => (others => '0'));
+                                                                     mode_32bit => '0', is_32bit => '0', others => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
