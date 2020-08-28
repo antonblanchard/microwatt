@@ -80,6 +80,11 @@ architecture behave of core is
     signal mmu_to_dcache: MmuToDcacheType;
     signal dcache_to_mmu: DcacheToMmuType;
 
+    -- FPU signals
+    signal execute1_to_fpu: Execute1ToFPUType;
+    signal fpu_to_execute1: FPUToExecute1Type;
+    signal fpu_to_writeback: FPUToWritebackType;
+
     -- local signals
     signal fetch1_stall_in : std_ulogic;
     signal icache_stall_out : std_ulogic;
@@ -109,6 +114,7 @@ architecture behave of core is
     signal rst_dec1    : std_ulogic := '1';
     signal rst_dec2    : std_ulogic := '1';
     signal rst_ex1     : std_ulogic := '1';
+    signal rst_fpu     : std_ulogic := '1';
     signal rst_ls1     : std_ulogic := '1';
     signal rst_dbg     : std_ulogic := '1';
     signal alt_reset_d : std_ulogic;
@@ -171,6 +177,7 @@ begin
             rst_dec1    <= core_rst;
             rst_dec2    <= core_rst;
             rst_ex1     <= core_rst;
+            rst_fpu     <= core_rst;
             rst_ls1     <= core_rst;
             rst_dbg     <= rst;
             alt_reset_d <= alt_reset;
@@ -225,6 +232,7 @@ begin
 
     decode1_0: entity work.decode1
         generic map(
+            HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -313,9 +321,11 @@ begin
 	    busy_out => ex1_busy_out,
             e_in => decode2_to_execute1,
             l_in => loadstore1_to_execute1,
+            fp_in => fpu_to_execute1,
             ext_irq_in => ext_irq,
             l_out => execute1_to_loadstore1,
             f_out => execute1_to_fetch1,
+            fp_out => execute1_to_fpu,
             e_out => execute1_to_writeback,
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
@@ -325,6 +335,29 @@ begin
             log_rd_data => log_rd_data,
             log_wr_addr => log_wr_addr
             );
+
+    with_fpu: if HAS_FPU generate
+    begin
+        fpu_0: entity work.fpu
+            port map (
+                clk => clk,
+                rst => rst_fpu,
+                e_in => execute1_to_fpu,
+                e_out => fpu_to_execute1,
+                w_out => fpu_to_writeback
+                );
+    end generate;
+
+    no_fpu: if not HAS_FPU generate
+    begin
+        fpu_to_execute1.busy <= '0';
+        fpu_to_execute1.exception <= '0';
+        fpu_to_execute1.interrupt <= '0';
+        fpu_to_execute1.illegal <= '0';
+        fpu_to_writeback.valid <= '0';
+        fpu_to_writeback.write_enable <= '0';
+        fpu_to_writeback.write_cr_enable <= '0';
+    end generate;
 
     loadstore1_0: entity work.loadstore1
         generic map (
@@ -381,6 +414,7 @@ begin
             clk => clk,
             e_in => execute1_to_writeback,
             l_in => loadstore1_to_writeback,
+            fp_in => fpu_to_writeback,
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             complete_out => complete

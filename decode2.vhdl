@@ -93,6 +93,12 @@ architecture behaviour of decode2 is
         case t is
             when RB =>
                 ret := ('1', gpr_to_gspr(insn_rb(insn_in)), reg_data);
+            when FRB =>
+                if HAS_FPU then
+                    ret := ('1', fpr_to_gspr(insn_frb(insn_in)), reg_data);
+                else
+                    ret := ('0', (others => '0'), (others => '0'));
+                end if;
             when CONST_UI =>
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
             when CONST_SI =>
@@ -296,6 +302,7 @@ begin
     r_out.read1_reg <= d_in.ispr1 when d_in.decode.input_reg_a = SPR
                        else gpr_to_gspr(insn_ra(d_in.insn));
     r_out.read2_reg <= d_in.ispr2 when d_in.decode.input_reg_b = SPR
+                       else fpr_to_gspr(insn_frb(d_in.insn)) when d_in.decode.input_reg_b = FRB and HAS_FPU
                        else gpr_to_gspr(insn_rb(d_in.insn));
     r_out.read3_reg <= gpr_to_gspr(insn_rcreg(d_in.insn)) when d_in.decode.input_reg_c = RCR
                        else fpr_to_gspr(insn_frt(d_in.insn)) when d_in.decode.input_reg_c = FRS and HAS_FPU
@@ -321,7 +328,7 @@ begin
         mul_b := (others => '0');
 
         --v.e.input_cr := d_in.decode.input_cr;
-        --v.e.output_cr := d_in.decode.output_cr;
+        v.e.output_cr := d_in.decode.output_cr;
         
         decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data, d_in.ispr1,
                                              d_in.nia);
@@ -412,7 +419,7 @@ begin
 
         cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
         cr_bypass_avail <= '0';
-        if EX1_BYPASS then
+        if EX1_BYPASS and d_in.decode.unit = ALU then
             cr_bypass_avail <= d_in.decode.output_cr;
         end if;
 

@@ -8,6 +8,7 @@ use work.decode_types.all;
 
 entity decode1 is
     generic (
+        HAS_FPU : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -55,6 +56,7 @@ architecture behaviour of decode1 is
     type op_30_subop_array_t is array(0 to 15) of decode_rom_t;
     type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
     type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
+    type op_63_subop_array_0_t is array(0 to 511) of decode_rom_t;
 
     constant major_decode_rom_array : major_rom_array_t := (
         --          unit     internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
@@ -416,6 +418,15 @@ architecture behaviour of decode1 is
         others   => decode_rom_init
         );
 
+    -- indexed by bits 4..1 and 10..6 of instruction word
+    constant decode_op_63l_array : op_63_subop_array_0_t := (
+        --                unit   internal       in1   in2   in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+        --                             op                               in   out   A   out  in    out  len        ext                                pipe
+        2#011110010#  => (FPU,   OP_FPOP_I,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- 18/7=mffs family
+        2#011110110#  => (FPU,   OP_FPOP_I,     NONE, FRB,  NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- 22/7=mtfsf
+        others => illegal_inst
+        );
+
     --                                        unit   internal         in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
     --                                                     op                                              in   out   A   out  in    out  len        ext                                 pipe
     constant nop_instr      : decode_rom_t := (ALU,  OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
@@ -568,6 +579,13 @@ begin
 
         when 62 =>
             v.decode := decode_op_62_array(to_integer(unsigned(f_in.insn(1 downto 0))));
+
+        when 63 =>
+            if HAS_FPU then
+                -- floating point operations, general and double-precision
+                v.decode := decode_op_63l_array(to_integer(unsigned(f_in.insn(4 downto 1) & f_in.insn(10 downto 6))));
+                vi.override := f_in.insn(5);
+            end if;
 
         when others =>
         end case;

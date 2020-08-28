@@ -27,12 +27,14 @@ entity execute1 is
 
 	e_in  : in Decode2ToExecute1Type;
         l_in  : in Loadstore1ToExecute1Type;
+        fp_in : in FPUToExecute1Type;
 
 	ext_irq_in : std_ulogic;
 
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
 	f_out : out Execute1ToFetch1Type;
+        fp_out : out Execute1ToFPUType;
 
 	e_out : out Execute1ToWritebackType;
 
@@ -54,6 +56,7 @@ architecture behaviour of execute1 is
         f : Execute1ToFetch1Type;
         busy: std_ulogic;
         terminate: std_ulogic;
+        fp_exception_next : std_ulogic;
         trace_next : std_ulogic;
         prev_op : insn_type_t;
 	lr_update : std_ulogic;
@@ -72,7 +75,8 @@ architecture behaviour of execute1 is
     end record;
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, f => Execute1ToFetch1Init,
-         busy => '0', lr_update => '0', terminate => '0', trace_next => '0', prev_op => OP_ILLEGAL,
+         busy => '0', lr_update => '0', terminate => '0',
+         fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
          slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
          next_lr => (others => '0'), last_nia => (others => '0'), others => (others => '0'));
@@ -268,7 +272,7 @@ begin
     b_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data2 = '1' else e_in.read_data2;
     c_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data3 = '1' else e_in.read_data3;
 
-    busy_out <= l_in.busy or r.busy;
+    busy_out <= l_in.busy or r.busy or fp_in.busy;
     valid_in <= e_in.valid and not busy_out;
 
     terminate_out <= r.terminate;
@@ -334,6 +338,7 @@ begin
         variable spr_val : std_ulogic_vector(63 downto 0);
         variable addend : std_ulogic_vector(127 downto 0);
         variable do_trace : std_ulogic;
+        variable fv : Execute1ToFPUType;
     begin
 	result := (others => '0');
 	sum_with_carry := (others => '0');
@@ -347,6 +352,7 @@ begin
 	v.e := Execute1ToWritebackInit;
         lv := Execute1ToLoadstore1Init;
         v.f.redirect := '0';
+        fv := Execute1ToFPUInit;
 
 	-- XER forwarding. To avoid having to track XER hazards, we
 	-- use the previously latched value.
@@ -522,9 +528,11 @@ begin
         exception_nextpc := '0';
         v.e.exc_write_enable := '0';
         v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
-        v.e.exc_write_data := e_in.nia;
         if valid_in = '1' then
+            v.e.exc_write_data := e_in.nia;
             v.last_nia := e_in.nia;
+        else
+            v.e.exc_write_data := r.last_nia;
         end if;
 
         v.e.mode_32bit := not ctrl.msr(MSR_SF);
@@ -552,18 +560,27 @@ begin
             ctrl_tmp.msr(MSR_LE) <= '1';
             v.e.valid := '1';
             v.trace_next := '0';
+            v.fp_exception_next := '0';
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
-        elsif r.trace_next = '1' and valid_in = '1' then
-            -- Generate a trace interrupt rather than executing the next instruction
-            -- or taking any asynchronous interrupt
-            v.f.redirect_nia := std_logic_vector(to_unsigned(16#d00#, 64));
-            ctrl_tmp.srr1(63 - 33) <= '1';
-            if r.prev_op = OP_LOAD or r.prev_op = OP_ICBI or r.prev_op = OP_ICBT or
-                r.prev_op = OP_DCBT or r.prev_op = OP_DCBST or r.prev_op = OP_DCBF then
-                ctrl_tmp.srr1(63 - 35) <= '1';
-            elsif r.prev_op = OP_STORE or r.prev_op = OP_DCBZ or r.prev_op = OP_DCBTST then
-                ctrl_tmp.srr1(63 - 36) <= '1';
+        elsif valid_in = '1' and ((HAS_FPU and r.fp_exception_next = '1') or r.trace_next = '1') then
+            if HAS_FPU and r.fp_exception_next = '1' then
+                -- This is used for FP-type program interrupts that
+                -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.
+                v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
+                ctrl_tmp.srr1(63 - 43) <= '1';
+                ctrl_tmp.srr1(63 - 47) <= '1';
+            else
+                -- Generate a trace interrupt rather than executing the next instruction
+                -- or taking any asynchronous interrupt
+                v.f.redirect_nia := std_logic_vector(to_unsigned(16#d00#, 64));
+                ctrl_tmp.srr1(63 - 33) <= '1';
+                if r.prev_op = OP_LOAD or r.prev_op = OP_ICBI or r.prev_op = OP_ICBT or
+                    r.prev_op = OP_DCBT or r.prev_op = OP_DCBST or r.prev_op = OP_DCBF then
+                    ctrl_tmp.srr1(63 - 35) <= '1';
+                elsif r.prev_op = OP_STORE or r.prev_op = OP_DCBZ or r.prev_op = OP_DCBTST then
+                    ctrl_tmp.srr1(63 - 36) <= '1';
+                end if;
             end if;
             exception := '1';
 
@@ -589,7 +606,7 @@ begin
             illegal := '1';
 
         elsif HAS_FPU and valid_in = '1' and ctrl.msr(MSR_FP) = '0' and
-            (e_in.insn_type = OP_FPLOAD or e_in.insn_type = OP_FPSTORE) then
+            (e_in.unit = FPU or e_in.insn_type = OP_FPLOAD or e_in.insn_type = OP_FPSTORE) then
             -- generate a floating-point unavailable interrupt
             exception := '1';
             v.f.redirect_nia := std_logic_vector(to_unsigned(16#800#, 64));
@@ -809,6 +826,10 @@ begin
                 is_branch := '1';
                 taken_branch := '1';
                 abs_branch := '1';
+                if HAS_FPU then
+                    v.fp_exception_next := fp_in.exception and
+                                           (a_in(MSR_FE0) or a_in(MSR_FE1));
+                end if;
                 do_trace := '0';
 
             when OP_CNTZ =>
@@ -980,6 +1001,10 @@ begin
                         ctrl_tmp.msr(MSR_IR) <= '1';
                         ctrl_tmp.msr(MSR_DR) <= '1';
                     end if;
+                    if HAS_FPU then
+                        v.fp_exception_next := fp_in.exception and
+                                               (c_in(MSR_FE0) or c_in(MSR_FE1));
+                    end if;
                 end if;
 	    when OP_MTSPR =>
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
@@ -1096,6 +1121,8 @@ begin
                 lv.valid := '1';
             elsif e_in.unit = NONE then
                 illegal := '1';
+            elsif HAS_FPU and e_in.unit = FPU then
+                fv.valid := '1';
             end if;
 
         elsif r.f.redirect = '1' then
@@ -1170,7 +1197,17 @@ begin
             v.e.valid := '1';
 	end if;
 
-        if illegal = '1' then
+        -- Generate FP-type program interrupt.  fp_in.interrupt will only
+        -- be set during the execution of a FP instruction.
+        -- The case where MSR[FE0,FE1] goes from zero to non-zero is
+        -- handled above by mtmsrd and rfid setting v.fp_exception_next.
+        if HAS_FPU and fp_in.interrupt = '1' then
+            v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
+            ctrl_tmp.srr1(63 - 43) <= '1';
+            exception := '1';
+        end if;
+
+        if illegal = '1' or (HAS_FPU and fp_in.illegal = '1') then
             exception := '1';
             v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
             -- Since we aren't doing Hypervisor emulation assist (0xe40) we
@@ -1216,7 +1253,6 @@ begin
             end if;
             v.e.exc_write_enable := '1';
             v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
-            v.e.exc_write_data := r.last_nia;
             report "ldst exception writing srr0=" & to_hstring(r.last_nia);
         end if;
 
@@ -1261,6 +1297,19 @@ begin
         lv.mode_32bit := not ctrl.msr(MSR_SF);
         lv.is_32bit := e_in.is_32bit;
 
+        -- Outputs to FPU
+        fv.op := e_in.insn_type;
+        fv.nia := e_in.nia;
+        fv.insn := e_in.insn;
+        fv.single := e_in.is_32bit;
+        fv.fe_mode := ctrl.msr(MSR_FE0) & ctrl.msr(MSR_FE1);
+        fv.fra := a_in;
+        fv.frb := b_in;
+        fv.frc := c_in;
+        fv.frt := e_in.write_reg;
+        fv.rc := e_in.rc;
+        fv.out_cr := e_in.output_cr;
+
 	-- Update registers
 	rin <= v;
 
@@ -1268,6 +1317,7 @@ begin
 	f_out <= r.f;
         l_out <= lv;
 	e_out <= r.e;
+        fp_out <= fv;
 	flush_out <= f_out.redirect;
 
         exception_log <= exception;

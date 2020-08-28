@@ -94,6 +94,38 @@ package common is
     end record;
     constant xerc_init : xer_common_t := (others => '0');
 
+    -- FPSCR bit numbers
+    constant FPSCR_FX     : integer := 63 - 32;
+    constant FPSCR_FEX    : integer := 63 - 33;
+    constant FPSCR_VX     : integer := 63 - 34;
+    constant FPSCR_OX     : integer := 63 - 35;
+    constant FPSCR_UX     : integer := 63 - 36;
+    constant FPSCR_ZX     : integer := 63 - 37;
+    constant FPSCR_XX     : integer := 63 - 38;
+    constant FPSCR_VXSNAN : integer := 63 - 39;
+    constant FPSCR_VXISI  : integer := 63 - 40;
+    constant FPSCR_VXIDI  : integer := 63 - 41;
+    constant FPSCR_VXZDZ  : integer := 63 - 42;
+    constant FPSCR_VXIMZ  : integer := 63 - 43;
+    constant FPSCR_VXVC   : integer := 63 - 44;
+    constant FPSCR_FR     : integer := 63 - 45;
+    constant FPSCR_FI     : integer := 63 - 46;
+    constant FPSCR_C      : integer := 63 - 47;
+    constant FPSCR_FL     : integer := 63 - 48;
+    constant FPSCR_FG     : integer := 63 - 49;
+    constant FPSCR_FE     : integer := 63 - 50;
+    constant FPSCR_FU     : integer := 63 - 51;
+    constant FPSCR_VXSOFT : integer := 63 - 53;
+    constant FPSCR_VXSQRT : integer := 63 - 54;
+    constant FPSCR_VXCVI  : integer := 63 - 55;
+    constant FPSCR_VE     : integer := 63 - 56;
+    constant FPSCR_OE     : integer := 63 - 57;
+    constant FPSCR_UE     : integer := 63 - 58;
+    constant FPSCR_ZE     : integer := 63 - 59;
+    constant FPSCR_XE     : integer := 63 - 60;
+    constant FPSCR_NI     : integer := 63 - 61;
+    constant FPSCR_RN     : integer := 63 - 63;
+
     type irq_state_t is (WRITE_SRR0, WRITE_SRR1);
 
     -- For now, fixed 16 sources, make this either a parametric
@@ -412,6 +444,43 @@ package common is
                                    write_data => (others => '0'), write_cr_mask => (others => '0'),
                                    write_cr_data => (others => '0'), write_reg => (others => '0'),
                                    exc_write_reg => (others => '0'), exc_write_data => (others => '0'));
+
+    type Execute1ToFPUType is record
+        valid   : std_ulogic;
+        op      : insn_type_t;
+        nia     : std_ulogic_vector(63 downto 0);
+        insn    : std_ulogic_vector(31 downto 0);
+        single  : std_ulogic;
+        fe_mode : std_ulogic_vector(1 downto 0);
+        fra     : std_ulogic_vector(63 downto 0);
+        frb     : std_ulogic_vector(63 downto 0);
+        frc     : std_ulogic_vector(63 downto 0);
+        frt     : gspr_index_t;
+        rc      : std_ulogic;
+        out_cr  : std_ulogic;
+    end record;
+    constant Execute1ToFPUInit : Execute1ToFPUType := (valid => '0', op => OP_ILLEGAL, nia => (others => '0'),
+                                                       insn  => (others => '0'), fe_mode => "00", rc => '0',
+                                                       fra => (others => '0'), frb => (others => '0'),
+                                                       frc => (others => '0'), frt => (others => '0'),
+                                                       single => '0', out_cr => '0');
+
+    type FPUToExecute1Type is record
+        busy      : std_ulogic;
+        exception : std_ulogic;
+        interrupt : std_ulogic;
+        illegal   : std_ulogic;
+    end record;
+
+    type FPUToWritebackType is record
+        valid           : std_ulogic;
+        write_enable    : std_ulogic;
+        write_reg       : gspr_index_t;
+        write_data      : std_ulogic_vector(63 downto 0);
+        write_cr_enable : std_ulogic;
+        write_cr_mask   : std_ulogic_vector(7 downto 0);
+        write_cr_data   : std_ulogic_vector(31 downto 0);
+    end record;
 
     type DividerToExecute1Type is record
 	valid: std_ulogic;

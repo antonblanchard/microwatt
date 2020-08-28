@@ -12,6 +12,7 @@ entity writeback is
 
         e_in         : in Execute1ToWritebackType;
         l_in         : in Loadstore1ToWritebackType;
+        fp_in        : in FPUToWritebackType;
 
         w_out        : out WritebackToRegisterFileType;
         c_out        : out WritebackToCrFileType;
@@ -31,15 +32,21 @@ begin
             -- Do consistency checks only on the clock edge
             x(0) := e_in.valid;
             y(0) := l_in.valid;
-            assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
+            w(0) := fp_in.valid;
+            assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) +
+                    to_integer(unsigned(w))) <= 1 severity failure;
 
             x(0) := e_in.write_enable or e_in.exc_write_enable;
             y(0) := l_in.write_enable;
-            assert (to_integer(unsigned(x)) + to_integer(unsigned(y))) <= 1 severity failure;
+            w(0) := fp_in.write_enable;
+            assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) +
+                    to_integer(unsigned(w))) <= 1 severity failure;
 
             w(0) := e_in.write_cr_enable;
             x(0) := (e_in.write_enable and e_in.rc);
-            assert (to_integer(unsigned(w)) + to_integer(unsigned(x))) <= 1 severity failure;
+            y(0) := fp_in.write_cr_enable;
+            assert (to_integer(unsigned(w)) + to_integer(unsigned(x)) +
+                    to_integer(unsigned(y))) <= 1 severity failure;
         end if;
     end process;
 
@@ -53,7 +60,7 @@ begin
         c_out <= WritebackToCrFileInit;
 
         complete_out <= '0';
-        if e_in.valid = '1' or l_in.valid = '1' then
+        if e_in.valid = '1' or l_in.valid = '1' or fp_in.valid = '1' then
             complete_out <= '1';
         end if;
 
@@ -77,6 +84,18 @@ begin
             if e_in.write_xerc_enable = '1' then
                 c_out.write_xerc_enable <= '1';
                 c_out.write_xerc_data <= e_in.xerc;
+            end if;
+
+            if fp_in.write_enable = '1' then
+                w_out.write_reg <= fp_in.write_reg;
+                w_out.write_data <= fp_in.write_data;
+                w_out.write_enable <= '1';
+            end if;
+
+            if fp_in.write_cr_enable = '1' then
+                c_out.write_cr_enable <= '1';
+                c_out.write_cr_mask <= fp_in.write_cr_mask;
+                c_out.write_cr_data <= fp_in.write_cr_data;
             end if;
 
             if l_in.write_enable = '1' then

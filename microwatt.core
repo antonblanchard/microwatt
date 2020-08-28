@@ -23,6 +23,7 @@ filesets:
       - cr_hazard.vhdl
       - control.vhdl
       - execute1.vhdl
+      - fpu.vhdl
       - loadstore1.vhdl
       - mmu.vhdl
       - dcache.vhdl
