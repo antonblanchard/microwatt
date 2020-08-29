@@ -41,6 +41,7 @@ package insn_helpers is
     function insn_fra (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_frb (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_frc (insn_in : std_ulogic_vector) return std_ulogic_vector;
+    function insn_u (insn_in : std_ulogic_vector) return std_ulogic_vector;
 end package insn_helpers;
 
 package body insn_helpers is
@@ -237,5 +238,10 @@ package body insn_helpers is
     function insn_frc(insn_in : std_ulogic_vector) return std_ulogic_vector is
     begin
         return insn_in(10 downto 6);
+    end;
+
+    function insn_u(insn_in : std_ulogic_vector) return std_ulogic_vector is
+    begin
+        return insn_in(15 downto 12);
     end;
 end package body insn_helpers;

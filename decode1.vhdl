@@ -422,6 +422,10 @@ architecture behaviour of decode1 is
     constant decode_op_63l_array : op_63_subop_array_0_t := (
         --                unit   internal       in1   in2   in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
         --                             op                               in   out   A   out  in    out  len        ext                                pipe
+        2#000000010#  => (FPU,   OP_FPOP,       NONE, NONE, NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), --  2/0=mcrfs
+        2#011000001#  => (FPU,   OP_FPOP,       NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), --  1/6=mtfsb1
+        2#011000010#  => (FPU,   OP_FPOP,       NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), --  2/6=mtfsb0
+        2#011000100#  => (FPU,   OP_FPOP,       NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), --  4/6=mtfsfi
         2#011110010#  => (FPU,   OP_FPOP_I,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- 18/7=mffs family
         2#011110110#  => (FPU,   OP_FPOP_I,     NONE, FRB,  NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- 22/7=mtfsf
         others => illegal_inst
