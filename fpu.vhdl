@@ -39,6 +39,7 @@ architecture behaviour of fpu is
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
                      DO_FMR,
                      DO_FCFID,
+                     DO_FRSP,
                      FINISH, NORMALIZE,
                      ROUND_UFLOW, ROUND_OFLOW,
                      ROUNDING, ROUNDING_2, ROUNDING_3,
@@ -71,6 +72,7 @@ architecture behaviour of fpu is
         cr_mask      : std_ulogic_vector(7 downto 0);
         old_exc      : std_ulogic_vector(4 downto 0);
         update_fprf  : std_ulogic;
+        quieten_nan  : std_ulogic;
         tiny         : std_ulogic;
         denorm       : std_ulogic;
         round_mode   : std_ulogic_vector(2 downto 0);
@@ -217,7 +219,7 @@ architecture behaviour of fpu is
 
     -- Construct a DP floating-point result from components
     function pack_dp(sign: std_ulogic; class: fp_number_class; exp: signed(EXP_BITS-1 downto 0);
-                     mantissa: std_ulogic_vector; single_prec: std_ulogic)
+                     mantissa: std_ulogic_vector; single_prec: std_ulogic; quieten_nan: std_ulogic)
         return std_ulogic_vector is
         variable result : std_ulogic_vector(63 downto 0);
     begin
@@ -238,7 +240,8 @@ architecture behaviour of fpu is
                 result(62 downto 52) := "11111111111";
             when NAN =>
                 result(62 downto 52) := "11111111111";
-                result(51 downto 29) := mantissa(53 downto 31);
+                result(51) := quieten_nan or mantissa(53);
+                result(50 downto 29) := mantissa(52 downto 31);
                 if single_prec = '0' then
                     result(28 downto 0) := mantissa(30 downto 2);
                 end if;
@@ -348,6 +351,7 @@ begin
         variable round       : std_ulogic_vector(1 downto 0);
         variable update_fx   : std_ulogic;
         variable arith_done  : std_ulogic;
+        variable invalid     : std_ulogic;
         variable mant_nz     : std_ulogic;
         variable min_exp     : signed(EXP_BITS-1 downto 0);
         variable max_exp     : signed(EXP_BITS-1 downto 0);
@@ -384,6 +388,7 @@ begin
             if e_in.op = OP_FPOP_I then
                 int_input := '1';
             end if;
+            v.quieten_nan := '1';
             v.tiny := '0';
             v.denorm := '0';
             v.round_mode := '0' & r.fpscr(FPSCR_RN+1 downto FPSCR_RN);
@@ -429,6 +434,7 @@ begin
         fpscr_mask := (others => '1');
         update_fx := '0';
         arith_done := '0';
+        invalid := '0';
         renormalize := '0';
         set_x := '0';
 
@@ -452,6 +458,8 @@ begin
                             end if;
                         when "01000" =>
                             v.state := DO_FMR;
+                        when "01100" =>
+                            v.state := DO_FRSP;
                         when "01110" =>
                             -- fcfid[u][s]
                             v.state := DO_FCFID;
@@ -552,6 +560,7 @@ begin
                 opsel_a <= AIN_B;
                 v.result_class := r.b.class;
                 v.result_exp := r.b.exponent;
+                v.quieten_nan := '0';
                 if r.insn(9) = '1' then
                     v.result_sign := '0';              -- fabs
                 elsif r.insn(8) = '1' then
@@ -566,6 +575,33 @@ begin
                 v.writing_back := '1';
                 v.instr_done := '1';
                 v.state := IDLE;
+
+            when DO_FRSP =>
+                opsel_a <= AIN_B;
+                v.result_class := r.b.class;
+                v.result_sign := r.b.negative;
+                v.result_exp := r.b.exponent;
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
+                if r.b.class = NAN and r.b.mantissa(53) = '0' then
+                    -- Signalling NAN
+                    v.fpscr(FPSCR_VXSNAN) := '1';
+                    invalid := '1';
+                end if;
+                set_x := '1';
+                if r.b.class = FINITE then
+                    if r.b.exponent < to_signed(-126, EXP_BITS) then
+                        v.shift := r.b.exponent - to_signed(-126, EXP_BITS);
+                        v.state := ROUND_UFLOW;
+                    elsif r.b.exponent > to_signed(127, EXP_BITS) then
+                        v.state := ROUND_OFLOW;
+                    else
+                        v.shift := to_signed(-2, EXP_BITS);
+                        v.state := ROUNDING;
+                    end if;
+                else
+                    arith_done := '1';
+                end if;
 
             when DO_FCFID =>
                 v.result_sign := '0';
@@ -735,8 +771,11 @@ begin
         end case;
 
         if arith_done = '1' then
-            v.writing_back := '1';
-            v.update_fprf := '1';
+            -- Enabled invalid exception doesn't write result or FPRF
+            if (invalid and r.fpscr(FPSCR_VE)) = '0' then
+                v.writing_back := '1';
+                v.update_fprf := '1';
+            end if;
             v.instr_done := '1';
             v.state := IDLE;
             update_fx := '1';
@@ -827,7 +866,7 @@ begin
             fp_result <= r.r;
         else
             fp_result <= pack_dp(r.result_sign, r.result_class, r.result_exp, r.r,
-                                 r.single_prec);
+                                 r.single_prec, r.quieten_nan);
         end if;
         if r.update_fprf = '1' then
             v.fpscr(FPSCR_C downto FPSCR_FU) := result_flags(r.result_sign, r.result_class,
