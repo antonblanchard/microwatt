@@ -272,9 +272,9 @@ unsigned int test4vals[] = {
 
 int test4(long arg)
 {
-	unsigned long fsi, fpscr;
+	unsigned long fsi, fso, fpscr;
 	long i;
-	unsigned long cr;
+	unsigned long cr, mask;
 
 	/* check we can do basic mtfsf and mffs */
 	i = 1;
@@ -298,6 +298,59 @@ int test4(long arg)
 		asm("mffs. 6; mfcr %0" : "=r" (cr) : : "cr1");
 		if (((cr >> 24) & 0xf) != ((fpscr >> 28) & 0x1f))
 			return 16 * i + 18;
+		asm("mffsce 12; stfd 12,0(%0)" : : "b" (&fso) : "memory");
+		if (fso != fpscr)
+			return 16 * i + 19;
+		fpscr = fpscr_eval(fpscr & ~0xf8);
+		if (get_fpscr() != fpscr)
+			return 16 * i + 20;
+		asm("lfd 7,0(%0); mtfsf 0xff,7,0,0" : : "b" (&fsi));
+		fpscr = fpscr_eval(fsi);
+		fsi = ~fsi;
+		asm("lfd 14,0(%0); mffscrn 15,14; stfd 15,0(%1)"
+		    : : "b" (&fsi), "b" (&fso) : "memory");
+		if (fso != (fpscr & 0xff))
+			return 16 * i + 21;
+		fpscr = (fpscr & ~3) | (fsi & 3);
+		if (get_fpscr() != fpscr)
+			return 16 * i + 22;
+		fso = ~fso;
+		asm("mffscrni 16,1; stfd 16,0(%0)" : : "b" (&fso) : "memory");
+		if (fso != (fpscr & 0xff))
+			return 16 * i + 23;
+		fpscr = (fpscr & ~3) | 1;
+		if (get_fpscr() != fpscr)
+			return 16 * i + 24;
+		asm("mffsl 17; stfd 17,0(%0)" : : "b" (&fso) : "memory");
+		mask = ((1 << (63-45+1)) - (1 << (63-51))) | ((1 << (63-56+1)) - (1 << (63-63)));
+		if (fso != (fpscr & mask))
+			return 16 * i + 25;
+		asm("mcrfs 0,3; mcrfs 7,0; mfcr %0" : "=r" (cr) : : "cr0", "cr7");
+		fso = fpscr_eval(fpscr & ~0x80000);
+		if (((cr >> 28) & 0xf) != ((fpscr >> 16) & 0xf) ||
+		    ((cr >> 0) & 0xf) != ((fso >> 28) & 0xf))
+			return 16 * i + 26;
+		fpscr = fso & 0x6fffffff;
+		asm("mtfsfi 0,7,0");
+		fpscr = fpscr_eval((fpscr & 0x0fffffff) | 0x70000000);
+		if (get_fpscr() != fpscr)
+			return 16 * i + 27;
+		asm("mtfsb0 21");
+		fpscr = fpscr_eval(fpscr & ~(1 << (31-21)));
+		if (get_fpscr() != fpscr)
+			return 16 * i + 28;
+		asm("mtfsb1 21");
+		fpscr = fpscr_eval(fpscr | (1 << (31-21)));
+		if (get_fpscr() != fpscr)
+			return 16 * i + 29;
+		asm("mtfsb0 24");
+		fpscr = fpscr_eval(fpscr & ~(1 << (31-24)));
+		if (get_fpscr() != fpscr)
+			return 16 * i + 30;
+		asm("mtfsb1. 24; mfcr %0" : "=r" (cr));
+		fpscr = fpscr_eval(fpscr | (1 << (31-24)));
+		if (get_fpscr() != fpscr || ((cr >> 24) & 0xf) != ((fpscr >> 28) & 0xf))
+			return 16 * i + 31;
 	}
 	return 0;
 }
