@@ -1599,6 +1599,7 @@ begin
                 end if;
 
             when ADD_SHIFT =>
+                -- r.shift = - exponent difference
                 opsel_r <= RES_SHIFT;
                 v.x := s_nz;
                 set_x := '1';
@@ -1619,6 +1620,7 @@ begin
 
             when ADD_3 =>
                 -- check for overflow or negative result (can't get both)
+                -- r.shift = -1
                 if r.r(63) = '1' then
                     -- result is opposite sign to expected
                     v.result_sign := not r.result_sign;
@@ -1694,12 +1696,14 @@ begin
 
             when FMADD_2 =>
                 -- Product is potentially bigger here
+                -- r.shift = addend exp - product exp + 64
                 set_s := '1';
                 opsel_s <= S_SHIFT;
                 v.shift := r.shift - to_signed(64, EXP_BITS);
                 v.state := FMADD_3;
 
             when FMADD_3 =>
+                -- r.shift = addend exp - product exp
                 opsel_r <= RES_SHIFT;
                 v.first := '1';
                 v.state := FMADD_4;
@@ -1731,6 +1735,7 @@ begin
                 v.state := FMADD_6;
 
             when FMADD_6 =>
+                -- r.shift = 56 (or 0, but only if r is now nonzero)
                 if (r.r(56) or r_hi_nz or r_lo_nz or r.r(1) or r.r(0)) = '0' then
                     if s_nz = '0' then
                         -- must be a subtraction, and r.x must be zero
@@ -1877,6 +1882,7 @@ begin
             when SQRT_2 =>
                 -- shift R right one place
                 -- not expecting multiplier result yet
+                -- r.shift = -1
                 opsel_r <= RES_SHIFT;
                 v.first := '1';
                 v.state := SQRT_3;
@@ -2012,12 +2018,14 @@ begin
                 v.state := FINISH;
 
             when INT_SHIFT =>
+                -- r.shift = b.exponent - 52
                 opsel_r <= RES_SHIFT;
                 set_x := '1';
                 v.state := INT_ROUND;
                 v.shift := to_signed(-2, EXP_BITS);
 
             when INT_ROUND =>
+                -- r.shift = -2
                 opsel_r <= RES_SHIFT;
                 round := fp_rounding(r.r, r.x, '0', r.round_mode, r.result_sign);
                 v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
@@ -2030,6 +2038,7 @@ begin
                 end if;
 
             when INT_ISHIFT =>
+                -- r.shift = b.exponent - 54;
                 opsel_r <= RES_SHIFT;
                 v.state := INT_FINAL;
 
@@ -2087,6 +2096,7 @@ begin
                 arith_done := '1';
 
             when FRI_1 =>
+                -- r.shift = b.exponent - 52
                 opsel_r <= RES_SHIFT;
                 set_x := '1';
                 v.shift := to_signed(-2, EXP_BITS);
@@ -2114,6 +2124,7 @@ begin
 
             when NORMALIZE =>
                 -- Shift so we have 9 leading zeroes (we know R is non-zero)
+                -- r.shift = clz(r.r) - 9
                 opsel_r <= RES_SHIFT;
                 set_x := '1';
                 if exp_tiny = '1' then
@@ -2127,6 +2138,7 @@ begin
                 end if;
 
             when ROUND_UFLOW =>
+                -- r.shift = - amount by which exponent underflows
                 v.tiny := '1';
                 if r.fpscr(FPSCR_UE) = '0' then
                     -- disabled underflow exception case
@@ -2204,6 +2216,7 @@ begin
 
             when ROUNDING_2 =>
                 -- Check for overflow during rounding
+                -- r.shift = -1
                 v.x := '0';
                 if r.r(55) = '1' then
                     opsel_r <= RES_SHIFT;
@@ -2221,6 +2234,7 @@ begin
                 end if;
 
             when ROUNDING_3 =>
+                -- r.shift = clz(r.r) - 9
                 mant_nz := r_hi_nz or (r_lo_nz and not r.single_prec);
                 if mant_nz = '0' then
                     v.result_class := ZERO;
@@ -2242,6 +2256,7 @@ begin
                 end if;
 
             when DENORM =>
+                -- r.shift = result_exp - -1022
                 opsel_r <= RES_SHIFT;
                 arith_done := '1';
 
