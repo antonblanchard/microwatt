@@ -512,7 +512,7 @@ begin
             right_shift <= '0';
     end if;
 
-     if ( (e_in.insn_type = OP_RLC) or (e_in.insn_type = OP_RLCR) ) then
+     if ( (e_in.insn_type = OP_RLC) or (e_in.insn_type = OP_RLCL) ) then
             rot_clear_left <= '1';
         else
             rot_clear_left <= '0';
