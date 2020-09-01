@@ -118,6 +118,7 @@ architecture behaviour of fpu is
         use_c        : std_ulogic;
         invalid      : std_ulogic;
         negate       : std_ulogic;
+        longmask     : std_ulogic;
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -615,7 +616,6 @@ begin
         variable need_check  : std_ulogic;
         variable msb         : std_ulogic;
         variable is_add      : std_ulogic;
-        variable longmask    : std_ulogic;
         variable set_a       : std_ulogic;
         variable set_b       : std_ulogic;
         variable set_c       : std_ulogic;
@@ -644,6 +644,7 @@ begin
             v.fe_mode := or (e_in.fe_mode);
             v.dest_fpr := e_in.frt;
             v.single_prec := e_in.single;
+            v.longmask := e_in.single;
             v.int_result := '0';
             v.rc := e_in.rc;
             v.is_cmp := e_in.out_cr;
@@ -747,7 +748,6 @@ begin
         renormalize := '0';
         set_x := '0';
         qnan_result := '0';
-        longmask := r.single_prec;
         set_a := '0';
         set_b := '0';
         set_c := '0';
@@ -1204,6 +1204,7 @@ begin
                         if r.a.exponent = r.b.exponent then
                             v.state := ADD_2;
                         else
+                            v.longmask := '0';
                             v.state := ADD_SHIFT;
                         end if;
                     else
@@ -1580,14 +1581,15 @@ begin
                 -- transferring B to R
                 v.shift := r.b.exponent - r.a.exponent;
                 v.result_exp := r.b.exponent;
+                v.longmask := '0';
                 v.state := ADD_SHIFT;
 
             when ADD_SHIFT =>
-                -- r.shift = - exponent difference
+                -- r.shift = - exponent difference, r.longmask = 0
                 opsel_r <= RES_SHIFT;
                 v.x := s_nz;
                 set_x := '1';
-                longmask := '0';
+                v.longmask := r.single_prec;
                 if r.add_bsmall = '1' then
                     v.opsel_a := AIN_A;
                 else
@@ -1676,6 +1678,7 @@ begin
                 set_s := '1';
                 f_to_multiply.valid <= r.first;
                 if multiply_to_f.valid = '1' then
+                    v.longmask := '0';
                     v.state := ADD_SHIFT;
                 end if;
 
@@ -2367,7 +2370,7 @@ begin
         -- Data path.
         -- This has A and B input multiplexers, an adder, a shifter,
         -- count-leading-zeroes logic, and a result mux.
-        if longmask = '1' then
+        if r.longmask = '1' then
             mshift := r.shift + to_signed(-29, EXP_BITS);
         else
             mshift := r.shift;
