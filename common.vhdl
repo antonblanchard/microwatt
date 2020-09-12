@@ -164,6 +164,7 @@ package common is
         fetch_failed: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
+        big_endian: std_ulogic;
     end record;
 
     type Decode1ToDecode2Type is record
@@ -175,10 +176,12 @@ package common is
 	ispr2: gspr_index_t; -- (G)SPR used for branch target (CTR, LR, TAR)
 	decode: decode_rom_t;
         br_pred: std_ulogic; -- Branch was predicted to be taken
+        big_endian: std_ulogic;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
         (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
-         ispr1 => (others => '0'), ispr2 => (others => '0'), decode => decode_rom_init, br_pred => '0');
+         ispr1 => (others => '0'), ispr2 => (others => '0'), decode => decode_rom_init,
+         br_pred => '0', big_endian => '0');
 
     type Decode1ToFetch1Type is record
         redirect     : std_ulogic;
@@ -220,13 +223,18 @@ package common is
 	update : std_ulogic;				-- is this an update instruction?
         reserve : std_ulogic;                           -- set for larx/stcx
         br_pred : std_ulogic;
+        repeat : std_ulogic;                            -- set if instruction is cracked into two ops
+        second : std_ulogic;                            -- set if this is the second op
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
          bypass_cr => '0', lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
-         byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'), read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'), cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'), others => (others => '0'));
+         byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
+         read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
+         cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
+         repeat => '0', second => '0', others => (others => '0'));
 
     type MultiplyInputType is record
 	valid: std_ulogic;
@@ -320,6 +328,8 @@ package common is
         priv_mode : std_ulogic;                         -- privileged mode (MSR[PR] = 0)
         mode_32bit : std_ulogic;                        -- trim addresses to 32 bits
         is_32bit : std_ulogic;
+        repeat : std_ulogic;
+        second : std_ulogic;
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
@@ -327,7 +337,8 @@ package common is
                                                                      nia => (others => '0'), insn => (others => '0'),
                                                                      addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'),
                                                                      write_reg => (others => '0'), length => (others => '0'),
-                                                                     mode_32bit => '0', is_32bit => '0', others => (others => '0'));
+                                                                     mode_32bit => '0', is_32bit => '0',
+                                                                     repeat => '0', second => '0', others => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
@@ -347,6 +358,8 @@ package common is
         dcbz : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
+        atomic : std_ulogic;                            -- part of a multi-transfer atomic op
+        atomic_last : std_ulogic;
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);

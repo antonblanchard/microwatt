@@ -541,7 +541,8 @@ begin
             v.fp_exception_next := '0';
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
-        elsif valid_in = '1' and ((HAS_FPU and r.fp_exception_next = '1') or r.trace_next = '1') then
+        elsif valid_in = '1' and e_in.second = '0' and
+            ((HAS_FPU and r.fp_exception_next = '1') or r.trace_next = '1') then
             if HAS_FPU and r.fp_exception_next = '1' then
                 -- This is used for FP-type program interrupts that
                 -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.
@@ -562,7 +563,7 @@ begin
             end if;
             exception := '1';
 
-	elsif irq_valid = '1' and valid_in = '1' then
+	elsif irq_valid = '1' and valid_in = '1' and e_in.second = '0' then
 	    -- we need two cycles to write srr0 and 1
 	    -- will need more when we have to write HEIR
             -- Don't deliver the interrupt until we have a valid instruction
@@ -1290,6 +1291,8 @@ begin
         lv.priv_mode := not ctrl.msr(MSR_PR);
         lv.mode_32bit := not ctrl.msr(MSR_SF);
         lv.is_32bit := e_in.is_32bit;
+        lv.repeat := e_in.repeat;
+        lv.second := e_in.second;
 
         -- Outputs to FPU
         fv.op := e_in.insn_type;

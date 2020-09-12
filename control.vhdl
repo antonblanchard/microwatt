@@ -14,6 +14,7 @@ entity control is
 
         complete_in         : in std_ulogic;
         valid_in            : in std_ulogic;
+        repeated            : in std_ulogic;
         flush_in            : in std_ulogic;
 	busy_in             : in std_ulogic;
         deferred            : in std_ulogic;
@@ -82,6 +83,7 @@ begin
             complete_in        => complete_in,
             flush_in           => flush_in,
             issuing            => valid_out,
+            repeated           => repeated,
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
@@ -107,6 +109,7 @@ begin
             complete_in        => complete_in,
             flush_in           => flush_in,
             issuing            => valid_out,
+            repeated           => repeated,
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,
@@ -132,6 +135,7 @@ begin
             complete_in        => complete_in,
             flush_in           => flush_in,
             issuing            => valid_out,
+            repeated           => repeated,
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write_in,

@@ -71,6 +71,8 @@ architecture behave of loadstore1 is
 	update_reg   : gpr_index_t;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
+        atomic       : std_ulogic;
+        atomic_last  : std_ulogic;
         rc           : std_ulogic;
         nc           : std_ulogic;              -- non-cacheable access
         virt_mode    : std_ulogic;
@@ -545,7 +547,6 @@ begin
 
         -- Note that l_in.valid is gated with busy inside execute1
         if l_in.valid = '1' then
-            v.addr := lsu_sum;
             v.mode_32bit := l_in.mode_32bit;
             v.load := '0';
             v.dcbz := '0';
@@ -573,26 +574,50 @@ begin
             v.extra_cycle := '0';
 
             addr := lsu_sum;
+            if l_in.second = '1' then
+                -- for the second half of a 16-byte transfer, use next_addr
+                addr := next_addr;
+            end if;
             if l_in.mode_32bit = '1' then
                 addr(63 downto 32) := (others => '0');
             end if;
+            v.addr := addr;
             maddr := l_in.addr2;    -- address from RB for tlbie
 
             -- XXX Temporary hack. Mark the op as non-cachable if the address
             -- is the form 0xc------- for a real-mode access.
-            if lsu_sum(31 downto 28) = "1100" and l_in.virt_mode = '0' then
+            if addr(31 downto 28) = "1100" and l_in.virt_mode = '0' then
                 v.nc := '1';
             end if;
 
-            -- Do length_to_sel and work out if we are doing 2 dwords
-            long_sel := xfer_data_sel(l_in.length, v.addr(2 downto 0));
-            byte_sel := long_sel(7 downto 0);
-            v.first_bytes := byte_sel;
-            v.second_bytes := long_sel(15 downto 8);
+            if l_in.second = '0' then
+                -- Do length_to_sel and work out if we are doing 2 dwords
+                long_sel := xfer_data_sel(l_in.length, lsu_sum(2 downto 0));
+                byte_sel := long_sel(7 downto 0);
+                v.first_bytes := byte_sel;
+                v.second_bytes := long_sel(15 downto 8);
+            else
+                byte_sel := r.first_bytes;
+                long_sel := r.second_bytes & r.first_bytes;
+            end if;
 
             -- check alignment for larx/stcx
             misaligned := or (std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1) and addr(2 downto 0));
             v.align_intr := l_in.reserve and misaligned;
+            if l_in.repeat = '1' and l_in.second = '0' and addr(3) = '1' then
+                -- length is really 16 not 8
+                -- Make misaligned lq cause an alignment interrupt in LE mode,
+                -- in order to avoid the case with RA = RT + 1 where the second half
+                -- faults but the first doesn't (and updates RT+1, destroying RA).
+                -- The equivalent BE case doesn't occur because RA = RT is illegal.
+                misaligned := '1';
+                if l_in.reserve = '1' or (l_in.op = OP_LOAD and l_in.byte_reverse = '0') then
+                    v.align_intr := '1';
+                end if;
+            end if;
+
+            v.atomic := not misaligned;
+            v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
 
             case l_in.op is
                 when OP_STORE =>
@@ -691,6 +716,8 @@ begin
         d_out.dcbz <= v.dcbz;
         d_out.nc <= v.nc;
         d_out.reserve <= v.reserve;
+        d_out.atomic <= v.atomic;
+        d_out.atomic_last <= v.atomic_last;
         d_out.addr <= addr;
         d_out.data <= store_data;
         d_out.byte_sel <= byte_sel;

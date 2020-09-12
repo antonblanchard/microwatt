@@ -25,7 +25,7 @@ package decode_types is
 			 );
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA, FRA);
     type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
-                           CONST_DXHI4, CONST_DS, CONST_M1, CONST_SH, CONST_SH32, SPR, FRB);
+                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, SPR, FRB);
     type input_reg_c_t is (NONE, RS, RCR, FRC, FRS);
     type output_reg_a_t is (NONE, RT, RA, SPR, FRT);
     type rc_t is (NONE, ONE, RC);
@@ -51,6 +51,10 @@ package decode_types is
 
     type unit_t is (NONE, ALU, LDST, FPU);
     type length_t is (NONE, is1B, is2B, is4B, is8B);
+
+    type repeat_t is (NONE,      -- instruction is not repeated
+                      DRSE,      -- double RS, endian twist
+                      DRTE);     -- double RT, endian twist
 
     type decode_rom_t is record
 	unit         : unit_t;
@@ -83,6 +87,7 @@ package decode_types is
 	lr           : std_ulogic;
 
 	sgl_pipe     : std_ulogic;
+        repeat       : repeat_t;
     end record;
     constant decode_rom_init : decode_rom_t := (unit => NONE,
 						insn_type => OP_ILLEGAL, input_reg_a => NONE,
@@ -91,7 +96,7 @@ package decode_types is
 						invert_a => '0', invert_out => '0', input_carry => ZERO, output_carry => '0',
 						length => NONE, byte_reverse => '0', sign_extend => '0',
 						update => '0', reserve => '0', is_32bit => '0',
-						is_signed => '0', rc => NONE, lr => '0', sgl_pipe => '0');
+						is_signed => '0', rc => NONE, lr => '0', sgl_pipe => '0', repeat => NONE);
 
 end decode_types;
 
