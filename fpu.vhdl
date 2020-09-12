@@ -130,7 +130,7 @@ architecture behaviour of fpu is
     signal opsel_r       : std_ulogic_vector(1 downto 0);
     signal opsel_s       : std_ulogic_vector(1 downto 0);
     signal opsel_ainv    : std_ulogic;
-    signal opsel_amask   : std_ulogic;
+    signal opsel_mask    : std_ulogic;
     signal opsel_binv    : std_ulogic;
     signal in_a          : std_ulogic_vector(63 downto 0);
     signal in_b          : std_ulogic_vector(63 downto 0);
@@ -631,6 +631,7 @@ begin
         variable shiftin     : std_ulogic;
         variable mulexp      : signed(EXP_BITS-1 downto 0);
         variable maddend     : std_ulogic_vector(127 downto 0);
+        variable sum         : std_ulogic_vector(63 downto 0);
     begin
         v := r;
         illegal := '0';
@@ -733,7 +734,7 @@ begin
         v.first := '0';
         v.opsel_a := AIN_R;
         opsel_ainv <= '0';
-        opsel_amask <= '0';
+        opsel_mask <= '0';
         opsel_b <= BIN_ZERO;
         opsel_binv <= '0';
         opsel_r <= RES_SUM;
@@ -2176,7 +2177,7 @@ begin
                 end if;
 
             when ROUNDING =>
-                opsel_amask <= '1';
+                opsel_mask <= '1';
                 round := fp_rounding(r.r, r.x, r.single_prec, r.round_mode, r.result_sign);
                 v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
                 if round(1) = '1' then
@@ -2398,9 +2399,6 @@ begin
         if opsel_ainv = '1' then
             in_a0 := not in_a0;
         end if;
-        if opsel_amask = '1' then
-            in_a0 := in_a0 and not mask;
-        end if;
         in_a <= in_a0;
         case opsel_b is
             when BIN_ZERO =>
@@ -2423,9 +2421,13 @@ begin
         else
             shift_res := (others => '0');
         end if;
+        sum := std_ulogic_vector(unsigned(in_a) + unsigned(in_b) + carry_in);
+        if opsel_mask = '1' then
+            sum := sum and not mask;
+        end if;
         case opsel_r is
             when RES_SUM =>
-                result <= std_ulogic_vector(unsigned(in_a) + unsigned(in_b) + carry_in);
+                result <= sum;
             when RES_SHIFT =>
                 result <= shift_res;
             when RES_MULT =>
