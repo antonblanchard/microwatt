@@ -7,6 +7,10 @@
 extern unsigned long callit(unsigned long arg1, unsigned long arg2,
 			    unsigned long (*fn)(unsigned long, unsigned long));
 
+extern unsigned long do_lqarx(unsigned long src, unsigned long regs);
+extern unsigned long do_lqarx_bad(unsigned long src, unsigned long regs);
+extern unsigned long do_stqcx(unsigned long dst, unsigned long regs);
+
 #define DSISR	18
 #define DAR	19
 #define SRR0	26
@@ -180,6 +184,63 @@ int resv_test_2(void)
 	return 0;
 }
 
+/* test lqarx/stqcx */
+int resv_test_3(void)
+{
+	unsigned long x[4] __attribute__((__aligned__(16)));
+	unsigned long y[2], regs[2];
+	unsigned long ret, offset;
+	int count;
+
+	x[0] = 0x7766554433221100ul;
+	x[1] = 0xffeeddccbbaa9988ul;
+	y[0] = 0x0badcafef00dd00dul;
+	y[1] = 0xdeadbeef07070707ul;
+	for (count = 0; count < 1000; ++count) {
+		ret = callit((unsigned long)x, (unsigned long)regs, do_lqarx);
+		if (ret)
+			return ret | 1;
+		ret = callit((unsigned long)x, (unsigned long)y, do_stqcx);
+		if (ret < 0x10000)
+			return ret | 2;
+		if (ret & 0x20000000)
+			break;
+	}
+	if (count == 1000)
+		return 3;
+	if (x[0] != y[1] || x[1] != y[0])
+		return 4;
+	if (regs[1] != 0x7766554433221100ul || regs[0] != 0xffeeddccbbaa9988ul)
+		return 5;
+	ret = callit((unsigned long)x, (unsigned long)regs, do_stqcx);
+	if (ret < 0x10000 || (ret & 0x20000000))
+		return ret | 12;
+	/* test alignment interrupts */
+	for (offset = 0; offset < 16; ++offset) {
+		ret = callit((unsigned long)x + offset, (unsigned long)regs, do_lqarx);
+		if (ret == 0 && (offset & 15) != 0)
+			return 6;
+		if (ret == 0x600) {
+			if ((offset & 15) == 0)
+				return ret + 7;
+		} else if (ret)
+			return ret;
+		ret = callit((unsigned long)x + offset, (unsigned long)y, do_stqcx);
+		if (ret >= 0x10000 && (offset & 15) != 0)
+			return 8;
+		if (ret == 0x600) {
+			if ((offset & 15) == 0)
+				return ret + 9;
+		} else if (ret < 0x10000)
+			return ret;
+	}
+	/* test illegal interrupt for bad lqarx case */
+	ret = callit((unsigned long)x, (unsigned long)regs, do_lqarx_bad);
+	if (ret != 0xe40)
+		return ret + 10;
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -204,6 +265,7 @@ int main(void)
 
 	do_test(1, resv_test_1);
 	do_test(2, resv_test_2);
+	do_test(3, resv_test_3);
 
 	return fail;
 }
