@@ -52,6 +52,7 @@ entity soc is
 	RAM_INIT_FILE      : string;
 	CLK_FREQ           : positive;
 	SIM                : boolean;
+        HAS_FPU            : boolean := true;
 	DISABLE_FLATTEN_CORE : boolean := false;
 	HAS_DRAM           : boolean  := false;
 	DRAM_SIZE          : integer := 0;
@@ -253,6 +254,7 @@ begin
     processor: entity work.core
 	generic map(
 	    SIM => SIM,
+            HAS_FPU => HAS_FPU,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
 	    ALT_RESET_ADDRESS => (23 downto 0 => '0', others => '1'),
             LOG_LENGTH => LOG_LENGTH

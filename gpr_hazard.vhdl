@@ -2,6 +2,9 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
+library work;
+use work.common.all;
+
 entity gpr_hazard is
     generic (
         PIPELINE_DEPTH : natural := 1
@@ -15,13 +18,13 @@ entity gpr_hazard is
         issuing            : in std_ulogic;
 
         gpr_write_valid_in : in std_ulogic;
-        gpr_write_in       : in std_ulogic_vector(5 downto 0);
+        gpr_write_in       : in gspr_index_t;
         bypass_avail       : in std_ulogic;
         gpr_read_valid_in  : in std_ulogic;
-        gpr_read_in        : in std_ulogic_vector(5 downto 0);
+        gpr_read_in        : in gspr_index_t;
 
         ugpr_write_valid   : in std_ulogic;
-        ugpr_write_reg     : in std_ulogic_vector(5 downto 0);
+        ugpr_write_reg     : in gspr_index_t;
 
         stall_out          : out std_ulogic;
         use_bypass         : out std_ulogic
@@ -31,9 +34,9 @@ architecture behaviour of gpr_hazard is
     type pipeline_entry_type is record
         valid  : std_ulogic;
         bypass : std_ulogic;
-        gpr    : std_ulogic_vector(5 downto 0);
+        gpr    : gspr_index_t;
         ugpr_valid : std_ulogic;
-        ugpr   : std_ulogic_vector(5 downto 0);
+        ugpr   : gspr_index_t;
     end record;
     constant pipeline_entry_init : pipeline_entry_type := (valid => '0', bypass => '0', gpr => (others => '0'),
                                                            ugpr_valid => '0', ugpr => (others => '0'));

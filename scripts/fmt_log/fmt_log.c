@@ -58,7 +58,7 @@ struct log_entry {
 	u64	ls_lo_valid: 1;
 	u64	ls_eo_except: 1;
 	u64	ls_stall_out: 1;
-	u64	pad2: 2;
+	u64	pad2: 1;
 	u64	dc_state: 3;
 	u64	dc_ra_valid: 1;
 	u64	dc_tlb_way: 3;
@@ -74,7 +74,7 @@ struct log_entry {
 	u64	cr_wr_mask: 8;
 	u64	cr_wr_data: 4;
 	u64	cr_wr_enable: 1;
-	u64	reg_wr_reg: 6;
+	u64	reg_wr_reg: 7;
 	u64	reg_wr_enable: 1;
 
 	u64	reg_wr_data;
@@ -84,17 +84,17 @@ struct log_entry {
 #define FLGA(i, y, z)	(log.i? y: z)
 #define PNIA(f)		(full_nia[log.f] & 0xff)
 
-const char *units[4] = { "--", "al", "ls", "?3" };
+const char *units[4] = { "--", "al", "ls", "fp" };
 const char *ops[64] =
 {
 	"illegal", "nop    ", "add    ", "and    ", "attn   ", "b      ", "bc     ", "bcreg  ",
 	"bperm  ", "cmp    ", "cmpb   ", "cmpeqb ", "cmprb  ", "cntz   ", "crop   ", "darn   ",
 	"dcbf   ", "dcbst  ", "dcbt   ", "dcbtst ", "dcbz   ", "div    ", "dive   ", "exts   ",
-	"extswsl", "icbi   ", "icbt   ", "isel   ", "isync  ", "ld     ", "st     ", "mcrxrx ",
-	"mfcr   ", "mfmsr  ", "mfspr  ", "mod    ", "mtcrf  ", "mtmsr  ", "mtspr  ", "mull64 ",
-	"mulh64 ", "mulh32 ", "or     ", "popcnt ", "prty   ", "rfid   ", "rlc    ", "rlcl   ",
-	"rlcr   ", "sc     ", "setb   ", "shl    ", "shr    ", "sync   ", "tlbie  ", "trap   ",
-	"xor    ", "bcd    ", "addg6s ", "ffail  ", "?60    ", "?61    ", "?62    ", "?63    "
+	"extswsl", "fpop   ", "fpopi  ", "icbi   ", "icbt   ", "isel   ", "isync  ", "ld     ",
+	"st     ", "fpload ", "fpstore", "mcrxrx ", "mfcr   ", "mfmsr  ", "mfspr  ", "mod    ",
+	"mtcrf  ", "mtmsr  ", "mtspr  ", "mull64 ", "mulh64 ", "mulh32 ", "or     ", "popcnt ",
+	"prty   ", "rfid   ", "rlc    ", "rlcl   ", "rlcr   ", "sc     ", "setb   ", "shl    ",
+	"shr    ", "sync   ", "tlbie  ", "trap   ", "xor    ", "bcd    ", "addg6s ", "ffail  ",
 };
 
 const char *spr_names[13] =

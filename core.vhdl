@@ -11,6 +11,7 @@ entity core is
         SIM : boolean := false;
 	DISABLE_FLATTEN : boolean := false;
         EX1_BYPASS : boolean := true;
+        HAS_FPU : boolean := true;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512
         );
@@ -79,6 +80,11 @@ architecture behave of core is
     signal mmu_to_dcache: MmuToDcacheType;
     signal dcache_to_mmu: DcacheToMmuType;
 
+    -- FPU signals
+    signal execute1_to_fpu: Execute1ToFPUType;
+    signal fpu_to_execute1: FPUToExecute1Type;
+    signal fpu_to_writeback: FPUToWritebackType;
+
     -- local signals
     signal fetch1_stall_in : std_ulogic;
     signal icache_stall_out : std_ulogic;
@@ -108,6 +114,7 @@ architecture behave of core is
     signal rst_dec1    : std_ulogic := '1';
     signal rst_dec2    : std_ulogic := '1';
     signal rst_ex1     : std_ulogic := '1';
+    signal rst_fpu     : std_ulogic := '1';
     signal rst_ls1     : std_ulogic := '1';
     signal rst_dbg     : std_ulogic := '1';
     signal alt_reset_d : std_ulogic;
@@ -170,6 +177,7 @@ begin
             rst_dec1    <= core_rst;
             rst_dec2    <= core_rst;
             rst_ex1     <= core_rst;
+            rst_fpu     <= core_rst;
             rst_ls1     <= core_rst;
             rst_dbg     <= rst;
             alt_reset_d <= alt_reset;
@@ -224,6 +232,7 @@ begin
 
     decode1_0: entity work.decode1
         generic map(
+            HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -244,6 +253,7 @@ begin
     decode2_0: entity work.decode2
         generic map (
             EX1_BYPASS => EX1_BYPASS,
+            HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -267,6 +277,7 @@ begin
     register_file_0: entity work.register_file
         generic map (
             SIM => SIM,
+            HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -280,7 +291,7 @@ begin
             dbg_gpr_data => dbg_gpr_data,
 	    sim_dump => terminate,
 	    sim_dump_done => sim_cr_dump,
-            log_out => log_data(255 downto 185)
+            log_out => log_data(255 downto 184)
 	    );
 
     cr_file_0: entity work.cr_file
@@ -294,12 +305,13 @@ begin
             d_out => cr_file_to_decode2,
             w_in => writeback_to_cr_file,
             sim_dump => sim_cr_dump,
-            log_out => log_data(184 downto 172)
+            log_out => log_data(183 downto 171)
             );
 
     execute1_0: entity work.execute1
         generic map (
             EX1_BYPASS => EX1_BYPASS,
+            HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -309,9 +321,11 @@ begin
 	    busy_out => ex1_busy_out,
             e_in => decode2_to_execute1,
             l_in => loadstore1_to_execute1,
+            fp_in => fpu_to_execute1,
             ext_irq_in => ext_irq,
             l_out => execute1_to_loadstore1,
             f_out => execute1_to_fetch1,
+            fp_out => execute1_to_fpu,
             e_out => execute1_to_writeback,
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
@@ -322,8 +336,32 @@ begin
             log_wr_addr => log_wr_addr
             );
 
+    with_fpu: if HAS_FPU generate
+    begin
+        fpu_0: entity work.fpu
+            port map (
+                clk => clk,
+                rst => rst_fpu,
+                e_in => execute1_to_fpu,
+                e_out => fpu_to_execute1,
+                w_out => fpu_to_writeback
+                );
+    end generate;
+
+    no_fpu: if not HAS_FPU generate
+    begin
+        fpu_to_execute1.busy <= '0';
+        fpu_to_execute1.exception <= '0';
+        fpu_to_execute1.interrupt <= '0';
+        fpu_to_execute1.illegal <= '0';
+        fpu_to_writeback.valid <= '0';
+        fpu_to_writeback.write_enable <= '0';
+        fpu_to_writeback.write_cr_enable <= '0';
+    end generate;
+
     loadstore1_0: entity work.loadstore1
         generic map (
+            HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -368,7 +406,7 @@ begin
             stall_out => dcache_stall_out,
             wishbone_in => wishbone_data_in,
             wishbone_out => wishbone_data_out,
-            log_out => log_data(171 downto 152)
+            log_out => log_data(170 downto 151)
             );
 
     writeback_0: entity work.writeback
@@ -376,12 +414,13 @@ begin
             clk => clk,
             e_in => execute1_to_writeback,
             l_in => loadstore1_to_writeback,
+            fp_in => fpu_to_writeback,
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             complete_out => complete
             );
 
-    log_data(151 downto 150) <= "00";
+    log_data(150) <= '0';
     log_data(139 downto 135) <= "00000";
 
     debug_0: entity work.core_debug

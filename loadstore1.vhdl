@@ -5,12 +5,15 @@ use ieee.numeric_std.all;
 library work;
 use work.decode_types.all;
 use work.common.all;
+use work.insn_helpers.all;
+use work.helpers.all;
 
 -- 2 cycle LSU
 -- We calculate the address in the first cycle
 
 entity loadstore1 is
     generic (
+        HAS_FPU : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -42,10 +45,12 @@ architecture behave of loadstore1 is
 
     -- State machine for unaligned loads/stores
     type state_t is (IDLE,              -- ready for instruction
+                     FPR_CONV,          -- converting double to float for store
                      SECOND_REQ,        -- send 2nd request of unaligned xfer
                      ACK_WAIT,          -- waiting for ack from dcache
                      MMU_LOOKUP,        -- waiting for MMU to look up translation
                      TLBIE_WAIT,        -- waiting for MMU to finish doing a tlbie
+                     FINISH_LFS,        -- write back converted SP data for lfs*
                      COMPLETE           -- extra cycle to complete an operation
                      );
 
@@ -58,7 +63,7 @@ architecture behave of loadstore1 is
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	load_data    : std_ulogic_vector(63 downto 0);
-	write_reg    : gpr_index_t;
+	write_reg    : gspr_index_t;
 	length       : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
 	sign_extend  : std_ulogic;
@@ -86,6 +91,11 @@ architecture behave of loadstore1 is
         do_update    : std_ulogic;
         extra_cycle  : std_ulogic;
         mode_32bit   : std_ulogic;
+        load_sp      : std_ulogic;
+        ld_sp_data   : std_ulogic_vector(31 downto 0);
+        ld_sp_nz     : std_ulogic;
+        ld_sp_lz     : std_ulogic_vector(5 downto 0);
+        st_sp_data   : std_ulogic_vector(31 downto 0);
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -94,6 +104,9 @@ architecture behave of loadstore1 is
 
     signal r, rin : reg_stage_t;
     signal lsu_sum : std_ulogic_vector(63 downto 0);
+
+    signal store_sp_data : std_ulogic_vector(31 downto 0);
+    signal load_dp_data  : std_ulogic_vector(63 downto 0);
 
     -- Generate byte enables from sizes
     function length_to_sel(length : in std_logic_vector(3 downto 0)) return std_ulogic_vector is
@@ -125,6 +138,72 @@ architecture behave of loadstore1 is
 					    to_integer(unsigned(address))));
     end function xfer_data_sel;
 
+    -- 23-bit right shifter for DP -> SP float conversions
+    function shifter_23r(frac: std_ulogic_vector(22 downto 0); shift: unsigned(4 downto 0))
+        return std_ulogic_vector is
+        variable fs1   : std_ulogic_vector(22 downto 0);
+        variable fs2   : std_ulogic_vector(22 downto 0);
+    begin
+        case shift(1 downto 0) is
+            when "00" =>
+                fs1 := frac;
+            when "01" =>
+                fs1 := '0' & frac(22 downto 1);
+            when "10" =>
+                fs1 := "00" & frac(22 downto 2);
+            when others =>
+                fs1 := "000" & frac(22 downto 3);
+        end case;
+        case shift(4 downto 2) is
+            when "000" =>
+                fs2 := fs1;
+            when "001" =>
+                fs2 := x"0" & fs1(22 downto 4);
+            when "010" =>
+                fs2 := x"00" & fs1(22 downto 8);
+            when "011" =>
+                fs2 := x"000" & fs1(22 downto 12);
+            when "100" =>
+                fs2 := x"0000" & fs1(22 downto 16);
+            when others =>
+                fs2 := x"00000" & fs1(22 downto 20);
+        end case;
+        return fs2;
+    end;
+
+    -- 23-bit left shifter for SP -> DP float conversions
+    function shifter_23l(frac: std_ulogic_vector(22 downto 0); shift: unsigned(4 downto 0))
+        return std_ulogic_vector is
+        variable fs1   : std_ulogic_vector(22 downto 0);
+        variable fs2   : std_ulogic_vector(22 downto 0);
+    begin
+        case shift(1 downto 0) is
+            when "00" =>
+                fs1 := frac;
+            when "01" =>
+                fs1 := frac(21 downto 0) & '0';
+            when "10" =>
+                fs1 := frac(20 downto 0) & "00";
+            when others =>
+                fs1 := frac(19 downto 0) & "000";
+        end case;
+        case shift(4 downto 2) is
+            when "000" =>
+                fs2 := fs1;
+            when "001" =>
+                fs2 := fs1(18 downto 0) & x"0" ;
+            when "010" =>
+                fs2 := fs1(14 downto 0) & x"00";
+            when "011" =>
+                fs2 := fs1(10 downto 0) & x"000";
+            when "100" =>
+                fs2 := fs1(6 downto 0) & x"0000";
+            when others =>
+                fs2 := fs1(2 downto 0) & x"00000";
+        end case;
+        return fs2;
+    end;
+
 begin
     -- Calculate the address in the first cycle
     lsu_sum <= std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2)) when l_in.valid = '1' else (others => '0');
@@ -141,6 +220,59 @@ begin
             end if;
         end if;
     end process;
+
+    ls_fp_conv: if HAS_FPU generate
+        -- Convert DP data to SP for stfs
+        dp_to_sp: process(all)
+            variable exp   : unsigned(10 downto 0);
+            variable frac  : std_ulogic_vector(22 downto 0);
+            variable shift : unsigned(4 downto 0);
+        begin
+            store_sp_data(31) <= l_in.data(63);
+            store_sp_data(30 downto 0) <= (others => '0');
+            exp := unsigned(l_in.data(62 downto 52));
+            if exp > 896 then
+                store_sp_data(30) <= l_in.data(62);
+                store_sp_data(29 downto 0) <= l_in.data(58 downto 29);
+            elsif exp >= 874 then
+                -- denormalization required
+                frac := '1' & l_in.data(51 downto 30);
+                shift := 0 - exp(4 downto 0);
+                store_sp_data(22 downto 0) <= shifter_23r(frac, shift);
+            end if;
+        end process;
+
+        -- Convert SP data to DP for lfs
+        sp_to_dp: process(all)
+            variable exp     : unsigned(7 downto 0);
+            variable exp_dp  : unsigned(10 downto 0);
+            variable exp_nz  : std_ulogic;
+            variable exp_ao  : std_ulogic;
+            variable frac    : std_ulogic_vector(22 downto 0);
+            variable frac_shift : unsigned(4 downto 0);
+        begin
+            frac := r.ld_sp_data(22 downto 0);
+            exp := unsigned(r.ld_sp_data(30 downto 23));
+            exp_nz := or (r.ld_sp_data(30 downto 23));
+            exp_ao := and (r.ld_sp_data(30 downto 23));
+            frac_shift := (others => '0');
+            if exp_ao = '1' then
+                exp_dp := to_unsigned(2047, 11);    -- infinity or NaN
+            elsif exp_nz = '1' then
+                exp_dp := 896 + resize(exp, 11);    -- finite normalized value
+            elsif r.ld_sp_nz = '0' then
+                exp_dp := to_unsigned(0, 11);       -- zero
+            else
+                -- denormalized SP operand, need to normalize
+                exp_dp := 896 - resize(unsigned(r.ld_sp_lz), 11);
+                frac_shift := unsigned(r.ld_sp_lz(4 downto 0)) + 1;
+            end if;
+            load_dp_data(63) <= r.ld_sp_data(31);
+            load_dp_data(62 downto 52) <= std_ulogic_vector(exp_dp);
+            load_dp_data(51 downto 29) <= shifter_23l(frac, frac_shift);
+            load_dp_data(28 downto 0) <= (others => '0');
+        end process;
+    end generate;
 
     loadstore1_1: process(all)
         variable v : reg_stage_t;
@@ -162,6 +294,9 @@ begin
         variable data_permuted : std_ulogic_vector(63 downto 0);
         variable data_trimmed : std_ulogic_vector(63 downto 0);
         variable store_data : std_ulogic_vector(63 downto 0);
+        variable data_in : std_ulogic_vector(63 downto 0);
+        variable byte_rev : std_ulogic;
+        variable length : std_ulogic_vector(3 downto 0);
         variable use_second : byte_sel_t;
         variable trim_ctl : trim_ctl_t;
         variable negative : std_ulogic;
@@ -173,6 +308,8 @@ begin
         variable mmu_mtspr : std_ulogic;
         variable itlb_fault : std_ulogic;
         variable misaligned : std_ulogic;
+        variable fp_reg_conv : std_ulogic;
+        variable lfs_done : std_ulogic;
     begin
         v := r;
         req := '0';
@@ -182,8 +319,10 @@ begin
         sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
         dsisr := (others => '0');
         mmureq := '0';
+        fp_reg_conv := '0';
 
         write_enable := '0';
+        lfs_done := '0';
 
         do_update := r.do_update;
         v.do_update := '0';
@@ -242,19 +381,38 @@ begin
             end case;
         end loop;
 
-        -- Byte reversing and rotating for stores
-        -- Done in the first cycle (when l_in.valid = 1)
+        if HAS_FPU then
+            -- Single-precision FP conversion
+            v.st_sp_data := store_sp_data;
+            v.ld_sp_data := data_trimmed(31 downto 0);
+            v.ld_sp_nz := or (data_trimmed(22 downto 0));
+            v.ld_sp_lz := count_left_zeroes(data_trimmed(22 downto 0));
+        end if;
+
+        -- Byte reversing and rotating for stores.
+        -- Done in the first cycle (when l_in.valid = 1) for integer stores
+        -- and DP float stores, and in the second cycle for SP float stores.
         store_data := r.store_data;
-        if l_in.valid = '1' then
-            byte_offset := unsigned(lsu_sum(2 downto 0));
+        if l_in.valid = '1' or (HAS_FPU and r.state = FPR_CONV) then
+            if HAS_FPU and r.state = FPR_CONV then
+                data_in := x"00000000" & r.st_sp_data;
+                byte_offset := unsigned(r.addr(2 downto 0));
+                byte_rev := r.byte_reverse;
+                length := r.length;
+            else
+                data_in := l_in.data;
+                byte_offset := unsigned(lsu_sum(2 downto 0));
+                byte_rev := l_in.byte_reverse;
+                length := l_in.length;
+            end if;
             brev_lenm1 := "000";
-            if l_in.byte_reverse = '1' then
-                brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
+            if byte_rev = '1' then
+                brev_lenm1 := unsigned(length(2 downto 0)) - 1;
             end if;
             for i in 0 to 7 loop
                 k := (to_unsigned(i, 3) - byte_offset) xor brev_lenm1;
                 j := to_integer(k) * 8;
-                store_data(i * 8 + 7 downto i * 8) := l_in.data(j + 7 downto j);
+                store_data(i * 8 + 7 downto i * 8) := data_in(j + 7 downto j);
             end loop;
         end if;
         v.store_data := store_data;
@@ -289,6 +447,14 @@ begin
         case r.state is
         when IDLE =>
 
+        when FPR_CONV =>
+            req := '1';
+            if r.second_bytes /= "00000000" then
+                v.state := SECOND_REQ;
+            else
+                v.state := ACK_WAIT;
+            end if;
+
         when SECOND_REQ =>
             req := '1';
             v.state := ACK_WAIT;
@@ -320,8 +486,13 @@ begin
                         v.load_data := data_permuted;
                     end if;
                 else
-                    write_enable := r.load;
-                    if r.extra_cycle = '1' then
+                    write_enable := r.load and not r.load_sp;
+                    if HAS_FPU and r.load_sp = '1' then
+                        -- SP to DP conversion takes a cycle
+                        -- Write back rA update in this cycle if needed
+                        do_update := r.update;
+                        v.state := FINISH_LFS;
+                    elsif r.extra_cycle = '1' then
                         -- loads with rA update need an extra cycle
                         v.state := COMPLETE;
                         v.do_update := r.update;
@@ -359,6 +530,9 @@ begin
 
         when TLBIE_WAIT =>
 
+        when FINISH_LFS =>
+            lfs_done := '1';
+
         when COMPLETE =>
             exception := r.align_intr;
 
@@ -392,6 +566,7 @@ begin
             v.nc := l_in.ci;
             v.virt_mode := l_in.virt_mode;
             v.priv_mode := l_in.priv_mode;
+            v.load_sp := '0';
             v.wait_dcache := '0';
             v.wait_mmu := '0';
             v.do_update := '0';
@@ -431,6 +606,27 @@ begin
                     v.align_intr := v.nc;
                     req := '1';
                     v.dcbz := '1';
+                when OP_FPSTORE =>
+                    if HAS_FPU then
+                        if l_in.is_32bit = '1' then
+                            v.state := FPR_CONV;
+                            fp_reg_conv := '1';
+                        else
+                            req := '1';
+                        end if;
+                    end if;
+                when OP_FPLOAD =>
+                    if HAS_FPU then
+                        v.load := '1';
+                        req := '1';
+                        -- Allow an extra cycle for SP->DP precision conversion
+                        -- or RA update
+                        v.extra_cycle := l_in.update;
+                        if l_in.is_32bit = '1' then
+                            v.load_sp := '1';
+                            v.extra_cycle := '1';
+                        end if;
+                    end if;
                 when OP_TLBIE =>
                     mmureq := '1';
                     v.tlbie := '1';
@@ -486,7 +682,7 @@ begin
                 end if;
             end if;
 
-            v.busy := req or mmureq or mmu_mtspr;
+            v.busy := req or mmureq or mmu_mtspr or fp_reg_conv;
         end if;
 
         -- Update outputs to dcache
@@ -523,8 +719,12 @@ begin
             l_out.write_data <= r.sprval;
         elsif do_update = '1' then
             l_out.write_enable <= '1';
-            l_out.write_reg <= r.update_reg;
+            l_out.write_reg <= gpr_to_gspr(r.update_reg);
             l_out.write_data <= r.addr;
+        elsif lfs_done = '1' then
+            l_out.write_enable <= '1';
+            l_out.write_reg <= r.write_reg;
+            l_out.write_data <= load_dp_data;
         else
             l_out.write_enable <= write_enable;
             l_out.write_reg <= r.write_reg;
