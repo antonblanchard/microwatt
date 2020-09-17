@@ -31,6 +31,21 @@ architecture behaviour of decode1 is
     signal r, rin : Decode1ToDecode2Type;
     signal s      : Decode1ToDecode2Type;
 
+    constant illegal_inst : decode_rom_t :=
+        (NONE,   OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
+
+    type reg_internal_t is record
+        override : std_ulogic;
+        override_decode: decode_rom_t;
+        override_unit: std_ulogic;
+        force_single: std_ulogic;
+    end record;
+    constant reg_internal_t_init : reg_internal_t :=
+        (override => '0', override_decode => illegal_inst, override_unit => '0', force_single => '0');
+
+    signal ri, ri_in : reg_internal_t;
+    signal si        : reg_internal_t;
+
     subtype major_opcode_t is unsigned(5 downto 0);
     type major_rom_array_t is array(0 to 63) of decode_rom_t;
     type minor_valid_array_t is array(0 to 1023) of std_ulogic;
@@ -40,9 +55,6 @@ architecture behaviour of decode1 is
     type op_30_subop_array_t is array(0 to 15) of decode_rom_t;
     type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
     type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
-
-    constant illegal_inst : decode_rom_t :=
-        (ALU,    OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '1');
 
     constant major_decode_rom_array : major_rom_array_t := (
         --          unit     internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
@@ -107,25 +119,21 @@ architecture behaviour of decode1 is
 
     -- indexed by bits 10..1 of instruction word
     constant decode_op_19_valid : minor_valid_array_t := (
-        -- addpcis, 5 upper bits are part of constant
-        2#0000000010# => '1', 2#0000100010# => '1', 2#0001000010# => '1', 2#0001100010# => '1', 2#0010000010# => '1', 2#0010100010# => '1', 2#0011000010# => '1', 2#0011100010# => '1',
-        2#0100000010# => '1', 2#0100100010# => '1', 2#0101000010# => '1', 2#0101100010# => '1', 2#0110000010# => '1', 2#0110100010# => '1', 2#0111000010# => '1', 2#0111100010# => '1',
-        2#1000000010# => '1', 2#1000100010# => '1', 2#1001000010# => '1', 2#1001100010# => '1', 2#1010000010# => '1', 2#1010100010# => '1', 2#1011000010# => '1', 2#1011100010# => '1',
-        2#1100000010# => '1', 2#1100100010# => '1', 2#1101000010# => '1', 2#1101100010# => '1', 2#1110000010# => '1', 2#1110100010# => '1', 2#1111000010# => '1', 2#1111100010# => '1',
+        2#0001000000# to 2#0001011111# => '1',  -- addpcis, 5 upper bits are part of constant
         2#1000010000# => '1', -- bcctr
-        2#0000010000# => '1', -- bclr
-        2#1000110000# => '1', -- bctar
-        2#0100000001# => '1', -- crand
-        2#0010000001# => '1', -- crandc
-        2#0100100001# => '1', -- creqv
-        2#0011100001# => '1', -- crnand
+        2#1000000000# => '1', -- bclr
+        2#1000010001# => '1', -- bctar
+        2#0000101000# => '1', -- crand
+        2#0000100100# => '1', -- crandc
+        2#0000101001# => '1', -- creqv
+        2#0000100111# => '1', -- crnand
         2#0000100001# => '1', -- crnor
-        2#0111000001# => '1', -- cror
-        2#0110100001# => '1', -- crorc
-        2#0011000001# => '1', -- crxor
-        2#0010010110# => '1', -- isync
+        2#0000101110# => '1', -- cror
+        2#0000101101# => '1', -- crorc
+        2#0000100110# => '1', -- crxor
+        2#1011000100# => '1', -- isync
         2#0000000000# => '1', -- mcrf
-        2#0000010010# => '1', -- rfid
+        2#1001000000# => '1', -- rfid
         others => '0'
         );
 
@@ -193,10 +201,10 @@ architecture behaviour of decode1 is
         2#1000111010#  =>       (ALU,    OP_CNTZ,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- cnttzd
         2#1000011010#  =>       (ALU,    OP_CNTZ,      NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0'), -- cnttzw
         2#1011110011#  =>       (ALU,    OP_DARN,      NONE,       NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- darn
-        2#0001010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbf
-        2#0000110110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbst
-        2#0100010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbt
-        2#0011110110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbtst
+        2#0001010110#  =>       (ALU,    OP_DCBF,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbf
+        2#0000110110#  =>       (ALU,    OP_DCBST,     NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbst
+        2#0100010110#  =>       (ALU,    OP_DCBT,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbt
+        2#0011110110#  =>       (ALU,    OP_DCBTST,    NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- dcbtst
         2#1111110110#  =>       (LDST,   OP_DCBZ,      RA_OR_ZERO, RB,          NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- dcbz
         2#0110001001#  =>       (ALU,    OP_DIVE,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- divdeu
         2#1110001001#  =>       (ALU,    OP_DIVE,      RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- divdeuo
@@ -222,7 +230,7 @@ architecture behaviour of decode1 is
         2#1101111010#  =>       (ALU,    OP_EXTSWSLI,  NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- extswsli
         2#1101111011#  =>       (ALU,    OP_EXTSWSLI,  NONE,       CONST_SH,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0'), -- extswsli
         2#1111010110#  =>       (ALU,    OP_ICBI,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- icbi
-        2#0000010110#  =>       (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- icbt
+        2#0000010110#  =>       (ALU,    OP_ICBT,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- icbt
         2#0000001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1'), -- isel
         2#0000101111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- isel
         2#0001001111#  =>       (ALU,    OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0'), -- isel
@@ -401,19 +409,24 @@ begin
             if rst = '1' then
                 r <= Decode1ToDecode2Init;
                 s <= Decode1ToDecode2Init;
+                ri <= reg_internal_t_init;
+                si <= reg_internal_t_init;
             elsif flush_in = '1' then
                 r.valid <= '0';
                 s.valid <= '0';
             elsif s.valid = '1' then
                 if stall_in = '0' then
                     r <= s;
+                    ri <= si;
                     s.valid <= '0';
                 end if;
             else
                 s <= rin;
+                si <= ri_in;
                 s.valid <= rin.valid and r.valid and stall_in;
                 if r.valid = '0' or stall_in = '0' then
                     r <= rin;
+                    ri <= ri_in;
                 end if;
             end if;
         end if;
@@ -422,6 +435,7 @@ begin
 
     decode1_1: process(all)
         variable v : Decode1ToDecode2Type;
+        variable vi : reg_internal_t;
         variable f : Decode1ToFetch1Type;
         variable majorop : major_opcode_t;
         variable minor4op : std_ulogic_vector(10 downto 0);
@@ -432,37 +446,30 @@ begin
         variable br_offset : signed(23 downto 0);
     begin
         v := Decode1ToDecode2Init;
+        vi := reg_internal_t_init;
 
         v.valid := f_in.valid;
         v.nia  := f_in.nia;
         v.insn := f_in.insn;
         v.stop_mark := f_in.stop_mark;
-        v.ispr1 := (others => '0');
-        v.ispr2 := (others => '0');
 
         if f_in.valid = '1' then
             report "Decode insn " & to_hstring(f_in.insn) & " at " & to_hstring(f_in.nia);
         end if;
 
-        majorop := unsigned(f_in.insn(31 downto 26));
-        if f_in.fetch_failed = '1' then
-            v.valid := '1';
-            -- Only send down a single OP_FETCH_FAILED
-            if r.decode.insn_type = OP_FETCH_FAILED then
-                v.valid := '0';
-            end if;
-            v.decode := fetch_fail_inst;
+        br_offset := (others => '0');
 
-        elsif majorop = "000100" then
+        majorop := unsigned(f_in.insn(31 downto 26));
+        v.decode := major_decode_rom_array(to_integer(majorop));
+
+        case to_integer(unsigned(majorop)) is
+        when 4 =>
             -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
             minor4op := f_in.insn(5 downto 0) & f_in.insn(10 downto 6);
-            if decode_op_4_valid(to_integer(unsigned(minor4op))) = '1' then
-                v.decode := decode_op_4_array(to_integer(unsigned(f_in.insn(5 downto 0))));
-            else
-                v.decode := illegal_inst;
-            end if;
+            vi.override := not decode_op_4_valid(to_integer(unsigned(minor4op)));
+            v.decode := decode_op_4_array(to_integer(unsigned(f_in.insn(5 downto 0))));
 
-        elsif majorop = "011111" then
+        when 31 =>
             -- major opcode 31, lots of things
             v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
 
@@ -474,32 +481,35 @@ begin
                 -- mfspr or mtspr
                 -- Make slow SPRs single issue
                 if is_fast_spr(v.ispr1) = '0' then
-                    v.decode.sgl_pipe := '1';
+                    vi.force_single := '1';
                     -- send MMU-related SPRs to loadstore1
                     case sprn is
                         when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PRTBL =>
-                            v.decode.unit := LDST;
+                            vi.override_decode.unit := LDST;
+                            vi.override_unit := '1';
                         when others =>
                     end case;
                 end if;
             end if;
 
-        elsif majorop = "010000" then
+        when 16 =>
             -- CTR may be needed as input to bc
-            v.decode := major_decode_rom_array(to_integer(majorop));
             if f_in.insn(23) = '0' then
                 v.ispr1 := fast_spr_num(SPR_CTR);
             end if;
+            -- Predict backward branches as taken, forward as untaken
+            v.br_pred := f_in.insn(15);
+            br_offset := resize(signed(f_in.insn(15 downto 2)), 24);
 
-        elsif majorop = "010011" then
-            if decode_op_19_valid(to_integer(unsigned(f_in.insn(10 downto 1)))) = '0' then
-                report "op 19 illegal subcode";
-                v.decode := illegal_inst;
-            else
-                op_19_bits := f_in.insn(5) & f_in.insn(3) & f_in.insn(2);
-                v.decode := decode_op_19_array(to_integer(unsigned(op_19_bits)));
-                report "op 19 sub " & to_hstring(op_19_bits);
-            end if;
+        when 18 =>
+            -- Unconditional branches are always taken
+            v.br_pred := '1';
+            br_offset := signed(f_in.insn(25 downto 2));
+
+        when 19 =>
+            vi.override := not decode_op_19_valid(to_integer(unsigned(f_in.insn(5 downto 1) & f_in.insn(10 downto 6))));
+            op_19_bits := f_in.insn(5) & f_in.insn(3) & f_in.insn(2);
+            v.decode := decode_op_19_array(to_integer(unsigned(op_19_bits)));
 
             -- Work out ispr1/ispr2 independent of v.decode since they seem to be critical path
             if f_in.insn(2) = '0' then
@@ -523,36 +533,39 @@ begin
                 v.ispr2 := fast_spr_num(SPR_SRR0);
             end if;
 
-        elsif majorop = "011110" then
+        when 30 =>
             v.decode := decode_op_30_array(to_integer(unsigned(f_in.insn(4 downto 1))));
 
-        elsif majorop = "111010" then
+        when 48 =>
+            -- ori, special-case the standard NOP
+            if std_match(f_in.insn, "01100000000000000000000000000000") then
+                report "PPC_nop";
+                vi.override := '1';
+                vi.override_decode := nop_instr;
+            end if;
+
+        when 58 =>
             v.decode := decode_op_58_array(to_integer(unsigned(f_in.insn(1 downto 0))));
 
-        elsif majorop = "111110" then
+        when 62 =>
             v.decode := decode_op_62_array(to_integer(unsigned(f_in.insn(1 downto 0))));
 
-        elsif std_match(f_in.insn, "01100000000000000000000000000000") then
-            report "PPC_nop";
-            v.decode := nop_instr;
+        when others =>
+        end case;
 
-        else
-            v.decode := major_decode_rom_array(to_integer(majorop));
+        if f_in.fetch_failed = '1' then
+            v.valid := '1';
+            vi.override := '1';
+            vi.override_decode := fetch_fail_inst;
+            -- Only send down a single OP_FETCH_FAILED
+            if ri.override = '1' and ri.override_decode.insn_type = OP_FETCH_FAILED then
+                v.valid := '0';
+            end if;
         end if;
 
         -- Branch predictor
         -- Note bclr, bcctr and bctar are predicted not taken as we have no
         -- count cache or link stack.
-        br_offset := (others => '0');
-        if majorop = 18 then
-            -- Unconditional branches are always taken
-            v.br_pred := '1';
-            br_offset := signed(f_in.insn(25 downto 2));
-        elsif majorop = 16 then
-            -- Predict backward branches as taken, forward as untaken
-            v.br_pred := f_in.insn(15);
-            br_offset := resize(signed(f_in.insn(15 downto 2)), 24);
-        end if;
         br_nia := f_in.nia(63 downto 2);
         if f_in.insn(1) = '1' then
             br_nia := (others => '0');
@@ -563,9 +576,18 @@ begin
 
         -- Update registers
         rin <= v;
+        ri_in <= vi;
 
         -- Update outputs
         d_out <= r;
+        if ri.override = '1' then
+            d_out.decode <= ri.override_decode;
+        elsif ri.override_unit = '1' then
+            d_out.decode.unit <= ri.override_decode.unit;
+        end if;
+        if ri.force_single = '1' then
+            d_out.decode.sgl_pipe <= '1';
+        end if;
         f_out <= f;
         flush_out <= f.redirect;
     end process;

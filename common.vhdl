@@ -13,6 +13,8 @@ package common is
     constant MSR_SF  : integer := (63 - 0);     -- Sixty-Four bit mode
     constant MSR_EE  : integer := (63 - 48);    -- External interrupt Enable
     constant MSR_PR  : integer := (63 - 49);    -- PRoblem state
+    constant MSR_SE  : integer := (63 - 53);    -- Single-step bit of TE field
+    constant MSR_BE  : integer := (63 - 54);    -- Branch trace bit of TE field
     constant MSR_IR  : integer := (63 - 58);    -- Instruction Relocation
     constant MSR_DR  : integer := (63 - 59);    -- Data Relocation
     constant MSR_RI  : integer := (63 - 62);    -- Recoverable Interrupt

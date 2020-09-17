@@ -403,9 +403,6 @@ begin
         end if;
 
         v.e.valid := control_valid_out;
-        if d_in.decode.unit = NONE then
-            v.e.insn_type := OP_ILLEGAL;
-        end if;
 
         if rst = '1' or flush_in = '1' then
             v.e := Decode2ToExecute1Init;

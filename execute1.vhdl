@@ -53,6 +53,8 @@ architecture behaviour of execute1 is
         f : Execute1ToFetch1Type;
         busy: std_ulogic;
         terminate: std_ulogic;
+        trace_next : std_ulogic;
+        prev_op : insn_type_t;
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
 	mul_in_progress : std_ulogic;
@@ -69,7 +71,7 @@ architecture behaviour of execute1 is
     end record;
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, f => Execute1ToFetch1Init,
-         busy => '0', lr_update => '0', terminate => '0',
+         busy => '0', lr_update => '0', terminate => '0', trace_next => '0', prev_op => OP_ILLEGAL,
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
          slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
          next_lr => (others => '0'), last_nia => (others => '0'), others => (others => '0'));
@@ -330,6 +332,7 @@ begin
         variable abs_branch : std_ulogic;
         variable spr_val : std_ulogic_vector(63 downto 0);
         variable addend : std_ulogic_vector(127 downto 0);
+        variable do_trace : std_ulogic;
     begin
 	result := (others => '0');
 	sum_with_carry := (others => '0');
@@ -525,6 +528,11 @@ begin
 
         v.e.mode_32bit := not ctrl.msr(MSR_SF);
 
+        do_trace := valid_in and ctrl.msr(MSR_SE);
+        if valid_in = '1' then
+            v.prev_op := e_in.insn_type;
+        end if;
+
  	if ctrl.irq_state = WRITE_SRR1 then
  	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
  	    v.e.exc_write_data := ctrl.srr1;
@@ -532,12 +540,28 @@ begin
             ctrl_tmp.msr(MSR_SF) <= '1';
             ctrl_tmp.msr(MSR_EE) <= '0';
             ctrl_tmp.msr(MSR_PR) <= '0';
+            ctrl_tmp.msr(MSR_SE) <= '0';
+            ctrl_tmp.msr(MSR_BE) <= '0';
             ctrl_tmp.msr(MSR_IR) <= '0';
             ctrl_tmp.msr(MSR_DR) <= '0';
             ctrl_tmp.msr(MSR_RI) <= '0';
             ctrl_tmp.msr(MSR_LE) <= '1';
             v.e.valid := '1';
+            v.trace_next := '0';
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
+
+        elsif r.trace_next = '1' and valid_in = '1' then
+            -- Generate a trace interrupt rather than executing the next instruction
+            -- or taking any asynchronous interrupt
+            v.f.redirect_nia := std_logic_vector(to_unsigned(16#d00#, 64));
+            ctrl_tmp.srr1(63 - 33) <= '1';
+            if r.prev_op = OP_LOAD or r.prev_op = OP_ICBI or r.prev_op = OP_ICBT or
+                r.prev_op = OP_DCBT or r.prev_op = OP_DCBST or r.prev_op = OP_DCBF then
+                ctrl_tmp.srr1(63 - 35) <= '1';
+            elsif r.prev_op = OP_STORE or r.prev_op = OP_DCBZ or r.prev_op = OP_DCBTST then
+                ctrl_tmp.srr1(63 - 36) <= '1';
+            end if;
+            exception := '1';
 
 	elsif irq_valid = '1' and valid_in = '1' then
 	    -- we need two cycles to write srr0 and 1
@@ -594,7 +618,7 @@ begin
                 else
                     illegal := '1';
                 end if;
-	    when OP_NOP =>
+	    when OP_NOP | OP_DCBF | OP_DCBST | OP_DCBT | OP_DCBTST | OP_ICBT =>
 		-- Do nothing
 	    when OP_ADD | OP_CMP | OP_TRAP =>
 		result := sum_with_carry(63 downto 0);
@@ -715,6 +739,9 @@ begin
                 is_branch := '1';
                 taken_branch := '1';
                 abs_branch := insn_aa(e_in.insn);
+                if ctrl.msr(MSR_BE) = '1' then
+                    do_trace := '1';
+                end if;
 	    when OP_BC =>
 		-- read_data1 is CTR
 		bo := insn_bo(e_in.insn);
@@ -727,6 +754,9 @@ begin
                 is_branch := '1';
 		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
                 abs_branch := insn_aa(e_in.insn);
+                if ctrl.msr(MSR_BE) = '1' then
+                    do_trace := '1';
+                end if;
 	    when OP_BCREG =>
 		-- read_data1 is CTR
 		-- read_data2 is target register (CTR, LR or TAR)
@@ -740,6 +770,9 @@ begin
                 is_branch := '1';
 		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
                 abs_branch := '1';
+                if ctrl.msr(MSR_BE) = '1' then
+                    do_trace := '1';
+                end if;
 
 	    when OP_RFID =>
                 v.f.virt_mode := a_in(MSR_IR) or a_in(MSR_PR);
@@ -760,6 +793,7 @@ begin
                 is_branch := '1';
                 taken_branch := '1';
                 abs_branch := '1';
+                do_trace := '0';
 
             when OP_CNTZ =>
                 v.e.valid := '0';
@@ -1044,6 +1078,8 @@ begin
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
                 lv.valid := '1';
+            elsif e_in.unit = NONE then
+                illegal := '1';
             end if;
 
         elsif r.f.redirect = '1' then
@@ -1132,6 +1168,10 @@ begin
                 v.e.exc_write_data := next_nia;
             end if;
 	end if;
+
+        if do_trace = '1' then
+            v.trace_next := '1';
+        end if;
 
 	v.e.write_data := result;
 	v.e.write_enable := result_en and not exception;
