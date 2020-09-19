@@ -1704,22 +1704,19 @@ begin
                 opsel_r <= RES_MULT;
                 opsel_s <= S_MULT;
                 set_s := '1';
-                v.shift := to_signed(56, EXP_BITS);
                 if multiply_to_f.valid = '1' then
-                    if multiply_to_f.result(121) = '1' then
-                        v.state := FMADD_5;
-                    else
-                        v.state := FMADD_6;
-                    end if;
+                    v.state := FMADD_5;
                 end if;
 
             when FMADD_5 =>
-                -- negate R:S:X
-                v.result_sign := not r.result_sign;
-                opsel_ainv <= '1';
-                carry_in <= not (s_nz or r.x);
-                opsel_s <= S_NEG;
-                set_s := '1';
+                -- negate R:S:X if negative
+                if r.r(63) = '1' then
+                    v.result_sign := not r.result_sign;
+                    opsel_ainv <= '1';
+                    carry_in <= not (s_nz or r.x);
+                    opsel_s <= S_NEG;
+                    set_s := '1';
+                end if;
                 v.shift := to_signed(56, EXP_BITS);
                 v.state := FMADD_6;
 
