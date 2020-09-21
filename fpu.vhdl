@@ -157,7 +157,7 @@ architecture behaviour of fpu is
 
     constant BIN_ZERO : std_ulogic_vector(1 downto 0) := "00";
     constant BIN_R    : std_ulogic_vector(1 downto 0) := "01";
-    constant BIN_MASK : std_ulogic_vector(1 downto 0) := "10";
+    constant BIN_RND  : std_ulogic_vector(1 downto 0) := "10";
     constant BIN_PS6  : std_ulogic_vector(1 downto 0) := "11";
 
     constant RES_SUM   : std_ulogic_vector(1 downto 0) := "00";
@@ -632,6 +632,7 @@ begin
         variable mulexp      : signed(EXP_BITS-1 downto 0);
         variable maddend     : std_ulogic_vector(127 downto 0);
         variable sum         : std_ulogic_vector(63 downto 0);
+        variable round_inc   : std_ulogic_vector(63 downto 0);
     begin
         v := r;
         illegal := '0';
@@ -1117,7 +1118,6 @@ begin
                     elsif r.b.exponent > to_signed(127, EXP_BITS) then
                         v.state := ROUND_OFLOW;
                     else
-                        v.shift := to_signed(-2, EXP_BITS);
                         v.state := ROUNDING;
                     end if;
                 else
@@ -1619,7 +1619,6 @@ begin
                     -- sum overflowed, shift right
                     opsel_r <= RES_SHIFT;
                     set_x := '1';
-                    v.shift := to_signed(-2, EXP_BITS);
                     if exp_huge = '1' then
                         v.state := ROUND_OFLOW;
                     else
@@ -1627,7 +1626,6 @@ begin
                     end if;
                 elsif r.r(54) = '1' then
                     set_x := '1';
-                    v.shift := to_signed(-2, EXP_BITS);
                     v.state := ROUNDING;
                 elsif (r_hi_nz or r_lo_nz or r.r(1) or r.r(0)) = '0' then
                     -- r.x must be zero at this point
@@ -2085,7 +2083,6 @@ begin
                 -- r.shift = b.exponent - 52
                 opsel_r <= RES_SHIFT;
                 set_x := '1';
-                v.shift := to_signed(-2, EXP_BITS);
                 v.state := ROUNDING;
 
             when FINISH =>
@@ -2103,7 +2100,6 @@ begin
                     elsif exp_huge = '1' then
                         v.state := ROUND_OFLOW;
                     else
-                        v.shift := to_signed(-2, EXP_BITS);
                         v.state := ROUNDING;
                     end if;
                 end if;
@@ -2119,7 +2115,6 @@ begin
                 elsif exp_huge = '1' then
                     v.state := ROUND_OFLOW;
                 else
-                    v.shift := to_signed(-2, EXP_BITS);
                     v.state := ROUNDING;
                 end if;
 
@@ -2131,7 +2126,6 @@ begin
                     -- have to denormalize before rounding
                     opsel_r <= RES_SHIFT;
                     set_x := '1';
-                    v.shift := to_signed(-2, EXP_BITS);
                     v.state := ROUNDING;
                 else
                     -- enabled underflow exception case
@@ -2142,7 +2136,6 @@ begin
                         renormalize := '1';
                         v.state := NORMALIZE;
                     else
-                        v.shift := to_signed(-2, EXP_BITS);
                         v.state := ROUNDING;
                     end if;
                 end if;
@@ -2169,7 +2162,6 @@ begin
                 else
                     -- enabled overflow exception
                     v.result_exp := r.result_exp - bias_exp;
-                    v.shift := to_signed(-2, EXP_BITS);
                     v.state := ROUNDING;
                 end if;
 
@@ -2178,9 +2170,8 @@ begin
                 round := fp_rounding(r.r, r.x, r.single_prec, r.round_mode, r.result_sign);
                 v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
                 if round(1) = '1' then
-                    -- set mask to increment the LSB for the precision
-                    opsel_b <= BIN_MASK;
-                    carry_in <= '1';
+                    -- increment the LSB for the precision
+                    opsel_b <= BIN_RND;
                     v.shift := to_signed(-1, EXP_BITS);
                     v.state := ROUNDING_2;
                 else
@@ -2402,8 +2393,9 @@ begin
                 in_b0 := (others => '0');
             when BIN_R =>
                 in_b0 := r.r;
-            when BIN_MASK =>
-                in_b0 := mask;
+            when BIN_RND =>
+                round_inc := (31 => r.single_prec, 2 => not r.single_prec, others => '0');
+                in_b0 := round_inc;
             when others =>
                 -- BIN_PS6, 6 LSBs of P/4 sign-extended to 64
                 in_b0 := std_ulogic_vector(resize(signed(r.p(7 downto 2)), 64));
@@ -2420,7 +2412,10 @@ begin
         end if;
         sum := std_ulogic_vector(unsigned(in_a) + unsigned(in_b) + carry_in);
         if opsel_mask = '1' then
-            sum := sum and not mask;
+            sum(1 downto 0) := "00";
+            if r.single_prec = '1' then
+                sum(30 downto 2) := (others => '0');
+            end if;
         end if;
         case opsel_r is
             when RES_SUM =>
