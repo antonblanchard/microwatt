@@ -54,6 +54,10 @@ architecture behave of loadstore1 is
                      COMPLETE           -- extra cycle to complete an operation
                      );
 
+    type byte_index_t is array(0 to 7) of unsigned(2 downto 0);
+    subtype byte_trim_t is std_ulogic_vector(1 downto 0);
+    type trim_ctl_t is array(0 to 7) of byte_trim_t;
+
     type reg_stage_t is record
         -- latch most of the input request
         load         : std_ulogic;
@@ -93,16 +97,15 @@ architecture behave of loadstore1 is
         do_update    : std_ulogic;
         extra_cycle  : std_ulogic;
         mode_32bit   : std_ulogic;
+        byte_index   : byte_index_t;
+        use_second   : std_ulogic_vector(7 downto 0);
+        trim_ctl     : trim_ctl_t;
         load_sp      : std_ulogic;
         ld_sp_data   : std_ulogic_vector(31 downto 0);
         ld_sp_nz     : std_ulogic;
         ld_sp_lz     : std_ulogic_vector(5 downto 0);
         st_sp_data   : std_ulogic_vector(31 downto 0);
     end record;
-
-    type byte_sel_t is array(0 to 7) of std_ulogic;
-    subtype byte_trim_t is std_ulogic_vector(1 downto 0);
-    type trim_ctl_t is array(0 to 7) of byte_trim_t;
 
     signal r, rin : reg_stage_t;
     signal lsu_sum : std_ulogic_vector(63 downto 0);
@@ -299,8 +302,6 @@ begin
         variable data_in : std_ulogic_vector(63 downto 0);
         variable byte_rev : std_ulogic;
         variable length : std_ulogic_vector(3 downto 0);
-        variable use_second : byte_sel_t;
-        variable trim_ctl : trim_ctl_t;
         variable negative : std_ulogic;
         variable sprn : std_ulogic_vector(9 downto 0);
         variable exception : std_ulogic;
@@ -330,17 +331,9 @@ begin
         v.do_update := '0';
 
         -- load data formatting
-        byte_offset := unsigned(r.addr(2 downto 0));
-        brev_lenm1 := "000";
-        if r.byte_reverse = '1' then
-            brev_lenm1 := unsigned(r.length(2 downto 0)) - 1;
-        end if;
-
         -- shift and byte-reverse data bytes
         for i in 0 to 7 loop
-            kk := ('0' & (to_unsigned(i, 3) xor brev_lenm1)) + ('0' & byte_offset);
-            use_second(i) := kk(3);
-            j := to_integer(kk(2 downto 0)) * 8;
+            j := to_integer(r.byte_index(i)) * 8;
             data_permuted(i * 8 + 7 downto i * 8) := d_in.data(j + 7 downto j);
         end loop;
 
@@ -362,22 +355,13 @@ begin
 
         -- trim and sign-extend
         for i in 0 to 7 loop
-            if i < to_integer(unsigned(r.length)) then
-                if r.dwords_done = '1' then
-                    trim_ctl(i) := '1' & not use_second(i);
-                else
-                    trim_ctl(i) := "10";
-                end if;
-            else
-                trim_ctl(i) := '0' & (negative and r.sign_extend);
-            end if;
-            case trim_ctl(i) is
+            case r.trim_ctl(i) is
                 when "11" =>
                     data_trimmed(i * 8 + 7 downto i * 8) := r.load_data(i * 8 + 7 downto i * 8);
                 when "10" =>
                     data_trimmed(i * 8 + 7 downto i * 8) := data_permuted(i * 8 + 7 downto i * 8);
                 when "01" =>
-                    data_trimmed(i * 8 + 7 downto i * 8) := x"FF";
+                    data_trimmed(i * 8 + 7 downto i * 8) := (others => negative);
                 when others =>
                     data_trimmed(i * 8 + 7 downto i * 8) := x"00";
             end case;
@@ -698,6 +682,31 @@ begin
 
             v.busy := req or mmureq or mmu_mtspr or fp_reg_conv;
         end if;
+
+        -- Work out load formatter controls for next cycle
+        byte_offset := unsigned(v.addr(2 downto 0));
+        brev_lenm1 := "000";
+        if v.byte_reverse = '1' then
+            brev_lenm1 := unsigned(v.length(2 downto 0)) - 1;
+        end if;
+
+        for i in 0 to 7 loop
+            kk := ('0' & (to_unsigned(i, 3) xor brev_lenm1)) + ('0' & byte_offset);
+            v.use_second(i) := kk(3);
+            v.byte_index(i) := kk(2 downto 0);
+        end loop;
+
+        for i in 0 to 7 loop
+            if i < to_integer(unsigned(v.length)) then
+                if v.dwords_done = '1' then
+                    v.trim_ctl(i) := '1' & not v.use_second(i);
+                else
+                    v.trim_ctl(i) := "10";
+                end if;
+            else
+                v.trim_ctl(i) := '0' & v.sign_extend;
+            end if;
+        end loop;
 
         -- Update outputs to dcache
         d_out.valid <= req and not v.align_intr;
