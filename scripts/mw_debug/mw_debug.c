@@ -443,9 +443,9 @@ static void gpr_read(uint64_t reg, uint64_t count)
 {
 	uint64_t data;
 
-	reg &= 0x3f;
-	if (reg + count > 64)
-		count = 64 - reg;
+	reg &= 0x7f;
+	if (reg + count > 96)
+		count = 96 - reg;
 	for (; count != 0; --count, ++reg) {
 		check(dmi_write(DBG_CORE_GSPR_INDEX, reg), "setting GPR index");
 		data = 0xdeadbeef;
@@ -454,8 +454,10 @@ static void gpr_read(uint64_t reg, uint64_t count)
 			printf("r%"PRId64, reg);
 		else if ((reg - 32) < sizeof(fast_spr_names) / sizeof(fast_spr_names[0]))
 			printf("%s", fast_spr_names[reg - 32]);
-		else
+		else if (reg < 64)
 			printf("gspr%"PRId64, reg);
+		else
+			printf("FPR%"PRId64, reg - 64);
 		printf(":\t%016"PRIx64"\n", data);
 	}
 }
