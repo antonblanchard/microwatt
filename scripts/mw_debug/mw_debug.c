@@ -390,9 +390,11 @@ static void core_status(void)
 			statstr2 = " (restarting?)";
 		else if (stat & DBG_CORE_STAT_TERM)
 			statstr2 = " (terminated)";
-	} else if (stat & DBG_CORE_STAT_STOPPING)
+	} else if (stat & DBG_CORE_STAT_STOPPING) {
 		statstr = "stopping";
-	else if (stat & DBG_CORE_STAT_TERM)
+		if (stat & DBG_CORE_STAT_TERM)
+			statstr2 = " (terminated)";
+	} else if (stat & DBG_CORE_STAT_TERM)
 		statstr = "odd state (TERM but no STOP)";
 	printf("Core: %s%s\n", statstr, statstr2);
 	printf(" NIA: %016" PRIx64 "\n", nia);
