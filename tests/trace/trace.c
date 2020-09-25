@@ -8,6 +8,7 @@ extern unsigned long callit(unsigned long arg1, unsigned long arg2,
 			    unsigned long (*fn)(unsigned long, unsigned long),
 			    unsigned long msr, unsigned long *regs);
 
+#define MSR_FP	0x2000
 #define MSR_SE	0x400
 #define MSR_BE	0x200
 
@@ -188,6 +189,22 @@ int trace_test_7(void)
 	return 0;
 }
 
+extern unsigned long test8(unsigned long, unsigned long);
+
+int trace_test_8(void)
+{
+	unsigned long ret;
+	unsigned long regs[2];
+
+	ret = callit(0, 0, test8, (mfmsr() & ~MSR_FP) | MSR_SE, regs);
+	if (ret != 0x800)
+		return ret + 1;
+	ret = callit(0, 0, test8, mfmsr() | MSR_FP | MSR_SE, regs);
+	if (ret != 0xd00)
+		return ret + 2;
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -217,6 +234,7 @@ int main(void)
 	do_test(5, trace_test_5);
 	do_test(6, trace_test_6);
 	do_test(7, trace_test_7);
+	do_test(8, trace_test_8);
 
 	return fail;
 }

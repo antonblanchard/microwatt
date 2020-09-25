@@ -214,3 +214,8 @@ test7:
 	bne	1f
 	li	%r3,-1
 1:	blr
+
+	.global	test8
+test8:
+	lfd	%f0,0(%r3)
+	blr
