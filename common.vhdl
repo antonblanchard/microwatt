@@ -210,6 +210,7 @@ package common is
 	rc: std_ulogic;
 	oe: std_ulogic;
 	invert_a: std_ulogic;
+        addm1 : std_ulogic;
 	invert_out: std_ulogic;
 	input_carry: carry_in_t;
 	output_carry: std_ulogic;
@@ -224,18 +225,21 @@ package common is
 	update : std_ulogic;				-- is this an update instruction?
         reserve : std_ulogic;                           -- set for larx/stcx
         br_pred : std_ulogic;
+        result_sel : std_ulogic_vector(2 downto 0);     -- select source of result
+        sub_select : std_ulogic_vector(2 downto 0);     -- sub-result selection
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL,
          bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
-         bypass_cr => '0', lr => '0', rc => '0', oe => '0', invert_a => '0',
+         bypass_cr => '0', lr => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
+         result_sel => "000", sub_select => "000",
          repeat => '0', second => '0', others => (others => '0'));
 
     type MultiplyInputType is record
