@@ -53,6 +53,7 @@ end entity execute1;
 architecture behaviour of execute1 is
     type reg_type is record
 	e : Execute1ToWritebackType;
+        cur_instr : Decode2ToExecute1Type;
         busy: std_ulogic;
         terminate: std_ulogic;
         fp_exception_next : std_ulogic;
@@ -60,17 +61,10 @@ architecture behaviour of execute1 is
         prev_op : insn_type_t;
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
-        resmux : std_ulogic_vector(2 downto 0);
-        submux : std_ulogic_vector(2 downto 0);
 	mul_in_progress : std_ulogic;
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
-        slow_op_insn : insn_type_t;
-	slow_op_dest : gpr_index_t;
-	slow_op_rc : std_ulogic;
-	slow_op_oe : std_ulogic;
-	slow_op_xerc : xer_common_t;
         last_nia : std_ulogic_vector(63 downto 0);
         redirect : std_ulogic;
         abs_br : std_ulogic;
@@ -82,10 +76,10 @@ architecture behaviour of execute1 is
     end record;
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit,
+         cur_instr => Decode2ToExecute1Init,
          busy => '0', lr_update => '0', terminate => '0',
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
-         slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
          next_lr => (others => '0'), last_nia => (others => '0'),
          redirect => '0', abs_br => '0', do_intr => '0', vector => 0,
          br_offset => (others => '0'), redir_mode => "0000",
@@ -112,6 +106,7 @@ architecture behaviour of execute1 is
     signal spr_result: std_ulogic_vector(63 downto 0);
     signal result_mux_sel: std_ulogic_vector(2 downto 0);
     signal sub_mux_sel: std_ulogic_vector(2 downto 0);
+    signal current: Decode2ToExecute1Type;
 
     -- multiply signals
     signal x_to_multiply: MultiplyInputType;
@@ -294,10 +289,10 @@ begin
 
     terminate_out <= r.terminate;
 
+    current <= e_in when r.busy = '0' else r.cur_instr;
+
     -- Result mux
-    result_mux_sel <= e_in.result_sel when r.busy = '0' else r.resmux;
-    sub_mux_sel <= e_in.sub_select when r.busy = '0' else r.submux;
-    with result_mux_sel select alu_result <=
+    with current.result_sel select alu_result <=
         adder_result       when "000",
         logical_result     when "001",
         rotator_result     when "010",
@@ -333,9 +328,12 @@ begin
 	variable a_inv : std_ulogic_vector(63 downto 0);
 	variable b_or_m1 : std_ulogic_vector(63 downto 0);
 	variable addg6s : std_ulogic_vector(63 downto 0);
+	variable isel_result : std_ulogic_vector(63 downto 0);
+	variable darn : std_ulogic_vector(63 downto 0);
+	variable mfcr_result : std_ulogic_vector(63 downto 0);
+	variable setb_result : std_ulogic_vector(63 downto 0);
 	variable newcrf : std_ulogic_vector(3 downto 0);
 	variable sum_with_carry : std_ulogic_vector(64 downto 0);
-	variable result_en : std_ulogic;
 	variable crnum : crnum_t;
 	variable crbit : integer range 0 to 31;
 	variable scrnum : crnum_t;
@@ -375,7 +373,6 @@ begin
         variable fv : Execute1ToFPUType;
     begin
 	sum_with_carry := (others => '0');
-	result_en := '0';
 	newcrf := (others => '0');
         is_branch := '0';
         taken_branch := '0';
@@ -400,7 +397,7 @@ begin
 	-- (SO, OV[32] and CA[32]) are only modified by instructions that are
         -- handled here, we can just forward the result being sent to
         -- writeback.
-	if r.e.write_xerc_enable = '1' then
+	if r.e.write_xerc_enable = '1' or r.busy = '1' then
 	    v.e.xerc := r.e.xerc;
 	else
 	    v.e.xerc := e_in.xerc;
@@ -422,7 +419,6 @@ begin
         v.cntz_in_progress := '0';
         v.mul_finish := '0';
 
-        misc_result <= (others => '0');
         spr_result <= (others => '0');
         spr_val := (others => '0');
 
@@ -440,6 +436,8 @@ begin
         sum_with_carry := ppc_adde(a_inv, b_or_m1,
                                    decode_input_carry(e_in.input_carry, v.e.xerc));
         adder_result <= sum_with_carry(63 downto 0);
+        carry_32 := sum_with_carry(32) xor a_inv(32) xor b_in(32);
+        carry_64 := sum_with_carry(64);
 
         -- signals to multiply and divide units
         sign1 := '0';
@@ -513,7 +511,7 @@ begin
             x_to_divider.divisor <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
         end if;
 
-        case sub_mux_sel(1 downto 0) is
+        case current.sub_select(1 downto 0) is
             when "00" =>
                 muldiv_result <= multiply_to_x.result(63 downto 0);
             when "01" =>
@@ -524,6 +522,117 @@ begin
             when others =>
                 muldiv_result <= divider_to_x.write_reg_data;
         end case;
+
+        -- Compute misc_result
+        case current.sub_select is
+            when "000" =>
+                misc_result <= (others => '0');
+            when "001" =>
+                -- addg6s
+                addg6s := (others => '0');
+                for i in 0 to 14 loop
+                    lo := i * 4;
+                    hi := (i + 1) * 4;
+                    if (a_in(hi) xor b_in(hi) xor sum_with_carry(hi)) = '0' then
+                        addg6s(lo + 3 downto lo) := "0110";
+                    end if;
+                end loop;
+                if sum_with_carry(64) = '0' then
+                    addg6s(63 downto 60) := "0110";
+                end if;
+                misc_result <= addg6s;
+            when "010" =>
+                -- isel
+		crbit := to_integer(unsigned(insn_bc(e_in.insn)));
+		if cr_in(31-crbit) = '1' then
+		    isel_result := a_in;
+		else
+		    isel_result := b_in;
+		end if;
+                misc_result <= isel_result;
+            when "011" =>
+                -- darn
+                darn := (others => '1');
+                if random_err = '0' then
+                    case e_in.insn(17 downto 16) is
+                        when "00" =>
+                            darn := x"00000000" & random_cond(31 downto 0);
+                        when "10" =>
+                            darn := random_raw;
+                        when others =>
+                            darn := random_cond;
+                    end case;
+                end if;
+                misc_result <= darn;
+            when "100" =>
+                -- mfmsr
+		misc_result <= ctrl.msr;
+            when "101" =>
+		if e_in.insn(20) = '0' then
+		    -- mfcr
+		    mfcr_result := x"00000000" & cr_in;
+		else
+		    -- mfocrf
+		    crnum := fxm_to_num(insn_fxm(e_in.insn));
+		    mfcr_result := (others => '0');
+		    for i in 0 to 7 loop
+			lo := (7-i)*4;
+			hi := lo + 3;
+			if crnum = i then
+			    mfcr_result(hi downto lo) := cr_in(hi downto lo);
+			end if;
+		    end loop;
+		end if;
+                misc_result <= mfcr_result;
+            when "110" =>
+                -- setb
+                bfa := insn_bfa(e_in.insn);
+                crbit := to_integer(unsigned(bfa)) * 4;
+                setb_result := (others => '0');
+                if cr_in(31 - crbit) = '1' then
+                    setb_result := (others => '1');
+                elsif cr_in(30 - crbit) = '1' then
+                    setb_result(0) := '1';
+                end if;
+                misc_result <= setb_result;
+            when others =>
+                misc_result <= (others => '0');
+        end case;
+
+        -- compute comparison results
+        -- Note, we have done RB - RA, not RA - RB
+        if e_in.insn_type = OP_CMP then
+            l := insn_l(e_in.insn);
+        else
+            l := not e_in.is_32bit;
+        end if;
+        zerolo := not (or (a_in(31 downto 0) xor b_in(31 downto 0)));
+        zerohi := not (or (a_in(63 downto 32) xor b_in(63 downto 32)));
+        if zerolo = '1' and (l = '0' or zerohi = '1') then
+            -- values are equal
+            trapval := "00100";
+        else
+            if l = '1' then
+                -- 64-bit comparison
+                msb_a := a_in(63);
+                msb_b := b_in(63);
+            else
+                -- 32-bit comparison
+                msb_a := a_in(31);
+                msb_b := b_in(31);
+            end if;
+            if msb_a /= msb_b then
+                -- Subtraction might overflow, but
+                -- comparison is clear from MSB difference.
+                -- for signed, 0 is greater; for unsigned, 1 is greater
+                trapval := msb_a & msb_b & '0' & msb_b & msb_a;
+            else
+                -- Subtraction cannot overflow since MSBs are equal.
+                -- carry = 1 indicates RA is smaller (signed or unsigned)
+                a_lt := (not l and carry_32) or (l and carry_64);
+                trapval := a_lt & not a_lt & '0' & a_lt & not a_lt;
+            end if;
+        end if;
 
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
@@ -577,38 +686,20 @@ begin
             v.prev_op := e_in.insn_type;
         end if;
 
- 	if ctrl.irq_state = WRITE_SRR1 then
- 	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
- 	    v.e.exc_write_data := ctrl.srr1;
-            v.e.exc_write_enable := '1';
-            ctrl_tmp.msr(MSR_SF) <= '1';
-            ctrl_tmp.msr(MSR_EE) <= '0';
-            ctrl_tmp.msr(MSR_PR) <= '0';
-            ctrl_tmp.msr(MSR_SE) <= '0';
-            ctrl_tmp.msr(MSR_BE) <= '0';
-            ctrl_tmp.msr(MSR_FP) <= '0';
-            ctrl_tmp.msr(MSR_FE0) <= '0';
-            ctrl_tmp.msr(MSR_FE1) <= '0';
-            ctrl_tmp.msr(MSR_IR) <= '0';
-            ctrl_tmp.msr(MSR_DR) <= '0';
-            ctrl_tmp.msr(MSR_RI) <= '0';
-            ctrl_tmp.msr(MSR_LE) <= '1';
-            v.e.valid := '1';
-            v.trace_next := '0';
-            v.fp_exception_next := '0';
-	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
-
-        elsif valid_in = '1' and e_in.second = '0' and
-            ((HAS_FPU and r.fp_exception_next = '1') or r.trace_next = '1') then
+        -- Determine if there is any exception to be taken
+        -- before/instead of executing this instruction
+        if valid_in = '1' and e_in.second = '0' then
             if HAS_FPU and r.fp_exception_next = '1' then
                 -- This is used for FP-type program interrupts that
                 -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.
+                exception := '1';
                 v.vector := 16#700#;
                 ctrl_tmp.srr1(63 - 43) <= '1';
                 ctrl_tmp.srr1(63 - 47) <= '1';
-            else
+            elsif r.trace_next = '1' then
                 -- Generate a trace interrupt rather than executing the next instruction
                 -- or taking any asynchronous interrupt
+                exception := '1';
                 v.vector := 16#d00#;
                 ctrl_tmp.srr1(63 - 33) <= '1';
                 if r.prev_op = OP_LOAD or r.prev_op = OP_ICBI or r.prev_op = OP_ICBT or
@@ -617,48 +708,38 @@ begin
                 elsif r.prev_op = OP_STORE or r.prev_op = OP_DCBZ or r.prev_op = OP_DCBTST then
                     ctrl_tmp.srr1(63 - 36) <= '1';
                 end if;
+
+            elsif irq_valid = '1' then
+                -- Don't deliver the interrupt until we have a valid instruction
+                -- coming in, so we have a valid NIA to put in SRR0.
+                exception := '1';
+
+            elsif ctrl.msr(MSR_PR) = '1' and instr_is_privileged(e_in.insn_type, e_in.insn) then
+                -- generate a program interrupt
+                exception := '1';
+                v.vector := 16#700#;
+                -- set bit 45 to indicate privileged instruction type interrupt
+                ctrl_tmp.srr1(63 - 45) <= '1';
+                report "privileged instruction";
+
+            elsif not HAS_FPU and e_in.fac = FPU then
+                -- make lfd/stfd/lfs/stfs etc. illegal in no-FPU implementations
+                illegal := '1';
+
+            elsif HAS_FPU and ctrl.msr(MSR_FP) = '0' and e_in.fac = FPU then
+                -- generate a floating-point unavailable interrupt
+                exception := '1';
+                v.vector := 16#800#;
+                report "FP unavailable interrupt";
             end if;
-            exception := '1';
+        end if;
 
-	elsif irq_valid = '1' and valid_in = '1' and e_in.second = '0' then
-	    -- we need two cycles to write srr0 and 1
-	    -- will need more when we have to write HEIR
-            -- Don't deliver the interrupt until we have a valid instruction
-            -- coming in, so we have a valid NIA to put in SRR0.
-	    exception := '1';
-
-        elsif valid_in = '1' and ctrl.msr(MSR_PR) = '1' and
-            instr_is_privileged(e_in.insn_type, e_in.insn) then
-            -- generate a program interrupt
-            exception := '1';
-            v.vector := 16#700#;
-            -- set bit 45 to indicate privileged instruction type interrupt
-            ctrl_tmp.srr1(63 - 45) <= '1';
-            report "privileged instruction";
-
-        elsif not HAS_FPU and valid_in = '1' and e_in.fac = FPU then
-            -- make lfd/stfd/lfs/stfs etc. illegal in no-FPU implementations
-            illegal := '1';
-
-        elsif HAS_FPU and valid_in = '1' and ctrl.msr(MSR_FP) = '0' and e_in.fac = FPU then
-            -- generate a floating-point unavailable interrupt
-            exception := '1';
-            v.vector := 16#800#;
-            report "FP unavailable interrupt";
-
-	elsif valid_in = '1' and e_in.unit = ALU then
-
+	if valid_in = '1' and exception = '0' and illegal = '0' and e_in.unit = ALU then
 	    report "execute nia " & to_hstring(e_in.nia);
 
+            v.cur_instr := e_in;
+            v.next_lr := next_nia;
 	    v.e.valid := '1';
-	    v.e.write_reg := e_in.write_reg;
-            v.slow_op_insn := e_in.insn_type;
-	    v.slow_op_dest := gspr_to_gpr(e_in.write_reg);
-	    v.slow_op_rc := e_in.rc;
-	    v.slow_op_oe := e_in.oe;
-	    v.slow_op_xerc := v.e.xerc;
-            v.resmux := e_in.result_sel;
-            v.submux := e_in.sub_select;
 
 	    case_0: case e_in.insn_type is
 
@@ -689,101 +770,48 @@ begin
                 end if;
 	    when OP_NOP | OP_DCBF | OP_DCBST | OP_DCBT | OP_DCBTST | OP_ICBT =>
 		-- Do nothing
-	    when OP_ADD | OP_CMP | OP_TRAP =>
-                carry_32 := sum_with_carry(32) xor a_inv(32) xor b_in(32);
-                carry_64 := sum_with_carry(64);
-                if e_in.insn_type = OP_ADD then
-                    if e_in.output_carry = '1' then
-                        if e_in.input_carry /= OV then
-                            set_carry(v.e, carry_32, carry_64);
-                        else
-                            v.e.xerc.ov := carry_64;
-                            v.e.xerc.ov32 := carry_32;
-                            v.e.write_xerc_enable := '1';
-                        end if;
+	    when OP_ADD =>
+                if e_in.output_carry = '1' then
+                    if e_in.input_carry /= OV then
+                        set_carry(v.e, carry_32, carry_64);
+                    else
+                        v.e.xerc.ov := carry_64;
+                        v.e.xerc.ov32 := carry_32;
+                        v.e.write_xerc_enable := '1';
                     end if;
-                    if e_in.oe = '1' then
-                        set_ov(v.e,
-                               calc_ov(a_inv(63), b_in(63), carry_64, sum_with_carry(63)),
-                               calc_ov(a_inv(31), b_in(31), carry_32, sum_with_carry(31)));
-                    end if;
-                    result_en := '1';
+                end if;
+                if e_in.oe = '1' then
+                    set_ov(v.e,
+                           calc_ov(a_inv(63), b_in(63), carry_64, sum_with_carry(63)),
+                           calc_ov(a_inv(31), b_in(31), carry_32, sum_with_carry(31)));
+                end if;
+            when OP_CMP =>
+                -- CMP and CMPL instructions
+                if e_in.is_signed = '1' then
+                    newcrf := trapval(4 downto 2) & v.e.xerc.so;
                 else
-                    -- trap, CMP and CMPL instructions
-                    -- Note, we have done RB - RA, not RA - RB
-                    if e_in.insn_type = OP_CMP then
-                        l := insn_l(e_in.insn);
-                    else
-                        l := not e_in.is_32bit;
-                    end if;
-                    zerolo := not (or (a_in(31 downto 0) xor b_in(31 downto 0)));
-                    zerohi := not (or (a_in(63 downto 32) xor b_in(63 downto 32)));
-                    if zerolo = '1' and (l = '0' or zerohi = '1') then
-                        -- values are equal
-                        trapval := "00100";
-                    else
-                        if l = '1' then
-                            -- 64-bit comparison
-                            msb_a := a_in(63);
-                            msb_b := b_in(63);
-                        else
-                            -- 32-bit comparison
-                            msb_a := a_in(31);
-                            msb_b := b_in(31);
-                        end if;
-                        if msb_a /= msb_b then
-                            -- Subtraction might overflow, but
-                            -- comparison is clear from MSB difference.
-                            -- for signed, 0 is greater; for unsigned, 1 is greater
-                            trapval := msb_a & msb_b & '0' & msb_b & msb_a;
-                        else
-                            -- Subtraction cannot overflow since MSBs are equal.
-                            -- carry = 1 indicates RA is smaller (signed or unsigned)
-                            a_lt := (not l and carry_32) or (l and carry_64);
-                            trapval := a_lt & not a_lt & '0' & a_lt & not a_lt;
-                        end if;
-                    end if;
-                    if e_in.insn_type = OP_CMP then
-                        if e_in.is_signed = '1' then
-                            newcrf := trapval(4 downto 2) & v.e.xerc.so;
-                        else
-                            newcrf := trapval(1 downto 0) & trapval(2) & v.e.xerc.so;
-                        end if;
-                        bf := insn_bf(e_in.insn);
-                        crnum := to_integer(unsigned(bf));
-                        v.e.write_cr_enable := '1';
-                        v.e.write_cr_mask := num_to_fxm(crnum);
-                        for i in 0 to 7 loop
-                            lo := i*4;
-                            hi := lo + 3;
-                            v.e.write_cr_data(hi downto lo) := newcrf;
-                        end loop;
-                    else
-                        -- trap instructions (tw, twi, td, tdi)
-                        v.vector := 16#700#;
-                        -- set bit 46 to say trap occurred
-                        ctrl_tmp.srr1(63 - 46) <= '1';
-                        if or (trapval and insn_to(e_in.insn)) = '1' then
-                            -- generate trap-type program interrupt
-                            exception := '1';
-                            report "trap";
-                        end if;
-                    end if;
+                    newcrf := trapval(1 downto 0) & trapval(2) & v.e.xerc.so;
+                end if;
+                bf := insn_bf(e_in.insn);
+                crnum := to_integer(unsigned(bf));
+                v.e.write_cr_enable := '1';
+                v.e.write_cr_mask := num_to_fxm(crnum);
+                for i in 0 to 7 loop
+                    lo := i*4;
+                    hi := lo + 3;
+                    v.e.write_cr_data(hi downto lo) := newcrf;
+                end loop;
+            when OP_TRAP =>
+                -- trap instructions (tw, twi, td, tdi)
+                v.vector := 16#700#;
+                -- set bit 46 to say trap occurred
+                ctrl_tmp.srr1(63 - 46) <= '1';
+                if or (trapval and insn_to(e_in.insn)) = '1' then
+                    -- generate trap-type program interrupt
+                    exception := '1';
+                    report "trap";
                 end if;
             when OP_ADDG6S =>
-                addg6s := (others => '0');
-                for i in 0 to 14 loop
-                    lo := i * 4;
-                    hi := (i + 1) * 4;
-                    if (a_in(hi) xor b_in(hi) xor sum_with_carry(hi)) = '0' then
-                        addg6s(lo + 3 downto lo) := "0110";
-                    end if;
-                end loop;
-                if sum_with_carry(64) = '0' then
-                    addg6s(63 downto 60) := "0110";
-                end if;
-                misc_result <= addg6s;
-                result_en := '1';
             when OP_CMPRB =>
                 newcrf := ppc_cmprb(a_in, b_in, insn_l(e_in.insn));
                 bf := insn_bf(e_in.insn);
@@ -802,7 +830,6 @@ begin
                                      newcrf & newcrf & newcrf & newcrf;
             when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS |
                     OP_BPERM | OP_BCD =>
-		result_en := '1';
 	    when OP_B =>
                 is_branch := '1';
                 taken_branch := '1';
@@ -812,12 +839,8 @@ begin
                 end if;
 	    when OP_BC =>
 		-- read_data1 is CTR
-                v.e.write_reg := fast_spr_num(SPR_CTR);
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
-		if bo(4-2) = '0' then
-		    result_en := '1';
-		end if;
                 is_branch := '1';
 		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
                 abs_branch := insn_aa(e_in.insn);
@@ -827,12 +850,8 @@ begin
 	    when OP_BCREG =>
 		-- read_data1 is CTR
 		-- read_data2 is target register (CTR, LR or TAR)
-                v.e.write_reg := fast_spr_num(SPR_CTR);
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
-		if bo(4-2) = '0' and e_in.insn(10) = '0' then
-		    result_en := '1';
-		end if;
                 is_branch := '1';
 		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
                 abs_branch := '1';
@@ -868,13 +887,6 @@ begin
                 v.cntz_in_progress := '1';
                 v.busy := '1';
 	    when OP_ISEL =>
-		crbit := to_integer(unsigned(insn_bc(e_in.insn)));
-		if cr_in(31-crbit) = '1' then
-		    misc_result <= a_in;
-		else
-		    misc_result <= b_in;
-		end if;
-		result_en := '1';
 	    when OP_CROP =>
 		cr_op := insn_cr(e_in.insn);
 		report "CR OP " & to_hstring(cr_op);
@@ -927,27 +939,11 @@ begin
                 v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
                                      newcrf & newcrf & newcrf & newcrf;
             when OP_DARN =>
-                if random_err = '0' then
-                    case e_in.insn(17 downto 16) is
-                        when "00" =>
-                            misc_result <= x"00000000" & random_cond(31 downto 0);
-                        when "10" =>
-                            misc_result <= random_raw;
-                        when others =>
-                            misc_result <= random_cond;
-                    end case;
-                else
-                    misc_result <= (others => '1');
-                end if;
-                result_en := '1';
 	    when OP_MFMSR =>
-		misc_result <= ctrl.msr;
-		result_en := '1';
 	    when OP_MFSPR =>
 		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(a_in);
-		result_en := '1';
-		if is_fast_spr(e_in.read_reg1) then
+		if is_fast_spr(e_in.read_reg1) = '1' then
 		    spr_val := a_in;
                     if decode_spr_num(e_in.insn) = SPR_XER then
 			-- bits 0:31 and 35:43 are treated as reserved and return 0s when read using mfxer
@@ -982,7 +978,7 @@ begin
                     when others =>
                         -- mfspr from unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode
-                        if ctrl.msr(MSR_PR) = '1' then
+                        if is_fast_spr(e_in.read_reg1) = '0' and ctrl.msr(MSR_PR) = '1' then
                             illegal := '1';
                         end if;
                     end case;
@@ -990,22 +986,6 @@ begin
                 spr_result <= spr_val;
 
 	    when OP_MFCR =>
-		if e_in.insn(20) = '0' then
-		    -- mfcr
-		    misc_result <= x"00000000" & cr_in;
-		else
-		    -- mfocrf
-		    crnum := fxm_to_num(insn_fxm(e_in.insn));
-		    misc_result <= (others => '0');
-		    for i in 0 to 7 loop
-			lo := (7-i)*4;
-			hi := lo + 3;
-			if crnum = i then
-			    misc_result(hi downto lo) <= cr_in(hi downto lo);
-			end if;
-		    end loop;
-		end if;
-		result_en := '1';
 	    when OP_MTCRF =>
 		v.e.write_cr_enable := '1';
 		if e_in.insn(20) = '0' then
@@ -1045,7 +1025,6 @@ begin
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(c_in);
 		if is_fast_spr(e_in.write_reg) then
-		    result_en := '1';
 		    if decode_spr_num(e_in.insn) = SPR_XER then
 			v.e.xerc.so := c_in(63-32);
 			v.e.xerc.ov := c_in(63-33);
@@ -1073,16 +1052,7 @@ begin
 		if e_in.output_carry = '1' then
 		    set_carry(v.e, rotator_carry, rotator_carry);
 		end if;
-		result_en := '1';
             when OP_SETB =>
-                bfa := insn_bfa(e_in.insn);
-                crbit := to_integer(unsigned(bfa)) * 4;
-                misc_result <= (others => '0');
-                if cr_in(31 - crbit) = '1' then
-                    misc_result <= (others => '1');
-                elsif cr_in(30 - crbit) = '1' then
-                    misc_result(0) <= '1';
-                end if;
 
 	    when OP_ISYNC =>
 		v.redirect := '1';
@@ -1108,8 +1078,6 @@ begin
 		report "illegal";
 	    end case;
 
-	    v.e.rc := e_in.rc and valid_in;
-
             -- Mispredicted branches cause a redirect
             if is_branch = '1' then
                 if taken_branch = '1' then
@@ -1126,26 +1094,7 @@ begin
                 end if;
             end if;
 
-	    -- Update LR on the next cycle after a branch link
-	    -- If we're not writing back anything else, we can write back LR
-            -- this cycle, otherwise we take an extra cycle.  We use the
-            -- exc_write path since next_nia is written through that path
-            -- in other places.
-	    if e_in.lr = '1' then
-                if result_en = '0' then
-                    v.e.exc_write_enable := '1';
-                    v.e.exc_write_data := next_nia;
-                    v.e.exc_write_reg := fast_spr_num(SPR_LR);
-                else
-                    v.lr_update := '1';
-                    v.next_lr := next_nia;
-                    v.e.valid := '0';
-                    report "Delayed LR update to " & to_hstring(next_nia);
-                    v.busy := '1';
-                end if;
-	    end if;
-
-        elsif valid_in = '1' then
+        elsif valid_in = '1' and exception = '0' and illegal = '0' then
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
                 lv.valid := '1';
@@ -1164,23 +1113,28 @@ begin
         -- valid_in = 0.  Hence they don't happen in the same cycle as any of
         -- the cases above which depend on valid_in = 1.
 
-        if r.redirect = '1' then
-            v.e.valid := '1';
-        end if;
-	if r.lr_update = '1' then
+ 	if ctrl.irq_state = WRITE_SRR1 then
+ 	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
+ 	    v.e.exc_write_data := ctrl.srr1;
             v.e.exc_write_enable := '1';
-	    v.e.exc_write_data := r.next_lr;
-	    v.e.exc_write_reg := fast_spr_num(SPR_LR);
-	    v.e.valid := '1';
-            -- Keep r.e.write_data unchanged next cycle in case it is needed
-            -- for a forwarded result (e.g. for CTR).
-            hold_wr_data := '1';
+            ctrl_tmp.msr(MSR_SF) <= '1';
+            ctrl_tmp.msr(MSR_EE) <= '0';
+            ctrl_tmp.msr(MSR_PR) <= '0';
+            ctrl_tmp.msr(MSR_SE) <= '0';
+            ctrl_tmp.msr(MSR_BE) <= '0';
+            ctrl_tmp.msr(MSR_FP) <= '0';
+            ctrl_tmp.msr(MSR_FE0) <= '0';
+            ctrl_tmp.msr(MSR_FE1) <= '0';
+            ctrl_tmp.msr(MSR_IR) <= '0';
+            ctrl_tmp.msr(MSR_DR) <= '0';
+            ctrl_tmp.msr(MSR_RI) <= '0';
+            ctrl_tmp.msr(MSR_LE) <= '1';
+            v.trace_next := '0';
+            v.fp_exception_next := '0';
+	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
+
         elsif r.cntz_in_progress = '1' then
             -- cnt[lt]z always takes two cycles
-            result_en := '1';
-            v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
-            v.e.rc := r.slow_op_rc;
-            v.e.xerc := r.slow_op_xerc;
             v.e.valid := '1';
 	elsif r.mul_in_progress = '1' or r.div_in_progress = '1' then
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
@@ -1190,23 +1144,21 @@ begin
 		else
 		    overflow := divider_to_x.overflow;
 		end if;
-                if r.mul_in_progress = '1' and r.slow_op_oe = '1' then
+                if r.mul_in_progress = '1' and current.oe = '1' then
                     -- have to wait until next cycle for overflow indication
                     v.mul_finish := '1';
                     v.busy := '1';
                 else
-                    result_en := '1';
-                    v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
-                    v.e.rc := r.slow_op_rc;
-                    v.e.xerc := r.slow_op_xerc;
-                    v.e.write_xerc_enable := r.slow_op_oe;
+                    v.e.write_xerc_enable := current.oe;
                     -- We must test oe because the RC update code in writeback
                     -- will use the xerc value to set CR0:SO so we must not clobber
                     -- xerc if OE wasn't set.
-                    if r.slow_op_oe = '1' then
+                    if current.oe = '1' then
                         v.e.xerc.ov := overflow;
                         v.e.xerc.ov32 := overflow;
-                        v.e.xerc.so := r.slow_op_xerc.so or overflow;
+                        if overflow = '1' then
+                            v.e.xerc.so := '1';
+                        end if;
                     end if;
                     v.e.valid := '1';
                 end if;
@@ -1217,16 +1169,19 @@ begin
 	    end if;
         elsif r.mul_finish = '1' then
             hold_wr_data := '1';
-            result_en := '1';
-            v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
-            v.e.rc := r.slow_op_rc;
-            v.e.xerc := r.slow_op_xerc;
-            v.e.write_xerc_enable := r.slow_op_oe;
+            v.e.write_xerc_enable := current.oe;
             v.e.xerc.ov := multiply_to_x.overflow;
             v.e.xerc.ov32 := multiply_to_x.overflow;
-            v.e.xerc.so := r.slow_op_xerc.so or multiply_to_x.overflow;
+            if multiply_to_x.overflow = '1' then
+                v.e.xerc.so := '1';
+            end if;
             v.e.valid := '1';
 	end if;
+        -- When doing delayed LR update, keep r.e.write_data unchanged
+        -- next cycle in case it is needed for a forwarded result (e.g. CTR).
+        if r.lr_update = '1' then
+            hold_wr_data := '1';
+        end if;
 
         -- Generate FP-type program interrupt.  fp_in.interrupt will only
         -- be set during the execution of a FP instruction.
@@ -1252,17 +1207,6 @@ begin
                 v.e.exc_write_data := next_nia;
             end if;
 	end if;
-
-        if do_trace = '1' then
-            v.trace_next := '1';
-        end if;
-
-        if hold_wr_data = '0' then
-            v.e.write_data := alu_result;
-        else
-            v.e.write_data := r.e.write_data;
-        end if;
-	v.e.write_enable := result_en and not exception;
 
         -- generate DSI or DSegI for load/store exceptions
         -- or ISI or ISegI for instruction fetch exceptions
@@ -1297,9 +1241,51 @@ begin
             v.do_intr := '1';
         end if;
 
+        if do_trace = '1' then
+            v.trace_next := '1';
+        end if;
+
+        if hold_wr_data = '0' then
+            v.e.write_data := alu_result;
+        else
+            v.e.write_data := r.e.write_data;
+        end if;
+        v.e.write_reg := current.write_reg;
+	v.e.write_enable := current.write_reg_enable and v.e.valid and not exception;
+        v.e.rc := current.rc and v.e.valid and not exception;
+
+        -- Update LR on the next cycle after a branch link
+        -- If we're not writing back anything else, we can write back LR
+        -- this cycle, otherwise we take an extra cycle.  We use the
+        -- exc_write path since next_nia is written through that path
+        -- in other places.
+        if v.e.valid = '1' and exception = '0' and current.lr = '1' then
+            if current.write_reg_enable = '0' then
+                v.e.exc_write_enable := '1';
+                v.e.exc_write_data := next_nia;
+                v.e.exc_write_reg := fast_spr_num(SPR_LR);
+            else
+                v.lr_update := '1';
+                v.e.valid := '0';
+                report "Delayed LR update to " & to_hstring(next_nia);
+                v.busy := '1';
+            end if;
+        end if;
+	if r.lr_update = '1' then
+            v.e.exc_write_enable := '1';
+	    v.e.exc_write_data := r.next_lr;
+	    v.e.exc_write_reg := fast_spr_num(SPR_LR);
+	    v.e.valid := '1';
+        end if;
+
+        -- Defer completion for one cycle when redirecting.
+        -- This also ensures r.busy = 1 when ctrl.irq_state = WRITE_SRR1
         if v.redirect = '1' then
             v.busy := '1';
             v.e.valid := '0';
+        end if;
+        if r.redirect = '1' then
+            v.e.valid := '1';
         end if;
 
         -- Outputs to fetch1

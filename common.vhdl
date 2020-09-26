@@ -195,6 +195,7 @@ package common is
 	insn_type: insn_type_t;
 	nia: std_ulogic_vector(63 downto 0);
 	write_reg: gspr_index_t;
+        write_reg_enable: std_ulogic;
 	read_reg1: gspr_index_t;
 	read_reg2: gspr_index_t;
 	read_data1: std_ulogic_vector(63 downto 0);
@@ -232,7 +233,7 @@ package common is
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL,
-         bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
+         write_reg_enable => '0', bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
          bypass_cr => '0', lr => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
