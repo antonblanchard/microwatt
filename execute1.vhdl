@@ -356,6 +356,8 @@ begin
         variable zerohi, zerolo : std_ulogic;
         variable msb_a, msb_b : std_ulogic;
         variable a_lt : std_ulogic;
+        variable a_lt_lo : std_ulogic;
+        variable a_lt_hi : std_ulogic;
         variable lv : Execute1ToLoadstore1Type;
 	variable irq_valid : std_ulogic;
 	variable exception : std_ulogic;
@@ -612,24 +614,32 @@ begin
             -- values are equal
             trapval := "00100";
         else
+            a_lt_lo := '0';
+            a_lt_hi := '0';
+            if unsigned(a_in(30 downto 0)) < unsigned(b_in(30 downto 0)) then
+                a_lt_lo := '1';
+            end if;
+            if unsigned(a_in(62 downto 31)) < unsigned(b_in(62 downto 31)) then
+                a_lt_hi := '1';
+            end if;
             if l = '1' then
                 -- 64-bit comparison
                 msb_a := a_in(63);
                 msb_b := b_in(63);
+                a_lt := a_lt_hi or (zerohi and (a_in(31) xnor b_in(31)) and a_lt_lo);
             else
                 -- 32-bit comparison
                 msb_a := a_in(31);
                 msb_b := b_in(31);
+                a_lt := a_lt_lo;
             end if;
             if msb_a /= msb_b then
-                -- Subtraction might overflow, but
-                -- comparison is clear from MSB difference.
+                -- Comparison is clear from MSB difference.
                 -- for signed, 0 is greater; for unsigned, 1 is greater
                 trapval := msb_a & msb_b & '0' & msb_b & msb_a;
             else
-                -- Subtraction cannot overflow since MSBs are equal.
-                -- carry = 1 indicates RA is smaller (signed or unsigned)
-                a_lt := (not l and carry_32) or (l and carry_64);
+                -- MSBs are equal, so signed and unsigned comparisons give the
+                -- same answer.
                 trapval := a_lt & not a_lt & '0' & a_lt & not a_lt;
             end if;
         end if;
