@@ -63,7 +63,6 @@ architecture behave of loadstore1 is
         load         : std_ulogic;
         tlbie        : std_ulogic;
         dcbz         : std_ulogic;
-        mfspr        : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	load_data    : std_ulogic_vector(63 downto 0);
@@ -105,6 +104,7 @@ architecture behave of loadstore1 is
         ld_sp_nz     : std_ulogic;
         ld_sp_lz     : std_ulogic_vector(5 downto 0);
         st_sp_data   : std_ulogic_vector(31 downto 0);
+        wr_sel       : std_ulogic_vector(1 downto 0);
     end record;
 
     signal r, rin : reg_stage_t;
@@ -312,20 +312,18 @@ begin
         variable itlb_fault : std_ulogic;
         variable misaligned : std_ulogic;
         variable fp_reg_conv : std_ulogic;
-        variable lfs_done : std_ulogic;
     begin
         v := r;
         req := '0';
-        v.mfspr := '0';
         mmu_mtspr := '0';
         itlb_fault := '0';
         sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
         dsisr := (others => '0');
         mmureq := '0';
         fp_reg_conv := '0';
+        v.wr_sel := "11";
 
         write_enable := '0';
-        lfs_done := '0';
 
         do_update := r.do_update;
         v.do_update := '0';
@@ -447,6 +445,11 @@ begin
             v.last_dword := '0';
 
         when ACK_WAIT =>
+            -- r.wr_sel gets set one cycle after we come into ACK_WAIT state,
+            -- which is OK because the dcache always takes at least two cycles.
+            if r.update = '1' and (r.load = '0' or (HAS_FPU and r.load_sp = '1')) then
+                v.wr_sel := "01";
+            end if;
             if d_in.error = '1' then
                 -- dcache will discard the second request if it
                 -- gets an error on the 1st of two requests
@@ -477,9 +480,11 @@ begin
                         -- SP to DP conversion takes a cycle
                         -- Write back rA update in this cycle if needed
                         do_update := r.update;
+                        v.wr_sel := "10";
                         v.state := FINISH_LFS;
                     elsif r.extra_cycle = '1' then
                         -- loads with rA update need an extra cycle
+                        v.wr_sel := "01";
                         v.state := COMPLETE;
                         v.do_update := r.update;
                     else
@@ -517,7 +522,6 @@ begin
         when TLBIE_WAIT =>
 
         when FINISH_LFS =>
-            lfs_done := '1';
 
         when COMPLETE =>
             exception := r.align_intr;
@@ -631,7 +635,7 @@ begin
                     v.state := TLBIE_WAIT;
                     v.wait_mmu := '1';
                 when OP_MFSPR =>
-                    v.mfspr := '1';
+                    v.wr_sel := "00";
                     -- partial decode on SPR number should be adequate given
                     -- the restricted set that get sent down this path
                     if sprn(9) = '0' and sprn(5) = '0' then
@@ -738,23 +742,24 @@ begin
         -- Multiplex either cache data to the destination GPR or
         -- the address for the rA update.
         l_out.valid <= done;
-        if r.mfspr = '1' then
+        case r.wr_sel is
+        when "00" =>
             l_out.write_enable <= '1';
             l_out.write_reg <= r.write_reg;
             l_out.write_data <= r.sprval;
-        elsif do_update = '1' then
-            l_out.write_enable <= '1';
+        when "01" =>
+            l_out.write_enable <= do_update;
             l_out.write_reg <= gpr_to_gspr(r.update_reg);
             l_out.write_data <= r.addr;
-        elsif lfs_done = '1' then
+        when "10" =>
             l_out.write_enable <= '1';
             l_out.write_reg <= r.write_reg;
             l_out.write_data <= load_dp_data;
-        else
+        when others =>
             l_out.write_enable <= write_enable;
             l_out.write_reg <= r.write_reg;
             l_out.write_data <= data_trimmed;
-        end if;
+        end case;
         l_out.xerc <= r.xerc;
         l_out.rc <= r.rc and done;
         l_out.store_done <= d_in.store_done;
