@@ -1124,6 +1124,10 @@ begin
             elsif HAS_FPU and e_in.unit = FPU then
                 fv.valid := '1';
             end if;
+            -- Handling an ITLB miss doesn't count as having executed an instruction
+            if e_in.insn_type = OP_FETCH_FAILED then
+                do_trace := '0';
+            end if;
 
         elsif r.f.redirect = '1' then
             v.e.valid := '1';
