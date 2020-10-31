@@ -45,7 +45,6 @@ architecture behave of loadstore1 is
 
     -- State machine for unaligned loads/stores
     type state_t is (IDLE,              -- ready for instruction
-                     FPR_CONV,          -- converting double to float for store
                      SECOND_REQ,        -- send 2nd request of unaligned xfer
                      ACK_WAIT,          -- waiting for ack from dcache
                      MMU_LOOKUP,        -- waiting for MMU to look up translation
@@ -69,6 +68,8 @@ architecture behave of loadstore1 is
 	write_reg    : gspr_index_t;
 	length       : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
+        byte_offset  : unsigned(2 downto 0);
+        brev_mask    : unsigned(2 downto 0);
 	sign_extend  : std_ulogic;
 	update       : std_ulogic;
 	update_reg   : gpr_index_t;
@@ -103,7 +104,6 @@ architecture behave of loadstore1 is
         ld_sp_data   : std_ulogic_vector(31 downto 0);
         ld_sp_nz     : std_ulogic;
         ld_sp_lz     : std_ulogic_vector(5 downto 0);
-        st_sp_data   : std_ulogic_vector(31 downto 0);
         wr_sel       : std_ulogic_vector(1 downto 0);
     end record;
 
@@ -299,7 +299,6 @@ begin
         variable data_permuted : std_ulogic_vector(63 downto 0);
         variable data_trimmed : std_ulogic_vector(63 downto 0);
         variable store_data : std_ulogic_vector(63 downto 0);
-        variable data_in : std_ulogic_vector(63 downto 0);
         variable byte_rev : std_ulogic;
         variable length : std_ulogic_vector(3 downto 0);
         variable negative : std_ulogic;
@@ -311,7 +310,6 @@ begin
         variable mmu_mtspr : std_ulogic;
         variable itlb_fault : std_ulogic;
         variable misaligned : std_ulogic;
-        variable fp_reg_conv : std_ulogic;
     begin
         v := r;
         req := '0';
@@ -320,7 +318,6 @@ begin
         sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
         dsisr := (others => '0');
         mmureq := '0';
-        fp_reg_conv := '0';
         v.wr_sel := "11";
 
         write_enable := '0';
@@ -366,40 +363,19 @@ begin
         end loop;
 
         if HAS_FPU then
-            -- Single-precision FP conversion
-            v.st_sp_data := store_sp_data;
+            -- Single-precision FP conversion for loads
             v.ld_sp_data := data_trimmed(31 downto 0);
             v.ld_sp_nz := or (data_trimmed(22 downto 0));
             v.ld_sp_lz := count_left_zeroes(data_trimmed(22 downto 0));
         end if;
 
         -- Byte reversing and rotating for stores.
-        -- Done in the first cycle (when l_in.valid = 1) for integer stores
-        -- and DP float stores, and in the second cycle for SP float stores.
-        store_data := r.store_data;
-        if l_in.valid = '1' or (HAS_FPU and r.state = FPR_CONV) then
-            if HAS_FPU and r.state = FPR_CONV then
-                data_in := x"00000000" & r.st_sp_data;
-                byte_offset := unsigned(r.addr(2 downto 0));
-                byte_rev := r.byte_reverse;
-                length := r.length;
-            else
-                data_in := l_in.data;
-                byte_offset := unsigned(lsu_sum(2 downto 0));
-                byte_rev := l_in.byte_reverse;
-                length := l_in.length;
-            end if;
-            brev_lenm1 := "000";
-            if byte_rev = '1' then
-                brev_lenm1 := unsigned(length(2 downto 0)) - 1;
-            end if;
-            for i in 0 to 7 loop
-                k := (to_unsigned(i, 3) - byte_offset) xor brev_lenm1;
-                j := to_integer(k) * 8;
-                store_data(i * 8 + 7 downto i * 8) := data_in(j + 7 downto j);
-            end loop;
-        end if;
-        v.store_data := store_data;
+        -- Done in the second cycle (the cycle after l_in.valid = 1).
+        for i in 0 to 7 loop
+            k := (to_unsigned(i, 3) - r.byte_offset) xor r.brev_mask;
+            j := to_integer(k) * 8;
+            store_data(i * 8 + 7 downto i * 8) := r.store_data(j + 7 downto j);
+        end loop;
 
         -- compute (addr + 8) & ~7 for the second doubleword when unaligned
         next_addr := std_ulogic_vector(unsigned(r.addr(63 downto 3)) + 1) & "000";
@@ -430,14 +406,6 @@ begin
 
         case r.state is
         when IDLE =>
-
-        when FPR_CONV =>
-            req := '1';
-            if r.second_bytes /= "00000000" then
-                v.state := SECOND_REQ;
-            else
-                v.state := ACK_WAIT;
-            end if;
 
         when SECOND_REQ =>
             req := '1';
@@ -561,6 +529,12 @@ begin
             v.do_update := '0';
             v.extra_cycle := '0';
 
+            if HAS_FPU and l_in.is_32bit = '1' then
+                v.store_data := x"00000000" & store_sp_data;
+            else
+                v.store_data := l_in.data;
+            end if;
+
             addr := lsu_sum;
             if l_in.second = '1' then
                 -- for the second half of a 16-byte transfer, use next_addr
@@ -609,12 +583,7 @@ begin
 
             case l_in.op is
                 when OP_STORE =>
-                    if HAS_FPU and l_in.is_32bit = '1' then
-                        v.state := FPR_CONV;
-                        fp_reg_conv := '1';
-                    else
-                        req := '1';
-                    end if;
+                    req := '1';
                 when OP_LOAD =>
                     req := '1';
                     v.load := '1';
@@ -684,7 +653,20 @@ begin
                 end if;
             end if;
 
-            v.busy := req or mmureq or mmu_mtspr or fp_reg_conv;
+            v.busy := req or mmureq or mmu_mtspr;
+        end if;
+
+        -- Work out controls for store formatting
+        if l_in.valid = '1' then
+            byte_offset := unsigned(lsu_sum(2 downto 0));
+            byte_rev := l_in.byte_reverse;
+            length := l_in.length;
+            brev_lenm1 := "000";
+            if byte_rev = '1' then
+                brev_lenm1 := unsigned(length(2 downto 0)) - 1;
+            end if;
+            v.byte_offset := byte_offset;
+            v.brev_mask := brev_lenm1;
         end if;
 
         -- Work out load formatter controls for next cycle

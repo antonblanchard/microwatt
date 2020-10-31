@@ -365,7 +365,7 @@ package common is
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);
-	data : std_ulogic_vector(63 downto 0);
+	data : std_ulogic_vector(63 downto 0);          -- valid the cycle after .valid = 1
         byte_sel : std_ulogic_vector(7 downto 0);
     end record;
 
