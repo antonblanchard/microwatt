@@ -37,6 +37,7 @@ entity execute1 is
         fp_out : out Execute1ToFPUType;
 
 	e_out : out Execute1ToWritebackType;
+        bypass_data : out bypass_data_t;
 
         dbg_msr_out : out std_ulogic_vector(63 downto 0);
 
@@ -283,9 +284,9 @@ begin
     dbg_msr_out <= ctrl.msr;
     log_rd_addr <= r.log_addr_spr;
 
-    a_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data1 = '1' else e_in.read_data1;
-    b_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data2 = '1' else e_in.read_data2;
-    c_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data3 = '1' else e_in.read_data3;
+    a_in <= e_in.read_data1;
+    b_in <= e_in.read_data2;
+    c_in <= e_in.read_data3;
 
     busy_out <= l_in.busy or r.busy or fp_in.busy;
     valid_in <= e_in.valid and not busy_out;
@@ -1269,6 +1270,10 @@ begin
         v.e.write_reg := current.write_reg;
 	v.e.write_enable := current.write_reg_enable and v.e.valid and not exception;
         v.e.rc := current.rc and v.e.valid and not exception;
+
+        bypass_data.tag.valid <= current.instr_tag.valid and current.write_reg_enable and v.e.valid;
+        bypass_data.tag.tag <= current.instr_tag.tag;
+        bypass_data.data <= v.e.write_data;
 
         -- Defer completion for one cycle when redirecting.
         -- This also ensures r.busy = 1 when ctrl.irq_state = WRITE_SRR1

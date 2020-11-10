@@ -37,6 +37,8 @@ entity decode2 is
         c_in  : in CrFileToDecode2Type;
         c_out : out Decode2ToCrFileType;
 
+        execute_bypass   : in bypass_data_t;
+
         log_out : out std_ulogic_vector(9 downto 0)
 	);
 end entity decode2;
@@ -285,19 +287,18 @@ architecture behaviour of decode2 is
 
     signal gpr_write_valid : std_ulogic;
     signal gpr_write : gspr_index_t;
-    signal gpr_bypassable  : std_ulogic;
 
     signal gpr_a_read_valid : std_ulogic;
-    signal gpr_a_read :gspr_index_t;
-    signal gpr_a_bypass : std_ulogic;
+    signal gpr_a_read       : gspr_index_t;
+    signal gpr_a_bypass     : std_ulogic;
 
     signal gpr_b_read_valid : std_ulogic;
-    signal gpr_b_read : gspr_index_t;
-    signal gpr_b_bypass : std_ulogic;
+    signal gpr_b_read       : gspr_index_t;
+    signal gpr_b_bypass     : std_ulogic;
 
     signal gpr_c_read_valid : std_ulogic;
-    signal gpr_c_read : gspr_index_t;
-    signal gpr_c_bypass : std_ulogic;
+    signal gpr_c_read       : gspr_index_t;
+    signal gpr_c_bypass     : std_ulogic;
 
     signal cr_write_valid  : std_ulogic;
     signal cr_bypass       : std_ulogic;
@@ -308,6 +309,7 @@ architecture behaviour of decode2 is
 begin
     control_0: entity work.control
 	generic map (
+            EX1_BYPASS => EX1_BYPASS,
             PIPELINE_DEPTH => 1
             )
 	port map (
@@ -325,7 +327,6 @@ begin
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write,
-            gpr_bypassable     => gpr_bypassable,
 
             gpr_a_read_valid_in  => gpr_a_read_valid,
             gpr_a_read_in        => gpr_a_read,
@@ -335,6 +336,8 @@ begin
 
             gpr_c_read_valid_in  => gpr_c_read_valid,
             gpr_c_read_in        => gpr_c_read,
+
+            execute_next_tag     => execute_bypass.tag,
 
             cr_read_in           => d_in.decode.input_cr,
             cr_write_in          => cr_write_valid,
@@ -457,13 +460,7 @@ begin
         v.e.fac := d_in.decode.facility;
         v.e.instr_tag := instr_tag;
         v.e.read_reg1 := decoded_reg_a.reg;
-        v.e.read_data1 := decoded_reg_a.data;
-        v.e.bypass_data1 := gpr_a_bypass;
         v.e.read_reg2 := decoded_reg_b.reg;
-        v.e.read_data2 := decoded_reg_b.data;
-        v.e.bypass_data2 := gpr_b_bypass;
-        v.e.read_data3 := decoded_reg_c.data;
-        v.e.bypass_data3 := gpr_c_bypass;
         v.e.write_reg := decoded_reg_o.reg;
         v.e.write_reg_enable := decoded_reg_o.reg_valid;
         v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
@@ -499,16 +496,32 @@ begin
             end if;
         end if;
 
+        -- See if any of the operands can get their value via the bypass path.
+        case gpr_a_bypass is
+            when '1' =>
+                v.e.read_data1 := execute_bypass.data;
+            when others =>
+                v.e.read_data1 := decoded_reg_a.data;
+        end case;
+        case gpr_b_bypass is
+            when '1' =>
+                v.e.read_data2 := execute_bypass.data;
+            when others =>
+                v.e.read_data2 := decoded_reg_b.data;
+        end case;
+        case gpr_c_bypass is
+            when '1' =>
+                v.e.read_data3 := execute_bypass.data;
+            when others =>
+                v.e.read_data3 := decoded_reg_c.data;
+        end case;
+
         -- issue control
         control_valid_in <= d_in.valid;
         control_sgl_pipe <= d_in.decode.sgl_pipe;
 
         gpr_write_valid <= v.e.write_reg_enable;
         gpr_write <= decoded_reg_o.reg;
-        gpr_bypassable <= '0';
-        if EX1_BYPASS and d_in.decode.unit = ALU then
-            gpr_bypassable <= '1';
-        end if;
 
         gpr_a_read_valid <= decoded_reg_a.reg_valid;
         gpr_a_read <= decoded_reg_a.reg;
@@ -554,9 +567,9 @@ begin
                             r.e.valid &
                             stopped_out &
                             stall_out &
-                            r.e.bypass_data3 &
-                            r.e.bypass_data2 &
-                            r.e.bypass_data1;
+                            gpr_a_bypass &
+                            gpr_b_bypass &
+                            gpr_c_bypass;
             end if;
         end process;
         log_out <= log_data;

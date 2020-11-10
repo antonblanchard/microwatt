@@ -137,6 +137,7 @@ package common is
         valid : std_ulogic;
     end record;
     constant instr_tag_init : instr_tag_t := (tag => 0, valid => '0');
+    function tag_match(tag1 : instr_tag_t; tag2 : instr_tag_t) return boolean;
 
     type irq_state_t is (WRITE_SRR0, WRITE_SRR1);
 
@@ -203,6 +204,12 @@ package common is
         redirect_nia : std_ulogic_vector(63 downto 0);
     end record;
 
+    type bypass_data_t is record
+        tag  : instr_tag_t;
+        data : std_ulogic_vector(63 downto 0);
+    end record;
+    constant bypass_data_init : bypass_data_t := (tag => instr_tag_init, data => (others => '0'));
+
     type Decode2ToExecute1Type is record
 	valid: std_ulogic;
         unit : unit_t;
@@ -217,9 +224,6 @@ package common is
 	read_data1: std_ulogic_vector(63 downto 0);
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
-        bypass_data1: std_ulogic;
-        bypass_data2: std_ulogic;
-        bypass_data3: std_ulogic;
 	cr: std_ulogic_vector(31 downto 0);
         bypass_cr : std_ulogic;
 	xerc: xer_common_t;
@@ -250,7 +254,7 @@ package common is
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
-         write_reg_enable => '0', bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
+         write_reg_enable => '0',
          bypass_cr => '0', lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
@@ -643,5 +647,10 @@ package body common is
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t is
     begin
         return "10" & f;
+    end;
+
+    function tag_match(tag1 : instr_tag_t; tag2 : instr_tag_t) return boolean is
+    begin
+        return tag1.valid = '1' and tag2.valid = '1' and tag1.tag = tag2.tag;
     end;
 end common;
