@@ -17,7 +17,7 @@ entity writeback is
         w_out        : out WritebackToRegisterFileType;
         c_out        : out WritebackToCrFileType;
 
-        complete_out : out std_ulogic
+        complete_out : out instr_tag_t
         );
 end entity writeback;
 
@@ -47,6 +47,10 @@ begin
             y(0) := fp_in.write_cr_enable;
             assert (to_integer(unsigned(w)) + to_integer(unsigned(x)) +
                     to_integer(unsigned(y))) <= 1 severity failure;
+
+            assert not (e_in.valid = '1' and e_in.instr_tag.valid = '0') severity failure;
+            assert not (l_in.valid = '1' and l_in.instr_tag.valid = '0') severity failure;
+            assert not (fp_in.valid = '1' and fp_in.instr_tag.valid = '0') severity failure;
         end if;
     end process;
 
@@ -59,9 +63,13 @@ begin
         w_out <= WritebackToRegisterFileInit;
         c_out <= WritebackToCrFileInit;
 
-        complete_out <= '0';
-        if e_in.valid = '1' or l_in.valid = '1' or fp_in.valid = '1' then
-            complete_out <= '1';
+        complete_out <= instr_tag_init;
+        if e_in.valid = '1' then
+            complete_out <= e_in.instr_tag;
+        elsif l_in.valid = '1' then
+            complete_out <= l_in.instr_tag;
+        elsif fp_in.valid = '1' then
+            complete_out <= fp_in.instr_tag;
         end if;
 
         if e_in.exc_write_enable = '1' then

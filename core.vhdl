@@ -102,7 +102,7 @@ architecture behave of core is
     signal decode1_flush: std_ulogic;
     signal fetch1_flush: std_ulogic;
 
-    signal complete: std_ulogic;
+    signal complete: instr_tag_t;
     signal terminate: std_ulogic;
     signal core_rst: std_ulogic;
     signal icache_inv: std_ulogic;

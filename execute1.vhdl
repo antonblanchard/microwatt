@@ -319,7 +319,8 @@ begin
                 ctrl <= ctrl_tmp;
                 if valid_in = '1' then
                     report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
-                        " wr=" & to_hstring(rin.e.write_reg);
+                        " wr=" & to_hstring(rin.e.write_reg) & " we=" & std_ulogic'image(rin.e.write_enable) &
+                        " tag=" & integer'image(rin.e.instr_tag.tag) & std_ulogic'image(rin.e.instr_tag.valid);
                 end if;
             end if;
 	end if;
@@ -694,6 +695,7 @@ begin
         end if;
 
         v.e.mode_32bit := not ctrl.msr(MSR_SF);
+        v.e.instr_tag := current.instr_tag;
 
         do_trace := valid_in and ctrl.msr(MSR_SE);
         if valid_in = '1' then
@@ -749,8 +751,6 @@ begin
         end if;
 
 	if valid_in = '1' and exception = '0' and illegal = '0' and e_in.unit = ALU then
-	    report "execute nia " & to_hstring(e_in.nia);
-
             v.cur_instr := e_in;
             v.next_lr := next_nia;
 	    v.e.valid := '1';
@@ -909,7 +909,6 @@ begin
 	    when OP_ISEL =>
 	    when OP_CROP =>
 		cr_op := insn_cr(e_in.insn);
-		report "CR OP " & to_hstring(cr_op);
 		if cr_op(0) = '0' then -- MCRF
 		    bf := insn_bf(e_in.insn);
 		    bfa := insn_bfa(e_in.insn);
@@ -1309,6 +1308,7 @@ begin
         -- Outputs to loadstore1 (async)
         lv.op := e_in.insn_type;
         lv.nia := e_in.nia;
+        lv.instr_tag := e_in.instr_tag;
         lv.addr1 := a_in;
         lv.addr2 := b_in;
         lv.data := c_in;
@@ -1337,6 +1337,7 @@ begin
         fv.op := e_in.insn_type;
         fv.nia := e_in.nia;
         fv.insn := e_in.insn;
+        fv.itag := e_in.instr_tag;
         fv.single := e_in.is_32bit;
         fv.fe_mode := ctrl.msr(MSR_FE0) & ctrl.msr(MSR_FE1);
         fv.fra := a_in;

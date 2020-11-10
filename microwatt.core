@@ -19,7 +19,6 @@ filesets:
       - sim_console.vhdl
       - logical.vhdl
       - countzero.vhdl
-      - gpr_hazard.vhdl
       - cr_hazard.vhdl
       - control.vhdl
       - execute1.vhdl

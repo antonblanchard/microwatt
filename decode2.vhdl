@@ -19,7 +19,7 @@ entity decode2 is
         clk   : in std_ulogic;
         rst   : in std_ulogic;
 
-        complete_in : in std_ulogic;
+        complete_in : in instr_tag_t;
         busy_in   : in std_ulogic;
         stall_out : out std_ulogic;
 
@@ -303,6 +303,8 @@ architecture behaviour of decode2 is
     signal cr_bypass       : std_ulogic;
     signal cr_bypass_avail : std_ulogic;
 
+    signal instr_tag       : instr_tag_t;
+
 begin
     control_0: entity work.control
 	generic map (
@@ -325,9 +327,6 @@ begin
             gpr_write_in       => gpr_write,
             gpr_bypassable     => gpr_bypassable,
 
-            update_gpr_write_valid => '0',
-            update_gpr_write_reg => 7x"00",
-
             gpr_a_read_valid_in  => gpr_a_read_valid,
             gpr_a_read_in        => gpr_a_read,
 
@@ -348,7 +347,9 @@ begin
 
             gpr_bypass_a => gpr_a_bypass,
             gpr_bypass_b => gpr_b_bypass,
-            gpr_bypass_c => gpr_c_bypass
+            gpr_bypass_c => gpr_c_bypass,
+
+            instr_tag_out => instr_tag
             );
 
     deferred <= r.e.valid and busy_in;
@@ -454,6 +455,7 @@ begin
         v.e.nia := d_in.nia;
         v.e.unit := d_in.decode.unit;
         v.e.fac := d_in.decode.facility;
+        v.e.instr_tag := instr_tag;
         v.e.read_reg1 := decoded_reg_a.reg;
         v.e.read_data1 := decoded_reg_a.data;
         v.e.bypass_data1 := gpr_a_bypass;

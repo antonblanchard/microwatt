@@ -65,6 +65,7 @@ architecture behave of loadstore1 is
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	load_data    : std_ulogic_vector(63 downto 0);
+        instr_tag    : instr_tag_t;
 	write_reg    : gspr_index_t;
 	length       : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
@@ -503,6 +504,7 @@ begin
             v.align_intr := '0';
             v.dwords_done := '0';
             v.last_dword := '1';
+            v.instr_tag := l_in.instr_tag;
             v.write_reg := l_in.write_reg;
             v.length := l_in.length;
             v.byte_reverse := l_in.byte_reverse;
@@ -725,6 +727,7 @@ begin
         -- Multiplex either cache data to the destination GPR or
         -- the address for the rA update.
         l_out.valid <= done;
+        l_out.instr_tag <= r.instr_tag;
         l_out.write_reg <= r.write_reg;
         case r.wr_sel is
         when "00" =>
