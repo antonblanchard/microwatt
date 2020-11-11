@@ -333,7 +333,6 @@ package common is
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
-	update_reg : gpr_index_t;                      	-- if so, the register to update
 	xerc : xer_common_t;
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.
@@ -351,7 +350,7 @@ package common is
                                                                      addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'),
                                                                      write_reg => (others => '0'), length => (others => '0'),
                                                                      mode_32bit => '0', is_32bit => '0',
-                                                                     repeat => '0', second => '0', others => (others => '0'));
+                                                                     repeat => '0', second => '0');
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;

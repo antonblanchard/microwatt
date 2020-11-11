@@ -72,7 +72,6 @@ architecture behave of loadstore1 is
         brev_mask    : unsigned(2 downto 0);
 	sign_extend  : std_ulogic;
 	update       : std_ulogic;
-	update_reg   : gpr_index_t;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
         atomic       : std_ulogic;
@@ -415,7 +414,7 @@ begin
         when ACK_WAIT =>
             -- r.wr_sel gets set one cycle after we come into ACK_WAIT state,
             -- which is OK because the dcache always takes at least two cycles.
-            if r.update = '1' and (r.load = '0' or (HAS_FPU and r.load_sp = '1')) then
+            if r.update = '1' and r.load = '0' then
                 v.wr_sel := "01";
             end if;
             if d_in.error = '1' then
@@ -446,16 +445,9 @@ begin
                     write_enable := r.load and not r.load_sp;
                     if HAS_FPU and r.load_sp = '1' then
                         -- SP to DP conversion takes a cycle
-                        -- Write back rA update in this cycle if needed
-                        do_update := r.update;
                         v.wr_sel := "10";
                         v.state := FINISH_LFS;
-                    elsif r.extra_cycle = '1' then
-                        -- loads with rA update need an extra cycle
-                        v.wr_sel := "01";
-                        v.state := COMPLETE;
-                        v.do_update := r.update;
-                    else
+                    elsif r.load = '0' then
                         -- stores write back rA update in this cycle
                         do_update := r.update;
                     end if;
@@ -516,7 +508,6 @@ begin
             v.byte_reverse := l_in.byte_reverse;
             v.sign_extend := l_in.sign_extend;
             v.update := l_in.update;
-            v.update_reg := l_in.update_reg;
             v.xerc := l_in.xerc;
             v.reserve := l_in.reserve;
             v.rc := l_in.rc;
@@ -526,7 +517,6 @@ begin
             v.load_sp := '0';
             v.wait_dcache := '0';
             v.wait_mmu := '0';
-            v.do_update := '0';
             v.extra_cycle := '0';
 
             if HAS_FPU and l_in.is_32bit = '1' then
@@ -537,13 +527,21 @@ begin
 
             addr := lsu_sum;
             if l_in.second = '1' then
-                -- for the second half of a 16-byte transfer, use next_addr
-                addr := next_addr;
+                -- second half of load with update does the update
+                if l_in.op = OP_LOAD and l_in.update = '1' then
+                    v.do_update := '1';
+                else
+                    -- for the second half of a 16-byte transfer, use next_addr
+                    addr := next_addr;
+                end if;
             end if;
             if l_in.mode_32bit = '1' then
                 addr(63 downto 32) := (others => '0');
             end if;
-            v.addr := addr;
+            if v.do_update = '0' then
+                -- preserve previous r.addr for load with update
+                v.addr := addr;
+            end if;
             maddr := l_in.addr2;    -- address from RB for tlbie
 
             -- XXX Temporary hack. Mark the op as non-cachable if the address
@@ -566,7 +564,7 @@ begin
             -- check alignment for larx/stcx
             misaligned := or (std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1) and addr(2 downto 0));
             v.align_intr := l_in.reserve and misaligned;
-            if l_in.repeat = '1' and l_in.second = '0' and addr(3) = '1' then
+            if l_in.repeat = '1' and l_in.second = '0' and l_in.update = '0' and addr(3) = '1' then
                 -- length is really 16 not 8
                 -- Make misaligned lq cause an alignment interrupt in LE mode,
                 -- in order to avoid the case with RA = RT + 1 where the second half
@@ -585,14 +583,17 @@ begin
                 when OP_STORE =>
                     req := '1';
                 when OP_LOAD =>
-                    req := '1';
                     v.load := '1';
-                    -- Allow an extra cycle for RA update on loads
-                    v.extra_cycle := l_in.update;
-                    if HAS_FPU and l_in.is_32bit = '1' then
-                        -- Allow an extra cycle for SP->DP precision conversion
-                        v.load_sp := '1';
-                        v.extra_cycle := '1';
+                    if l_in.second = '1' and l_in.update = '1' then
+                        v.wr_sel := "01";
+                        v.state := COMPLETE;
+                    else
+                        req := '1';
+                        if HAS_FPU and l_in.is_32bit = '1' then
+                            -- Allow an extra cycle for SP->DP precision conversion
+                            v.load_sp := '1';
+                            v.extra_cycle := '1';
+                        end if;
                     end if;
                 when OP_DCBZ =>
                     v.align_intr := v.nc;
@@ -724,22 +725,19 @@ begin
         -- Multiplex either cache data to the destination GPR or
         -- the address for the rA update.
         l_out.valid <= done;
+        l_out.write_reg <= r.write_reg;
         case r.wr_sel is
         when "00" =>
             l_out.write_enable <= '1';
-            l_out.write_reg <= r.write_reg;
             l_out.write_data <= r.sprval;
         when "01" =>
             l_out.write_enable <= do_update;
-            l_out.write_reg <= gpr_to_gspr(r.update_reg);
             l_out.write_data <= r.addr;
         when "10" =>
             l_out.write_enable <= '1';
-            l_out.write_reg <= r.write_reg;
             l_out.write_data <= load_dp_data;
         when others =>
             l_out.write_enable <= write_enable;
-            l_out.write_reg <= r.write_reg;
             l_out.write_data <= data_trimmed;
         end case;
         l_out.xerc <= r.xerc;

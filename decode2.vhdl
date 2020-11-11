@@ -407,6 +407,11 @@ begin
                     if r.repeat = d_in.big_endian then
                         decoded_reg_o.reg(0) := '1';
                     end if;
+                when DUPD =>
+                    -- update-form loads, 2nd instruction writes RA
+                    if r.repeat = '1' then
+                        decoded_reg_o.reg := decoded_reg_a.reg;
+                    end if;
                 when others =>
             end case;
         end if;
@@ -492,13 +497,9 @@ begin
         if EX1_BYPASS and d_in.decode.unit = ALU then
             gpr_bypassable <= '1';
         end if;
-        update_gpr_write_valid <= d_in.decode.update;
-        update_gpr_write_reg <= decoded_reg_a.reg;
-        if v.e.lr = '1' then
-            -- there are no instructions that have both update=1 and lr=1
-            update_gpr_write_valid <= '1';
-            update_gpr_write_reg <= fast_spr_num(SPR_LR);
-        end if;
+
+        update_gpr_write_valid <= v.e.lr;
+        update_gpr_write_reg <= fast_spr_num(SPR_LR);
 
         gpr_a_read_valid <= decoded_reg_a.reg_valid;
         gpr_a_read <= decoded_reg_a.reg;

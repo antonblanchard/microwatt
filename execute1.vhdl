@@ -1344,7 +1344,6 @@ begin
         lv.byte_reverse := e_in.byte_reverse xnor ctrl.msr(MSR_LE);
         lv.sign_extend := e_in.sign_extend;
         lv.update := e_in.update;
-        lv.update_reg := gspr_to_gpr(e_in.read_reg1);
         lv.xerc := v.e.xerc;
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;
