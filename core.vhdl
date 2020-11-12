@@ -68,6 +68,7 @@ architecture behave of core is
     signal execute1_to_writeback: Execute1ToWritebackType;
     signal execute1_to_fetch1: Execute1ToFetch1Type;
     signal execute1_bypass: bypass_data_t;
+    signal execute1_cr_bypass: cr_bypass_data_t;
 
     -- load store signals
     signal execute1_to_loadstore1: Execute1ToLoadstore1Type;
@@ -275,6 +276,7 @@ begin
             c_in => cr_file_to_decode2,
             c_out => decode2_to_cr_file,
             execute_bypass => execute1_bypass,
+            execute_cr_bypass => execute1_cr_bypass,
             log_out => log_data(119 downto 110)
             );
     decode2_busy_in <= ex1_busy_out;
@@ -333,6 +335,7 @@ begin
             fp_out => execute1_to_fpu,
             e_out => execute1_to_writeback,
             bypass_data => execute1_bypass,
+            bypass_cr_data => execute1_cr_bypass,
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
             terminate_out => terminate,

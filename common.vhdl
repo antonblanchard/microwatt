@@ -210,6 +210,12 @@ package common is
     end record;
     constant bypass_data_init : bypass_data_t := (tag => instr_tag_init, data => (others => '0'));
 
+    type cr_bypass_data_t is record
+        tag  : instr_tag_t;
+        data : std_ulogic_vector(31 downto 0);
+    end record;
+    constant cr_bypass_data_init : cr_bypass_data_t := (tag => instr_tag_init, data => (others => '0'));
+
     type Decode2ToExecute1Type is record
 	valid: std_ulogic;
         unit : unit_t;
@@ -225,7 +231,6 @@ package common is
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
 	cr: std_ulogic_vector(31 downto 0);
-        bypass_cr : std_ulogic;
 	xerc: xer_common_t;
 	lr: std_ulogic;
         br_abs: std_ulogic;
@@ -255,7 +260,7 @@ package common is
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
          write_reg_enable => '0',
-         bypass_cr => '0', lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
+         lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),

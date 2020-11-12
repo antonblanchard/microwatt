@@ -35,10 +35,10 @@ entity control is
         gpr_c_read_in       : in gspr_index_t;
 
         execute_next_tag    : in instr_tag_t;
+        execute_next_cr_tag : in instr_tag_t;
 
         cr_read_in          : in std_ulogic;
         cr_write_in         : in std_ulogic;
-        cr_bypassable       : in std_ulogic;
 
         valid_out           : out std_ulogic;
         stall_out           : out std_ulogic;
@@ -64,11 +64,6 @@ architecture rtl of control is
 
     signal r_int, rin_int : reg_internal_type := reg_internal_init;
 
-    signal stall_a_out  : std_ulogic;
-    signal stall_b_out  : std_ulogic;
-    signal stall_c_out  : std_ulogic;
-    signal cr_stall_out : std_ulogic;
-
     signal gpr_write_valid : std_ulogic := '0';
     signal cr_write_valid  : std_ulogic := '0';
 
@@ -76,6 +71,7 @@ architecture rtl of control is
         wr_gpr : std_ulogic;
         reg    : gspr_index_t;
         recent : std_ulogic;
+        wr_cr  : std_ulogic;
     end record;
 
     type tag_regs_array is array(tag_number_t) of tag_register;
@@ -84,31 +80,14 @@ architecture rtl of control is
     signal instr_tag  : instr_tag_t;
 
     signal gpr_tag_stall : std_ulogic;
+    signal cr_tag_stall  : std_ulogic;
 
     signal curr_tag : tag_number_t;
     signal next_tag : tag_number_t;
 
+    signal curr_cr_tag : tag_number_t;
+
 begin
-    cr_hazard0: entity work.cr_hazard
-        generic map (
-            PIPELINE_DEPTH => PIPELINE_DEPTH
-            )
-        port map (
-            clk                => clk,
-            busy_in            => busy_in,
-	    deferred           => deferred,
-            complete_in        => complete_in.valid,
-            flush_in           => flush_in,
-            issuing            => valid_out,
-
-            cr_read_in         => cr_read_in,
-            cr_write_in        => cr_write_valid,
-            bypassable         => cr_bypassable,
-
-            stall_out          => cr_stall_out,
-            use_bypass         => cr_bypass
-            );
-
     control0: process(clk)
     begin
         if rising_edge(clk) then
@@ -118,9 +97,11 @@ begin
             for i in tag_number_t loop
                 if rst = '1' or flush_in = '1' then
                     tag_regs(i).wr_gpr <= '0';
+                    tag_regs(i).wr_cr <= '0';
                 else
                     if complete_in.valid = '1' and i = complete_in.tag then
                         tag_regs(i).wr_gpr <= '0';
+                        tag_regs(i).wr_cr <= '0';
                         report "tag " & integer'image(i) & " not valid";
                     end if;
                     if gpr_write_valid = '1' and tag_regs(i).reg = gpr_write_in then
@@ -133,6 +114,7 @@ begin
                         tag_regs(i).wr_gpr <= gpr_write_valid;
                         tag_regs(i).reg <= gpr_write_in;
                         tag_regs(i).recent <= gpr_write_valid;
+                        tag_regs(i).wr_cr <= cr_write_valid;
                         if gpr_write_valid = '1' then
                             report "tag " & integer'image(i) & " valid for gpr " & to_hstring(gpr_write_in);
                         end if;
@@ -141,8 +123,12 @@ begin
             end loop;
             if rst = '1' then
                 curr_tag <= 0;
+                curr_cr_tag <= 0;
             else
                 curr_tag <= next_tag;
+                if cr_write_valid = '1' then
+                    curr_cr_tag <= instr_tag.tag;
+                end if;
             end if;
         end if;
     end process;
@@ -158,6 +144,8 @@ begin
         variable byp_a : std_ulogic;
         variable byp_b : std_ulogic;
         variable byp_c : std_ulogic;
+        variable tag_cr : instr_tag_t;
+        variable byp_cr : std_ulogic;
     begin
         tag_a := instr_tag_init;
         for i in tag_number_t loop
@@ -219,6 +207,20 @@ begin
         end if;
         next_tag <= incr_tag;
         instr_tag_out <= instr_tag;
+
+        -- CR hazards
+        tag_cr.tag := curr_cr_tag;
+        tag_cr.valid := cr_read_in and tag_regs(curr_cr_tag).wr_cr;
+        if tag_match(tag_cr, complete_in) then
+            tag_cr.valid := '0';
+        end if;
+        byp_cr := '0';
+        if EX1_BYPASS and tag_match(execute_next_cr_tag, tag_cr) then
+            byp_cr := '1';
+        end if;
+
+        cr_bypass <= byp_cr;
+        cr_tag_stall <= tag_cr.valid and not byp_cr;
     end process;
 
     control1 : process(all)
@@ -265,7 +267,7 @@ begin
                         end if;
                     else
                         -- let it go out if there are no GPR or CR hazards
-                        stall_tmp := gpr_tag_stall or cr_stall_out;
+                        stall_tmp := gpr_tag_stall or cr_tag_stall;
                     end if;
                 end if;
 
@@ -292,7 +294,7 @@ begin
                             end if;
                         else
                             -- let it go out if there are no GPR or CR hazards
-                            stall_tmp := gpr_tag_stall or cr_stall_out;
+                            stall_tmp := gpr_tag_stall or cr_tag_stall;
                         end if;
                     end if;
                 else

@@ -38,6 +38,7 @@ entity execute1 is
 
 	e_out : out Execute1ToWritebackType;
         bypass_data : out bypass_data_t;
+        bypass_cr_data : out cr_bypass_data_t;
 
         dbg_msr_out : out std_ulogic_vector(63 downto 0);
 
@@ -412,15 +413,7 @@ begin
 	    v.e.xerc := e_in.xerc;
 	end if;
 
-        -- CR forwarding
         cr_in <= e_in.cr;
-        if EX1_BYPASS and e_in.bypass_cr = '1' and r.e.write_cr_enable = '1' then
-            for i in 0 to 7 loop
-                if r.e.write_cr_mask(i) = '1' then
-                    cr_in(i * 4 + 3 downto i * 4) <= r.e.write_cr_data(i * 4 + 3 downto i * 4);
-                end if;
-            end loop;
-        end if;
 
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
@@ -809,7 +802,6 @@ begin
                 end if;
                 bf := insn_bf(e_in.insn);
                 crnum := to_integer(unsigned(bf));
-                v.e.write_cr_enable := '1';
                 v.e.write_cr_mask := num_to_fxm(crnum);
                 for i in 0 to 7 loop
                     lo := i*4;
@@ -831,7 +823,6 @@ begin
                 newcrf := ppc_cmprb(a_in, b_in, insn_l(e_in.insn));
                 bf := insn_bf(e_in.insn);
                 crnum := to_integer(unsigned(bf));
-                v.e.write_cr_enable := '1';
                 v.e.write_cr_mask := num_to_fxm(crnum);
                 v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
                                      newcrf & newcrf & newcrf & newcrf;
@@ -839,7 +830,6 @@ begin
                 newcrf := ppc_cmpeqb(a_in, b_in);
                 bf := insn_bf(e_in.insn);
                 crnum := to_integer(unsigned(bf));
-                v.e.write_cr_enable := '1';
                 v.e.write_cr_mask := num_to_fxm(crnum);
                 v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
                                      newcrf & newcrf & newcrf & newcrf;
@@ -913,7 +903,6 @@ begin
 		if cr_op(0) = '0' then -- MCRF
 		    bf := insn_bf(e_in.insn);
 		    bfa := insn_bfa(e_in.insn);
-		    v.e.write_cr_enable := '1';
 		    crnum := to_integer(unsigned(bf));
 		    scrnum := to_integer(unsigned(bfa));
 		    v.e.write_cr_mask := num_to_fxm(crnum);
@@ -930,7 +919,6 @@ begin
 		        v.e.write_cr_data(hi downto lo) := newcrf;
 		    end loop;
 		else
-		    v.e.write_cr_enable := '1';
 		    bt := insn_bt(e_in.insn);
 		    ba := insn_ba(e_in.insn);
 		    bb := insn_bb(e_in.insn);
@@ -954,7 +942,6 @@ begin
                 newcrf := v.e.xerc.ov & v.e.xerc.ca & v.e.xerc.ov32 & v.e.xerc.ca32;
                 bf := insn_bf(e_in.insn);
                 crnum := to_integer(unsigned(bf));
-                v.e.write_cr_enable := '1';
                 v.e.write_cr_mask := num_to_fxm(crnum);
                 v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
                                      newcrf & newcrf & newcrf & newcrf;
@@ -1007,7 +994,6 @@ begin
 
 	    when OP_MFCR =>
 	    when OP_MTCRF =>
-		v.e.write_cr_enable := '1';
 		if e_in.insn(20) = '0' then
 		    -- mtcrf
 		    v.e.write_cr_mask := insn_fxm(e_in.insn);
@@ -1269,11 +1255,22 @@ begin
         end if;
         v.e.write_reg := current.write_reg;
 	v.e.write_enable := current.write_reg_enable and v.e.valid and not exception;
+        v.e.write_cr_enable := current.output_cr and v.e.valid and not exception;
         v.e.rc := current.rc and v.e.valid and not exception;
 
         bypass_data.tag.valid <= current.instr_tag.valid and current.write_reg_enable and v.e.valid;
         bypass_data.tag.tag <= current.instr_tag.tag;
         bypass_data.data <= v.e.write_data;
+
+        bypass_cr_data.tag.valid <= current.instr_tag.valid and current.output_cr and v.e.valid;
+        bypass_cr_data.tag.tag <= current.instr_tag.tag;
+        for i in 0 to 7 loop
+            if v.e.write_cr_mask(i) = '1' then
+                bypass_cr_data.data(i*4 + 3 downto i*4) <= v.e.write_cr_data(i*4 + 3 downto i*4);
+            else
+                bypass_cr_data.data(i*4 + 3 downto i*4) <= cr_in(i*4 + 3 downto i*4);
+            end if;
+        end loop;
 
         -- Defer completion for one cycle when redirecting.
         -- This also ensures r.busy = 1 when ctrl.irq_state = WRITE_SRR1

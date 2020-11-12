@@ -37,7 +37,8 @@ entity decode2 is
         c_in  : in CrFileToDecode2Type;
         c_out : out Decode2ToCrFileType;
 
-        execute_bypass   : in bypass_data_t;
+        execute_bypass    : in bypass_data_t;
+        execute_cr_bypass : in cr_bypass_data_t;
 
         log_out : out std_ulogic_vector(9 downto 0)
 	);
@@ -300,9 +301,9 @@ architecture behaviour of decode2 is
     signal gpr_c_read       : gspr_index_t;
     signal gpr_c_bypass     : std_ulogic;
 
+    signal cr_read_valid   : std_ulogic;
     signal cr_write_valid  : std_ulogic;
     signal cr_bypass       : std_ulogic;
-    signal cr_bypass_avail : std_ulogic;
 
     signal instr_tag       : instr_tag_t;
 
@@ -338,11 +339,11 @@ begin
             gpr_c_read_in        => gpr_c_read,
 
             execute_next_tag     => execute_bypass.tag,
+            execute_next_cr_tag  => execute_cr_bypass.tag,
 
-            cr_read_in           => d_in.decode.input_cr,
+            cr_read_in           => cr_read_valid,
             cr_write_in          => cr_write_valid,
             cr_bypass            => cr_bypass,
-            cr_bypassable        => cr_bypass_avail,
 
             valid_out   => control_valid_out,
             stall_out   => control_stall_out,
@@ -391,7 +392,7 @@ begin
 
         --v.e.input_cr := d_in.decode.input_cr;
         v.e.output_cr := d_in.decode.output_cr;
-        
+
         decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data, d_in.ispr1,
                                              d_in.nia);
         decoded_reg_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, r_in.read2_data, d_in.ispr2);
@@ -467,8 +468,6 @@ begin
         if not (d_in.decode.insn_type = OP_MUL_H32 or d_in.decode.insn_type = OP_MUL_H64) then
             v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
         end if;
-        v.e.cr := c_in.read_cr_data;
-        v.e.bypass_cr := cr_bypass;
         v.e.xerc := c_in.read_xerc_data;
         v.e.invert_a := d_in.decode.invert_a;
         v.e.addm1 := '0';
@@ -516,6 +515,11 @@ begin
                 v.e.read_data3 := decoded_reg_c.data;
         end case;
 
+        v.e.cr := c_in.read_cr_data;
+        if cr_bypass = '1' then
+            v.e.cr := execute_cr_bypass.data;
+        end if;
+
         -- issue control
         control_valid_in <= d_in.valid;
         control_sgl_pipe <= d_in.decode.sgl_pipe;
@@ -533,10 +537,9 @@ begin
         gpr_c_read <= decoded_reg_c.reg;
 
         cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
-        cr_bypass_avail <= '0';
-        if EX1_BYPASS and d_in.decode.unit = ALU then
-            cr_bypass_avail <= d_in.decode.output_cr;
-        end if;
+        -- Since ops that write CR only write some of the fields,
+        -- any op that writes CR effectively also reads it.
+        cr_read_valid <= cr_write_valid or d_in.decode.input_cr;
 
         v.e.valid := control_valid_out;
         if control_valid_out = '1' then
