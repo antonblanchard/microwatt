@@ -993,8 +993,11 @@ begin
                 else
                     -- Architecture says to leave out bits 3 (HV), 51 (ME)
                     -- and 63 (LE) (IBM bit numbering)
-                    ctrl_tmp.msr(63 downto 61) <= c_in(63 downto 61);
-                    ctrl_tmp.msr(59 downto 13) <= c_in(59 downto 13);
+                    if e_in.is_32bit = '0' then
+                        ctrl_tmp.msr(63 downto 61) <= c_in(63 downto 61);
+                        ctrl_tmp.msr(59 downto 32) <= c_in(59 downto 32);
+                    end if;
+                    ctrl_tmp.msr(31 downto 13) <= c_in(31 downto 13);
                     ctrl_tmp.msr(11 downto 1)  <= c_in(11 downto 1);
                     if c_in(MSR_PR) = '1' then
                         ctrl_tmp.msr(MSR_EE) <= '1';
