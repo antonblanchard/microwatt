@@ -1131,10 +1131,16 @@ begin
             if e_in.insn_type = OP_FETCH_FAILED then
                 do_trace := '0';
             end if;
+        end if;
 
-        elsif r.f.redirect = '1' then
+        -- The following cases all occur when r.busy = 1 and therefore
+        -- valid_in = 0.  Hence they don't happen in the same cycle as any of
+        -- the cases above which depend on valid_in = 1.
+
+        if r.f.redirect = '1' then
             v.e.valid := '1';
-	elsif r.lr_update = '1' then
+        end if;
+	if r.lr_update = '1' then
             v.e.exc_write_enable := '1';
 	    v.e.exc_write_data := r.next_lr;
 	    v.e.exc_write_reg := fast_spr_num(SPR_LR);
