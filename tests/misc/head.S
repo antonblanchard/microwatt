@@ -137,3 +137,28 @@ test_mtpvr:
     mtlr %r0
 
     blr
+
+/* Test that bdnz and bdnzl update CTR and LR correctly */
+	.global	test_bdnzl
+test_bdnzl:
+	mflr	%r10
+	mfcr	%r11
+	li	%r0,0xf8
+	mtctr	%r0
+	lis	%r0,0x2000
+	mtcr	%r0
+	addpcis	%r9,0
+1:	bdnztl	27,3f
+2:	bdnzt	14,4f
+3:	nop
+4:	li	%r3,1
+	addi	%r9,%r9,2b-1b
+	mflr	%r8
+	cmpd	%r8,%r9
+	bne	9f
+	mfctr	%r7
+	cmpdi	%r7,0xf6
+	bne	9f
+	li	%r3,0
+9:	mtlr	%r10
+	blr

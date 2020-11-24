@@ -14,6 +14,7 @@ extern long test_addpcis_1(void);
 extern long test_addpcis_2(void);
 extern long test_mfpvr(void);
 extern long test_mtpvr(void);
+extern long test_bdnzl(void);
 
 // i < 100
 void print_test_number(int i)
@@ -53,6 +54,13 @@ int main(void)
 
 	print_test_number(4);
 	if (test_mtpvr() != PVR_MICROWATT) {
+		fail = 1;
+		puts(FAIL);
+	} else
+		puts(PASS);
+
+	print_test_number(5);
+	if (test_bdnzl() != 0) {
 		fail = 1;
 		puts(FAIL);
 	} else
