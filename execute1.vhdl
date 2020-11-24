@@ -1145,6 +1145,9 @@ begin
 	    v.e.exc_write_data := r.next_lr;
 	    v.e.exc_write_reg := fast_spr_num(SPR_LR);
 	    v.e.valid := '1';
+            -- Keep r.e.write_data unchanged next cycle in case it is needed
+            -- for a forwarded result (e.g. for CTR).
+            result := r.e.write_data;
         elsif r.cntz_in_progress = '1' then
             -- cnt[lt]z always takes two cycles
             result := countzero_result;
