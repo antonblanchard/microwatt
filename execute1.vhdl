@@ -93,6 +93,7 @@ architecture behaviour of execute1 is
 
     signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
     signal cr_in : std_ulogic_vector(31 downto 0);
+    signal xerc_in : xer_common_t;
 
     signal valid_in : std_ulogic;
     signal ctrl: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
@@ -112,6 +113,15 @@ architecture behaviour of execute1 is
     signal sub_mux_sel: std_ulogic_vector(2 downto 0);
     signal next_nia : std_ulogic_vector(63 downto 0);
     signal current: Decode2ToExecute1Type;
+
+    signal carry_32 : std_ulogic;
+    signal carry_64 : std_ulogic;
+    signal overflow_32 : std_ulogic;
+    signal overflow_64 : std_ulogic;
+
+    signal cmprb_result : std_ulogic_vector(3 downto 0);
+    signal cmpeqb_result : std_ulogic_vector(3 downto 0);
+    signal trapval : std_ulogic_vector(4 downto 0);
 
     -- multiply signals
     signal x_to_multiply: MultiplyInputType;
@@ -288,6 +298,14 @@ begin
     a_in <= e_in.read_data1;
     b_in <= e_in.read_data2;
     c_in <= e_in.read_data3;
+    cr_in <= e_in.cr;
+
+    -- XER forwarding. To avoid having to track XER hazards, we use
+    -- the previously latched value.  Since the XER common bits
+    -- (SO, OV[32] and CA[32]) are only modified by instructions that are
+    -- handled here, we can just forward the result being sent to
+    -- writeback.
+    xerc_in <= r.e.xerc when r.e.write_xerc_enable = '1' or r.busy = '1' else e_in.xerc;
 
     busy_out <= l_in.busy or r.busy or fp_in.busy;
     valid_in <= e_in.valid and not busy_out;
@@ -328,101 +346,30 @@ begin
 	end if;
     end process;
 
-    execute1_1: process(all)
-	variable v : reg_type;
+    -- Data path for integer instructions
+    execute1_dp: process(all)
 	variable a_inv : std_ulogic_vector(63 downto 0);
 	variable b_or_m1 : std_ulogic_vector(63 downto 0);
-	variable addg6s : std_ulogic_vector(63 downto 0);
-	variable isel_result : std_ulogic_vector(63 downto 0);
-	variable darn : std_ulogic_vector(63 downto 0);
-	variable mfcr_result : std_ulogic_vector(63 downto 0);
-	variable setb_result : std_ulogic_vector(63 downto 0);
-	variable newcrf : std_ulogic_vector(3 downto 0);
 	variable sum_with_carry : std_ulogic_vector(64 downto 0);
-	variable crnum : crnum_t;
-	variable crbit : integer range 0 to 31;
-	variable scrnum : crnum_t;
-	variable lo, hi : integer;
-	variable sh, mb, me : std_ulogic_vector(5 downto 0);
-	variable sh32, mb32, me32 : std_ulogic_vector(4 downto 0);
-	variable bo, bi : std_ulogic_vector(4 downto 0);
-	variable bf, bfa : std_ulogic_vector(2 downto 0);
-	variable cr_op : std_ulogic_vector(9 downto 0);
-        variable cr_operands : std_ulogic_vector(1 downto 0);
-	variable bt, ba, bb : std_ulogic_vector(4 downto 0);
-	variable btnum, banum, bbnum : integer range 0 to 31;
-	variable crresult : std_ulogic;
-	variable l : std_ulogic;
-        variable carry_32, carry_64 : std_ulogic;
         variable sign1, sign2 : std_ulogic;
         variable abs1, abs2 : signed(63 downto 0);
-	variable overflow : std_ulogic;
+        variable addend : std_ulogic_vector(127 downto 0);
+	variable addg6s : std_ulogic_vector(63 downto 0);
+	variable crbit : integer range 0 to 31;
+	variable isel_result : std_ulogic_vector(63 downto 0);
+	variable darn : std_ulogic_vector(63 downto 0);
+	variable setb_result : std_ulogic_vector(63 downto 0);
+	variable mfcr_result : std_ulogic_vector(63 downto 0);
+	variable crnum : crnum_t;
+	variable lo, hi : integer;
+	variable l : std_ulogic;
         variable zerohi, zerolo : std_ulogic;
         variable msb_a, msb_b : std_ulogic;
         variable a_lt : std_ulogic;
         variable a_lt_lo : std_ulogic;
         variable a_lt_hi : std_ulogic;
-        variable lv : Execute1ToLoadstore1Type;
-	variable irq_valid : std_ulogic;
-	variable exception : std_ulogic;
-        variable exception_nextpc : std_ulogic;
-        variable trapval : std_ulogic_vector(4 downto 0);
-        variable illegal : std_ulogic;
-        variable is_branch : std_ulogic;
-        variable is_direct_branch : std_ulogic;
-        variable taken_branch : std_ulogic;
-        variable abs_branch : std_ulogic;
-        variable spr_val : std_ulogic_vector(63 downto 0);
-        variable addend : std_ulogic_vector(127 downto 0);
-        variable do_trace : std_ulogic;
-        variable hold_wr_data : std_ulogic;
-        variable f : Execute1ToFetch1Type;
-        variable fv : Execute1ToFPUType;
+	variable bfa : std_ulogic_vector(2 downto 0);
     begin
-	sum_with_carry := (others => '0');
-	newcrf := (others => '0');
-        is_branch := '0';
-        is_direct_branch := '0';
-        taken_branch := '0';
-        abs_branch := '0';
-        hold_wr_data := '0';
-
-	v := r;
-	v.e := Execute1ToWritebackInit;
-        v.redirect := '0';
-        v.abs_br := '0';
-        v.do_intr := '0';
-        v.vector := 0;
-        v.br_offset := (others => '0');
-        v.redir_mode := ctrl.msr(MSR_IR) & not ctrl.msr(MSR_PR) &
-                        not ctrl.msr(MSR_LE) & not ctrl.msr(MSR_SF);
-        v.taken_br := '0';
-        v.br_last := '0';
-
-        lv := Execute1ToLoadstore1Init;
-        fv := Execute1ToFPUInit;
-
-	-- XER forwarding. To avoid having to track XER hazards, we use
-        -- the previously latched value.  Since the XER common bits
-	-- (SO, OV[32] and CA[32]) are only modified by instructions that are
-        -- handled here, we can just forward the result being sent to
-        -- writeback.
-	if r.e.write_xerc_enable = '1' or r.busy = '1' then
-	    v.e.xerc := r.e.xerc;
-	else
-	    v.e.xerc := e_in.xerc;
-	end if;
-
-        cr_in <= e_in.cr;
-
-	v.mul_in_progress := '0';
-        v.div_in_progress := '0';
-        v.cntz_in_progress := '0';
-        v.mul_finish := '0';
-
-        spr_result <= (others => '0');
-        spr_val := (others => '0');
-
         -- Main adder
         if e_in.invert_a = '0' then
             a_inv := a_in;
@@ -435,10 +382,12 @@ begin
             b_or_m1 := (others => '1');
         end if;
         sum_with_carry := ppc_adde(a_inv, b_or_m1,
-                                   decode_input_carry(e_in.input_carry, v.e.xerc));
+                                   decode_input_carry(e_in.input_carry, xerc_in));
         adder_result <= sum_with_carry(63 downto 0);
-        carry_32 := sum_with_carry(32) xor a_inv(32) xor b_in(32);
-        carry_64 := sum_with_carry(64);
+        carry_32 <= sum_with_carry(32) xor a_inv(32) xor b_in(32);
+        carry_64 <= sum_with_carry(64);
+        overflow_32 <= calc_ov(a_inv(31), b_in(31), carry_32, sum_with_carry(31));
+        overflow_64 <= calc_ov(a_inv(63), b_in(63), carry_64, sum_with_carry(63));
 
         -- signals to multiply and divide units
         sign1 := '0';
@@ -465,12 +414,10 @@ begin
         end if;
 
         -- Interface to multiply and divide units
-	x_to_multiply <= MultiplyInputInit;
-	x_to_multiply.is_32bit <= e_in.is_32bit;
-
-        x_to_divider <= Execute1ToDividerInit;
         x_to_divider.is_signed <= e_in.is_signed;
 	x_to_divider.is_32bit <= e_in.is_32bit;
+        x_to_divider.is_extended <= '0';
+        x_to_divider.is_modulus <= '0';
         if e_in.insn_type = OP_MOD then
             x_to_divider.is_modulus <= '1';
         end if;
@@ -487,6 +434,7 @@ begin
             addend := not addend;
         end if;
 
+	x_to_multiply.is_32bit <= e_in.is_32bit;
         x_to_multiply.not_result <= sign1 xor sign2;
         x_to_multiply.addend <= addend;
         x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
@@ -611,7 +559,7 @@ begin
         zerohi := not (or (a_in(63 downto 32) xor b_in(63 downto 32)));
         if zerolo = '1' and (l = '0' or zerohi = '1') then
             -- values are equal
-            trapval := "00100";
+            trapval <= "00100";
         else
             a_lt_lo := '0';
             a_lt_hi := '0';
@@ -635,13 +583,80 @@ begin
             if msb_a /= msb_b then
                 -- Comparison is clear from MSB difference.
                 -- for signed, 0 is greater; for unsigned, 1 is greater
-                trapval := msb_a & msb_b & '0' & msb_b & msb_a;
+                trapval <= msb_a & msb_b & '0' & msb_b & msb_a;
             else
                 -- MSBs are equal, so signed and unsigned comparisons give the
                 -- same answer.
-                trapval := a_lt & not a_lt & '0' & a_lt & not a_lt;
+                trapval <= a_lt & not a_lt & '0' & a_lt & not a_lt;
             end if;
         end if;
+
+        cmprb_result <= ppc_cmprb(a_in, b_in, insn_l(e_in.insn));
+        cmpeqb_result <= ppc_cmpeqb(a_in, b_in);
+    end process;
+
+    execute1_1: process(all)
+	variable v : reg_type;
+	variable newcrf : std_ulogic_vector(3 downto 0);
+	variable crnum : crnum_t;
+	variable scrnum : crnum_t;
+	variable lo, hi : integer;
+	variable sh, mb, me : std_ulogic_vector(5 downto 0);
+	variable bo, bi : std_ulogic_vector(4 downto 0);
+	variable bf, bfa : std_ulogic_vector(2 downto 0);
+	variable cr_op : std_ulogic_vector(9 downto 0);
+        variable cr_operands : std_ulogic_vector(1 downto 0);
+	variable bt, ba, bb : std_ulogic_vector(4 downto 0);
+	variable btnum, banum, bbnum : integer range 0 to 31;
+	variable crresult : std_ulogic;
+	variable overflow : std_ulogic;
+        variable lv : Execute1ToLoadstore1Type;
+	variable irq_valid : std_ulogic;
+	variable exception : std_ulogic;
+        variable exception_nextpc : std_ulogic;
+        variable illegal : std_ulogic;
+        variable is_branch : std_ulogic;
+        variable is_direct_branch : std_ulogic;
+        variable taken_branch : std_ulogic;
+        variable abs_branch : std_ulogic;
+        variable spr_val : std_ulogic_vector(63 downto 0);
+        variable do_trace : std_ulogic;
+        variable hold_wr_data : std_ulogic;
+        variable f : Execute1ToFetch1Type;
+        variable fv : Execute1ToFPUType;
+    begin
+	newcrf := (others => '0');
+        is_branch := '0';
+        is_direct_branch := '0';
+        taken_branch := '0';
+        abs_branch := '0';
+        hold_wr_data := '0';
+
+	v := r;
+	v.e := Execute1ToWritebackInit;
+        v.redirect := '0';
+        v.abs_br := '0';
+        v.do_intr := '0';
+        v.vector := 0;
+        v.br_offset := (others => '0');
+        v.redir_mode := ctrl.msr(MSR_IR) & not ctrl.msr(MSR_PR) &
+                        not ctrl.msr(MSR_LE) & not ctrl.msr(MSR_SF);
+        v.taken_br := '0';
+        v.br_last := '0';
+        v.e.xerc := xerc_in;
+
+        lv := Execute1ToLoadstore1Init;
+        fv := Execute1ToFPUInit;
+
+        x_to_multiply.valid <= '0';
+        x_to_divider.valid <= '0';
+	v.mul_in_progress := '0';
+        v.div_in_progress := '0';
+        v.cntz_in_progress := '0';
+        v.mul_finish := '0';
+
+        spr_result <= (others => '0');
+        spr_val := (others => '0');
 
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
@@ -789,16 +804,14 @@ begin
                     end if;
                 end if;
                 if e_in.oe = '1' then
-                    set_ov(v.e,
-                           calc_ov(a_inv(63), b_in(63), carry_64, sum_with_carry(63)),
-                           calc_ov(a_inv(31), b_in(31), carry_32, sum_with_carry(31)));
+                    set_ov(v.e, overflow_64, overflow_32);
                 end if;
             when OP_CMP =>
                 -- CMP and CMPL instructions
                 if e_in.is_signed = '1' then
-                    newcrf := trapval(4 downto 2) & v.e.xerc.so;
+                    newcrf := trapval(4 downto 2) & xerc_in.so;
                 else
-                    newcrf := trapval(1 downto 0) & trapval(2) & v.e.xerc.so;
+                    newcrf := trapval(1 downto 0) & trapval(2) & xerc_in.so;
                 end if;
                 bf := insn_bf(e_in.insn);
                 crnum := to_integer(unsigned(bf));
@@ -820,14 +833,14 @@ begin
                 end if;
             when OP_ADDG6S =>
             when OP_CMPRB =>
-                newcrf := ppc_cmprb(a_in, b_in, insn_l(e_in.insn));
+                newcrf := cmprb_result;
                 bf := insn_bf(e_in.insn);
                 crnum := to_integer(unsigned(bf));
                 v.e.write_cr_mask := num_to_fxm(crnum);
                 v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
                                      newcrf & newcrf & newcrf & newcrf;
             when OP_CMPEQB =>
-                newcrf := ppc_cmpeqb(a_in, b_in);
+                newcrf := cmpeqb_result;
                 bf := insn_bf(e_in.insn);
                 crnum := to_integer(unsigned(bf));
                 v.e.write_cr_mask := num_to_fxm(crnum);
@@ -939,7 +952,7 @@ begin
 		    end loop;
 		end if;
             when OP_MCRXRX =>
-                newcrf := v.e.xerc.ov & v.e.xerc.ca & v.e.xerc.ov32 & v.e.xerc.ca32;
+                newcrf := xerc_in.ov & xerc_in.ca & xerc_in.ov32 & xerc_in.ca32;
                 bf := insn_bf(e_in.insn);
                 crnum := to_integer(unsigned(bf));
                 v.e.write_cr_mask := num_to_fxm(crnum);
@@ -955,12 +968,12 @@ begin
                     if decode_spr_num(e_in.insn) = SPR_XER then
 			-- bits 0:31 and 35:43 are treated as reserved and return 0s when read using mfxer
 			spr_val(63 downto 32) := (others => '0');
-			spr_val(63-32) := v.e.xerc.so;
-			spr_val(63-33) := v.e.xerc.ov;
-			spr_val(63-34) := v.e.xerc.ca;
+			spr_val(63-32) := xerc_in.so;
+			spr_val(63-33) := xerc_in.ov;
+			spr_val(63-34) := xerc_in.ca;
 			spr_val(63-35 downto 63-43) := "000000000";
-			spr_val(63-44) := v.e.xerc.ov32;
-			spr_val(63-45) := v.e.xerc.ca32;
+			spr_val(63-44) := xerc_in.ov32;
+			spr_val(63-45) := xerc_in.ca32;
                     end if;
 		else
                     spr_val := c_in;
@@ -1319,7 +1332,7 @@ begin
         lv.byte_reverse := e_in.byte_reverse xnor ctrl.msr(MSR_LE);
         lv.sign_extend := e_in.sign_extend;
         lv.update := e_in.update;
-        lv.xerc := v.e.xerc;
+        lv.xerc := xerc_in;
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;
         lv.insn := e_in.insn;
