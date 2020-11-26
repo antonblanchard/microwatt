@@ -633,16 +633,16 @@ begin
                 v.ispr2 := fast_spr_num(SPR_SRR0);
             end if;
 
-        when 30 =>
-            v.decode := decode_op_30_array(to_integer(unsigned(f_in.insn(4 downto 1))));
-
-        when 48 =>
+        when 24 =>
             -- ori, special-case the standard NOP
             if std_match(f_in.insn, "01100000000000000000000000000000") then
                 report "PPC_nop";
                 vi.override := '1';
                 vi.override_decode := nop_instr;
             end if;
+
+        when 30 =>
+            v.decode := decode_op_30_array(to_integer(unsigned(f_in.insn(4 downto 1))));
 
         when 58 =>
             v.decode := decode_op_58_array(to_integer(unsigned(f_in.insn(1 downto 0))));
