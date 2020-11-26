@@ -30,10 +30,10 @@ DOCKERARGS = run --rm -v $(PWD):/src:z -w /src
 GHDL      = $(DOCKERBIN) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 ghdl
 CC        = $(DOCKERBIN) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 gcc
 GHDLSYNTH = ghdl
-YOSYS     = $(DOCKERBIN) $(DOCKERARGS) ghdl/synth:beta yosys
-NEXTPNR   = $(DOCKERBIN) $(DOCKERARGS) ghdl/synth:nextpnr-ecp5 nextpnr-ecp5
-ECPPACK   = $(DOCKERBIN) $(DOCKERARGS) ghdl/synth:trellis ecppack
-OPENOCD   = $(DOCKERBIN) $(DOCKERARGS) --device /dev/bus/usb ghdl/synth:prog openocd
+YOSYS     = $(DOCKERBIN) $(DOCKERARGS) hdlc/ghdl:yosys yosys
+NEXTPNR   = $(DOCKERBIN) $(DOCKERARGS) hdlc/nextpnr:ecp5 nextpnr-ecp5
+ECPPACK   = $(DOCKERBIN) $(DOCKERARGS) hdlc/prjtrellis ecppack
+OPENOCD   = $(DOCKERBIN) $(DOCKERARGS) --device /dev/bus/usb hdlc/prog openocd
 endif
 
 all = core_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb \
