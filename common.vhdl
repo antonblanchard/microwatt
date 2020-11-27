@@ -243,6 +243,7 @@ package common is
 	output_carry: std_ulogic;
 	input_cr: std_ulogic;
 	output_cr: std_ulogic;
+        output_xer: std_ulogic;
 	is_32bit: std_ulogic;
 	is_signed: std_ulogic;
 	insn: std_ulogic_vector(31 downto 0);
@@ -261,7 +262,8 @@ package common is
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
          write_reg_enable => '0',
          lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
-	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
+	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0',
+         output_cr => '0', output_xer => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),

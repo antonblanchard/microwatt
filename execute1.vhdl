@@ -119,9 +119,10 @@ architecture behaviour of execute1 is
     signal overflow_32 : std_ulogic;
     signal overflow_64 : std_ulogic;
 
-    signal cmprb_result : std_ulogic_vector(3 downto 0);
-    signal cmpeqb_result : std_ulogic_vector(3 downto 0);
     signal trapval : std_ulogic_vector(4 downto 0);
+
+    signal write_cr_mask : std_ulogic_vector(7 downto 0);
+    signal write_cr_data : std_ulogic_vector(31 downto 0);
 
     -- multiply signals
     signal x_to_multiply: MultiplyInputType;
@@ -169,7 +170,6 @@ architecture behaviour of execute1 is
     begin
 	e.xerc.ca32 := carry32;
 	e.xerc.ca := carry;
-	e.write_xerc_enable := '1';
     end;
 
     procedure set_ov(e: inout Execute1ToWritebackType;
@@ -181,7 +181,6 @@ architecture behaviour of execute1 is
 	if ov = '1' then
 	    e.xerc.so := '1';
 	end if;
-	e.write_xerc_enable := '1';
     end;
 
     function calc_ov(msb_a : std_ulogic; msb_b: std_ulogic;
@@ -360,7 +359,6 @@ begin
 	variable darn : std_ulogic_vector(63 downto 0);
 	variable setb_result : std_ulogic_vector(63 downto 0);
 	variable mfcr_result : std_ulogic_vector(63 downto 0);
-	variable crnum : crnum_t;
 	variable lo, hi : integer;
 	variable l : std_ulogic;
         variable zerohi, zerolo : std_ulogic;
@@ -368,7 +366,16 @@ begin
         variable a_lt : std_ulogic;
         variable a_lt_lo : std_ulogic;
         variable a_lt_hi : std_ulogic;
-	variable bfa : std_ulogic_vector(2 downto 0);
+	variable newcrf : std_ulogic_vector(3 downto 0);
+	variable bf, bfa : std_ulogic_vector(2 downto 0);
+	variable crnum : crnum_t;
+	variable scrnum : crnum_t;
+        variable cr_operands : std_ulogic_vector(1 downto 0);
+	variable crresult : std_ulogic;
+	variable bt, ba, bb : std_ulogic_vector(4 downto 0);
+        variable btnum : integer range 0 to 3;
+	variable banum, bbnum : integer range 0 to 31;
+        variable j : integer;
     begin
         -- Main adder
         if e_in.invert_a = '0' then
@@ -591,24 +598,77 @@ begin
             end if;
         end if;
 
-        cmprb_result <= ppc_cmprb(a_in, b_in, insn_l(e_in.insn));
-        cmpeqb_result <= ppc_cmpeqb(a_in, b_in);
+        -- CR result mux
+        bf := insn_bf(e_in.insn);
+        crnum := to_integer(unsigned(bf));
+        newcrf := (others => '0');
+        case current.sub_select is
+            when "000" =>
+                -- CMP and CMPL instructions
+                if e_in.is_signed = '1' then
+                    newcrf := trapval(4 downto 2) & xerc_in.so;
+                else
+                    newcrf := trapval(1 downto 0) & trapval(2) & xerc_in.so;
+                end if;
+            when "001" =>
+                newcrf := ppc_cmprb(a_in, b_in, insn_l(e_in.insn));
+            when "010" =>
+                newcrf := ppc_cmpeqb(a_in, b_in);
+            when "011" =>
+                if current.insn(1) = '1' then
+                    -- CR logical instructions
+                    j := (7 - crnum) * 4;
+                    newcrf := cr_in(j + 3 downto j);
+                    bt := insn_bt(e_in.insn);
+                    ba := insn_ba(e_in.insn);
+                    bb := insn_bb(e_in.insn);
+                    btnum := 3 - to_integer(unsigned(bt(1 downto 0)));
+                    banum := 31 - to_integer(unsigned(ba));
+                    bbnum := 31 - to_integer(unsigned(bb));
+                    -- Bits 6-9 of the instruction word give the truth table
+                    -- of the requested logical operation
+                    cr_operands := cr_in(banum) & cr_in(bbnum);
+                    crresult := e_in.insn(6 + to_integer(unsigned(cr_operands)));
+                    for i in 0 to 3 loop
+                        if i = btnum then
+                            newcrf(i) := crresult;
+                        end if;
+                    end loop;
+                else
+                    -- MCRF
+                    bfa := insn_bfa(e_in.insn);
+                    scrnum := to_integer(unsigned(bfa));
+                    j := (7 - scrnum) * 4;
+                    newcrf := cr_in(j + 3 downto j);
+                end if;
+            when "100" =>
+                -- MCRXRX
+                newcrf := xerc_in.ov & xerc_in.ca & xerc_in.ov32 & xerc_in.ca32;
+            when others =>
+        end case;
+        if current.insn_type = OP_MTCRF then
+            if e_in.insn(20) = '0' then
+                -- mtcrf
+                write_cr_mask <= insn_fxm(e_in.insn);
+            else
+                -- mtocrf: We require one hot priority encoding here
+                crnum := fxm_to_num(insn_fxm(e_in.insn));
+                write_cr_mask <= num_to_fxm(crnum);
+            end if;
+            write_cr_data <= c_in(31 downto 0);
+        else
+            write_cr_mask <= num_to_fxm(crnum);
+            write_cr_data <= newcrf & newcrf & newcrf & newcrf &
+                             newcrf & newcrf & newcrf & newcrf;
+        end if;
+
     end process;
 
     execute1_1: process(all)
 	variable v : reg_type;
-	variable newcrf : std_ulogic_vector(3 downto 0);
-	variable crnum : crnum_t;
-	variable scrnum : crnum_t;
 	variable lo, hi : integer;
 	variable sh, mb, me : std_ulogic_vector(5 downto 0);
 	variable bo, bi : std_ulogic_vector(4 downto 0);
-	variable bf, bfa : std_ulogic_vector(2 downto 0);
-	variable cr_op : std_ulogic_vector(9 downto 0);
-        variable cr_operands : std_ulogic_vector(1 downto 0);
-	variable bt, ba, bb : std_ulogic_vector(4 downto 0);
-	variable btnum, banum, bbnum : integer range 0 to 31;
-	variable crresult : std_ulogic;
 	variable overflow : std_ulogic;
         variable lv : Execute1ToLoadstore1Type;
 	variable irq_valid : std_ulogic;
@@ -625,7 +685,6 @@ begin
         variable f : Execute1ToFetch1Type;
         variable fv : Execute1ToFPUType;
     begin
-	newcrf := (others => '0');
         is_branch := '0';
         is_direct_branch := '0';
         taken_branch := '0';
@@ -800,27 +859,12 @@ begin
                     else
                         v.e.xerc.ov := carry_64;
                         v.e.xerc.ov32 := carry_32;
-                        v.e.write_xerc_enable := '1';
                     end if;
                 end if;
                 if e_in.oe = '1' then
                     set_ov(v.e, overflow_64, overflow_32);
                 end if;
             when OP_CMP =>
-                -- CMP and CMPL instructions
-                if e_in.is_signed = '1' then
-                    newcrf := trapval(4 downto 2) & xerc_in.so;
-                else
-                    newcrf := trapval(1 downto 0) & trapval(2) & xerc_in.so;
-                end if;
-                bf := insn_bf(e_in.insn);
-                crnum := to_integer(unsigned(bf));
-                v.e.write_cr_mask := num_to_fxm(crnum);
-                for i in 0 to 7 loop
-                    lo := i*4;
-                    hi := lo + 3;
-                    v.e.write_cr_data(hi downto lo) := newcrf;
-                end loop;
             when OP_TRAP =>
                 -- trap instructions (tw, twi, td, tdi)
                 v.vector := 16#700#;
@@ -833,19 +877,7 @@ begin
                 end if;
             when OP_ADDG6S =>
             when OP_CMPRB =>
-                newcrf := cmprb_result;
-                bf := insn_bf(e_in.insn);
-                crnum := to_integer(unsigned(bf));
-                v.e.write_cr_mask := num_to_fxm(crnum);
-                v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
-                                     newcrf & newcrf & newcrf & newcrf;
             when OP_CMPEQB =>
-                newcrf := cmpeqb_result;
-                bf := insn_bf(e_in.insn);
-                crnum := to_integer(unsigned(bf));
-                v.e.write_cr_mask := num_to_fxm(crnum);
-                v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
-                                     newcrf & newcrf & newcrf & newcrf;
             when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS |
                     OP_BPERM | OP_BCD =>
 
@@ -911,53 +943,8 @@ begin
                 v.cntz_in_progress := '1';
                 v.busy := '1';
 	    when OP_ISEL =>
-	    when OP_CROP =>
-		cr_op := insn_cr(e_in.insn);
-		if cr_op(0) = '0' then -- MCRF
-		    bf := insn_bf(e_in.insn);
-		    bfa := insn_bfa(e_in.insn);
-		    crnum := to_integer(unsigned(bf));
-		    scrnum := to_integer(unsigned(bfa));
-		    v.e.write_cr_mask := num_to_fxm(crnum);
-		    for i in 0 to 7 loop
-		        lo := (7-i)*4;
-		        hi := lo + 3;
-		        if i = scrnum then
-			    newcrf := cr_in(hi downto lo);
-		        end if;
-		    end loop;
-		    for i in 0 to 7 loop
-		        lo := i*4;
-		        hi := lo + 3;
-		        v.e.write_cr_data(hi downto lo) := newcrf;
-		    end loop;
-		else
-		    bt := insn_bt(e_in.insn);
-		    ba := insn_ba(e_in.insn);
-		    bb := insn_bb(e_in.insn);
-		    btnum := 31 - to_integer(unsigned(bt));
-		    banum := 31 - to_integer(unsigned(ba));
-		    bbnum := 31 - to_integer(unsigned(bb));
-                    -- Bits 5-8 of cr_op give the truth table of the requested
-                    -- logical operation
-                    cr_operands := cr_in(banum) & cr_in(bbnum);
-                    crresult := cr_op(5 + to_integer(unsigned(cr_operands)));
-		    v.e.write_cr_mask := num_to_fxm((31-btnum) / 4);
-		    for i in 0 to 31 loop
-			if i = btnum then
-		            v.e.write_cr_data(i) := crresult;
-			else
-		            v.e.write_cr_data(i) := cr_in(i);
-			end if;
-		    end loop;
-		end if;
+            when OP_CROP =>
             when OP_MCRXRX =>
-                newcrf := xerc_in.ov & xerc_in.ca & xerc_in.ov32 & xerc_in.ca32;
-                bf := insn_bf(e_in.insn);
-                crnum := to_integer(unsigned(bf));
-                v.e.write_cr_mask := num_to_fxm(crnum);
-                v.e.write_cr_data := newcrf & newcrf & newcrf & newcrf &
-                                     newcrf & newcrf & newcrf & newcrf;
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
@@ -1007,15 +994,6 @@ begin
 
 	    when OP_MFCR =>
 	    when OP_MTCRF =>
-		if e_in.insn(20) = '0' then
-		    -- mtcrf
-		    v.e.write_cr_mask := insn_fxm(e_in.insn);
-		else
-		    -- mtocrf: We require one hot priority encoding here
-		    crnum := fxm_to_num(insn_fxm(e_in.insn));
-		    v.e.write_cr_mask := num_to_fxm(crnum);
-		end if;
-		v.e.write_cr_data := c_in(31 downto 0);
             when OP_MTMSRD =>
                 if e_in.insn(16) = '1' then
                     -- just update EE and RI
@@ -1050,7 +1028,6 @@ begin
 			v.e.xerc.ca := c_in(63-34);
 			v.e.xerc.ov32 := c_in(63-44);
 			v.e.xerc.ca32 := c_in(63-45);
-			v.e.write_xerc_enable := '1';
 		    end if;
 		else
 		    -- slow spr
@@ -1170,7 +1147,6 @@ begin
                     v.mul_finish := '1';
                     v.busy := '1';
                 else
-                    v.e.write_xerc_enable := current.oe;
                     -- We must test oe because the RC update code in writeback
                     -- will use the xerc value to set CR0:SO so we must not clobber
                     -- xerc if OE wasn't set.
@@ -1190,7 +1166,6 @@ begin
 	    end if;
         elsif r.mul_finish = '1' then
             hold_wr_data := '1';
-            v.e.write_xerc_enable := current.oe;
             v.e.xerc.ov := multiply_to_x.overflow;
             v.e.xerc.ov32 := multiply_to_x.overflow;
             if multiply_to_x.overflow = '1' then
@@ -1268,8 +1243,11 @@ begin
         end if;
         v.e.write_reg := current.write_reg;
 	v.e.write_enable := current.write_reg_enable and v.e.valid and not exception;
-        v.e.write_cr_enable := current.output_cr and v.e.valid and not exception;
         v.e.rc := current.rc and v.e.valid and not exception;
+        v.e.write_cr_data := write_cr_data;
+        v.e.write_cr_mask := write_cr_mask;
+        v.e.write_cr_enable := current.output_cr and v.e.valid and not exception;
+        v.e.write_xerc_enable := current.output_xer and v.e.valid and not exception;
 
         bypass_data.tag.valid <= current.instr_tag.valid and current.write_reg_enable and v.e.valid;
         bypass_data.tag.tag <= current.instr_tag.tag;

@@ -208,22 +208,6 @@ architecture behaviour of decode2 is
         end case;
     end;
 
-    -- For now, use "rc" in the decode table to decide whether oe exists.
-    -- This is not entirely correct architecturally: For mulhd and
-    -- mulhdu, the OE field is reserved. It remains to be seen what an
-    -- actual POWER9 does if we set it on those instructions, for now we
-    -- test that further down when assigning to the multiplier oe input.
-    --
-    function decode_oe (t : rc_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic is
-    begin
-        case t is
-            when RC =>
-                return insn_oe(insn_in);
-            when OTHERS =>
-                return '0';
-        end case;
-    end;
-
     -- control signals that are derived from insn_type
     type mux_select_array_t is array(insn_type_t) of std_ulogic_vector(2 downto 0);
 
@@ -277,6 +261,12 @@ architecture behaviour of decode2 is
         OP_MFMSR   => "100",
         OP_MFCR    => "101",
         OP_SETB    => "110",
+        OP_CMP     => "000",            -- cr_result
+        OP_CMPRB   => "001",
+        OP_CMPEQB  => "010",
+        OP_CROP    => "011",
+        OP_MCRXRX  => "100",
+        OP_MTCRF   => "101",
         others     => "000"
         );
 
@@ -393,6 +383,22 @@ begin
         --v.e.input_cr := d_in.decode.input_cr;
         v.e.output_cr := d_in.decode.output_cr;
 
+        -- Work out whether XER common bits are set
+        v.e.output_xer := d_in.decode.output_carry;
+        case d_in.decode.insn_type is
+            when OP_ADD | OP_MUL_L64 | OP_DIV | OP_DIVE =>
+                -- OE field is valid in OP_ADD/OP_MUL_L64 with major opcode 31 only
+                if d_in.insn(31 downto 26) = "011111" and insn_oe(d_in.insn) = '1' then
+                    v.e.oe := '1';
+                    v.e.output_xer := '1';
+                end if;
+            when OP_MTSPR =>
+                if decode_spr_num(d_in.insn) = SPR_XER then
+                    v.e.output_xer := '1';
+                end if;
+            when others =>
+        end case;
+
         decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data, d_in.ispr1,
                                              d_in.nia);
         decoded_reg_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, r_in.read2_data, d_in.ispr2);
@@ -465,9 +471,6 @@ begin
         v.e.write_reg := decoded_reg_o.reg;
         v.e.write_reg_enable := decoded_reg_o.reg_valid;
         v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
-        if not (d_in.decode.insn_type = OP_MUL_H32 or d_in.decode.insn_type = OP_MUL_H64) then
-            v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
-        end if;
         v.e.xerc := c_in.read_xerc_data;
         v.e.invert_a := d_in.decode.invert_a;
         v.e.addm1 := '0';
