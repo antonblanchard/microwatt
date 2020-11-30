@@ -10,17 +10,21 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    container: ghdl/vunit:llvm
     steps:
     - uses: actions/checkout@v2
-    - run: docker pull ghdl/vunit:llvm
-    - run: docker run -t -v $PWD:/build -w /build ghdl/vunit:llvm bash -c "make GNATMAKE='gnatmake -j'$(nproc)"
+    - run: make GNATMAKE='gnatmake -j'$(nproc)
 
   py:
     needs: [build]
     runs-on: ubuntu-latest
+    container: ghdl/vunit:llvm
     steps:
     - uses: actions/checkout@v2
-    - run: docker run -t -v $PWD:/build -w /build ghdl/vunit:llvm bash -c "apt update && apt install -y python3-pexpect && make -j$(nproc) test_micropython test_micropython_long"
+    - run: |
+        apt update
+        apt install -y python3-pexpect
+        make -j$(nproc) test_micropython test_micropython_long
 
   test:
     needs: [build]
@@ -43,9 +47,10 @@ jobs:
           "{900..999}",
         ]
     runs-on: ubuntu-latest
+    container: ghdl/vunit:llvm
     steps:
     - uses: actions/checkout@v2
-    - run: docker run -t -v $PWD:/build -w /build ghdl/vunit:llvm bash -c "make -j$(nproc) ${{ matrix.task }}"
+    - run: bash -c "make -j$(nproc) ${{ matrix.task }}"
 
   symbiflow:
     strategy:
@@ -74,5 +79,3 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: make DOCKER=1 microwatt.v
-
-
