@@ -96,10 +96,10 @@ flash_model_files=sim_no_flash.vhdl
 fmf_lib=
 endif
 
-$(soc_flash_tbs): %: $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) $(fmf_lib) $(flash_model_files) %.vhdl 
+$(soc_flash_tbs): %: $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) $(fmf_lib) $(flash_model_files) %.vhdl
 	$(GHDL) -c $(GHDLFLAGS) $(soc_sim_link) $(soc_sim_files) $(flash_model_files) $@.vhdl $(unisim_files) -e $@
 
-$(soc_tbs): %: $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) %.vhdl 
+$(soc_tbs): %: $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) %.vhdl
 	$(GHDL) -c $(GHDLFLAGS) $(soc_sim_link) $(soc_sim_files) $@.vhdl -e $@
 
 $(core_tbs): %: $(core_files) glibc_random.vhdl glibc_random_helpers.vhdl %.vhdl
@@ -132,7 +132,7 @@ soc_dram_sim_obj_files = $(soc_sim_obj_files) sim_litedram_c.o
 dram_link_files=-Wl,obj_dir/Vlitedram_core__ALL.a -Wl,obj_dir/verilated.o -Wl,obj_dir/verilated_vcd_c.o -Wl,-lstdc++
 soc_dram_sim_link=$(patsubst %,-Wl$(comma)%,$(soc_dram_sim_obj_files)) $(dram_link_files)
 
-$(soc_dram_tbs): %: $(soc_dram_files) $(soc_dram_sim_files) $(soc_dram_sim_obj_files) $(flash_model_files) $(unisim_lib) $(fmf_lib) %.vhdl 
+$(soc_dram_tbs): %: $(soc_dram_files) $(soc_dram_sim_files) $(soc_dram_sim_obj_files) $(flash_model_files) $(unisim_lib) $(fmf_lib) %.vhdl
 	$(GHDL) -c $(GHDLFLAGS) $(soc_dram_sim_link) $(soc_dram_files) $(soc_dram_sim_files) $(flash_model_files) $@.vhdl -e $@
 endif
 
