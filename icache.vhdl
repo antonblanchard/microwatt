@@ -384,9 +384,9 @@ begin
             if r.store_tag(TAG_BITS - 1) = '0' then
                 wr_dat <= wishbone_in.dat;
             else
-                for i in 0 to (wishbone_in.dat'length / 8) - 1 loop
-                    j := ((i / 4) * 4) + (3 - (i mod 4));
-                    wr_dat(i * 8 + 7 downto i * 8) <= wishbone_in.dat(j * 8 + 7 downto j * 8);
+                for ii in 0 to (wishbone_in.dat'length / 8) - 1 loop
+                    j := ((ii / 4) * 4) + (3 - (ii mod 4));
+                    wr_dat(ii * 8 + 7 downto ii * 8) <= wishbone_in.dat(j * 8 + 7 downto j * 8);
                 end loop;
             end if;
 	    do_read <= not (stall_in or use_previous);
@@ -397,8 +397,8 @@ begin
 	    cache_out(i) <= dout;
 	    rd_addr <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
 	    wr_addr <= std_ulogic_vector(to_unsigned(r.store_row, ROW_BITS));
-            for i in 0 to ROW_SIZE-1 loop
-                wr_sel(i) <= do_write;
+            for ii in 0 to ROW_SIZE-1 loop
+                wr_sel(ii) <= do_write;
             end loop;
 	end process;
     end generate;
