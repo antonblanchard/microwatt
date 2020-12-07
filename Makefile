@@ -187,11 +187,11 @@ microwatt.json: $(synth_files) $(RAM_INIT_FILE)
 	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; synth_ecp5 -json $@  $(SYNTH_ECP5_FLAGS)" $(uart_files)
 
 microwatt.v: $(synth_files) $(RAM_INIT_FILE)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; write_verilog $@" $(uart_files)
+	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(GHDL_TARGET_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
 
 # Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
-	verilator -O3 -CFLAGS "-DCLK_FREQUENCY=$(CLK_FREQUENCY)" --assert --cc microwatt.v --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
+	verilator -O3 -CFLAGS "-DCLK_FREQUENCY=$(CLK_FREQUENCY)" --assert --cc microwatt.v --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Iuart16550 -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
 	make -C obj_dir -f Vmicrowatt.mk
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
 
