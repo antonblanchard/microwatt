@@ -14,7 +14,8 @@ entity toplevel is
         HAS_FPU       : boolean  := true;
         LOG_LENGTH    : natural := 512;
 	DISABLE_FLATTEN_CORE : boolean := false;
-        UART_IS_16550 : boolean  := true
+        UART_IS_16550 : boolean  := true;
+	HAS_JTAG      : boolean := true
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -22,7 +23,14 @@ entity toplevel is
 
 	-- UART0 signals:
 	uart0_txd : out std_ulogic;
-	uart0_rxd : in  std_ulogic
+	uart0_rxd : in  std_ulogic;
+
+	-- JTAG signals:
+	jtag_tck  : in std_ulogic;
+	jtag_tdi  : in std_ulogic;
+	jtag_tms  : in std_ulogic;
+	jtag_trst : in std_ulogic;
+	jtag_tdo  : out std_ulogic
 	);
 end entity toplevel;
 
@@ -73,13 +81,19 @@ begin
             HAS_FPU       => HAS_FPU,
             LOG_LENGTH    => LOG_LENGTH,
 	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
-            UART0_IS_16550     => UART_IS_16550
+            UART0_IS_16550     => UART_IS_16550,
+	    HAS_JTAG           => HAS_JTAG
 	    )
 	port map (
 	    system_clk        => system_clk,
 	    rst               => soc_rst,
 	    uart0_txd         => uart0_txd,
-	    uart0_rxd         => uart0_rxd
+	    uart0_rxd         => uart0_rxd,
+	    jtag_tck          => jtag_tck,
+	    jtag_tdi          => jtag_tdi,
+	    jtag_tms          => jtag_tms,
+	    jtag_trst         => jtag_trst,
+	    jtag_tdo          => jtag_tdo
 	    );
 
 end architecture behaviour;
