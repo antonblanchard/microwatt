@@ -177,6 +177,13 @@ clkgen=fpga/clk_gen_ecp5.vhd
 toplevel=fpga/top-generic.vhdl
 dmi_dtm=dmi_dtm_dummy.vhdl
 
+ifeq ($(FPGA_TARGET), verilator)
+RESET_LOW=true
+CLK_INPUT=50000000
+CLK_FREQUENCY=50000000
+clkgen=fpga/clk_gen_bypass.vhd
+endif
+
 fpga_files = $(core_files) $(soc_files) fpga/soc_reset.vhdl \
 	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram.vhdl \
 	nonrandom.vhdl
