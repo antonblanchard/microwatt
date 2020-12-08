@@ -97,12 +97,8 @@
 
 // Top module
 module tap_top #(parameter
-                // 0001             version
-                // 0100100101010001 part number (IQ)
-                // 00011100001      manufacturer id (flextronics)
-                // 1                required by standard
-                IDCODE_VALUE = 32'h149511c3,
-                IR_LENGTH    = 4)
+                IDCODE_VALUE = 32'h14d57049,
+                IR_LENGTH    = 6)
                (
                 // JTAG pads
                 tms_pad_i, 
@@ -163,12 +159,12 @@ input   bs_chain_tdi_i; // from Boundary Scan Chain
 input   mbist_tdi_i;    // from Mbist Chain
 
 //Internal constants
-localparam EXTEST         = 4'b0000;
-localparam SAMPLE_PRELOAD = 4'b0001;
-localparam IDCODE         = 4'b0010;
-localparam DEBUG          = 4'b1000;
-localparam MBIST          = 4'b1001;
-localparam BYPASS         = 4'b1111;
+localparam EXTEST         = 6'b000000;
+localparam SAMPLE_PRELOAD = 6'b000001;
+localparam IDCODE         = 6'b001001;
+localparam DEBUG          = 6'b000011;
+localparam MBIST          = 6'b001010;
+localparam BYPASS         = 6'b111111;
 
 // Registers
 reg     test_logic_reset;
@@ -476,7 +472,7 @@ begin
   if(trst_pad_i)
     jtag_ir[IR_LENGTH-1:0] <= {IR_LENGTH{1'b0}};
   else if(capture_ir)
-    jtag_ir <= 4'b0101;          // This value is fixed for easier fault detection
+    jtag_ir <= 6'b000101;          // This value is fixed for easier fault detection
   else if(shift_ir)
     jtag_ir[IR_LENGTH-1:0] <= {tdi_pad_i, jtag_ir[IR_LENGTH-1:1]};
 end
