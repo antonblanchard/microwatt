@@ -209,7 +209,7 @@ begin
         generic map(
             SIM => SIM,
             LINE_SIZE => 64,
-            NUM_LINES => 64,
+            NUM_LINES => 2,
 	    NUM_WAYS => 2,
             LOG_LENGTH => LOG_LENGTH
             )
@@ -387,7 +387,7 @@ begin
     dcache_0: entity work.dcache
         generic map(
             LINE_SIZE => 64,
-            NUM_LINES => 64,
+            NUM_LINES => 2,
 	    NUM_WAYS => 2,
             LOG_LENGTH => LOG_LENGTH
             )

@@ -43,7 +43,7 @@ entity icache is
         -- Number of ways
         NUM_WAYS  : positive := 4;
         -- L1 ITLB number of entries (direct mapped)
-        TLB_SIZE : positive := 64;
+        TLB_SIZE : positive := 4;
         -- L1 ITLB log_2(page_size)
         TLB_LG_PGSZ : positive := 12;
         -- Number of real address bits that we store

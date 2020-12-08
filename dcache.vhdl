@@ -27,7 +27,7 @@ entity dcache is
         -- Number of ways
         NUM_WAYS  : positive := 4;
         -- L1 DTLB entries per set
-        TLB_SET_SIZE : positive := 64;
+        TLB_SET_SIZE : positive := 2;
         -- L1 DTLB number of sets
         TLB_NUM_WAYS : positive := 2;
         -- L1 DTLB log_2(page_size)
