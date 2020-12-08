@@ -12,6 +12,7 @@ entity toplevel is
 	CLK_INPUT     : positive := 100000000;
 	CLK_FREQUENCY : positive := 100000000;
         HAS_FPU       : boolean  := true;
+        LOG_LENGTH    : natural := 512;
 	DISABLE_FLATTEN_CORE : boolean := false;
         UART_IS_16550 : boolean  := true
 	);
@@ -70,6 +71,7 @@ begin
 	    SIM           => false,
 	    CLK_FREQ      => CLK_FREQUENCY,
             HAS_FPU       => HAS_FPU,
+            LOG_LENGTH    => LOG_LENGTH,
 	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
             UART0_IS_16550     => UART_IS_16550
 	    )
