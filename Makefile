@@ -190,10 +190,11 @@ CLK_INPUT=50000000
 CLK_FREQUENCY=50000000
 clkgen=fpga/clk_gen_bypass.vhd
 toplevel=fpga/top-caravel.vhdl
+MEMORY_SIZE=4096
 endif
 
 fpga_files = $(core_files) $(soc_files) fpga/soc_reset.vhdl \
-	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram.vhdl \
+	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram_caravel.vhdl \
 	nonrandom.vhdl
 
 synth_files = $(core_files) $(soc_files) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
@@ -206,7 +207,7 @@ microwatt.v: $(synth_files) $(RAM_INIT_FILE)
 
 # Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c verilator/jtag-verilator.c
-	verilator -O3 -CFLAGS "-DCLK_FREQUENCY=$(CLK_FREQUENCY)" --assert --cc microwatt.v --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c verilator/jtag-verilator.c -o $@ -Iuart16550 -Ijtag_tap -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
+	verilator -O3 -CFLAGS "-DCLK_FREQUENCY=$(CLK_FREQUENCY)" --assert --cc microwatt.v --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c verilator/jtag-verilator.c -o $@ -Iuart16550 -Ijtag_tap -Icaravel_bram -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
 	make -C obj_dir -f Vmicrowatt.mk
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
 
