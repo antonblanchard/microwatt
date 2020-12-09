@@ -440,8 +440,12 @@ architecture rtl of dcache is
     function read_tlb_tag(way: tlb_way_t; tags: tlb_way_tags_t) return tlb_tag_t is
         variable j : integer;
     begin
+      if TLB_NUM_WAYS = 1 then
+        return tags;
+      else
         j := way * TLB_EA_TAG_BITS;
         return tags(j + TLB_EA_TAG_BITS - 1 downto j);
+      end if;
     end;
 
     -- Write a TLB tag to a TLB tag memory row
@@ -449,23 +453,35 @@ architecture rtl of dcache is
                             tag: tlb_tag_t) is
         variable j : integer;
     begin
+      if TLB_NUM_WAYS = 1 then
+        tags := tag;
+      else
         j := way * TLB_EA_TAG_BITS;
         tags(j + TLB_EA_TAG_BITS - 1 downto j) := tag;
+      end if;
     end;
 
     -- Read a PTE from a TLB PTE memory row
     function read_tlb_pte(way: tlb_way_t; ptes: tlb_way_ptes_t) return tlb_pte_t is
         variable j : integer;
     begin
+      if TLB_NUM_WAYS = 1 then
+        return ptes;
+      else
         j := way * TLB_PTE_BITS;
         return ptes(j + TLB_PTE_BITS - 1 downto j);
+      end if;
     end;
 
     procedure write_tlb_pte(way: tlb_way_t; ptes: inout tlb_way_ptes_t; newpte: tlb_pte_t) is
         variable j : integer;
     begin
+      if TLB_NUM_WAYS = 1 then
+        ptes := newpte;
+      else
         j := way * TLB_PTE_BITS;
         ptes(j + TLB_PTE_BITS - 1 downto j) := newpte;
+      end if;
     end;
 
 begin
