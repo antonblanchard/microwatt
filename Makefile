@@ -184,6 +184,14 @@ CLK_FREQUENCY=50000000
 clkgen=fpga/clk_gen_bypass.vhd
 endif
 
+ifeq ($(FPGA_TARGET), caravel)
+RESET_LOW=true
+CLK_INPUT=50000000
+CLK_FREQUENCY=50000000
+clkgen=fpga/clk_gen_bypass.vhd
+toplevel=fpga/top-caravel.vhdl
+endif
+
 fpga_files = $(core_files) $(soc_files) fpga/soc_reset.vhdl \
 	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram.vhdl \
 	nonrandom.vhdl
