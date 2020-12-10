@@ -195,7 +195,7 @@ endif
 
 fpga_files = $(core_files) $(soc_files) fpga/soc_reset.vhdl \
 	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram_caravel.vhdl \
-	nonrandom.vhdl
+	nonrandom.vhdl mc.vhdl mc_pkg.vhdl
 
 synth_files = $(core_files) $(soc_files) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
 
