@@ -50,17 +50,13 @@ entity toplevel is
         jtag_trst : in std_ulogic;
         jtag_tdo  : out std_ulogic;
 
-        -- Wishbone over LA
-        wb_la_adr   : out wishbone_addr_type;
-        wb_la_dat_o : out wishbone_data_type;
-        wb_la_cyc   : out std_ulogic;
-        wb_la_stb   : out std_ulogic;
-        wb_la_sel   : out wishbone_sel_type;
-        wb_la_we    : out std_ulogic;
+	-- bills bus
+	oib_clk        : out std_ulogic;
+	ob_data        : out std_ulogic_vector(7 downto 0);
+	ob_pty         : out std_ulogic;
 
-        wb_la_dat_i : in wishbone_data_type;
-        wb_la_ack   : in std_ulogic;
-        wb_la_stall : in std_ulogic
+	ib_data        : in  std_ulogic_vector(7 downto 0);
+	ib_pty         : in  std_ulogic
 
         -- XXX Add simple external bus
 
@@ -77,10 +73,22 @@ architecture behaviour of toplevel is
     -- Internal clock signals:
     signal system_clk        : std_ulogic;
     signal system_clk_locked : std_ulogic;
+    signal ext_rst_n : std_ulogic;
 
     -- wishbone over logic analyzer connection
-    signal wb_la_out : wishbone_master_out;
-    signal wb_la_in  : wishbone_slave_out;
+    signal wb_dram_out : wishbone_master_out;
+    signal wb_dram_in  : wishbone_slave_out;
+
+    -- Wishbone over LA
+    signal wb_mc_adr   : wishbone_addr_type;
+    signal wb_mc_dat_o : wishbone_data_type;
+    signal wb_mc_cyc   : std_ulogic;
+    signal wb_mc_stb   : std_ulogic;
+    signal wb_mc_sel   : wishbone_sel_type;
+    signal wb_mc_we    : std_ulogic;
+    signal wb_mc_dat_i : wishbone_data_type;
+    signal wb_mc_ack   : std_ulogic;
+    signal wb_mc_stall : std_ulogic;
 
     -- SPI flash
     signal spi_sck     : std_ulogic;
@@ -139,10 +147,45 @@ begin
             jtag_trst         => jtag_trst,
             jtag_tdo          => jtag_tdo,
 
-            -- Use DRAM wishbone for wishbone over LA
-            wb_dram_in           => wb_la_out,
-            wb_dram_out          => wb_la_in
+            -- Use DRAM wishbone for Bill's bus
+            wb_dram_in           => wb_dram_out,
+            wb_dram_out          => wb_dram_in
             );
+
+    ext_rst_n <= not ext_rst;
+
+    mc0: entity work.mc
+	generic map(
+	    WB_AW          => 32,        -- wishbone_addr_bits
+	    WB_DW          => 64,        -- wishbone_data_bits
+	    OIB_DW         => 8,
+	    OIB_RATIO      => 2,         -- bill said this
+	    BAR_INIT       => x"1fff"    -- dram has 512 bit space. CPU gives
+					 -- top 3 bits as 0. carve off small
+					 -- chunk at top for config space.
+	    )
+	port map (
+	    clk	         => system_clk,
+	    rst   	 => ext_rst_n,
+
+	    wb_cyc       => wb_mc_cyc,
+	    wb_stb       => wb_mc_stb,
+	    wb_we        => wb_mc_we,
+	    wb_addr      => wb_mc_adr,
+	    wb_wr_data   => wb_mc_dat_o,
+	    wb_sel       => wb_mc_sel,
+	    wb_ack       => wb_mc_ack,
+--	    wb_err       => wb_mc_err, ??
+	    wb_stall     => wb_mc_stall,
+	    wb_rd_data   => wb_mc_dat_i,
+	    oib_clk      => oib_clk,
+	    ob_data      => ob_data,
+	    ob_pty       => ob_pty,
+	    ib_data      => ib_data,
+	    ib_pty       => ib_pty
+--	    err          => ob _err,
+--	    int          => ob int
+    );
 
     -- SPI Flash
     spi_flash_cs_n   <= spi_cs_n;
@@ -157,16 +200,16 @@ begin
     spi_flash_clk    <= spi_sck;
 
     -- Wishbone over LA
-    wb_la_adr      <= wb_la_out.adr;
-    wb_la_dat_o    <= wb_la_out.dat;
-    wb_la_cyc      <= wb_la_out.cyc;
-    wb_la_stb      <= wb_la_out.stb;
-    wb_la_sel      <= wb_la_out.sel;
-    wb_la_we       <= wb_la_out.we;
+    wb_mc_adr      <= wb_dram_out.adr;
+    wb_mc_dat_o    <= wb_dram_out.dat;
+    wb_mc_cyc      <= wb_dram_out.cyc;
+    wb_mc_stb      <= wb_dram_out.stb;
+    wb_mc_sel      <= wb_dram_out.sel;
+    wb_mc_we       <= wb_dram_out.we;
 
-    wb_la_in.dat   <= wb_la_dat_i;
-    wb_la_in.ack   <= wb_la_ack;
-    wb_la_in.stall <= wb_la_stall;
+    wb_dram_in.dat   <= wb_mc_dat_i;
+    wb_dram_in.ack   <= wb_mc_ack;
+    wb_dram_in.stall <= wb_mc_stall;
 
     reset_controller: entity work.soc_reset
         generic map(
