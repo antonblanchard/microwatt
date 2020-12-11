@@ -50,17 +50,16 @@ entity toplevel is
         jtag_trst : in std_ulogic;
         jtag_tdo  : out std_ulogic;
 
-	-- bills bus
+	-- Bill's bus
 	oib_clk        : out std_ulogic;
 	ob_data        : out std_ulogic_vector(7 downto 0);
 	ob_pty         : out std_ulogic;
 
 	ib_data        : in  std_ulogic_vector(7 downto 0);
-	ib_pty         : in  std_ulogic
-
-        -- XXX Add simple external bus
+	ib_pty         : in  std_ulogic;
 
 	-- Add an I/O pin to select fetching from flash on reset
+	alt_reset      : in std_ulogic
         );
 end entity toplevel;
 
@@ -96,6 +95,7 @@ architecture behaviour of toplevel is
     signal spi_sdat_o  : std_ulogic_vector(3 downto 0);
     signal spi_sdat_oe : std_ulogic_vector(3 downto 0);
     signal spi_sdat_i  : std_ulogic_vector(3 downto 0);
+
 begin
 
     -- Main SoC
@@ -149,7 +149,10 @@ begin
 
             -- Use DRAM wishbone for Bill's bus
             wb_dram_in           => wb_dram_out,
-            wb_dram_out          => wb_dram_in
+            wb_dram_out          => wb_dram_in,
+
+	    -- Reset PC to flash offset 0 (ie 0xf000000)
+	    alt_reset            => alt_reset
             );
 
     ext_rst_n <= not ext_rst;
