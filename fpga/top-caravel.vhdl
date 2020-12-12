@@ -15,9 +15,9 @@ entity toplevel is
         HAS_FPU            : boolean  := false;
         NO_BRAM            : boolean  := false;
         DISABLE_FLATTEN_CORE : boolean := false;
-        SPI_FLASH_OFFSET   : integer := 4194304;
-        SPI_FLASH_DEF_CKDV : natural := 1;
-        SPI_FLASH_DEF_QUAD : boolean := true;
+        SPI_FLASH_OFFSET   : integer := 0;
+        SPI_FLASH_DEF_CKDV : natural := 4;
+        SPI_FLASH_DEF_QUAD : boolean := false;
         LOG_LENGTH         : natural := 16;
         UART_IS_16550      : boolean := true;
         HAS_UART1          : boolean := false;
@@ -36,12 +36,11 @@ entity toplevel is
         uart1_rxd : in std_ulogic;
 
         -- SPI
-        spi_flash_cs_n   : out std_ulogic;
-        spi_flash_clk    : out std_ulogic;
-        spi_flash_mosi   : inout std_ulogic;
-        spi_flash_miso   : inout std_ulogic;
-        spi_flash_wp_n   : inout std_ulogic;
-        spi_flash_hold_n : inout std_ulogic;
+        spi_flash_cs_n    : out std_ulogic;
+        spi_flash_clk     : out std_ulogic;
+        spi_flash_sdat_i  : in std_ulogic_vector(3 downto 0);
+        spi_flash_sdat_o  : out std_ulogic_vector(3 downto 0);
+        spi_flash_sdat_oe : out std_ulogic_vector(3 downto 0);
 
         -- JTAG signals:
         jtag_tck  : in std_ulogic;
@@ -64,21 +63,14 @@ entity toplevel is
 end entity toplevel;
 
 architecture behaviour of toplevel is
+    -- reset signals
+    signal system_rst : std_ulogic;
 
-    -- Reset signals:
-    signal soc_rst : std_ulogic;
-    signal pll_rst : std_ulogic;
-
-    -- Internal clock signals:
-    signal system_clk        : std_ulogic;
-    signal system_clk_locked : std_ulogic;
-    signal ext_rst_n : std_ulogic;
-
-    -- wishbone over logic analyzer connection
+    -- external bus wishbone connection
     signal wb_dram_out : wishbone_master_out;
     signal wb_dram_in  : wishbone_slave_out;
 
-    -- Wishbone over LA
+    -- external bus
     signal wb_mc_adr   : wishbone_addr_type;
     signal wb_mc_dat_o : wishbone_data_type;
     signal wb_mc_cyc   : std_ulogic;
@@ -88,15 +80,9 @@ architecture behaviour of toplevel is
     signal wb_mc_dat_i : wishbone_data_type;
     signal wb_mc_ack   : std_ulogic;
     signal wb_mc_stall : std_ulogic;
-
-    -- SPI flash
-    signal spi_sck     : std_ulogic;
-    signal spi_cs_n    : std_ulogic;
-    signal spi_sdat_o  : std_ulogic_vector(3 downto 0);
-    signal spi_sdat_oe : std_ulogic_vector(3 downto 0);
-    signal spi_sdat_i  : std_ulogic_vector(3 downto 0);
-
 begin
+
+    system_rst <= not ext_rst when RESET_LOW else ext_rst;
 
     -- Main SoC
     soc0: entity work.soc
@@ -122,8 +108,8 @@ begin
             )
         port map (
             -- System signals
-            system_clk        => system_clk,
-            rst               => soc_rst,
+            system_clk        => ext_clk,
+            rst               => system_rst,
 
             -- UART signals
             uart0_txd         => uart0_txd,
@@ -134,11 +120,11 @@ begin
             uart1_rxd         => uart1_rxd,
 
             -- SPI signals
-            spi_flash_sck     => spi_sck,
-            spi_flash_cs_n    => spi_cs_n,
-            spi_flash_sdat_o  => spi_sdat_o,
-            spi_flash_sdat_oe => spi_sdat_oe,
-            spi_flash_sdat_i  => spi_sdat_i,
+            spi_flash_sck     => spi_flash_clk,
+            spi_flash_cs_n    => spi_flash_cs_n,
+            spi_flash_sdat_o  => spi_flash_sdat_o,
+            spi_flash_sdat_oe => spi_flash_sdat_oe,
+            spi_flash_sdat_i  => spi_flash_sdat_i,
 
             -- JTAG signals
             jtag_tck          => jtag_tck,
@@ -155,8 +141,6 @@ begin
 	    alt_reset            => alt_reset
             );
 
-    ext_rst_n <= not ext_rst;
-
     mc0: entity work.mc
 	generic map(
 	    WB_AW          => 32,        -- wishbone_addr_bits
@@ -168,8 +152,8 @@ begin
 					 -- chunk at top for config space.
 	    )
 	port map (
-	    clk	         => system_clk,
-	    rst   	 => ext_rst_n,
+	    clk	         => ext_clk,
+	    rst   	 => system_rst,
 
 	    wb_cyc       => wb_mc_cyc,
 	    wb_stb       => wb_mc_stb,
@@ -190,19 +174,7 @@ begin
 --	    int          => ob int
     );
 
-    -- SPI Flash
-    spi_flash_cs_n   <= spi_cs_n;
-    spi_flash_mosi   <= spi_sdat_o(0) when spi_sdat_oe(0) = '1' else 'Z';
-    spi_flash_miso   <= spi_sdat_o(1) when spi_sdat_oe(1) = '1' else 'Z';
-    spi_flash_wp_n   <= spi_sdat_o(2) when spi_sdat_oe(2) = '1' else 'Z';
-    spi_flash_hold_n <= spi_sdat_o(3) when spi_sdat_oe(3) = '1' else 'Z';
-    spi_sdat_i(0)    <= spi_flash_mosi;
-    spi_sdat_i(1)    <= spi_flash_miso;
-    spi_sdat_i(2)    <= spi_flash_wp_n;
-    spi_sdat_i(3)    <= spi_flash_hold_n;
-    spi_flash_clk    <= spi_sck;
-
-    -- Wishbone over LA
+    -- External bus wishbone
     wb_mc_adr      <= wb_dram_out.adr;
     wb_mc_dat_o    <= wb_dram_out.dat;
     wb_mc_cyc      <= wb_dram_out.cyc;
@@ -213,30 +185,5 @@ begin
     wb_dram_in.dat   <= wb_mc_dat_i;
     wb_dram_in.ack   <= wb_mc_ack;
     wb_dram_in.stall <= wb_mc_stall;
-
-    reset_controller: entity work.soc_reset
-        generic map(
-            RESET_LOW => RESET_LOW
-            )
-        port map(
-            ext_clk => ext_clk,
-            pll_clk => system_clk,
-            pll_locked_in => system_clk_locked,
-            ext_rst_in => ext_rst,
-            pll_rst_out => pll_rst,
-            rst_out => soc_rst
-            );
-
-    clkgen: entity work.clock_generator
-        generic map(
-            CLK_INPUT_HZ => CLK_INPUT,
-            CLK_OUTPUT_HZ => CLK_FREQUENCY
-            )
-        port map(
-            ext_clk => ext_clk,
-            pll_rst_in => pll_rst,
-            pll_clk_out => system_clk,
-            pll_locked_out => system_clk_locked
-            );
 
 end architecture behaviour;
