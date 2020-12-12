@@ -621,37 +621,26 @@ begin
 
             case l_in.op is
                 when OP_STORE =>
-                    req := '1';
+                    if HAS_FPU and l_in.is_32bit = '1' then
+                        v.state := FPR_CONV;
+                        fp_reg_conv := '1';
+                    else
+                        req := '1';
+                    end if;
                 when OP_LOAD =>
                     req := '1';
                     v.load := '1';
                     -- Allow an extra cycle for RA update on loads
                     v.extra_cycle := l_in.update;
+                    if HAS_FPU and l_in.is_32bit = '1' then
+                        -- Allow an extra cycle for SP->DP precision conversion
+                        v.load_sp := '1';
+                        v.extra_cycle := '1';
+                    end if;
                 when OP_DCBZ =>
                     v.align_intr := v.nc;
                     req := '1';
                     v.dcbz := '1';
-                when OP_FPSTORE =>
-                    if HAS_FPU then
-                        if l_in.is_32bit = '1' then
-                            v.state := FPR_CONV;
-                            fp_reg_conv := '1';
-                        else
-                            req := '1';
-                        end if;
-                    end if;
-                when OP_FPLOAD =>
-                    if HAS_FPU then
-                        v.load := '1';
-                        req := '1';
-                        -- Allow an extra cycle for SP->DP precision conversion
-                        -- or RA update
-                        v.extra_cycle := l_in.update;
-                        if l_in.is_32bit = '1' then
-                            v.load_sp := '1';
-                            v.extra_cycle := '1';
-                        end if;
-                    end if;
                 when OP_TLBIE =>
                     mmureq := '1';
                     v.tlbie := '1';

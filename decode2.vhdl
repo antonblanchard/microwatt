@@ -381,6 +381,7 @@ begin
         -- execute unit
         v.e.nia := d_in.nia;
         v.e.unit := d_in.decode.unit;
+        v.e.fac := d_in.decode.facility;
         v.e.insn_type := d_in.decode.insn_type;
         v.e.read_reg1 := decoded_reg_a.reg;
         v.e.read_data1 := decoded_reg_a.data;

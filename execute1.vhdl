@@ -579,13 +579,11 @@ begin
             ctrl_tmp.srr1(63 - 45) <= '1';
             report "privileged instruction";
 
-        elsif not HAS_FPU and valid_in = '1' and
-            (e_in.insn_type = OP_FPLOAD or e_in.insn_type = OP_FPSTORE) then
+        elsif not HAS_FPU and valid_in = '1' and e_in.fac = FPU then
             -- make lfd/stfd/lfs/stfs etc. illegal in no-FPU implementations
             illegal := '1';
 
-        elsif HAS_FPU and valid_in = '1' and ctrl.msr(MSR_FP) = '0' and
-            (e_in.unit = FPU or e_in.insn_type = OP_FPLOAD or e_in.insn_type = OP_FPSTORE) then
+        elsif HAS_FPU and valid_in = '1' and ctrl.msr(MSR_FP) = '0' and e_in.fac = FPU then
             -- generate a floating-point unavailable interrupt
             exception := '1';
             v.f.redirect_nia := std_logic_vector(to_unsigned(16#800#, 64));

@@ -191,6 +191,7 @@ package common is
     type Decode2ToExecute1Type is record
 	valid: std_ulogic;
         unit : unit_t;
+        fac : facility_t;
 	insn_type: insn_type_t;
 	nia: std_ulogic_vector(63 downto 0);
 	write_reg: gspr_index_t;
@@ -227,7 +228,8 @@ package common is
         second : std_ulogic;                            -- set if this is the second op
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
-	(valid => '0', unit => NONE, insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
+	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL,
+         bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
          bypass_cr => '0', lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
