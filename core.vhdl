@@ -350,13 +350,8 @@ begin
 
     no_fpu: if not HAS_FPU generate
     begin
-        fpu_to_execute1.busy <= '0';
-        fpu_to_execute1.exception <= '0';
-        fpu_to_execute1.interrupt <= '0';
-        fpu_to_execute1.illegal <= '0';
-        fpu_to_writeback.valid <= '0';
-        fpu_to_writeback.write_enable <= '0';
-        fpu_to_writeback.write_cr_enable <= '0';
+        fpu_to_execute1 <= FPUToExecute1Init;
+        fpu_to_writeback <= FPUToWritebackInit;
     end generate;
 
     loadstore1_0: entity work.loadstore1
