@@ -20,7 +20,7 @@ entity toplevel is
         SPI_FLASH_DEF_QUAD : boolean := true;
         LOG_LENGTH         : natural := 16;
         UART_IS_16550      : boolean := true;
-        HAS_UART1          : boolean := true;
+        HAS_UART1          : boolean := false;
         HAS_JTAG           : boolean := true
         );
     port(
