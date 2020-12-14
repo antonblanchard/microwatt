@@ -58,7 +58,10 @@ entity toplevel is
 	ib_pty         : in  std_ulogic;
 
 	-- Add an I/O pin to select fetching from flash on reset
-	alt_reset      : in std_ulogic
+	alt_reset      : in std_ulogic;
+
+        -- unused
+        wb_ext_io_out  : out wb_io_slave_out
         );
 end entity toplevel;
 
@@ -83,6 +86,9 @@ architecture behaviour of toplevel is
 begin
 
     system_rst <= not ext_rst when RESET_LOW else ext_rst;
+
+    -- Unused, but tie it off
+    wb_ext_io_out <= wb_io_slave_out_init;
 
     -- Main SoC
     soc0: entity work.soc
