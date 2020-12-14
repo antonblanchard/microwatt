@@ -30,6 +30,7 @@ use work.wishbone_types.all;
 
 -- External IO bus:
 -- 0xc8000000: LiteDRAM control (CSRs)
+-- We will put the gpios here ... 
 -- 0xc8020000: LiteEth CSRs (*)
 -- 0xc8030000: LiteEth MMIO (*)
 
