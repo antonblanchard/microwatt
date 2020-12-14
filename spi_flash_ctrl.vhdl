@@ -12,7 +12,7 @@ entity spi_flash_ctrl is
         DEF_QUAD_READ   : boolean  := false;  -- Use quad read with 8 clk dummy
 
         -- Dummy clocks after boot
-        BOOT_CLOCKS     : boolean  := true;   -- Send 8 dummy clocks after boot
+        BOOT_CLOCKS     : boolean  := false;   -- Send 8 dummy clocks after boot
 
         -- Number of data lines (1=MISO/MOSI, otherwise 2 or 4)
         DATA_LINES      : positive := 1
