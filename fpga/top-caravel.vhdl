@@ -21,7 +21,9 @@ entity toplevel is
         LOG_LENGTH         : natural := 0;
         UART_IS_16550      : boolean := true;
         HAS_UART1          : boolean := false;
-        HAS_JTAG           : boolean := true
+        HAS_JTAG           : boolean := true;
+        INPUT_IOS  : integer range 0 to 32 := 32;
+        OUTPUT_IOS : integer range 0 to 32 := 32
         );
     port(
         ext_clk   : in  std_ulogic;
@@ -57,11 +59,12 @@ entity toplevel is
 	ib_data        : in  std_ulogic_vector(7 downto 0);
 	ib_pty         : in  std_ulogic;
 
-	-- Add an I/O pin to select fetching from flash on reset
-	alt_reset      : in std_ulogic;
+        -- IO Signals
+        gpio_out : out std_ulogic_vector(OUTPUT_IOS-1 downto 0);
+        gpio_in : in  std_ulogic_vector(INPUT_IOS-1 downto 0);
 
-        -- unused
-        wb_ext_io_out  : out wb_io_slave_out
+	-- Add an I/O pin to select fetching from flash on reset
+	alt_reset      : in std_ulogic
         );
 end entity toplevel;
 
@@ -83,12 +86,17 @@ architecture behaviour of toplevel is
     signal wb_mc_dat_i : wishbone_data_type;
     signal wb_mc_ack   : std_ulogic;
     signal wb_mc_stall : std_ulogic;
+
+    signal wb_logic_analyzer_out    : wb_io_slave_out := wb_io_slave_out_init;
+    signal wb_logic_analyzer_in    : wb_io_master_out;
+
+    signal wb_ext_io_in        : wb_io_master_out;
+    signal wb_ext_io_out       : wb_io_slave_out;
+    signal wb_ext_is_eth       : std_ulogic;
+
 begin
 
     system_rst <= not ext_rst when RESET_LOW else ext_rst;
-
-    -- Unused, but tie it off
-    wb_ext_io_out <= wb_io_slave_out_init;
 
     -- Main SoC
     soc0: entity work.soc
@@ -110,7 +118,8 @@ begin
             LOG_LENGTH         => LOG_LENGTH,
             UART0_IS_16550     => UART_IS_16550,
             HAS_UART1          => HAS_UART1,
-            HAS_JTAG           => HAS_JTAG
+            HAS_JTAG           => HAS_JTAG,
+            HAS_LITEETH        => true
             )
         port map (
             -- System signals
@@ -142,6 +151,10 @@ begin
             -- Use DRAM wishbone for Bill's bus
             wb_dram_in           => wb_dram_out,
             wb_dram_out          => wb_dram_in,
+
+            wb_ext_io_in         => wb_ext_io_in,
+            wb_ext_io_out        => wb_ext_io_out,
+            wb_ext_is_eth        => wb_ext_is_eth,
 
 	    -- Reset PC to flash offset 0 (ie 0xf000000)
 	    alt_reset            => alt_reset
@@ -179,6 +192,30 @@ begin
 --	    err          => ob _err,
 --	    int          => ob int
     );
+
+    logic_analyzer: entity work.logic_analyzer
+        generic map(
+            INPUT_IOS  => INPUT_IOS,
+            OUTPUT_IOS  => OUTPUT_IOS
+            )
+        port map(
+            clk => ext_clk,
+            rst => system_rst,
+	    wb_in => wb_logic_analyzer_in,
+	    wb_out => wb_logic_analyzer_out,
+            io_in => gpio_in,
+            io_out => gpio_out
+        );
+
+	wb_logic_analyzer_in.adr <= wb_ext_io_in.adr;
+	wb_logic_analyzer_in.dat <= wb_ext_io_in.dat;
+	wb_logic_analyzer_in.cyc <= wb_ext_io_in.cyc and wb_ext_is_eth;
+	wb_logic_analyzer_in.stb <= wb_ext_io_in.stb;
+	wb_logic_analyzer_in.sel <= wb_ext_io_in.sel;
+	wb_logic_analyzer_in.we <= wb_ext_io_in.we;
+
+        wb_ext_io_out <= wb_logic_analyzer_out;
+
 
     -- External bus wishbone
     wb_mc_adr      <= wb_dram_out.adr;
