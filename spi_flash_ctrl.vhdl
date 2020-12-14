@@ -232,6 +232,10 @@ begin
             if rst = '1' then
                 wb_out.ack   <= '0';
                 wb_out.stall <= '0';
+		wb_stash.cyc <= '0';
+		wb_stash.stb <= '0';
+		wb_stash.sel <= (others => '0');
+		wb_stash.we <= '0';
             else
                 -- Latch wb responses as well for 1 cycle. Stall is updated
                 -- below
@@ -344,12 +348,17 @@ begin
     auto_sync: process(clk)
     begin
         if rising_edge(clk) then
-            auto_state <= auto_next;
-            auto_cnt   <= auto_cnt_next;
-            auto_data  <= auto_data_next;
-            if auto_latch_adr = '1' then
-                auto_last_addr <= auto_lad_next;
-            end if;
+	    if rst = '1' then
+                auto_last_addr <= (others => '0');
+		auto_state <= AUTO_BOOT;
+	    else
+                auto_state <= auto_next;
+                auto_cnt   <= auto_cnt_next;
+                auto_data  <= auto_data_next;
+                if auto_latch_adr = '1' then
+                    auto_last_addr <= auto_lad_next;
+                end if;
+	    end if;
         end if;
     end process;
 
@@ -421,6 +430,8 @@ begin
                     if cmd_ready = '1' then
                         auto_next <= AUTO_IDLE;
                     end if;
+                else
+                    auto_next <= AUTO_IDLE;
                 end if;
             when AUTO_IDLE =>
                 -- Access to the memory map only when manual CS isn't set
