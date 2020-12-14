@@ -350,6 +350,7 @@ begin
         if rising_edge(clk) then
 	    if rst = '1' then
                 auto_last_addr <= (others => '0');
+		auto_state <= AUTO_BOOT;
 	    else
                 auto_state <= auto_next;
                 auto_cnt   <= auto_cnt_next;
@@ -429,6 +430,8 @@ begin
                     if cmd_ready = '1' then
                         auto_next <= AUTO_IDLE;
                     end if;
+                else
+                    auto_next <= AUTO_IDLE;
                 end if;
             when AUTO_IDLE =>
                 -- Access to the memory map only when manual CS isn't set
