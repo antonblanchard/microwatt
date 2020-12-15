@@ -116,7 +116,7 @@ $(soc_dram_tbs):
 else
 
 VERILATOR_CFLAGS=-O3
-VERILATOR_FLAGS=-O3
+VERILATOR_FLAGS=-O3 --x-assign=1 --x-initial=1
 verilated_dram: litedram/generated/sim/litedram_core.v
 	verilator $(VERILATOR_FLAGS) -CFLAGS $(VERILATOR_CFLAGS) -Wno-fatal --cc $< --trace
 	make -C obj_dir -f ../litedram/extras/sim_dram_verilate.mk VERILATOR_ROOT=$(VERILATOR_ROOT)
@@ -171,7 +171,7 @@ OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
 endif
 
 GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=$(MEMORY_SIZE) -gRAM_INIT_FILE=$(RAM_INIT_FILE) \
-	-gRESET_LOW=$(RESET_LOW) -gCLK_INPUT=$(CLK_INPUT) -gCLK_FREQUENCY=$(CLK_FREQUENCY) -gLOG_LENGTH=8 -gHAS_FPU=false
+	-gRESET_LOW=$(RESET_LOW) -gCLK_INPUT=$(CLK_INPUT) -gCLK_FREQUENCY=$(CLK_FREQUENCY)
 
 clkgen=fpga/clk_gen_ecp5.vhd
 toplevel=fpga/top-generic.vhdl
