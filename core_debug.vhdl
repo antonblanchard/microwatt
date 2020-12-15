@@ -114,6 +114,7 @@ architecture behave of core_debug is
     signal do_dmi_log_rd : std_ulogic;
     signal dmi_read_log_data : std_ulogic;
     signal dmi_read_log_data_1 : std_ulogic;
+    signal log_trigger_delay : integer range 0 to 255 := 0;
 
 begin
        -- Single cycle register accesses on DMI except for GSPR data
@@ -152,9 +153,15 @@ begin
 	    if (rst) then
 		stopping <= '0';
 		terminated <= '0';
+                log_trigger_delay <= 0;
 	    else
-                if do_log_trigger = '1' then
-                    log_dmi_trigger(1) <= '1';
+                if do_log_trigger = '1' or log_trigger_delay /= 0 then
+                    if log_trigger_delay = 255 then
+                        log_dmi_trigger(1) <= '1';
+                        log_trigger_delay <= 0;
+                    else
+                        log_trigger_delay <= log_trigger_delay + 1;
+                    end if;
                 end if;
 		-- Edge detect on dmi_req for 1-shot pulses
 		dmi_req_1 <= dmi_req;
