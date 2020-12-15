@@ -317,13 +317,14 @@ begin
     slave_top_intercon: process(wb_master_out, wb_bram_out, wb_dram_out, wb_io_out, dram_at_0)
 	type slave_top_type is (SLAVE_TOP_BRAM,
                                 SLAVE_TOP_DRAM,
-                                SLAVE_TOP_IO);
+                                SLAVE_TOP_IO,
+			        SLAVE_TOP_INVALID);
 	variable slave_top : slave_top_type;
         variable top_decode : std_ulogic_vector(3 downto 0);
     begin
 	-- Top-level address decoder
         top_decode := wb_master_out.adr(31 downto 29) & dram_at_0;
-        slave_top := SLAVE_TOP_BRAM;
+        slave_top := SLAVE_TOP_INVALID;
 	if    std_match(top_decode, "0000") then
 	    slave_top := SLAVE_TOP_BRAM;
 	elsif std_match(top_decode, "0001") then
@@ -344,6 +345,9 @@ begin
 	wb_io_in <= wb_master_out;
 	wb_io_in.cyc  <= '0';
 	case slave_top is
+	when SLAVE_TOP_INVALID =>
+	    -- We should terminate here
+	    wb_master_in <= wishbone_slave_out_init;
 	when SLAVE_TOP_BRAM =>
 	    wb_bram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_bram_out;
@@ -388,6 +392,7 @@ begin
                 wb_io_out.stall <= '0';
                 wb_sio_out.cyc <= '0';
                 wb_sio_out.stb <= '0';
+                wb_sio_out.adr <= (others => '0');
                 has_top := false;
                 has_bot := false;
             else
