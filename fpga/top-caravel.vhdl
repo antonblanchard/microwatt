@@ -18,7 +18,7 @@ entity toplevel is
         SPI_FLASH_OFFSET   : integer := 0;
         SPI_FLASH_DEF_CKDV : natural := 4;
         SPI_FLASH_DEF_QUAD : boolean := false;
-        LOG_LENGTH         : natural := 8;
+        LOG_LENGTH         : natural := 0;
         UART_IS_16550      : boolean := true;
         HAS_UART1          : boolean := false;
         HAS_JTAG           : boolean := true
