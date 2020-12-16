@@ -53,7 +53,6 @@ end entity execute1;
 architecture behaviour of execute1 is
     type reg_type is record
 	e : Execute1ToWritebackType;
-        f : Execute1ToFetch1Type;
         busy: std_ulogic;
         terminate: std_ulogic;
         fp_exception_next : std_ulogic;
@@ -71,15 +70,24 @@ architecture behaviour of execute1 is
 	slow_op_oe : std_ulogic;
 	slow_op_xerc : xer_common_t;
         last_nia : std_ulogic_vector(63 downto 0);
+        redirect : std_ulogic;
+        abs_br : std_ulogic;
+        do_intr : std_ulogic;
+        vector : integer range 0 to 16#fff#;
+        br_offset : std_ulogic_vector(63 downto 0);
+        redir_mode : std_ulogic_vector(3 downto 0);
         log_addr_spr : std_ulogic_vector(31 downto 0);
     end record;
     constant reg_type_init : reg_type :=
-        (e => Execute1ToWritebackInit, f => Execute1ToFetch1Init,
+        (e => Execute1ToWritebackInit,
          busy => '0', lr_update => '0', terminate => '0',
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
          slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
-         next_lr => (others => '0'), last_nia => (others => '0'), others => (others => '0'));
+         next_lr => (others => '0'), last_nia => (others => '0'),
+         redirect => '0', abs_br => '0', do_intr => '0', vector => 0,
+         br_offset => (others => '0'), redir_mode => "0000",
+         others => (others => '0'));
 
     signal r, rin : reg_type;
 
@@ -340,6 +348,7 @@ begin
         variable spr_val : std_ulogic_vector(63 downto 0);
         variable addend : std_ulogic_vector(127 downto 0);
         variable do_trace : std_ulogic;
+        variable f : Execute1ToFetch1Type;
         variable fv : Execute1ToFPUType;
     begin
 	result := (others => '0');
@@ -352,8 +361,15 @@ begin
 
 	v := r;
 	v.e := Execute1ToWritebackInit;
+        v.redirect := '0';
+        v.abs_br := '0';
+        v.do_intr := '0';
+        v.vector := 0;
+        v.br_offset := (others => '0');
+        v.redir_mode := ctrl.msr(MSR_IR) & not ctrl.msr(MSR_PR) &
+                        not ctrl.msr(MSR_LE) & not ctrl.msr(MSR_SF);
+
         lv := Execute1ToLoadstore1Init;
-        v.f.redirect := '0';
         fv := Execute1ToFPUInit;
 
 	-- XER forwarding. To avoid having to track XER hazards, we use
@@ -471,11 +487,11 @@ begin
 	irq_valid := '0';
 	if ctrl.msr(MSR_EE) = '1' then
 	    if ctrl.dec(63) = '1' then
-		v.f.redirect_nia := std_logic_vector(to_unsigned(16#900#, 64));
+		v.vector := 16#900#;
 		report "IRQ valid: DEC";
 		irq_valid := '1';
 	    elsif ext_irq_in = '1' then
-		v.f.redirect_nia := std_logic_vector(to_unsigned(16#500#, 64));
+		v.vector := 16#500#;
 		report "IRQ valid: External";
 		irq_valid := '1';
 	    end if;
@@ -484,11 +500,6 @@ begin
 	v.terminate := '0';
 	icache_inval <= '0';
 	v.busy := '0';
-        -- send MSR[IR], ~MSR[PR], ~MSR[LE] and ~MSR[SF] up to fetch1
-        v.f.virt_mode := ctrl.msr(MSR_IR);
-        v.f.priv_mode := not ctrl.msr(MSR_PR);
-        v.f.big_endian := not ctrl.msr(MSR_LE);
-        v.f.mode_32bit := not ctrl.msr(MSR_SF);
 
 	-- Next insn adder used in a couple of places
 	next_nia := std_ulogic_vector(unsigned(e_in.nia) + 4);
@@ -546,13 +557,13 @@ begin
             if HAS_FPU and r.fp_exception_next = '1' then
                 -- This is used for FP-type program interrupts that
                 -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.
-                v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
+                v.vector := 16#700#;
                 ctrl_tmp.srr1(63 - 43) <= '1';
                 ctrl_tmp.srr1(63 - 47) <= '1';
             else
                 -- Generate a trace interrupt rather than executing the next instruction
                 -- or taking any asynchronous interrupt
-                v.f.redirect_nia := std_logic_vector(to_unsigned(16#d00#, 64));
+                v.vector := 16#d00#;
                 ctrl_tmp.srr1(63 - 33) <= '1';
                 if r.prev_op = OP_LOAD or r.prev_op = OP_ICBI or r.prev_op = OP_ICBT or
                     r.prev_op = OP_DCBT or r.prev_op = OP_DCBST or r.prev_op = OP_DCBF then
@@ -574,7 +585,7 @@ begin
             instr_is_privileged(e_in.insn_type, e_in.insn) then
             -- generate a program interrupt
             exception := '1';
-            v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
+            v.vector := 16#700#;
             -- set bit 45 to indicate privileged instruction type interrupt
             ctrl_tmp.srr1(63 - 45) <= '1';
             report "privileged instruction";
@@ -586,7 +597,7 @@ begin
         elsif HAS_FPU and valid_in = '1' and ctrl.msr(MSR_FP) = '0' and e_in.fac = FPU then
             -- generate a floating-point unavailable interrupt
             exception := '1';
-            v.f.redirect_nia := std_logic_vector(to_unsigned(16#800#, 64));
+            v.vector := 16#800#;
             report "FP unavailable interrupt";
 
 	elsif valid_in = '1' and e_in.unit = ALU then
@@ -614,7 +625,7 @@ begin
                 if e_in.insn(1) = '1' then
                     exception := '1';
                     exception_nextpc := '1';
-                    v.f.redirect_nia := std_logic_vector(to_unsigned(16#C00#, 64));
+                    v.vector := 16#C00#;
                     report "sc";
                 else
                     illegal := '1';
@@ -702,7 +713,7 @@ begin
                         end loop;
                     else
                         -- trap instructions (tw, twi, td, tdi)
-                        v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
+                        v.vector := 16#700#;
                         -- set bit 46 to say trap occurred
                         ctrl_tmp.srr1(63 - 46) <= '1';
                         if or (trapval and insn_to(e_in.insn)) = '1' then
@@ -785,10 +796,8 @@ begin
                 end if;
 
 	    when OP_RFID =>
-                v.f.virt_mode := a_in(MSR_IR) or a_in(MSR_PR);
-                v.f.priv_mode := not a_in(MSR_PR);
-                v.f.big_endian := not a_in(MSR_LE);
-                v.f.mode_32bit := not a_in(MSR_SF);
+                v.redir_mode := (a_in(MSR_IR) or a_in(MSR_PR)) & not a_in(MSR_PR) &
+                                not a_in(MSR_LE) & not a_in(MSR_SF);
                 -- Can't use msr_copy here because the partial function MSR
                 -- bits should be left unchanged, not zeroed.
                 ctrl_tmp.msr(63 downto 31) <= a_in(63 downto 31);
@@ -1032,8 +1041,8 @@ begin
                 end if;
 
 	    when OP_ISYNC =>
-		v.f.redirect := '1';
-		v.f.redirect_nia := next_nia;
+		v.redirect := '1';
+                v.br_offset := std_ulogic_vector(to_unsigned(4, 64));
 
 	    when OP_ICBI =>
 		icache_inval <= '1';
@@ -1063,16 +1072,13 @@ begin
                     ctrl_tmp.cfar <= e_in.nia;
                 end if;
                 if e_in.br_pred = '0' then
-                    if abs_branch = '1' then
-                        v.f.redirect_nia := b_in;
-                    else
-                        v.f.redirect_nia := std_ulogic_vector(signed(e_in.nia) + signed(b_in));
-                    end if;
+                    v.br_offset := b_in;
+                    v.abs_br := abs_branch;
                 else
-                    v.f.redirect_nia := next_nia;
+                    v.br_offset := std_ulogic_vector(to_unsigned(4, 64));
                 end if;
                 if taken_branch /= e_in.br_pred then
-                    v.f.redirect := '1';
+                    v.redirect := '1';
                 end if;
             end if;
 
@@ -1114,7 +1120,7 @@ begin
         -- valid_in = 0.  Hence they don't happen in the same cycle as any of
         -- the cases above which depend on valid_in = 1.
 
-        if r.f.redirect = '1' then
+        if r.redirect = '1' then
             v.e.valid := '1';
         end if;
 	if r.lr_update = '1' then
@@ -1195,14 +1201,14 @@ begin
         -- The case where MSR[FE0,FE1] goes from zero to non-zero is
         -- handled above by mtmsrd and rfid setting v.fp_exception_next.
         if HAS_FPU and fp_in.interrupt = '1' then
-            v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
+            v.vector := 16#700#;
             ctrl_tmp.srr1(63 - 43) <= '1';
             exception := '1';
         end if;
 
         if illegal = '1' or (HAS_FPU and fp_in.illegal = '1') then
             exception := '1';
-            v.f.redirect_nia := std_logic_vector(to_unsigned(16#700#, 64));
+            v.vector := 16#700#;
             -- Since we aren't doing Hypervisor emulation assist (0xe40) we
             -- set bit 44 to indicate we have an illegal
             ctrl_tmp.srr1(63 - 44) <= '1';
@@ -1226,12 +1232,12 @@ begin
         -- or ISI or ISegI for instruction fetch exceptions
         if l_in.exception = '1' then
             if l_in.alignment = '1' then
-                v.f.redirect_nia := std_logic_vector(to_unsigned(16#600#, 64));
+                v.vector := 16#600#;
             elsif l_in.instr_fault = '0' then
                 if l_in.segment_fault = '0' then
-                    v.f.redirect_nia := std_logic_vector(to_unsigned(16#300#, 64));
+                    v.vector := 16#300#;
                 else
-                    v.f.redirect_nia := std_logic_vector(to_unsigned(16#380#, 64));
+                    v.vector := 16#380#;
                 end if;
             else
                 if l_in.segment_fault = '0' then
@@ -1239,9 +1245,9 @@ begin
                     ctrl_tmp.srr1(63 - 35) <= l_in.perm_error; -- noexec fault
                     ctrl_tmp.srr1(63 - 44) <= l_in.badtree;
                     ctrl_tmp.srr1(63 - 45) <= l_in.rc_error;
-                    v.f.redirect_nia := std_logic_vector(to_unsigned(16#400#, 64));
+                    v.vector := 16#400#;
                 else
-                    v.f.redirect_nia := std_logic_vector(to_unsigned(16#480#, 64));
+                    v.vector := 16#480#;
                 end if;
             end if;
             v.e.exc_write_enable := '1';
@@ -1251,17 +1257,35 @@ begin
 
         if exception = '1' or l_in.exception = '1' then
             ctrl_tmp.irq_state <= WRITE_SRR1;
-            v.f.redirect := '1';
-            v.f.virt_mode := '0';
-            v.f.priv_mode := '1';
-            -- XXX need an interrupt LE bit here, e.g. from LPCR
-            v.f.big_endian := '0';
-            v.f.mode_32bit := '0';
+            v.redirect := '1';
+            v.do_intr := '1';
         end if;
 
-        if v.f.redirect = '1' then
+        if v.redirect = '1' then
             v.busy := '1';
             v.e.valid := '0';
+        end if;
+
+        -- Outputs to fetch1
+        f.redirect := r.redirect;
+        if r.do_intr = '1' then
+            f.redirect_nia := std_ulogic_vector(to_unsigned(r.vector, 64));
+            f.virt_mode := '0';
+            f.priv_mode := '1';
+            -- XXX need an interrupt LE bit here, e.g. from LPCR
+            f.big_endian := '0';
+            f.mode_32bit := '0';
+        else
+            if r.abs_br = '1' then
+                f.redirect_nia := r.br_offset;
+            else
+                f.redirect_nia := std_ulogic_vector(unsigned(r.last_nia) + unsigned(r.br_offset));
+            end if;
+            -- send MSR[IR], ~MSR[PR], ~MSR[LE] and ~MSR[SF] up to fetch1
+            f.virt_mode := r.redir_mode(3);
+            f.priv_mode := r.redir_mode(2);
+            f.big_endian := r.redir_mode(1);
+            f.mode_32bit := r.redir_mode(0);
         end if;
 
         -- Outputs to loadstore1 (async)
@@ -1309,7 +1333,7 @@ begin
 	rin <= v;
 
 	-- update outputs
-	f_out <= r.f;
+	f_out <= f;
         l_out <= lv;
 	e_out <= r.e;
         fp_out <= fv;
