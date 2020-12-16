@@ -624,15 +624,15 @@ begin
                 hit := '1';
             end if;
         end loop;
-        tlb_hit <= hit and r0_valid;
+        tlb_hit <= hit and r0_valid and r0.req.virt_mode;
         tlb_hit_way <= hitway;
         if tlb_hit = '1' then
             pte <= read_tlb_pte(hitway, tlb_pte_way);
         else
             pte <= (others => '0');
         end if;
-        valid_ra <= tlb_hit or not r0.req.virt_mode;
-        if r0.req.virt_mode = '1' then
+        valid_ra <= tlb_hit or (r0_valid and not r0.req.virt_mode);
+        if tlb_hit = '1' then
             ra <= pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
                   r0.req.addr(TLB_LG_PGSZ - 1 downto ROW_OFF_BITS) &
                   (ROW_OFF_BITS-1 downto 0 => '0');
@@ -847,7 +847,7 @@ begin
         -- work out whether we have permission for this access
         -- NB we don't yet implement AMR, thus no KUAP
         rc_ok <= perm_attr.reference and (r0.req.load or perm_attr.changed);
-        perm_ok <= (r0.req.priv_mode or not perm_attr.priv) and
+        perm_ok <= ((r0.req.priv_mode and r0.req.valid) or not perm_attr.priv) and
                    (perm_attr.wr_perm or (r0.req.load and perm_attr.rd_perm));
         access_ok <= valid_ra and perm_ok and rc_ok;
 
