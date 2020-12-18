@@ -68,6 +68,8 @@ architecture behaviour of execute1 is
         last_nia : std_ulogic_vector(63 downto 0);
         redirect : std_ulogic;
         abs_br : std_ulogic;
+        taken_br : std_ulogic;
+        br_last : std_ulogic;
         do_intr : std_ulogic;
         vector : integer range 0 to 16#fff#;
         br_offset : std_ulogic_vector(63 downto 0);
@@ -81,7 +83,7 @@ architecture behaviour of execute1 is
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
          next_lr => (others => '0'), last_nia => (others => '0'),
-         redirect => '0', abs_br => '0', do_intr => '0', vector => 0,
+         redirect => '0', abs_br => '0', taken_br => '0', br_last => '0', do_intr => '0', vector => 0,
          br_offset => (others => '0'), redir_mode => "0000",
          others => (others => '0'));
 
@@ -365,6 +367,7 @@ begin
         variable trapval : std_ulogic_vector(4 downto 0);
         variable illegal : std_ulogic;
         variable is_branch : std_ulogic;
+        variable is_direct_branch : std_ulogic;
         variable taken_branch : std_ulogic;
         variable abs_branch : std_ulogic;
         variable spr_val : std_ulogic_vector(63 downto 0);
@@ -377,6 +380,7 @@ begin
 	sum_with_carry := (others => '0');
 	newcrf := (others => '0');
         is_branch := '0';
+        is_direct_branch := '0';
         taken_branch := '0';
         abs_branch := '0';
         hold_wr_data := '0';
@@ -390,6 +394,8 @@ begin
         v.br_offset := (others => '0');
         v.redir_mode := ctrl.msr(MSR_IR) & not ctrl.msr(MSR_PR) &
                         not ctrl.msr(MSR_LE) & not ctrl.msr(MSR_SF);
+        v.taken_br := '0';
+        v.br_last := '0';
 
         lv := Execute1ToLoadstore1Init;
         fv := Execute1ToFPUInit;
@@ -843,6 +849,7 @@ begin
 	    when OP_B =>
                 is_branch := '1';
                 taken_branch := '1';
+                is_direct_branch := '1';
                 abs_branch := insn_aa(e_in.insn);
                 if ctrl.msr(MSR_BE) = '1' then
                     do_trace := '1';
@@ -852,6 +859,7 @@ begin
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
                 is_branch := '1';
+                is_direct_branch := '1';
 		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
                 abs_branch := insn_aa(e_in.insn);
                 if ctrl.msr(MSR_BE) = '1' then
@@ -1093,7 +1101,7 @@ begin
                 if taken_branch = '1' then
                     ctrl_tmp.cfar <= e_in.nia;
                 end if;
-                if e_in.br_pred = '0' then
+                if taken_branch = '1' then
                     v.br_offset := b_in;
                     v.abs_br := abs_branch;
                 else
@@ -1102,6 +1110,8 @@ begin
                 if taken_branch /= e_in.br_pred then
                     v.redirect := '1';
                 end if;
+                v.br_last := is_direct_branch;
+                v.taken_br := taken_branch;
             end if;
 
         elsif valid_in = '1' and exception = '0' and illegal = '0' then
@@ -1300,6 +1310,9 @@ begin
 
         -- Outputs to fetch1
         f.redirect := r.redirect;
+        f.br_nia := r.last_nia;
+        f.br_last := r.br_last and not r.do_intr;
+        f.br_taken := r.taken_br;
         if r.do_intr = '1' then
             f.redirect_nia := std_ulogic_vector(to_unsigned(r.vector, 64));
             f.virt_mode := '0';

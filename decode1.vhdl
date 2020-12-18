@@ -727,7 +727,10 @@ begin
             bv.br_nia := (others => '0');
         end if;
         bv.br_offset := br_offset;
-        bv.predict := v.br_pred and f_in.valid and not flush_in and not busy_out;
+        if f_in.next_predicted = '1' then
+            v.br_pred := '1';
+        end if;
+        bv.predict := v.br_pred and f_in.valid and not flush_in and not busy_out and not f_in.next_predicted;
         -- after a clock edge...
         br_target := std_ulogic_vector(signed(br.br_nia) + br.br_offset);
 

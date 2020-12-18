@@ -155,6 +155,7 @@ package common is
         big_endian : std_ulogic;
 	stop_mark: std_ulogic;
         sequential: std_ulogic;
+        predicted : std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
     end record;
 
@@ -165,6 +166,7 @@ package common is
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
         big_endian: std_ulogic;
+        next_predicted: std_ulogic;
     end record;
 
     type Decode1ToDecode2Type is record
@@ -308,10 +310,14 @@ package common is
         big_endian: std_ulogic;
         mode_32bit: std_ulogic;
 	redirect_nia: std_ulogic_vector(63 downto 0);
+        br_nia : std_ulogic_vector(63 downto 0);
+        br_last : std_ulogic;
+        br_taken : std_ulogic;
     end record;
     constant Execute1ToFetch1Init : Execute1ToFetch1Type := (redirect => '0', virt_mode => '0',
                                                              priv_mode => '0', big_endian => '0',
-                                                             mode_32bit => '0', others => (others => '0'));
+                                                             mode_32bit => '0', br_taken => '0',
+                                                             br_last => '0', others => (others => '0'));
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;

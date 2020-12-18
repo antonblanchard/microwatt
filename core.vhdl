@@ -12,6 +12,7 @@ entity core is
 	DISABLE_FLATTEN : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        HAS_BTC : boolean := true;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512
         );
@@ -187,7 +188,8 @@ begin
     fetch1_0: entity work.fetch1
         generic map (
             RESET_ADDRESS => (others => '0'),
-	    ALT_RESET_ADDRESS => ALT_RESET_ADDRESS
+	    ALT_RESET_ADDRESS => ALT_RESET_ADDRESS,
+            HAS_BTC => HAS_BTC
             )
         port map (
             clk => clk,
@@ -195,6 +197,7 @@ begin
 	    alt_reset_in => alt_reset_d,
             stall_in => fetch1_stall_in,
             flush_in => fetch1_flush,
+            inval_btc => ex1_icache_inval or mmu_to_icache.tlbie,
 	    stop_in => dbg_core_stop,
             d_in => decode1_to_fetch1,
             e_in => execute1_to_fetch1,

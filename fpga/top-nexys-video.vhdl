@@ -15,6 +15,7 @@ entity toplevel is
 	RESET_LOW     : boolean  := true;
 	CLK_FREQUENCY : positive := 100000000;
         HAS_FPU       : boolean  := true;
+        HAS_BTC       : boolean  := true;
 	USE_LITEDRAM  : boolean  := false;
 	NO_BRAM       : boolean  := false;
 	DISABLE_FLATTEN_CORE : boolean := false;
@@ -122,6 +123,7 @@ begin
 	    SIM           => false,
 	    CLK_FREQ      => CLK_FREQUENCY,
             HAS_FPU       => HAS_FPU,
+            HAS_BTC       => HAS_BTC,
 	    HAS_DRAM      => USE_LITEDRAM,
 	    DRAM_SIZE     => 512 * 1024 * 1024,
             DRAM_INIT_SIZE => PAYLOAD_SIZE,

@@ -565,6 +565,7 @@ begin
 	i_out.stop_mark <= r.hit_smark;
         i_out.fetch_failed <= r.fetch_failed;
         i_out.big_endian <= r.big_endian;
+        i_out.next_predicted <= i_in.predicted;
 
 	-- Stall fetch1 if we have a miss on cache or TLB or a protection fault
 	stall_out <= not (is_hit and access_ok);
