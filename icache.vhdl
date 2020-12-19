@@ -499,7 +499,7 @@ begin
         -- last cycle, and we don't want the first 32-bit chunk, then we can
         -- keep the data we read last cycle and just use that.
         if unsigned(i_in.nia(INSN_BITS+2-1 downto 2)) /= 0 then
-            use_previous <= i_in.sequential and r.hit_valid;
+            use_previous <= i_in.req and i_in.sequential and r.hit_valid;
         else
             use_previous <= '0';
         end if;
