@@ -5,9 +5,9 @@ SECTIONS
 	.head : {
 		KEEP(*(.head))
  	}
-	. = 0x1000;
+	. = 0x400;
 	.text : { *(.text) }
-	. = 0x1800;
+	. = 0xA00;
 	.data : { *(.data) }
 	.bss : { *(.bss) }
 }
