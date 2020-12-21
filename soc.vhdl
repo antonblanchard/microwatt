@@ -754,6 +754,7 @@ begin
 	wb_uart1_out.dat <= x"00000000";
 	wb_uart1_out.ack <= wb_uart1_in.cyc and wb_uart1_in.stb;
 	wb_uart1_out.stall <= '0';
+        uart1_irq <= '0';
     end generate;
 
     spiflash_gen: if HAS_SPI_FLASH generate        

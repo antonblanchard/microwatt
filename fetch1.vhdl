@@ -35,9 +35,7 @@ entity fetch1 is
 end entity fetch1;
 
 architecture behaviour of fetch1 is
-    type stop_state_t is (RUNNING, STOPPED, RESTARTING);
     type reg_internal_t is record
-	stop_state: stop_state_t;
         mode_32bit: std_ulogic;
     end record;
     signal r, r_next : Fetch1ToIcacheType;
@@ -70,7 +68,6 @@ begin
     comb : process(all)
 	variable v : Fetch1ToIcacheType;
 	variable v_int : reg_internal_t;
-	variable increment : boolean;
     begin
 	v := r;
 	v_int := r_int;
@@ -85,7 +82,6 @@ begin
             v.virt_mode := '0';
             v.priv_mode := '1';
             v.big_endian := '0';
-	    v_int.stop_state := RUNNING;
             v_int.mode_32bit := '0';
 	elsif e_in.redirect = '1' then
 	    v.nia := e_in.redirect_nia(63 downto 2) & "00";
@@ -103,49 +99,9 @@ begin
             end if;
 	elsif stall_in = '0' then
 
-	    -- For debug stop/step to work properly we need a little bit of
-	    -- trickery here. If we just stop incrementing and send stop marks
-	    -- when stop_in is set, then we'll increment on the cycle it clears
-	    -- and end up never executing the instruction we were stopped on.
-	    --
-	    -- Avoid this along with the opposite issue when stepping (stop is
-	    -- cleared for only one cycle) is handled by the state machine below
-	    --
-	    -- By default, increment addresses
-	    increment := true;
-	    case v_int.stop_state is
-	    when RUNNING =>
-		-- If we are running and stop_in is set, then stop incrementing,
-		-- we are now stopped.
-		if stop_in = '1' then
-		    increment := false;
-		    v_int.stop_state := STOPPED;
-		end if;
-	    when STOPPED =>
-		-- When stopped, never increment. If stop is cleared, go to state
-		-- "restarting" but still don't increment that cycle. stop_in is
-		-- now 0 so we'll send the NIA down without a stop mark.
-		increment := false;
-		if stop_in = '0' then
-		    v_int.stop_state := RESTARTING;
-		end if;
-	    when RESTARTING =>
-		-- We have just sent the NIA down, we can start incrementing again.
-		-- If stop_in is still not set, go back to running normally.
-		-- If stop_in is set again (that was a one-cycle "step"), go
-		-- back to "stopped" state which means we'll stop incrementing
-		-- on the next cycle. This ensures we increment the PC once after
-		-- sending one instruction without a stop mark. Since stop_in is
-		-- now set, the new PC will be sent with a stop mark and thus not
-		-- executed.
-		if stop_in = '0' then
-		    v_int.stop_state := RUNNING;
-		else
-		    v_int.stop_state := STOPPED;
-		end if;
-	    end case;
-
-	    if increment then
+            -- If the last NIA value went down with a stop mark, it didn't get
+            -- executed, and hence we shouldn't increment NIA.
+	    if r.stop_mark = '0' then
                 if r_int.mode_32bit = '0' then
                     v.nia := std_ulogic_vector(unsigned(r.nia) + 4);
                 else
@@ -155,7 +111,7 @@ begin
 	    end if;
 	end if;
 
-	v.req := not rst;
+	v.req := not rst and not stop_in;
 	v.stop_mark := stop_in;
 
 	r_next <= v;
