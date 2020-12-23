@@ -108,7 +108,7 @@ architecture behave of loadstore1 is
         interrupt    : std_ulogic;
         intr_vec     : integer range 0 to 16#fff#;
         nia          : std_ulogic_vector(63 downto 0);
-        srr1         : std_ulogic_vector(31 downto 0);
+        srr1         : std_ulogic_vector(15 downto 0);
     end record;
 
     signal r, rin : reg_stage_t;
@@ -721,10 +721,10 @@ begin
                 end if;
             else
                 if m_in.segerr = '0' then
-                    v.srr1(63 - 33) := m_in.invalid;
-                    v.srr1(63 - 35) := m_in.perm_error; -- noexec fault
-                    v.srr1(63 - 44) := m_in.badtree;
-                    v.srr1(63 - 45) := m_in.rc_error;
+                    v.srr1(47 - 33) := m_in.invalid;
+                    v.srr1(47 - 35) := m_in.perm_error; -- noexec fault
+                    v.srr1(47 - 44) := m_in.badtree;
+                    v.srr1(47 - 45) := m_in.rc_error;
                     v.intr_vec := 16#400#;
                 else
                     v.intr_vec := 16#480#;

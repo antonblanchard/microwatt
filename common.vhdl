@@ -139,6 +139,8 @@ package common is
     constant instr_tag_init : instr_tag_t := (tag => 0, valid => '0');
     function tag_match(tag1 : instr_tag_t; tag2 : instr_tag_t) return boolean;
 
+    subtype intr_vector_t is integer range 0 to 16#fff#;
+
     -- For now, fixed 16 sources, make this either a parametric
     -- package of some sort or an unconstrainted array.
     type ics_to_icp_t is record
@@ -449,9 +451,9 @@ package common is
         rc : std_ulogic;
         store_done : std_ulogic;
         interrupt : std_ulogic;
-        intr_vec : integer range 0 to 16#fff#;
+        intr_vec : intr_vector_t;
         srr0: std_ulogic_vector(63 downto 0);
-        srr1: std_ulogic_vector(31 downto 0);
+        srr1: std_ulogic_vector(15 downto 0);
     end record;
     constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType :=
         (valid => '0', instr_tag => instr_tag_init, write_enable => '0',
@@ -474,7 +476,7 @@ package common is
 	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
         interrupt : std_ulogic;
-        intr_vec : integer range 0 to 16#fff#;
+        intr_vec : intr_vector_t;
 	redirect: std_ulogic;
         redir_mode: std_ulogic_vector(3 downto 0);
         last_nia: std_ulogic_vector(63 downto 0);
@@ -482,7 +484,7 @@ package common is
         br_last: std_ulogic;
         br_taken: std_ulogic;
         abs_br: std_ulogic;
-        srr1: std_ulogic_vector(31 downto 0);
+        srr1: std_ulogic_vector(15 downto 0);
         msr: std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToWritebackInit : Execute1ToWritebackType :=
@@ -521,13 +523,12 @@ package common is
     type FPUToExecute1Type is record
         busy      : std_ulogic;
         exception : std_ulogic;
-        interrupt : std_ulogic;
-        illegal   : std_ulogic;
     end record;
     constant FPUToExecute1Init : FPUToExecute1Type := (others => '0');
 
     type FPUToWritebackType is record
         valid           : std_ulogic;
+        interrupt       : std_ulogic;
         instr_tag       : instr_tag_t;
         write_enable    : std_ulogic;
         write_reg       : gspr_index_t;
@@ -535,10 +536,17 @@ package common is
         write_cr_enable : std_ulogic;
         write_cr_mask   : std_ulogic_vector(7 downto 0);
         write_cr_data   : std_ulogic_vector(31 downto 0);
+        intr_vec        : intr_vector_t;
+        srr0            : std_ulogic_vector(63 downto 0);
+        srr1            : std_ulogic_vector(15 downto 0);
     end record;
-    constant FPUToWritebackInit : FPUToWritebackType :=  (valid => '0', instr_tag => instr_tag_init,
-                                                          write_enable => '0', write_cr_enable => '0',
-                                                          others => (others => '0'));
+    constant FPUToWritebackInit : FPUToWritebackType :=
+        (valid => '0', interrupt => '0', instr_tag => instr_tag_init,
+         write_enable => '0', write_reg => (others => '0'),
+         write_cr_enable => '0', write_cr_mask => (others => '0'),
+         write_cr_data => (others => '0'),
+         intr_vec => 0, srr1 => (others => '0'),
+         others => (others => '0'));
 
     type DividerToExecute1Type is record
 	valid: std_ulogic;

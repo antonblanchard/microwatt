@@ -750,19 +750,19 @@ begin
                 -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.
                 exception := '1';
                 v.e.intr_vec := 16#700#;
-                v.e.srr1(63 - 43) := '1';
-                v.e.srr1(63 - 47) := '1';
+                v.e.srr1(47 - 43) := '1';
+                v.e.srr1(47 - 47) := '1';
             elsif r.trace_next = '1' then
                 -- Generate a trace interrupt rather than executing the next instruction
                 -- or taking any asynchronous interrupt
                 exception := '1';
                 v.e.intr_vec := 16#d00#;
-                v.e.srr1(63 - 33) := '1';
+                v.e.srr1(47 - 33) := '1';
                 if r.prev_op = OP_LOAD or r.prev_op = OP_ICBI or r.prev_op = OP_ICBT or
                     r.prev_op = OP_DCBT or r.prev_op = OP_DCBST or r.prev_op = OP_DCBF then
-                    v.e.srr1(63 - 35) := '1';
+                    v.e.srr1(47 - 35) := '1';
                 elsif r.prev_op = OP_STORE or r.prev_op = OP_DCBZ or r.prev_op = OP_DCBTST then
-                    v.e.srr1(63 - 36) := '1';
+                    v.e.srr1(47 - 36) := '1';
                 end if;
 
             elsif irq_valid = '1' then
@@ -775,7 +775,7 @@ begin
                 exception := '1';
                 v.e.intr_vec := 16#700#;
                 -- set bit 45 to indicate privileged instruction type interrupt
-                v.e.srr1(63 - 45) := '1';
+                v.e.srr1(47 - 45) := '1';
                 report "privileged instruction";
 
             elsif not HAS_FPU and e_in.fac = FPU then
@@ -840,7 +840,7 @@ begin
                 -- trap instructions (tw, twi, td, tdi)
                 v.e.intr_vec := 16#700#;
                 -- set bit 46 to say trap occurred
-                v.e.srr1(63 - 46) := '1';
+                v.e.srr1(47 - 46) := '1';
                 if or (trapval and insn_to(e_in.insn)) = '1' then
                     -- generate trap-type program interrupt
                     exception := '1';
@@ -1124,22 +1124,12 @@ begin
             v.e.valid := '1';
 	end if;
 
-        -- Generate FP-type program interrupt.  fp_in.interrupt will only
-        -- be set during the execution of a FP instruction.
-        -- The case where MSR[FE0,FE1] goes from zero to non-zero is
-        -- handled above by mtmsrd and rfid setting v.fp_exception_next.
-        if HAS_FPU and fp_in.interrupt = '1' then
-            v.e.intr_vec := 16#700#;
-            v.e.srr1(63 - 43) := '1';
-            exception := '1';
-        end if;
-
-        if illegal = '1' or (HAS_FPU and fp_in.illegal = '1') then
+        if illegal = '1' then
             exception := '1';
             v.e.intr_vec := 16#700#;
             -- Since we aren't doing Hypervisor emulation assist (0xe40) we
             -- set bit 44 to indicate we have an illegal
-            v.e.srr1(63 - 44) := '1';
+            v.e.srr1(47 - 44) := '1';
             report "illegal";
         end if;
 

@@ -82,6 +82,8 @@ begin
         variable sign : std_ulogic;
 	variable scf  : std_ulogic_vector(3 downto 0);
         variable vec  : integer range 0 to 16#fff#;
+        variable srr1 : std_ulogic_vector(15 downto 0);
+        variable intr : std_ulogic;
     begin
         w_out <= WritebackToRegisterFileInit;
         c_out <= WritebackToCrFileInit;
@@ -99,6 +101,8 @@ begin
             complete_out <= fp_in.instr_tag;
         end if;
 
+        intr := e_in.interrupt or l_in.interrupt or fp_in.interrupt;
+
         if r.state = WRITE_SRR1 then
             w_out.write_reg <= fast_spr_num(SPR_SRR1);
             w_out.write_data <= r.srr1;
@@ -106,23 +110,29 @@ begin
             interrupt_out <= '1';
             v.state := WRITE_SRR0;
 
-        elsif e_in.interrupt = '1' then
+        elsif intr = '1' then
             w_out.write_reg <= fast_spr_num(SPR_SRR0);
-            w_out.write_data <= e_in.last_nia;
             w_out.write_enable <= '1';
             v.state := WRITE_SRR1;
-            v.srr1(63 downto 32) := e_in.msr(63 downto 32);
-            v.srr1(31 downto 0) := e_in.msr(31 downto 0) or e_in.srr1;
-            vec := e_in.intr_vec;
-
-        elsif l_in.interrupt = '1' then
-            w_out.write_reg <= fast_spr_num(SPR_SRR0);
-            w_out.write_data <= l_in.srr0;
-            w_out.write_enable <= '1';
-            v.state := WRITE_SRR1;
-            v.srr1(63 downto 32) := e_in.msr(63 downto 32);
-            v.srr1(31 downto 0) := e_in.msr(31 downto 0) or l_in.srr1;
-            vec := l_in.intr_vec;
+            srr1 := (others => '0');
+            if e_in.interrupt = '1' then
+                vec := e_in.intr_vec;
+                w_out.write_data <= e_in.last_nia;
+                srr1 := e_in.srr1;
+            elsif l_in.interrupt = '1' then
+                vec := l_in.intr_vec;
+                w_out.write_data <= l_in.srr0;
+                srr1 := l_in.srr1;
+            elsif fp_in.interrupt = '1' then
+                vec := fp_in.intr_vec;
+                w_out.write_data <= fp_in.srr0;
+                srr1 := fp_in.srr1;
+            end if;
+            v.srr1(63 downto 31) := e_in.msr(63 downto 31);
+            v.srr1(30 downto 27) := srr1(14 downto 11);
+            v.srr1(26 downto 22) := e_in.msr(26 downto 22);
+            v.srr1(21 downto 16) := srr1(5 downto 0);
+            v.srr1(15 downto 0) := e_in.msr(15 downto 0);
 
         else
             if e_in.write_enable = '1' then
@@ -196,7 +206,7 @@ begin
         f.br_nia := e_in.last_nia;
         f.br_last := e_in.br_last;
         f.br_taken := e_in.br_taken;
-        if e_in.interrupt = '1' or l_in.interrupt = '1' then
+        if intr = '1' then
             f.redirect := '1';
             f.br_last := '0';
             f.redirect_nia := std_ulogic_vector(to_unsigned(vec, 64));
