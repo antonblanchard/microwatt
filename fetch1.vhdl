@@ -22,8 +22,8 @@ entity fetch1 is
 	stop_in       : in std_ulogic;
 	alt_reset_in  : in std_ulogic;
 
-	-- redirect from execution unit
-	e_in          : in Execute1ToFetch1Type;
+	-- redirect from writeback unit
+	w_in          : in WritebackToFetch1Type;
 
         -- redirect from decode1
         d_in          : in Decode1ToFetch1Type;
@@ -70,12 +70,12 @@ begin
                     " P:" & std_ulogic'image(r_next.priv_mode) &
                     " E:" & std_ulogic'image(r_next.big_endian) &
                     " 32:" & std_ulogic'image(r_next_int.mode_32bit) &
-		    " R:" & std_ulogic'image(e_in.redirect) & std_ulogic'image(d_in.redirect) &
+		    " R:" & std_ulogic'image(w_in.redirect) & std_ulogic'image(d_in.redirect) &
 		    " S:" & std_ulogic'image(stall_in) &
 		    " T:" & std_ulogic'image(stop_in) &
 		    " nia:" & to_hstring(r_next.nia);
 	    end if;
-            if rst = '1' or e_in.redirect = '1' or d_in.redirect = '1' or stall_in = '0' then
+            if rst = '1' or w_in.redirect = '1' or d_in.redirect = '1' or stall_in = '0' then
                 r.virt_mode <= r_next.virt_mode;
                 r.priv_mode <= r_next.priv_mode;
                 r.big_endian <= r_next.big_endian;
@@ -109,11 +109,11 @@ begin
         signal btc_wr_addr : std_ulogic_vector(BTC_ADDR_BITS - 1 downto 0);
         signal btc_wr_v : std_ulogic;
     begin
-        btc_wr_data <= e_in.br_nia(63 downto BTC_ADDR_BITS + 2) &
-                       e_in.redirect_nia(63 downto 2);
-        btc_wr_addr <= e_in.br_nia(BTC_ADDR_BITS + 1 downto 2);
-        btc_wr <= e_in.br_last;
-        btc_wr_v <= e_in.br_taken;
+        btc_wr_data <= w_in.br_nia(63 downto BTC_ADDR_BITS + 2) &
+                       w_in.redirect_nia(63 downto 2);
+        btc_wr_addr <= w_in.br_nia(BTC_ADDR_BITS + 1 downto 2);
+        btc_wr <= w_in.br_last;
+        btc_wr_v <= w_in.br_taken;
 
         btc_ram : process(clk)
             variable raddr : unsigned(BTC_ADDR_BITS - 1 downto 0);
@@ -158,15 +158,15 @@ begin
             v.big_endian := '0';
             v_int.mode_32bit := '0';
             v_int.predicted_nia := (others => '0');
-	elsif e_in.redirect = '1' then
-	    v.nia := e_in.redirect_nia(63 downto 2) & "00";
-            if e_in.mode_32bit = '1' then
+	elsif w_in.redirect = '1' then
+	    v.nia := w_in.redirect_nia(63 downto 2) & "00";
+            if w_in.mode_32bit = '1' then
                 v.nia(63 downto 32) := (others => '0');
             end if;
-            v.virt_mode := e_in.virt_mode;
-            v.priv_mode := e_in.priv_mode;
-            v.big_endian := e_in.big_endian;
-            v_int.mode_32bit := e_in.mode_32bit;
+            v.virt_mode := w_in.virt_mode;
+            v.priv_mode := w_in.priv_mode;
+            v.big_endian := w_in.big_endian;
+            v_int.mode_32bit := w_in.mode_32bit;
         elsif d_in.redirect = '1' then
             v.nia := d_in.redirect_nia(63 downto 2) & "00";
             if r_int.mode_32bit = '1' then
@@ -191,7 +191,7 @@ begin
 
         -- If the last NIA value went down with a stop mark, it didn't get
         -- executed, and hence we shouldn't increment NIA.
-        advance_nia <= rst or e_in.redirect or d_in.redirect or (not r.stop_mark and not stall_in);
+        advance_nia <= rst or w_in.redirect or d_in.redirect or (not r.stop_mark and not stall_in);
 
 	r_next <= v;
 	r_next_int <= v_int;

@@ -235,8 +235,7 @@ begin
         stall_tmp := '0';
 
         if flush_in = '1' then
-            -- expect to see complete_in next cycle
-            v_int.outstanding := 1;
+            v_int.outstanding := 0;
         elsif complete_in.valid = '1' then
             v_int.outstanding := r_int.outstanding - 1;
         end if;

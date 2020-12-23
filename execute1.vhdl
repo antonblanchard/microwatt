@@ -22,7 +22,7 @@ entity execute1 is
         rst   : in std_ulogic;
 
 	-- asynchronous
-	flush_out : out std_ulogic;
+	flush_in : in std_ulogic;
 	busy_out : out std_ulogic;
 
 	e_in  : in Decode2ToExecute1Type;
@@ -30,10 +30,10 @@ entity execute1 is
         fp_in : in FPUToExecute1Type;
 
 	ext_irq_in : std_ulogic;
+        interrupt_in : std_ulogic;
 
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
-	f_out : out Execute1ToFetch1Type;
         fp_out : out Execute1ToFPUType;
 
 	e_out : out Execute1ToWritebackType;
@@ -61,21 +61,11 @@ architecture behaviour of execute1 is
         fp_exception_next : std_ulogic;
         trace_next : std_ulogic;
         prev_op : insn_type_t;
-	next_lr : std_ulogic_vector(63 downto 0);
         br_taken : std_ulogic;
 	mul_in_progress : std_ulogic;
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
-        last_nia : std_ulogic_vector(63 downto 0);
-        redirect : std_ulogic;
-        abs_br : std_ulogic;
-        taken_br : std_ulogic;
-        br_last : std_ulogic;
-        do_intr : std_ulogic;
-        vector : integer range 0 to 16#fff#;
-        br_offset : std_ulogic_vector(63 downto 0);
-        redir_mode : std_ulogic_vector(3 downto 0);
         log_addr_spr : std_ulogic_vector(31 downto 0);
     end record;
     constant reg_type_init : reg_type :=
@@ -84,9 +74,6 @@ architecture behaviour of execute1 is
          busy => '0', terminate => '0',
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL, br_taken => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
-         next_lr => (others => '0'), last_nia => (others => '0'),
-         redirect => '0', abs_br => '0', taken_br => '0', br_last => '0', do_intr => '0', vector => 0,
-         br_offset => (others => '0'), redir_mode => "0000",
          others => (others => '0'));
 
     signal r, rin : reg_type;
@@ -96,8 +83,8 @@ architecture behaviour of execute1 is
     signal xerc_in : xer_common_t;
 
     signal valid_in : std_ulogic;
-    signal ctrl: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
-    signal ctrl_tmp: ctrl_t := (irq_state => WRITE_SRR0, others => (others => '0'));
+    signal ctrl: ctrl_t := (others => (others => '0'));
+    signal ctrl_tmp: ctrl_t := (others => (others => '0'));
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
     signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
@@ -307,7 +294,7 @@ begin
     xerc_in <= r.e.xerc when r.e.write_xerc_enable = '1' or r.busy = '1' else e_in.xerc;
 
     busy_out <= l_in.busy or r.busy or fp_in.busy;
-    valid_in <= e_in.valid and not busy_out;
+    valid_in <= e_in.valid and not busy_out and not flush_in;
 
     terminate_out <= r.terminate;
 
@@ -332,7 +319,6 @@ begin
                 ctrl.tb <= (others => '0');
                 ctrl.dec <= (others => '0');
                 ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
-                ctrl.irq_state <= WRITE_SRR0;
             else
                 r <= rin;
                 ctrl <= ctrl_tmp;
@@ -673,7 +659,6 @@ begin
         variable lv : Execute1ToLoadstore1Type;
 	variable irq_valid : std_ulogic;
 	variable exception : std_ulogic;
-        variable exception_nextpc : std_ulogic;
         variable illegal : std_ulogic;
         variable is_branch : std_ulogic;
         variable is_direct_branch : std_ulogic;
@@ -682,7 +667,6 @@ begin
         variable spr_val : std_ulogic_vector(63 downto 0);
         variable do_trace : std_ulogic;
         variable hold_wr_data : std_ulogic;
-        variable f : Execute1ToFetch1Type;
         variable fv : Execute1ToFPUType;
     begin
         is_branch := '0';
@@ -693,15 +677,8 @@ begin
 
 	v := r;
 	v.e := Execute1ToWritebackInit;
-        v.redirect := '0';
-        v.abs_br := '0';
-        v.do_intr := '0';
-        v.vector := 0;
-        v.br_offset := (others => '0');
-        v.redir_mode := ctrl.msr(MSR_IR) & not ctrl.msr(MSR_PR) &
-                        not ctrl.msr(MSR_LE) & not ctrl.msr(MSR_SF);
-        v.taken_br := '0';
-        v.br_last := '0';
+        v.e.redir_mode := ctrl.msr(MSR_IR) & not ctrl.msr(MSR_PR) &
+                          not ctrl.msr(MSR_LE) & not ctrl.msr(MSR_SF);
         v.e.xerc := xerc_in;
 
         lv := Execute1ToLoadstore1Init;
@@ -725,11 +702,11 @@ begin
 	irq_valid := '0';
 	if ctrl.msr(MSR_EE) = '1' then
 	    if ctrl.dec(63) = '1' then
-		v.vector := 16#900#;
+		v.e.intr_vec := 16#900#;
 		report "IRQ valid: DEC";
 		irq_valid := '1';
 	    elsif ext_irq_in = '1' then
-		v.vector := 16#500#;
+		v.e.intr_vec := 16#500#;
 		report "IRQ valid: External";
 		irq_valid := '1';
 	    end if;
@@ -748,18 +725,13 @@ begin
 	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
         rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
 
-        ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
-	ctrl_tmp.irq_state <= WRITE_SRR0;
+        v.e.srr1 := msr_copy(ctrl.msr);
 	exception := '0';
         illegal := '0';
-        exception_nextpc := '0';
-        v.e.exc_write_enable := '0';
-        v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
         if valid_in = '1' then
-            v.e.exc_write_data := e_in.nia;
-            v.last_nia := e_in.nia;
+            v.e.last_nia := e_in.nia;
         else
-            v.e.exc_write_data := r.last_nia;
+            v.e.last_nia := r.e.last_nia;
         end if;
 
         v.e.mode_32bit := not ctrl.msr(MSR_SF);
@@ -777,20 +749,20 @@ begin
                 -- This is used for FP-type program interrupts that
                 -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.
                 exception := '1';
-                v.vector := 16#700#;
-                ctrl_tmp.srr1(63 - 43) <= '1';
-                ctrl_tmp.srr1(63 - 47) <= '1';
+                v.e.intr_vec := 16#700#;
+                v.e.srr1(63 - 43) := '1';
+                v.e.srr1(63 - 47) := '1';
             elsif r.trace_next = '1' then
                 -- Generate a trace interrupt rather than executing the next instruction
                 -- or taking any asynchronous interrupt
                 exception := '1';
-                v.vector := 16#d00#;
-                ctrl_tmp.srr1(63 - 33) <= '1';
+                v.e.intr_vec := 16#d00#;
+                v.e.srr1(63 - 33) := '1';
                 if r.prev_op = OP_LOAD or r.prev_op = OP_ICBI or r.prev_op = OP_ICBT or
                     r.prev_op = OP_DCBT or r.prev_op = OP_DCBST or r.prev_op = OP_DCBF then
-                    ctrl_tmp.srr1(63 - 35) <= '1';
+                    v.e.srr1(63 - 35) := '1';
                 elsif r.prev_op = OP_STORE or r.prev_op = OP_DCBZ or r.prev_op = OP_DCBTST then
-                    ctrl_tmp.srr1(63 - 36) <= '1';
+                    v.e.srr1(63 - 36) := '1';
                 end if;
 
             elsif irq_valid = '1' then
@@ -801,9 +773,9 @@ begin
             elsif ctrl.msr(MSR_PR) = '1' and instr_is_privileged(e_in.insn_type, e_in.insn) then
                 -- generate a program interrupt
                 exception := '1';
-                v.vector := 16#700#;
+                v.e.intr_vec := 16#700#;
                 -- set bit 45 to indicate privileged instruction type interrupt
-                ctrl_tmp.srr1(63 - 45) <= '1';
+                v.e.srr1(63 - 45) := '1';
                 report "privileged instruction";
 
             elsif not HAS_FPU and e_in.fac = FPU then
@@ -813,14 +785,13 @@ begin
             elsif HAS_FPU and ctrl.msr(MSR_FP) = '0' and e_in.fac = FPU then
                 -- generate a floating-point unavailable interrupt
                 exception := '1';
-                v.vector := 16#800#;
+                v.e.intr_vec := 16#800#;
                 report "FP unavailable interrupt";
             end if;
         end if;
 
 	if valid_in = '1' and exception = '0' and illegal = '0' and e_in.unit = ALU then
             v.cur_instr := e_in;
-            v.next_lr := next_nia;
 	    v.e.valid := '1';
 
 	    case_0: case e_in.insn_type is
@@ -835,8 +806,8 @@ begin
 		-- we need two cycles to write srr0 and 1
                 if e_in.insn(1) = '1' then
                     exception := '1';
-                    exception_nextpc := '1';
-                    v.vector := 16#C00#;
+                    v.e.intr_vec := 16#C00#;
+                    v.e.last_nia := next_nia;
                     report "sc";
                 else
                     illegal := '1';
@@ -867,9 +838,9 @@ begin
             when OP_CMP =>
             when OP_TRAP =>
                 -- trap instructions (tw, twi, td, tdi)
-                v.vector := 16#700#;
+                v.e.intr_vec := 16#700#;
                 -- set bit 46 to say trap occurred
-                ctrl_tmp.srr1(63 - 46) <= '1';
+                v.e.srr1(63 - 46) := '1';
                 if or (trapval and insn_to(e_in.insn)) = '1' then
                     -- generate trap-type program interrupt
                     exception := '1';
@@ -916,8 +887,8 @@ begin
                 end if;
 
 	    when OP_RFID =>
-                v.redir_mode := (a_in(MSR_IR) or a_in(MSR_PR)) & not a_in(MSR_PR) &
-                                not a_in(MSR_LE) & not a_in(MSR_SF);
+                v.e.redir_mode := (a_in(MSR_IR) or a_in(MSR_PR)) & not a_in(MSR_PR) &
+                                  not a_in(MSR_LE) & not a_in(MSR_SF);
                 -- Can't use msr_copy here because the partial function MSR
                 -- bits should be left unchanged, not zeroed.
                 ctrl_tmp.msr(63 downto 31) <= a_in(63 downto 31);
@@ -1051,8 +1022,8 @@ begin
             when OP_SETB =>
 
 	    when OP_ISYNC =>
-		v.redirect := '1';
-                v.br_offset := std_ulogic_vector(to_unsigned(4, 64));
+		v.e.redirect := '1';
+                v.e.br_offset := std_ulogic_vector(to_unsigned(4, 64));
 
 	    when OP_ICBI =>
 		icache_inval <= '1';
@@ -1080,16 +1051,16 @@ begin
                     ctrl_tmp.cfar <= e_in.nia;
                 end if;
                 if taken_branch = '1' then
-                    v.br_offset := b_in;
-                    v.abs_br := abs_branch;
+                    v.e.br_offset := b_in;
+                    v.e.abs_br := abs_branch;
                 else
-                    v.br_offset := std_ulogic_vector(to_unsigned(4, 64));
+                    v.e.br_offset := std_ulogic_vector(to_unsigned(4, 64));
                 end if;
                 if taken_branch /= e_in.br_pred then
-                    v.redirect := '1';
+                    v.e.redirect := '1';
                 end if;
-                v.br_last := is_direct_branch;
-                v.taken_br := taken_branch;
+                v.e.br_last := is_direct_branch;
+                v.e.br_taken := taken_branch;
             end if;
 
         elsif valid_in = '1' and exception = '0' and illegal = '0' then
@@ -1110,28 +1081,7 @@ begin
         -- The following cases all occur when r.busy = 1 and therefore
         -- valid_in = 0.  Hence they don't happen in the same cycle as any of
         -- the cases above which depend on valid_in = 1.
-
- 	if ctrl.irq_state = WRITE_SRR1 then
- 	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
- 	    v.e.exc_write_data := ctrl.srr1;
-            v.e.exc_write_enable := '1';
-            ctrl_tmp.msr(MSR_SF) <= '1';
-            ctrl_tmp.msr(MSR_EE) <= '0';
-            ctrl_tmp.msr(MSR_PR) <= '0';
-            ctrl_tmp.msr(MSR_SE) <= '0';
-            ctrl_tmp.msr(MSR_BE) <= '0';
-            ctrl_tmp.msr(MSR_FP) <= '0';
-            ctrl_tmp.msr(MSR_FE0) <= '0';
-            ctrl_tmp.msr(MSR_FE1) <= '0';
-            ctrl_tmp.msr(MSR_IR) <= '0';
-            ctrl_tmp.msr(MSR_DR) <= '0';
-            ctrl_tmp.msr(MSR_RI) <= '0';
-            ctrl_tmp.msr(MSR_LE) <= '1';
-            v.trace_next := '0';
-            v.fp_exception_next := '0';
-	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
-
-        elsif r.cntz_in_progress = '1' then
+        if r.cntz_in_progress = '1' then
             -- cnt[lt]z always takes two cycles
             v.e.valid := '1';
 	elsif r.mul_in_progress = '1' or r.div_in_progress = '1' then
@@ -1179,61 +1129,65 @@ begin
         -- The case where MSR[FE0,FE1] goes from zero to non-zero is
         -- handled above by mtmsrd and rfid setting v.fp_exception_next.
         if HAS_FPU and fp_in.interrupt = '1' then
-            v.vector := 16#700#;
-            ctrl_tmp.srr1(63 - 43) <= '1';
+            v.e.intr_vec := 16#700#;
+            v.e.srr1(63 - 43) := '1';
             exception := '1';
         end if;
 
         if illegal = '1' or (HAS_FPU and fp_in.illegal = '1') then
             exception := '1';
-            v.vector := 16#700#;
+            v.e.intr_vec := 16#700#;
             -- Since we aren't doing Hypervisor emulation assist (0xe40) we
             -- set bit 44 to indicate we have an illegal
-            ctrl_tmp.srr1(63 - 44) <= '1';
+            v.e.srr1(63 - 44) := '1';
             report "illegal";
         end if;
-	if exception = '1' then
-            v.e.exc_write_enable := '1';
-            if exception_nextpc = '1' then
-                v.e.exc_write_data := next_nia;
-            end if;
-	end if;
 
         -- generate DSI or DSegI for load/store exceptions
         -- or ISI or ISegI for instruction fetch exceptions
         if l_in.exception = '1' then
             if l_in.alignment = '1' then
-                v.vector := 16#600#;
+                v.e.intr_vec := 16#600#;
             elsif l_in.instr_fault = '0' then
                 if l_in.segment_fault = '0' then
-                    v.vector := 16#300#;
+                    v.e.intr_vec := 16#300#;
                 else
-                    v.vector := 16#380#;
+                    v.e.intr_vec := 16#380#;
                 end if;
             else
                 if l_in.segment_fault = '0' then
-                    ctrl_tmp.srr1(63 - 33) <= l_in.invalid;
-                    ctrl_tmp.srr1(63 - 35) <= l_in.perm_error; -- noexec fault
-                    ctrl_tmp.srr1(63 - 44) <= l_in.badtree;
-                    ctrl_tmp.srr1(63 - 45) <= l_in.rc_error;
-                    v.vector := 16#400#;
+                    v.e.srr1(63 - 33) := l_in.invalid;
+                    v.e.srr1(63 - 35) := l_in.perm_error; -- noexec fault
+                    v.e.srr1(63 - 44) := l_in.badtree;
+                    v.e.srr1(63 - 45) := l_in.rc_error;
+                    v.e.intr_vec := 16#400#;
                 else
-                    v.vector := 16#480#;
+                    v.e.intr_vec := 16#480#;
                 end if;
             end if;
-            v.e.exc_write_enable := '1';
-            v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
-            report "ldst exception writing srr0=" & to_hstring(r.last_nia);
         end if;
 
-        if exception = '1' or l_in.exception = '1' then
-            ctrl_tmp.irq_state <= WRITE_SRR1;
-            v.redirect := '1';
-            v.do_intr := '1';
-        end if;
+        v.e.interrupt := exception or l_in.exception;
 
         if do_trace = '1' then
             v.trace_next := '1';
+        end if;
+
+ 	if interrupt_in = '1' then
+            ctrl_tmp.msr(MSR_SF) <= '1';
+            ctrl_tmp.msr(MSR_EE) <= '0';
+            ctrl_tmp.msr(MSR_PR) <= '0';
+            ctrl_tmp.msr(MSR_SE) <= '0';
+            ctrl_tmp.msr(MSR_BE) <= '0';
+            ctrl_tmp.msr(MSR_FP) <= '0';
+            ctrl_tmp.msr(MSR_FE0) <= '0';
+            ctrl_tmp.msr(MSR_FE1) <= '0';
+            ctrl_tmp.msr(MSR_IR) <= '0';
+            ctrl_tmp.msr(MSR_DR) <= '0';
+            ctrl_tmp.msr(MSR_RI) <= '0';
+            ctrl_tmp.msr(MSR_LE) <= '1';
+            v.trace_next := '0';
+            v.fp_exception_next := '0';
         end if;
 
         if hold_wr_data = '0' then
@@ -1262,41 +1216,6 @@ begin
                 bypass_cr_data.data(i*4 + 3 downto i*4) <= cr_in(i*4 + 3 downto i*4);
             end if;
         end loop;
-
-        -- Defer completion for one cycle when redirecting.
-        -- This also ensures r.busy = 1 when ctrl.irq_state = WRITE_SRR1
-        if v.redirect = '1' then
-            v.busy := '1';
-            v.e.valid := '0';
-        end if;
-        if r.redirect = '1' then
-            v.e.valid := '1';
-        end if;
-
-        -- Outputs to fetch1
-        f.redirect := r.redirect;
-        f.br_nia := r.last_nia;
-        f.br_last := r.br_last and not r.do_intr;
-        f.br_taken := r.taken_br;
-        if r.do_intr = '1' then
-            f.redirect_nia := std_ulogic_vector(to_unsigned(r.vector, 64));
-            f.virt_mode := '0';
-            f.priv_mode := '1';
-            -- XXX need an interrupt LE bit here, e.g. from LPCR
-            f.big_endian := '0';
-            f.mode_32bit := '0';
-        else
-            if r.abs_br = '1' then
-                f.redirect_nia := r.br_offset;
-            else
-                f.redirect_nia := std_ulogic_vector(unsigned(r.last_nia) + unsigned(r.br_offset));
-            end if;
-            -- send MSR[IR], ~MSR[PR], ~MSR[LE] and ~MSR[SF] up to fetch1
-            f.virt_mode := r.redir_mode(3);
-            f.priv_mode := r.redir_mode(2);
-            f.big_endian := r.redir_mode(1);
-            f.mode_32bit := r.redir_mode(0);
-        end if;
 
         -- Outputs to loadstore1 (async)
         lv.op := e_in.insn_type;
@@ -1344,11 +1263,9 @@ begin
 	rin <= v;
 
 	-- update outputs
-	f_out <= f;
         l_out <= lv;
 	e_out <= r.e;
         fp_out <= fv;
-	flush_out <= f_out.redirect;
 
         exception_log <= exception;
         irq_valid_log <= irq_valid;
@@ -1364,13 +1281,13 @@ begin
                             ctrl.msr(MSR_IR) & ctrl.msr(MSR_DR) &
                             exception_log &
                             irq_valid_log &
-                            std_ulogic_vector(to_unsigned(irq_state_t'pos(ctrl.irq_state), 1)) &
+                            interrupt_in &
                             "000" &
                             r.e.write_enable &
                             r.e.valid &
-                            f_out.redirect &
+                            (r.e.redirect or r.e.interrupt) &
                             r.busy &
-                            flush_out;
+                            flush_in;
             end if;
         end process;
         log_out <= log_data;

@@ -139,8 +139,6 @@ package common is
     constant instr_tag_init : instr_tag_t := (tag => 0, valid => '0');
     function tag_match(tag1 : instr_tag_t; tag2 : instr_tag_t) return boolean;
 
-    type irq_state_t is (WRITE_SRR0, WRITE_SRR1);
-
     -- For now, fixed 16 sources, make this either a parametric
     -- package of some sort or an unconstrainted array.
     type ics_to_icp_t is record
@@ -157,8 +155,6 @@ package common is
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
         cfar: std_ulogic_vector(63 downto 0);
-	irq_state : irq_state_t;
-	srr1: std_ulogic_vector(63 downto 0);
     end record;
 
     type Fetch1ToIcacheType is record
@@ -329,22 +325,6 @@ package common is
 	read_xerc_data : xer_common_t;
     end record;
 
-    type Execute1ToFetch1Type is record
-	redirect: std_ulogic;
-        virt_mode: std_ulogic;
-        priv_mode: std_ulogic;
-        big_endian: std_ulogic;
-        mode_32bit: std_ulogic;
-	redirect_nia: std_ulogic_vector(63 downto 0);
-        br_nia : std_ulogic_vector(63 downto 0);
-        br_last : std_ulogic;
-        br_taken : std_ulogic;
-    end record;
-    constant Execute1ToFetch1Init : Execute1ToFetch1Type := (redirect => '0', virt_mode => '0',
-                                                             priv_mode => '0', big_endian => '0',
-                                                             mode_32bit => '0', br_taken => '0',
-                                                             br_last => '0', others => (others => '0'));
-
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
         op : insn_type_t;                               -- what ld/st or m[tf]spr or TLB op to do
@@ -492,17 +472,26 @@ package common is
 	write_cr_data : std_ulogic_vector(31 downto 0);
 	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
-        exc_write_enable : std_ulogic;
-        exc_write_reg : gspr_index_t;
-        exc_write_data : std_ulogic_vector(63 downto 0);
+        interrupt : std_ulogic;
+        intr_vec : integer range 0 to 16#fff#;
+	redirect: std_ulogic;
+        redir_mode: std_ulogic_vector(3 downto 0);
+        last_nia: std_ulogic_vector(63 downto 0);
+        br_offset: std_ulogic_vector(63 downto 0);
+        br_last: std_ulogic;
+        br_taken: std_ulogic;
+        abs_br: std_ulogic;
+        srr1: std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToWritebackInit : Execute1ToWritebackType :=
         (valid => '0', instr_tag => instr_tag_init, rc => '0', mode_32bit => '0',
-         write_enable => '0', write_cr_enable => '0', exc_write_enable => '0',
+         write_enable => '0', write_cr_enable => '0',
          write_xerc_enable => '0', xerc => xerc_init,
          write_data => (others => '0'), write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'), write_reg => (others => '0'),
-         exc_write_reg => (others => '0'), exc_write_data => (others => '0'));
+         interrupt => '0', intr_vec => 0, redirect => '0', redir_mode => "0000",
+         last_nia => (others => '0'), br_offset => (others => '0'),
+         br_last => '0', br_taken => '0', abs_br => '0', srr1 => (others => '0'));
 
     type Execute1ToFPUType is record
         valid   : std_ulogic;
@@ -555,6 +544,22 @@ package common is
     end record;
     constant DividerToExecute1Init : DividerToExecute1Type := (valid => '0', overflow => '0',
                                                                others => (others => '0'));
+
+    type WritebackToFetch1Type is record
+	redirect: std_ulogic;
+        virt_mode: std_ulogic;
+        priv_mode: std_ulogic;
+        big_endian: std_ulogic;
+        mode_32bit: std_ulogic;
+	redirect_nia: std_ulogic_vector(63 downto 0);
+        br_nia : std_ulogic_vector(63 downto 0);
+        br_last : std_ulogic;
+        br_taken : std_ulogic;
+    end record;
+    constant WritebackToFetch1Init : WritebackToFetch1Type :=
+        (redirect => '0', virt_mode => '0', priv_mode => '0', big_endian => '0',
+         mode_32bit => '0', redirect_nia => (others => '0'),
+         br_last => '0', br_taken => '0', br_nia => (others => '0'));
 
     type WritebackToRegisterFileType is record
 	write_reg : gspr_index_t;
