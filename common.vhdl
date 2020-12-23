@@ -349,6 +349,7 @@ package common is
         is_32bit : std_ulogic;
         repeat : std_ulogic;
         second : std_ulogic;
+        msr : std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
         (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
@@ -360,18 +361,11 @@ package common is
          write_reg => (others => '0'),
          length => (others => '0'),
          mode_32bit => '0', is_32bit => '0',
-         repeat => '0', second => '0');
+         repeat => '0', second => '0',
+         msr => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
-        exception : std_ulogic;
-        alignment : std_ulogic;
-        invalid : std_ulogic;
-        perm_error : std_ulogic;
-        rc_error : std_ulogic;
-        badtree : std_ulogic;
-        segment_fault : std_ulogic;
-        instr_fault : std_ulogic;
     end record;
 
     type Loadstore1ToDcacheType is record
@@ -454,10 +448,17 @@ package common is
 	xerc : xer_common_t;
         rc : std_ulogic;
         store_done : std_ulogic;
+        interrupt : std_ulogic;
+        intr_vec : integer range 0 to 16#fff#;
+        srr0: std_ulogic_vector(63 downto 0);
+        srr1: std_ulogic_vector(31 downto 0);
     end record;
     constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType :=
-        (valid => '0', instr_tag => instr_tag_init, write_enable => '0', xerc => xerc_init,
-         rc => '0', store_done => '0', write_data => (others => '0'), others => (others => '0'));
+        (valid => '0', instr_tag => instr_tag_init, write_enable => '0',
+         write_reg => (others => '0'), write_data => (others => '0'),
+         xerc => xerc_init, rc => '0', store_done => '0',
+         interrupt => '0', intr_vec => 0,
+         srr0 => (others => '0'), srr1 => (others => '0'));
 
     type Execute1ToWritebackType is record
 	valid: std_ulogic;
@@ -481,7 +482,8 @@ package common is
         br_last: std_ulogic;
         br_taken: std_ulogic;
         abs_br: std_ulogic;
-        srr1: std_ulogic_vector(63 downto 0);
+        srr1: std_ulogic_vector(31 downto 0);
+        msr: std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToWritebackInit : Execute1ToWritebackType :=
         (valid => '0', instr_tag => instr_tag_init, rc => '0', mode_32bit => '0',
@@ -491,7 +493,8 @@ package common is
          write_cr_data => (others => '0'), write_reg => (others => '0'),
          interrupt => '0', intr_vec => 0, redirect => '0', redir_mode => "0000",
          last_nia => (others => '0'), br_offset => (others => '0'),
-         br_last => '0', br_taken => '0', abs_br => '0', srr1 => (others => '0'));
+         br_last => '0', br_taken => '0', abs_br => '0',
+         srr1 => (others => '0'), msr => (others => '0'));
 
     type Execute1ToFPUType is record
         valid   : std_ulogic;

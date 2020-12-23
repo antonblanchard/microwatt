@@ -81,11 +81,13 @@ begin
         variable zero : std_ulogic;
         variable sign : std_ulogic;
 	variable scf  : std_ulogic_vector(3 downto 0);
+        variable vec  : integer range 0 to 16#fff#;
     begin
         w_out <= WritebackToRegisterFileInit;
         c_out <= WritebackToCrFileInit;
         f := WritebackToFetch1Init;
         interrupt_out <= '0';
+        vec := 0;
         v := r;
 
         complete_out <= instr_tag_init;
@@ -109,7 +111,19 @@ begin
             w_out.write_data <= e_in.last_nia;
             w_out.write_enable <= '1';
             v.state := WRITE_SRR1;
-            v.srr1 := e_in.srr1;
+            v.srr1(63 downto 32) := e_in.msr(63 downto 32);
+            v.srr1(31 downto 0) := e_in.msr(31 downto 0) or e_in.srr1;
+            vec := e_in.intr_vec;
+
+        elsif l_in.interrupt = '1' then
+            w_out.write_reg <= fast_spr_num(SPR_SRR0);
+            w_out.write_data <= l_in.srr0;
+            w_out.write_enable <= '1';
+            v.state := WRITE_SRR1;
+            v.srr1(63 downto 32) := e_in.msr(63 downto 32);
+            v.srr1(31 downto 0) := e_in.msr(31 downto 0) or l_in.srr1;
+            vec := l_in.intr_vec;
+
         else
             if e_in.write_enable = '1' then
                 w_out.write_reg <= e_in.write_reg;
@@ -178,12 +192,14 @@ begin
         end if;
 
         -- Outputs to fetch1
-        f.redirect := e_in.redirect or e_in.interrupt;
+        f.redirect := e_in.redirect;
         f.br_nia := e_in.last_nia;
-        f.br_last := e_in.br_last and not e_in.interrupt;
+        f.br_last := e_in.br_last;
         f.br_taken := e_in.br_taken;
-        if e_in.interrupt = '1' then
-            f.redirect_nia := std_ulogic_vector(to_unsigned(e_in.intr_vec, 64));
+        if e_in.interrupt = '1' or l_in.interrupt = '1' then
+            f.redirect := '1';
+            f.br_last := '0';
+            f.redirect_nia := std_ulogic_vector(to_unsigned(vec, 64));
             f.virt_mode := '0';
             f.priv_mode := '1';
             -- XXX need an interrupt LE bit here, e.g. from LPCR

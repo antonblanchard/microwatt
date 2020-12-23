@@ -725,7 +725,7 @@ begin
 	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
         rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
 
-        v.e.srr1 := msr_copy(ctrl.msr);
+        v.e.srr1 := (others => '0');
 	exception := '0';
         illegal := '0';
         if valid_in = '1' then
@@ -1143,31 +1143,7 @@ begin
             report "illegal";
         end if;
 
-        -- generate DSI or DSegI for load/store exceptions
-        -- or ISI or ISegI for instruction fetch exceptions
-        if l_in.exception = '1' then
-            if l_in.alignment = '1' then
-                v.e.intr_vec := 16#600#;
-            elsif l_in.instr_fault = '0' then
-                if l_in.segment_fault = '0' then
-                    v.e.intr_vec := 16#300#;
-                else
-                    v.e.intr_vec := 16#380#;
-                end if;
-            else
-                if l_in.segment_fault = '0' then
-                    v.e.srr1(63 - 33) := l_in.invalid;
-                    v.e.srr1(63 - 35) := l_in.perm_error; -- noexec fault
-                    v.e.srr1(63 - 44) := l_in.badtree;
-                    v.e.srr1(63 - 45) := l_in.rc_error;
-                    v.e.intr_vec := 16#400#;
-                else
-                    v.e.intr_vec := 16#480#;
-                end if;
-            end if;
-        end if;
-
-        v.e.interrupt := exception or l_in.exception;
+        v.e.interrupt := exception;
 
         if do_trace = '1' then
             v.trace_next := '1';
@@ -1265,6 +1241,7 @@ begin
 	-- update outputs
         l_out <= lv;
 	e_out <= r.e;
+        e_out.msr <= msr_copy(ctrl.msr);
         fp_out <= fv;
 
         exception_log <= exception;

@@ -105,6 +105,10 @@ architecture behave of loadstore1 is
         ld_sp_nz     : std_ulogic;
         ld_sp_lz     : std_ulogic_vector(5 downto 0);
         wr_sel       : std_ulogic_vector(1 downto 0);
+        interrupt    : std_ulogic;
+        intr_vec     : integer range 0 to 16#fff#;
+        nia          : std_ulogic_vector(63 downto 0);
+        srr1         : std_ulogic_vector(31 downto 0);
     end record;
 
     signal r, rin : reg_stage_t;
@@ -220,6 +224,7 @@ begin
                 r.state <= IDLE;
                 r.busy <= '0';
                 r.do_update <= '0';
+                r.interrupt <= '0';
             else
                 r <= rin;
             end if;
@@ -520,6 +525,8 @@ begin
             v.wait_dcache := '0';
             v.wait_mmu := '0';
             v.extra_cycle := '0';
+            v.nia := l_in.nia;
+            v.srr1 := (others => '0');
 
             if HAS_FPU and l_in.is_32bit = '1' then
                 v.store_data := x"00000000" & store_sp_data;
@@ -697,6 +704,34 @@ begin
             end if;
         end loop;
 
+        -- generate DSI or DSegI for load/store exceptions
+        -- or ISI or ISegI for instruction fetch exceptions
+        v.interrupt := exception;
+        if exception = '1' then
+            if r.align_intr = '1' then
+                v.intr_vec := 16#600#;
+                v.dar := addr;
+            elsif r.instr_fault = '0' then
+                v.dar := addr;
+                if m_in.segerr = '0' then
+                    v.intr_vec := 16#300#;
+                    v.dsisr := dsisr;
+                else
+                    v.intr_vec := 16#380#;
+                end if;
+            else
+                if m_in.segerr = '0' then
+                    v.srr1(63 - 33) := m_in.invalid;
+                    v.srr1(63 - 35) := m_in.perm_error; -- noexec fault
+                    v.srr1(63 - 44) := m_in.badtree;
+                    v.srr1(63 - 45) := m_in.rc_error;
+                    v.intr_vec := 16#400#;
+                else
+                    v.intr_vec := 16#480#;
+                end if;
+            end if;
+        end if;
+
         -- Update outputs to dcache
         d_out.valid <= req and not v.align_intr;
         d_out.load <= v.load;
@@ -746,23 +781,13 @@ begin
         l_out.xerc <= r.xerc;
         l_out.rc <= r.rc and done;
         l_out.store_done <= d_in.store_done;
+        l_out.interrupt <= r.interrupt;
+        l_out.intr_vec <= r.intr_vec;
+        l_out.srr0 <= r.nia;
+        l_out.srr1 <= r.srr1;
 
-        -- update exception info back to execute1
+        -- update busy signal back to execute1
         e_out.busy <= busy;
-        e_out.exception <= exception;
-        e_out.alignment <= r.align_intr;
-        e_out.instr_fault <= r.instr_fault;
-        e_out.invalid <= m_in.invalid;
-        e_out.badtree <= m_in.badtree;
-        e_out.perm_error <= m_in.perm_error;
-        e_out.rc_error <= m_in.rc_error;
-        e_out.segment_fault <= m_in.segerr;
-        if exception = '1' and r.instr_fault = '0' then
-            v.dar := addr;
-            if m_in.segerr = '0' and r.align_intr = '0' then
-                v.dsisr := dsisr;
-            end if;
-        end if;
 
         -- Update registers
         rin <= v;
@@ -776,7 +801,7 @@ begin
         begin
             if rising_edge(clk) then
                 log_data <= e_out.busy &
-                            e_out.exception &
+                            l_out.interrupt &
                             l_out.valid &
                             m_out.valid &
                             d_out.valid &
