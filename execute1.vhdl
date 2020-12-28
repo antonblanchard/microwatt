@@ -293,7 +293,10 @@ begin
     -- writeback.
     xerc_in <= r.e.xerc when r.e.write_xerc_enable = '1' or r.busy = '1' else e_in.xerc;
 
-    busy_out <= l_in.busy or r.busy or fp_in.busy;
+    with e_in.unit select busy_out <=
+        l_in.busy or r.busy or fp_in.busy when LDST,
+        l_in.busy or l_in.in_progress or r.busy or fp_in.busy when others;
+
     valid_in <= e_in.valid and not busy_out and not flush_in;
 
     terminate_out <= r.terminate;
@@ -744,7 +747,7 @@ begin
 
         -- Determine if there is any exception to be taken
         -- before/instead of executing this instruction
-        if valid_in = '1' and e_in.second = '0' then
+        if valid_in = '1' and e_in.second = '0' and l_in.in_progress = '0' then
             if HAS_FPU and r.fp_exception_next = '1' then
                 -- This is used for FP-type program interrupts that
                 -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.

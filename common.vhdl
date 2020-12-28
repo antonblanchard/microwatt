@@ -368,6 +368,7 @@ package common is
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
+        in_progress : std_ulogic;
     end record;
 
     type Loadstore1ToDcacheType is record

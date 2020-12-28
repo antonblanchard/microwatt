@@ -300,8 +300,7 @@ architecture behaviour of decode2 is
 begin
     control_0: entity work.control
 	generic map (
-            EX1_BYPASS => EX1_BYPASS,
-            PIPELINE_DEPTH => 1
+            EX1_BYPASS => EX1_BYPASS
             )
 	port map (
             clk         => clk,

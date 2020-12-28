@@ -7,7 +7,7 @@ use work.common.all;
 entity control is
     generic (
         EX1_BYPASS : boolean := true;
-        PIPELINE_DEPTH : natural := 2
+        PIPELINE_DEPTH : natural := 3
         );
     port (
         clk                 : in std_ulogic;
@@ -238,6 +238,10 @@ begin
             v_int.outstanding := 0;
         elsif complete_in.valid = '1' then
             v_int.outstanding := r_int.outstanding - 1;
+        end if;
+        if r_int.outstanding >= PIPELINE_DEPTH + 1 then
+            valid_tmp := '0';
+            stall_tmp := '1';
         end if;
 
         if rst = '1' then
