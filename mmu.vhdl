@@ -88,6 +88,7 @@ begin
                 r.pt0_valid <= '0';
                 r.pt3_valid <= '0';
                 r.prtbl <= (others => '0');
+                r.pid <= (others => '0');
             else
                 if rin.valid = '1' then
                     report "MMU got tlb miss for " & to_hstring(rin.addr);
