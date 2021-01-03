@@ -282,6 +282,8 @@ begin
 	if rising_edge(clk) then
             if rst = '1' then
                 r <= reg_type_init;
+                ctrl.tb <= (others => '0');
+                ctrl.dec <= (others => '0');
                 ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
                 ctrl.irq_state <= WRITE_SRR0;
             else
