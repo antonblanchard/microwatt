@@ -177,6 +177,7 @@ begin
                 sck_send <= '0';
                 sck_recv <= '0';
                 clk_div  <= 0;
+                counter := 0;
             elsif counter = clk_div then
                 counter := 0;
 
