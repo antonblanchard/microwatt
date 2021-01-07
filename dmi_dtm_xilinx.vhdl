@@ -222,11 +222,12 @@ begin
     -- jtag_req latch. Could be split into 3 processes but it's probably
     -- not worthwhile.
     --
-    shifter: process(jtag_clk, jtag_reset)
+    shifter: process(jtag_clk, jtag_reset, sys_reset)
     begin
-	if jtag_reset = '1' then
+	if jtag_reset = '1' or sys_reset = '1' then
 	    shiftr <= (others => '0');
 	    jtag_req <= '0';
+	    request <= (others => '0');
 	elsif rising_edge(jtag_clk) then
 
 	    -- Handle jtag "commands" when sel is 1
