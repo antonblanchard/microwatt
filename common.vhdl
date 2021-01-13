@@ -7,7 +7,7 @@ use work.decode_types.all;
 
 package common is
     -- Processor Version Number
-    constant PVR_MICROWATT  : std_ulogic_vector(31 downto 0) := x"00630000";
+    constant PVR_MICROWATT  : std_ulogic_vector(31 downto 0) := x"00630100";
 
     -- MSR bit numbers
     constant MSR_SF  : integer := (63 - 0);     -- Sixty-Four bit mode
