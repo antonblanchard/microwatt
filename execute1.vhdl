@@ -356,35 +356,11 @@ begin
         v.f.redirect := '0';
         fv := Execute1ToFPUInit;
 
-	-- XER forwarding. To avoid having to track XER hazards, we
-	-- use the previously latched value.
-	--
-	-- If the XER was modified by a multiply or a divide, those are
-	-- single issue, we'll get the up to date value from decode2 from
-	-- the register file.
-	--
-	-- If it was modified by an instruction older than the previous
-	-- one in EX1, it will have also hit writeback and will be up
-	-- to date in decode2.
-	--
-	-- That leaves us with the case where it was updated by the previous
-	-- instruction in EX1. In that case, we can forward it back here.
-	--
-	-- This will break if we allow pipelining of multiply and divide,
-	-- but ideally, those should go via EX1 anyway and run as a state
-	-- machine from here.
-	--
-	-- One additional hazard to beware of is an XER:SO modifying instruction
-	-- in EX1 followed immediately by a store conditional. Due to our
-	-- writeback latency, the store will go down the LSU with the previous
-	-- XER value, thus the stcx. will set CR0:SO using an obsolete SO value.
-	--
-	-- We will need to handle that if we ever make stcx. not single issue
-	--
-	-- We always pass a valid XER value downto writeback even when
-	-- we aren't updating it, in order for XER:SO -> CR0:SO transfer
-	-- to work for RC instructions.
-	--
+	-- XER forwarding. To avoid having to track XER hazards, we use
+        -- the previously latched value.  Since the XER common bits
+	-- (SO, OV[32] and CA[32]) are only modified by instructions that are
+        -- handled here, we can just forward the result being sent to
+        -- writeback.
 	if r.e.write_xerc_enable = '1' then
 	    v.e.xerc := r.e.xerc;
 	else
