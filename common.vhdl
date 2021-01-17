@@ -372,6 +372,7 @@ package common is
 
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
+        hold : std_ulogic;
 	load : std_ulogic;				-- is this a load
         dcbz : std_ulogic;
 	nc : std_ulogic;

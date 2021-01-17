@@ -745,6 +745,7 @@ begin
         d_out.byte_sel <= byte_sel;
         d_out.virt_mode <= v.virt_mode;
         d_out.priv_mode <= v.priv_mode;
+        d_out.hold <= '0';
 
         -- Update outputs to MMU
         m_out.valid <= mmureq;
