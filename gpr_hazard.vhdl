@@ -16,6 +16,7 @@ entity gpr_hazard is
         complete_in        : in std_ulogic;
         flush_in           : in std_ulogic;
         issuing            : in std_ulogic;
+        repeated           : in std_ulogic;
 
         gpr_write_valid_in : in std_ulogic;
         gpr_write_in       : in gspr_index_t;
@@ -65,9 +66,13 @@ begin
 
         stall_out <= '0';
         use_bypass <= '0';
-        if gpr_read_valid_in = '1' then
+        if repeated = '0' and gpr_read_valid_in = '1' then
             loop_0: for i in 0 to PIPELINE_DEPTH loop
-                if v(i).valid = '1' and r(i).gpr = gpr_read_in then
+                -- The second half of a split instruction never has GPR
+                -- dependencies on the first half's output GPR,
+                -- so ignore matches when i = 0 for the second half.
+                if v(i).valid = '1' and r(i).gpr = gpr_read_in and
+                    not (i = 0 and repeated = '1') then
                     if r(i).bypass = '1' then
                         use_bypass <= '1';
                     else

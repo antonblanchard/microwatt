@@ -356,35 +356,11 @@ begin
         v.f.redirect := '0';
         fv := Execute1ToFPUInit;
 
-	-- XER forwarding. To avoid having to track XER hazards, we
-	-- use the previously latched value.
-	--
-	-- If the XER was modified by a multiply or a divide, those are
-	-- single issue, we'll get the up to date value from decode2 from
-	-- the register file.
-	--
-	-- If it was modified by an instruction older than the previous
-	-- one in EX1, it will have also hit writeback and will be up
-	-- to date in decode2.
-	--
-	-- That leaves us with the case where it was updated by the previous
-	-- instruction in EX1. In that case, we can forward it back here.
-	--
-	-- This will break if we allow pipelining of multiply and divide,
-	-- but ideally, those should go via EX1 anyway and run as a state
-	-- machine from here.
-	--
-	-- One additional hazard to beware of is an XER:SO modifying instruction
-	-- in EX1 followed immediately by a store conditional. Due to our
-	-- writeback latency, the store will go down the LSU with the previous
-	-- XER value, thus the stcx. will set CR0:SO using an obsolete SO value.
-	--
-	-- We will need to handle that if we ever make stcx. not single issue
-	--
-	-- We always pass a valid XER value downto writeback even when
-	-- we aren't updating it, in order for XER:SO -> CR0:SO transfer
-	-- to work for RC instructions.
-	--
+	-- XER forwarding. To avoid having to track XER hazards, we use
+        -- the previously latched value.  Since the XER common bits
+	-- (SO, OV[32] and CA[32]) are only modified by instructions that are
+        -- handled here, we can just forward the result being sent to
+        -- writeback.
 	if r.e.write_xerc_enable = '1' then
 	    v.e.xerc := r.e.xerc;
 	else
@@ -565,7 +541,8 @@ begin
             v.fp_exception_next := '0';
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
-        elsif valid_in = '1' and ((HAS_FPU and r.fp_exception_next = '1') or r.trace_next = '1') then
+        elsif valid_in = '1' and e_in.second = '0' and
+            ((HAS_FPU and r.fp_exception_next = '1') or r.trace_next = '1') then
             if HAS_FPU and r.fp_exception_next = '1' then
                 -- This is used for FP-type program interrupts that
                 -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.
@@ -586,7 +563,7 @@ begin
             end if;
             exception := '1';
 
-	elsif irq_valid = '1' and valid_in = '1' then
+	elsif irq_valid = '1' and valid_in = '1' and e_in.second = '0' then
 	    -- we need two cycles to write srr0 and 1
 	    -- will need more when we have to write HEIR
             -- Don't deliver the interrupt until we have a valid instruction
@@ -602,13 +579,11 @@ begin
             ctrl_tmp.srr1(63 - 45) <= '1';
             report "privileged instruction";
 
-        elsif not HAS_FPU and valid_in = '1' and
-            (e_in.insn_type = OP_FPLOAD or e_in.insn_type = OP_FPSTORE) then
+        elsif not HAS_FPU and valid_in = '1' and e_in.fac = FPU then
             -- make lfd/stfd/lfs/stfs etc. illegal in no-FPU implementations
             illegal := '1';
 
-        elsif HAS_FPU and valid_in = '1' and ctrl.msr(MSR_FP) = '0' and
-            (e_in.unit = FPU or e_in.insn_type = OP_FPLOAD or e_in.insn_type = OP_FPSTORE) then
+        elsif HAS_FPU and valid_in = '1' and ctrl.msr(MSR_FP) = '0' and e_in.fac = FPU then
             -- generate a floating-point unavailable interrupt
             exception := '1';
             v.f.redirect_nia := std_logic_vector(to_unsigned(16#800#, 64));
@@ -1314,6 +1289,8 @@ begin
         lv.priv_mode := not ctrl.msr(MSR_PR);
         lv.mode_32bit := not ctrl.msr(MSR_SF);
         lv.is_32bit := e_in.is_32bit;
+        lv.repeat := e_in.repeat;
+        lv.second := e_in.second;
 
         -- Outputs to FPU
         fv.op := e_in.insn_type;

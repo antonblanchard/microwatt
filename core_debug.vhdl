@@ -91,6 +91,7 @@ architecture behave of core_debug is
     -- Log buffer address and data registers
     constant DBG_CORE_LOG_ADDR       : std_ulogic_vector(3 downto 0) := "0110";
     constant DBG_CORE_LOG_DATA       : std_ulogic_vector(3 downto 0) := "0111";
+    constant DBG_CORE_LOG_TRIGGER    : std_ulogic_vector(3 downto 0) := "1000";
 
     constant LOG_INDEX_BITS : natural := log2(LOG_LENGTH);
 
@@ -108,9 +109,12 @@ architecture behave of core_debug is
 
     signal log_dmi_addr : std_ulogic_vector(31 downto 0) := (others => '0');
     signal log_dmi_data : std_ulogic_vector(63 downto 0) := (others => '0');
+    signal log_dmi_trigger : std_ulogic_vector(63 downto 0) := (others => '0');
+    signal do_log_trigger : std_ulogic := '0';
     signal do_dmi_log_rd : std_ulogic;
     signal dmi_read_log_data : std_ulogic;
     signal dmi_read_log_data_1 : std_ulogic;
+    signal log_trigger_delay : integer range 0 to 255 := 0;
 
 begin
        -- Single cycle register accesses on DMI except for GSPR data
@@ -133,6 +137,7 @@ begin
         dbg_gpr_data    when DBG_CORE_GSPR_DATA,
         log_write_addr & log_dmi_addr when DBG_CORE_LOG_ADDR,
         log_dmi_data    when DBG_CORE_LOG_DATA,
+        log_dmi_trigger when DBG_CORE_LOG_TRIGGER,
 	(others => '0') when others;
 
     -- DMI writes
@@ -148,7 +153,16 @@ begin
 	    if (rst) then
 		stopping <= '0';
 		terminated <= '0';
+                log_trigger_delay <= 0;
 	    else
+                if do_log_trigger = '1' or log_trigger_delay /= 0 then
+                    if log_trigger_delay = 255 then
+                        log_dmi_trigger(1) <= '1';
+                        log_trigger_delay <= 0;
+                    else
+                        log_trigger_delay <= log_trigger_delay + 1;
+                    end if;
+                end if;
 		-- Edge detect on dmi_req for 1-shot pulses
 		dmi_req_1 <= dmi_req;
 		if dmi_req = '1' and dmi_req_1 = '0' then
@@ -180,6 +194,8 @@ begin
                         elsif dmi_addr = DBG_CORE_LOG_ADDR then
                             log_dmi_addr <= dmi_din(31 downto 0);
                             do_dmi_log_rd <= '1';
+                        elsif dmi_addr = DBG_CORE_LOG_TRIGGER then
+                            log_dmi_trigger <= dmi_din;
 			end if;
 		    else
 			report("DMI read from " & to_string(dmi_addr));
@@ -246,7 +262,7 @@ begin
 
     begin
         -- Use MSB of read addresses to stop the logging
-        log_wr_enable <= not (log_read_addr(31) or log_dmi_addr(31));
+        log_wr_enable <= not (log_read_addr(31) or log_dmi_addr(31) or log_dmi_trigger(1));
 
         log_ram: process(clk)
         begin
@@ -285,6 +301,12 @@ begin
                 end if;
                 log_dmi_read_done <= log_dmi_reading;
                 log_dmi_reading <= do_dmi_log_rd;
+                do_log_trigger <= '0';
+                if log_data(42) = log_dmi_trigger(63) and
+                    log_data(41 downto 0) = log_dmi_trigger(43 downto 2) and
+                    log_dmi_trigger(0) = '1' then
+                    do_log_trigger <= '1';
+                end if;
             end if;
         end process;
         log_write_addr(LOG_INDEX_BITS - 1 downto 0) <= std_ulogic_vector(log_wr_ptr);

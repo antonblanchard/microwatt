@@ -44,6 +44,7 @@ end entity decode2;
 architecture behaviour of decode2 is
     type reg_type is record
         e : Decode2ToExecute1Type;
+        repeat : std_ulogic;
     end record;
 
     signal r, rin : reg_type;
@@ -115,6 +116,8 @@ architecture behaviour of decode2 is
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64)));
             when CONST_DS =>
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64)));
+            when CONST_DQ =>
+                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dq(insn_in)) & "0000", 64)));
             when CONST_DXHI4 =>
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dx(insn_in)) & x"0004", 64)));
             when CONST_M1 =>
@@ -221,6 +224,7 @@ architecture behaviour of decode2 is
     -- issue control signals
     signal control_valid_in : std_ulogic;
     signal control_valid_out : std_ulogic;
+    signal control_stall_out : std_ulogic;
     signal control_sgl_pipe : std_logic;
 
     signal gpr_write_valid : std_ulogic;
@@ -257,6 +261,7 @@ begin
 
             complete_in => complete_in,
             valid_in    => control_valid_in,
+            repeated    => r.repeat,
             busy_in     => busy_in,
             deferred    => deferred,
             flush_in    => flush_in,
@@ -285,7 +290,7 @@ begin
             cr_bypassable        => cr_bypass_avail,
 
             valid_out   => control_valid_out,
-            stall_out   => stall_out,
+            stall_out   => control_stall_out,
             stopped_out => stopped_out,
 
             gpr_bypass_a => gpr_a_bypass,
@@ -306,17 +311,6 @@ begin
             end if;
         end if;
     end process;
-
-    r_out.read1_reg <= d_in.ispr1 when d_in.decode.input_reg_a = SPR
-                       else fpr_to_gspr(insn_fra(d_in.insn)) when d_in.decode.input_reg_a = FRA and HAS_FPU
-                       else gpr_to_gspr(insn_ra(d_in.insn));
-    r_out.read2_reg <= d_in.ispr2 when d_in.decode.input_reg_b = SPR
-                       else fpr_to_gspr(insn_frb(d_in.insn)) when d_in.decode.input_reg_b = FRB and HAS_FPU
-                       else gpr_to_gspr(insn_rb(d_in.insn));
-    r_out.read3_reg <= gpr_to_gspr(insn_rcreg(d_in.insn)) when d_in.decode.input_reg_c = RCR
-                       else fpr_to_gspr(insn_frc(d_in.insn)) when d_in.decode.input_reg_c = FRC and HAS_FPU
-                       else fpr_to_gspr(insn_frt(d_in.insn)) when d_in.decode.input_reg_c = FRS and HAS_FPU
-                       else gpr_to_gspr(insn_rs(d_in.insn));
 
     c_out.read <= d_in.decode.input_cr;
 
@@ -346,9 +340,30 @@ begin
         decoded_reg_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn, r_in.read3_data);
         decoded_reg_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.ispr1);
 
+        if d_in.decode.repeat /= NONE then
+            v.e.repeat := '1';
+            v.e.second := r.repeat;
+            case d_in.decode.repeat is
+                when DRSE =>
+                    -- do RS|1,RS for LE; RS,RS|1 for BE
+                    if r.repeat = d_in.big_endian then
+                        decoded_reg_c.reg(0) := '1';
+                    end if;
+                when DRTE =>
+                    -- do RT|1,RT for LE; RT,RT|1 for BE
+                    if r.repeat = d_in.big_endian then
+                        decoded_reg_o.reg(0) := '1';
+                    end if;
+                when others =>
+            end case;
+        end if;
+
         r_out.read1_enable <= decoded_reg_a.reg_valid and d_in.valid;
+        r_out.read1_reg    <= decoded_reg_a.reg;
         r_out.read2_enable <= decoded_reg_b.reg_valid and d_in.valid;
+        r_out.read2_reg    <= decoded_reg_b.reg;
         r_out.read3_enable <= decoded_reg_c.reg_valid and d_in.valid;
+        r_out.read3_reg    <= decoded_reg_c.reg;
 
         case d_in.decode.length is
             when is1B =>
@@ -366,6 +381,7 @@ begin
         -- execute unit
         v.e.nia := d_in.nia;
         v.e.unit := d_in.decode.unit;
+        v.e.fac := d_in.decode.facility;
         v.e.insn_type := d_in.decode.insn_type;
         v.e.read_reg1 := decoded_reg_a.reg;
         v.e.read_data1 := decoded_reg_a.data;
@@ -434,9 +450,15 @@ begin
         end if;
 
         v.e.valid := control_valid_out;
+        if control_valid_out = '1' then
+            v.repeat := v.e.repeat and not r.repeat;
+        end if;
+
+        stall_out <= control_stall_out or v.repeat;
 
         if rst = '1' or flush_in = '1' then
             v.e := Decode2ToExecute1Init;
+            v.repeat := '0';
         end if;
 
         -- Update registers

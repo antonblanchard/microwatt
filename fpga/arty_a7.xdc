@@ -25,6 +25,15 @@ set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { uart_pmo
 set_property -dict { PACKAGE_PIN E1  IOSTANDARD LVCMOS33 } [get_ports { led0_b }];
 set_property -dict { PACKAGE_PIN F6  IOSTANDARD LVCMOS33 } [get_ports { led0_g }];
 set_property -dict { PACKAGE_PIN G6  IOSTANDARD LVCMOS33 } [get_ports { led0_r }];
+#set_property -dict { PACKAGE_PIN G4  IOSTANDARD LVCMOS33 } [get_ports { led1_b }];
+#set_property -dict { PACKAGE_PIN J4  IOSTANDARD LVCMOS33 } [get_ports { led1_g }];
+#set_property -dict { PACKAGE_PIN G3  IOSTANDARD LVCMOS33 } [get_ports { led1_r }];
+#set_property -dict { PACKAGE_PIN H4  IOSTANDARD LVCMOS33 } [get_ports { led2_b }];
+#set_property -dict { PACKAGE_PIN J2  IOSTANDARD LVCMOS33 } [get_ports { led2_g }];
+#set_property -dict { PACKAGE_PIN J3  IOSTANDARD LVCMOS33 } [get_ports { led2_r }];
+#set_property -dict { PACKAGE_PIN K2  IOSTANDARD LVCMOS33 } [get_ports { led3_b }];
+#set_property -dict { PACKAGE_PIN H6  IOSTANDARD LVCMOS33 } [get_ports { led3_g }];
+#set_property -dict { PACKAGE_PIN K1  IOSTANDARD LVCMOS33 } [get_ports { led3_r }];
 
 ################################################################################
 # Normal LEDs
@@ -49,6 +58,102 @@ set_property -dict { PACKAGE_PIN M14 IOSTANDARD LVCMOS33 } [get_ports { spi_flas
 # Put registers into IOBs to improve timing
 set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/*sck_1*}]
 set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/input_delay_1.dat_i_l*}]
+
+################################################################################
+# PMOD header JA (standard, 200 ohm protection resisters)
+################################################################################
+
+#set_property -dict { PACKAGE_PIN G13 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_1 }];
+#set_property -dict { PACKAGE_PIN B11 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_2 }];
+#set_property -dict { PACKAGE_PIN A11 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_3 }];
+#set_property -dict { PACKAGE_PIN D12 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_4 }];
+#set_property -dict { PACKAGE_PIN D13 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_7 }];
+#set_property -dict { PACKAGE_PIN B18 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_8 }];
+#set_property -dict { PACKAGE_PIN A18 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_9 }];
+#set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_10 }];
+
+################################################################################
+# PMOD header JB (high-speed, no protection resisters)
+################################################################################
+
+#set_property -dict { PACKAGE_PIN E15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_1 }];
+#set_property -dict { PACKAGE_PIN E16 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_2 }];
+#set_property -dict { PACKAGE_PIN D15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_3 }];
+#set_property -dict { PACKAGE_PIN C15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_4 }];
+#set_property -dict { PACKAGE_PIN J17 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_7 }];
+#set_property -dict { PACKAGE_PIN J18 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_8 }];
+#set_property -dict { PACKAGE_PIN K15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_9 }];
+#set_property -dict { PACKAGE_PIN J15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_10 }];
+
+################################################################################
+# PMOD header JC (high-speed, no protection resisters)
+################################################################################
+
+#set_property -dict { PACKAGE_PIN U12 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_1 }];
+#set_property -dict { PACKAGE_PIN V12 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_2 }];
+#set_property -dict { PACKAGE_PIN V10 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_3 }];
+#set_property -dict { PACKAGE_PIN V11 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_4 }];
+#set_property -dict { PACKAGE_PIN U14 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_7 }];
+#set_property -dict { PACKAGE_PIN V14 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_8 }];
+#set_property -dict { PACKAGE_PIN T13 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_9 }];
+#set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_10 }];
+
+################################################################################
+# PMOD header JD (standard, 200 ohm protection resisters)
+################################################################################
+
+#set_property -dict { PACKAGE_PIN D4 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_1 }];
+#set_property -dict { PACKAGE_PIN D3 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_2 }];
+#set_property -dict { PACKAGE_PIN F4 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_3 }];
+#set_property -dict { PACKAGE_PIN F3 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_4 }];
+#set_property -dict { PACKAGE_PIN E2 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_7 }];
+#set_property -dict { PACKAGE_PIN D2 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_8 }];
+#set_property -dict { PACKAGE_PIN H2 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_9 }];
+#set_property -dict { PACKAGE_PIN G2 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_10 }];
+
+################################################################################
+# Arduino/chipKIT shield connector
+################################################################################
+
+#set_property -dict { PACKAGE_PIN V15 IOSTANDARD LVCMOS33 } [get_ports { shield_io0 }];
+#set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 } [get_ports { shield_io1 }];
+#set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 } [get_ports { shield_io2 }];
+#set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 } [get_ports { shield_io3 }];
+#set_property -dict { PACKAGE_PIN R12 IOSTANDARD LVCMOS33 } [get_ports { shield_io4 }];
+#set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 } [get_ports { shield_io5 }];
+#set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 } [get_ports { shield_io6 }];
+#set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 } [get_ports { shield_io7 }];
+#set_property -dict { PACKAGE_PIN N15 IOSTANDARD LVCMOS33 } [get_ports { shield_io8 }];
+#set_property -dict { PACKAGE_PIN M16 IOSTANDARD LVCMOS33 } [get_ports { shield_io9 }];
+#set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 } [get_ports { shield_io10 }];
+#set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 } [get_ports { shield_io11 }];
+#set_property -dict { PACKAGE_PIN R17 IOSTANDARD LVCMOS33 } [get_ports { shield_io12 }];
+#set_property -dict { PACKAGE_PIN P17 IOSTANDARD LVCMOS33 } [get_ports { shield_io13 }];
+#set_property -dict { PACKAGE_PIN U11 IOSTANDARD LVCMOS33 } [get_ports { shield_io26 }];
+#set_property -dict { PACKAGE_PIN V16 IOSTANDARD LVCMOS33 } [get_ports { shield_io27 }];
+#set_property -dict { PACKAGE_PIN M13 IOSTANDARD LVCMOS33 } [get_ports { shield_io28 }];
+#set_property -dict { PACKAGE_PIN R10 IOSTANDARD LVCMOS33 } [get_ports { shield_io29 }];
+#set_property -dict { PACKAGE_PIN R11 IOSTANDARD LVCMOS33 } [get_ports { shield_io30 }];
+#set_property -dict { PACKAGE_PIN R13 IOSTANDARD LVCMOS33 } [get_ports { shield_io31 }];
+#set_property -dict { PACKAGE_PIN R15 IOSTANDARD LVCMOS33 } [get_ports { shield_io32 }];
+#set_property -dict { PACKAGE_PIN P15 IOSTANDARD LVCMOS33 } [get_ports { shield_io33 }];
+#set_property -dict { PACKAGE_PIN R16 IOSTANDARD LVCMOS33 } [get_ports { shield_io34 }];
+#set_property -dict { PACKAGE_PIN N16 IOSTANDARD LVCMOS33 } [get_ports { shield_io35 }];
+#set_property -dict { PACKAGE_PIN N14 IOSTANDARD LVCMOS33 } [get_ports { shield_io36 }];
+#set_property -dict { PACKAGE_PIN U17 IOSTANDARD LVCMOS33 } [get_ports { shield_io37 }];
+#set_property -dict { PACKAGE_PIN T18 IOSTANDARD LVCMOS33 } [get_ports { shield_io38 }];
+#set_property -dict { PACKAGE_PIN R18 IOSTANDARD LVCMOS33 } [get_ports { shield_io39 }];
+#set_property -dict { PACKAGE_PIN P18 IOSTANDARD LVCMOS33 } [get_ports { shield_io40 }];
+#set_property -dict { PACKAGE_PIN N17 IOSTANDARD LVCMOS33 } [get_ports { shield_io41 }];
+#set_property -dict { PACKAGE_PIN M17 IOSTANDARD LVCMOS33 } [get_ports { shield_ioa }];
+#set_property -dict { PACKAGE_PIN L18 IOSTANDARD LVCMOS33 } [get_ports { shield_scl }];
+#set_property -dict { PACKAGE_PIN M18 IOSTANDARD LVCMOS33 } [get_ports { shield_sda }];
+#set_property -dict { PACKAGE_PIN C2  IOSTANDARD LVCMOS33 } [get_ports { shield_rst }];
+
+#set_property -dict { PACKAGE_PIN C1  IOSTANDARD LVCMOS33 } [get_ports { spi_hdr_ss }];
+#set_property -dict { PACKAGE_PIN F1  IOSTANDARD LVCMOS33 } [get_ports { spi_hdr_clk }];
+#set_property -dict { PACKAGE_PIN H1  IOSTANDARD LVCMOS33 } [get_ports { spi_hdr_mosi }];
+#set_property -dict { PACKAGE_PIN G1  IOSTANDARD LVCMOS33 } [get_ports { spi_hdr_miso }];
 
 ################################################################################
 # Ethernet (generated by LiteX)

@@ -44,6 +44,7 @@
 
 #define DBG_LOG_ADDR		0x16
 #define DBG_LOG_DATA		0x17
+#define DBG_LOG_TRIGGER		0x18
 
 static bool debug;
 
@@ -390,9 +391,11 @@ static void core_status(void)
 			statstr2 = " (restarting?)";
 		else if (stat & DBG_CORE_STAT_TERM)
 			statstr2 = " (terminated)";
-	} else if (stat & DBG_CORE_STAT_STOPPING)
+	} else if (stat & DBG_CORE_STAT_STOPPING) {
 		statstr = "stopping";
-	else if (stat & DBG_CORE_STAT_TERM)
+		if (stat & DBG_CORE_STAT_TERM)
+			statstr2 = " (terminated)";
+	} else if (stat & DBG_CORE_STAT_TERM)
 		statstr = "odd state (TERM but no STOP)";
 	printf("Core: %s%s\n", statstr, statstr2);
 	printf(" NIA: %016" PRIx64 "\n", nia);
@@ -443,9 +446,9 @@ static void gpr_read(uint64_t reg, uint64_t count)
 {
 	uint64_t data;
 
-	reg &= 0x3f;
-	if (reg + count > 64)
-		count = 64 - reg;
+	reg &= 0x7f;
+	if (reg + count > 96)
+		count = 96 - reg;
 	for (; count != 0; --count, ++reg) {
 		check(dmi_write(DBG_CORE_GSPR_INDEX, reg), "setting GPR index");
 		data = 0xdeadbeef;
@@ -454,16 +457,21 @@ static void gpr_read(uint64_t reg, uint64_t count)
 			printf("r%"PRId64, reg);
 		else if ((reg - 32) < sizeof(fast_spr_names) / sizeof(fast_spr_names[0]))
 			printf("%s", fast_spr_names[reg - 32]);
-		else
+		else if (reg < 64)
 			printf("gspr%"PRId64, reg);
+		else
+			printf("FPR%"PRId64, reg - 64);
 		printf(":\t%016"PRIx64"\n", data);
 	}
 }
 
 static void mem_read(uint64_t addr, uint64_t count)
 {
-	uint64_t data;
-	int i, rc;
+	union {
+		uint64_t data;
+		unsigned char c[8];
+	} u;
+	int i, j, rc;
 
 	rc = dmi_write(DBG_WB_CTRL, 0x7ff);
 	if (rc < 0)
@@ -472,12 +480,15 @@ static void mem_read(uint64_t addr, uint64_t count)
 	if (rc < 0)
 		return;
 	for (i = 0; i < count; i++) {
-		rc = dmi_read(DBG_WB_DATA, &data);
+		rc = dmi_read(DBG_WB_DATA, &u.data);
 		if (rc < 0)
 			return;
-		printf("%016llx: %016llx\n",
+		printf("%016llx: %016llx  ",
 		       (unsigned long long)addr,
-		       (unsigned long long)data);
+		       (unsigned long long)u.data);
+		for (j = 0; j < 8; ++j)
+			putchar(u.c[j] >= 0x20 && u.c[j] < 0x7f? u.c[j]: '.');
+		putchar('\n');
 		addr += 8;
 	}
 }
@@ -618,6 +629,28 @@ static void log_dump(const char *filename)
 	check(dmi_write(DBG_LOG_ADDR, orig_laddr), "writing LOG_ADDR");
 }
 
+static void ltrig_show(void)
+{
+	uint64_t trig;
+
+	check(dmi_read(DBG_LOG_TRIGGER, &trig), "reading LOG_TRIGGER");
+	if (trig & 1)
+		printf("log stop trigger at %" PRIx64, trig & ~3);
+	else
+		printf("log stop trigger disabled");
+	printf(", %striggered\n", (trig & 2? "": "not "));
+}
+
+static void ltrig_off(void)
+{
+	check(dmi_write(DBG_LOG_TRIGGER, 0), "writing LOG_TRIGGER");
+}
+
+static void ltrig_set(uint64_t addr)
+{
+	check(dmi_write(DBG_LOG_TRIGGER, (addr & ~(uint64_t)2) | 1), "writing LOG_TRIGGER");
+}
+
 static void usage(const char *cmd)
 {
 	fprintf(stderr, "Usage: %s -b <jtag|sim> <command> <args>\n", cmd);
@@ -647,6 +680,9 @@ static void usage(const char *cmd)
 	fprintf(stderr, "  lstart			start logging\n");
 	fprintf(stderr, "  lstop			stop logging\n");
 	fprintf(stderr, "  ldump <file>			dump log to file\n");
+	fprintf(stderr, "  ltrig 			show logging stop trigger status\n");
+	fprintf(stderr, "  ltrig off 			clear logging stop trigger address\n");
+	fprintf(stderr, "  ltrig <addr>			set logging stop trigger address\n");
 
 	fprintf(stderr, "\n");
 	fprintf(stderr, " JTAG:\n");
@@ -797,9 +833,20 @@ int main(int argc, char *argv[])
 				usage(argv[0]);
 			filename = argv[++i];
 			log_dump(filename);
+		} else if (strcmp(argv[i], "ltrig") == 0) {
+			uint64_t addr;
+
+			if ((i+1) >= argc)
+				ltrig_show();
+			else if (strcmp(argv[++i], "off") == 0)
+				ltrig_off();
+			else {
+				addr = strtoul(argv[i], NULL, 16);
+				ltrig_set(addr);
+			}
 		} else {
 			fprintf(stderr, "Unknown command %s\n", argv[i]);
-			exit(1);
+			usage(argv[0]);
 		}
 	}
 	core_status();
