@@ -73,8 +73,11 @@ architecture behaviour of fpu is
         busy         : std_ulogic;
         instr_done   : std_ulogic;
         do_intr      : std_ulogic;
+        illegal      : std_ulogic;
         op           : insn_type_t;
         insn         : std_ulogic_vector(31 downto 0);
+        nia          : std_ulogic_vector(63 downto 0);
+        instr_tag    : instr_tag_t;
         dest_fpr     : gspr_index_t;
         fe_mode      : std_ulogic;
         rc           : std_ulogic;
@@ -571,9 +574,9 @@ begin
 
     e_out.busy <= r.busy;
     e_out.exception <= r.fpscr(FPSCR_FEX);
-    e_out.interrupt <= r.do_intr;
 
     w_out.valid <= r.instr_done and not r.do_intr;
+    w_out.instr_tag <= r.instr_tag;
     w_out.write_enable <= r.writing_back;
     w_out.write_reg <= r.dest_fpr;
     w_out.write_data <= fp_result;
@@ -581,6 +584,10 @@ begin
     w_out.write_cr_mask <= r.cr_mask;
     w_out.write_cr_data <= r.cr_result & r.cr_result & r.cr_result & r.cr_result &
                            r.cr_result & r.cr_result & r.cr_result & r.cr_result;
+    w_out.interrupt <= r.do_intr;
+    w_out.intr_vec <= 16#700#;
+    w_out.srr0 <= r.nia;
+    w_out.srr1 <= (47-44 => r.illegal, 47-43 => not r.illegal, others => '0');
 
     fpu_1: process(all)
         variable v           : reg_type;
@@ -642,7 +649,9 @@ begin
         -- capture incoming instruction
         if e_in.valid = '1' then
             v.insn := e_in.insn;
+            v.nia := e_in.nia;
             v.op := e_in.op;
+            v.instr_tag := e_in.itag;
             v.fe_mode := or (e_in.fe_mode);
             v.dest_fpr := e_in.frt;
             v.single_prec := e_in.single;
@@ -2540,9 +2549,10 @@ begin
             v.cr_result := v.fpscr(FPSCR_FX downto FPSCR_OX);
         end if;
 
+        v.illegal := illegal;
         if illegal = '1' then
             v.instr_done := '0';
-            v.do_intr := '0';
+            v.do_intr := '1';
             v.writing_back := '0';
             v.busy := '0';
             v.state := IDLE;
@@ -2554,7 +2564,6 @@ begin
         end if;
 
         rin <= v;
-        e_out.illegal <= illegal;
     end process;
 
 end architecture behaviour;

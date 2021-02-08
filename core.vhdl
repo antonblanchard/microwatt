@@ -46,6 +46,7 @@ end core;
 architecture behave of core is
     -- icache signals
     signal fetch1_to_icache : Fetch1ToIcacheType;
+    signal writeback_to_fetch1: WritebackToFetch1Type;
     signal icache_to_decode1 : IcacheToDecode1Type;
     signal mmu_to_icache : MmuToIcacheType;
 
@@ -66,7 +67,8 @@ architecture behave of core is
 
     -- execute signals
     signal execute1_to_writeback: Execute1ToWritebackType;
-    signal execute1_to_fetch1: Execute1ToFetch1Type;
+    signal execute1_bypass: bypass_data_t;
+    signal execute1_cr_bypass: cr_bypass_data_t;
 
     -- load store signals
     signal execute1_to_loadstore1: Execute1ToLoadstore1Type;
@@ -102,10 +104,11 @@ architecture behave of core is
     signal decode1_flush: std_ulogic;
     signal fetch1_flush: std_ulogic;
 
-    signal complete: std_ulogic;
+    signal complete: instr_tag_t;
     signal terminate: std_ulogic;
     signal core_rst: std_ulogic;
     signal icache_inv: std_ulogic;
+    signal do_interrupt: std_ulogic;
 
     -- Delayed/Latched resets and alt_reset
     signal rst_fetch1  : std_ulogic := '1';
@@ -117,6 +120,7 @@ architecture behave of core is
     signal rst_ex1     : std_ulogic := '1';
     signal rst_fpu     : std_ulogic := '1';
     signal rst_ls1     : std_ulogic := '1';
+    signal rst_wback   : std_ulogic := '1';
     signal rst_dbg     : std_ulogic := '1';
     signal alt_reset_d : std_ulogic;
 
@@ -180,6 +184,7 @@ begin
             rst_ex1     <= core_rst;
             rst_fpu     <= core_rst;
             rst_ls1     <= core_rst;
+            rst_wback   <= core_rst;
             rst_dbg     <= rst;
             alt_reset_d <= alt_reset;
         end if;
@@ -200,7 +205,7 @@ begin
             inval_btc => ex1_icache_inval or mmu_to_icache.tlbie,
 	    stop_in => dbg_core_stop,
             d_in => decode1_to_fetch1,
-            e_in => execute1_to_fetch1,
+            w_in => writeback_to_fetch1,
             i_out => fetch1_to_icache,
             log_out => log_data(42 downto 0)
             );
@@ -273,6 +278,8 @@ begin
             r_out => decode2_to_register_file,
             c_in => cr_file_to_decode2,
             c_out => decode2_to_cr_file,
+            execute_bypass => execute1_bypass,
+            execute_cr_bypass => execute1_cr_bypass,
             log_out => log_data(119 downto 110)
             );
     decode2_busy_in <= ex1_busy_out;
@@ -320,16 +327,18 @@ begin
         port map (
             clk => clk,
             rst => rst_ex1,
-            flush_out => flush,
+            flush_in => flush,
 	    busy_out => ex1_busy_out,
             e_in => decode2_to_execute1,
             l_in => loadstore1_to_execute1,
             fp_in => fpu_to_execute1,
             ext_irq_in => ext_irq,
+            interrupt_in => do_interrupt,
             l_out => execute1_to_loadstore1,
-            f_out => execute1_to_fetch1,
             fp_out => execute1_to_fpu,
             e_out => execute1_to_writeback,
+            bypass_data => execute1_bypass,
+            bypass_cr_data => execute1_cr_bypass,
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
             terminate_out => terminate,
@@ -410,11 +419,15 @@ begin
     writeback_0: entity work.writeback
         port map (
             clk => clk,
+            rst => rst_wback,
+            flush_out => flush,
             e_in => execute1_to_writeback,
             l_in => loadstore1_to_writeback,
             fp_in => fpu_to_writeback,
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
+            f_out => writeback_to_fetch1,
+            interrupt_out => do_interrupt,
             complete_out => complete
             );
 

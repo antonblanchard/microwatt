@@ -275,6 +275,7 @@ architecture rtl of dcache is
         doall : std_ulogic;     -- with tlbie, indicates flush whole TLB
         tlbld : std_ulogic;     -- indicates a TLB load request (from MMU)
         mmu_req : std_ulogic;   -- indicates source of request
+        d_valid : std_ulogic;   -- indicates req.data is valid now
     end record;
 
     signal r0 : reg_stage_0_t;
@@ -564,16 +565,26 @@ begin
                 r.mmu_req := '1';
             else
                 r.req := d_in;
+                r.req.data := (others => '0');
                 r.tlbie := '0';
                 r.doall := '0';
                 r.tlbld := '0';
                 r.mmu_req := '0';
             end if;
+            r.d_valid := '0';
             if rst = '1' then
                 r0_full <= '0';
-            elsif r1.full = '0' or r0_full = '0' then
+            elsif (r1.full = '0' and d_in.hold = '0') or r0_full = '0' then
                 r0 <= r;
                 r0_full <= r.req.valid;
+            end if;
+            -- Sample data the cycle after a request comes in from loadstore1.
+            -- If another request has come in already then the data will get
+            -- put directly into req.data below.
+            if r0.req.valid = '1' and r.req.valid = '0' and r0.d_valid = '0' and
+                r0.mmu_req = '0' then
+                r0.req.data <= d_in.data;
+                r0.d_valid <= '1';
             end if;
         end if;
     end process;
@@ -582,8 +593,8 @@ begin
     m_out.stall <= '0';
 
     -- Hold off the request in r0 when r1 has an uncompleted request
-    r0_stall <= r0_full and r1.full;
-    r0_valid <= r0_full and not r1.full;
+    r0_stall <= r0_full and (r1.full or d_in.hold);
+    r0_valid <= r0_full and not r1.full and not d_in.hold;
     stall_out <= r0_stall;
 
     -- TLB
@@ -1305,10 +1316,12 @@ begin
                     req.dcbz := r0.req.dcbz;
                     req.real_addr := ra;
                     -- Force data to 0 for dcbz
-                    if r0.req.dcbz = '0' then
-                        req.data := d_in.data;
-                    else
+                    if r0.req.dcbz = '1' then
                         req.data := (others => '0');
+                    elsif r0.d_valid = '1' then
+                        req.data := r0.req.data;
+                    else
+                        req.data := d_in.data;
                     end if;
                     -- Select all bytes for dcbz and for cacheable loads
                     if r0.req.dcbz = '1' or (r0.req.load = '1' and r0.req.nc = '0') then
@@ -1438,10 +1451,10 @@ begin
                         -- complete the request next cycle.
                         -- Compare the whole address in case the request in
                         -- r1.req is not the one that started this refill.
-			if r1.full = '1' and r1.req.same_tag = '1' and
-                            ((r1.dcbz = '1' and r1.req.dcbz = '1') or
-                             (r1.dcbz = '0' and r1.req.op = OP_LOAD_MISS)) and
-                            r1.store_row = get_row(r1.req.real_addr) then
+			if req.valid = '1' and req.same_tag = '1' and
+                            ((r1.dcbz = '1' and req.dcbz = '1') or
+                             (r1.dcbz = '0' and req.op = OP_LOAD_MISS)) and
+                            r1.store_row = get_row(req.real_addr) then
                             r1.full <= '0';
                             r1.slow_valid <= '1';
                             if r1.mmu_req = '0' then
