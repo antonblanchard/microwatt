@@ -275,6 +275,8 @@ begin
                 r2.wait_dc <= '0';
                 r2.wait_mmu <= '0';
                 r2.one_cycle <= '0';
+                r3.dar <= (others => '0');
+                r3.dsisr <= (others => '0');
                 r3.state <= IDLE;
                 r3.write_enable <= '0';
                 r3.interrupt <= '0';
