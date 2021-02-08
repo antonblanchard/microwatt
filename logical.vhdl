@@ -197,8 +197,7 @@ begin
                     tmp := x"00" & dpd_to_bcd(rs(51 downto 42)) & dpd_to_bcd(rs(41 downto 32)) &
                            x"00" & dpd_to_bcd(rs(19 downto 10)) & dpd_to_bcd(rs(9 downto 0));
                 end if;
-            when others =>
-                -- EXTS
+            when OP_EXTS =>
                 -- note datalen is a 1-hot encoding
 		negative := (datalen(0) and rs(7)) or
 			    (datalen(1) and rs(15)) or
@@ -211,6 +210,9 @@ begin
 		    tmp(15 downto 8) := rs(15 downto 8);
 		end if;
 		tmp(7 downto 0) := rs(7 downto 0);
+            when others =>
+                -- e.g. OP_MTSPR
+                tmp := rs;
         end case;
 
         result <= tmp;

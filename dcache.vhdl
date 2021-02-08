@@ -1306,7 +1306,7 @@ begin
                     req.real_addr := ra;
                     -- Force data to 0 for dcbz
                     if r0.req.dcbz = '0' then
-                        req.data := r0.req.data;
+                        req.data := d_in.data;
                     else
                         req.data := (others => '0');
                     end if;

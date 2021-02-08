@@ -45,7 +45,6 @@ architecture behave of loadstore1 is
 
     -- State machine for unaligned loads/stores
     type state_t is (IDLE,              -- ready for instruction
-                     FPR_CONV,          -- converting double to float for store
                      SECOND_REQ,        -- send 2nd request of unaligned xfer
                      ACK_WAIT,          -- waiting for ack from dcache
                      MMU_LOOKUP,        -- waiting for MMU to look up translation
@@ -54,18 +53,23 @@ architecture behave of loadstore1 is
                      COMPLETE           -- extra cycle to complete an operation
                      );
 
+    type byte_index_t is array(0 to 7) of unsigned(2 downto 0);
+    subtype byte_trim_t is std_ulogic_vector(1 downto 0);
+    type trim_ctl_t is array(0 to 7) of byte_trim_t;
+
     type reg_stage_t is record
         -- latch most of the input request
         load         : std_ulogic;
         tlbie        : std_ulogic;
         dcbz         : std_ulogic;
-        mfspr        : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	load_data    : std_ulogic_vector(63 downto 0);
 	write_reg    : gspr_index_t;
 	length       : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
+        byte_offset  : unsigned(2 downto 0);
+        brev_mask    : unsigned(2 downto 0);
 	sign_extend  : std_ulogic;
 	update       : std_ulogic;
 	update_reg   : gpr_index_t;
@@ -93,16 +97,15 @@ architecture behave of loadstore1 is
         do_update    : std_ulogic;
         extra_cycle  : std_ulogic;
         mode_32bit   : std_ulogic;
+        byte_index   : byte_index_t;
+        use_second   : std_ulogic_vector(7 downto 0);
+        trim_ctl     : trim_ctl_t;
         load_sp      : std_ulogic;
         ld_sp_data   : std_ulogic_vector(31 downto 0);
         ld_sp_nz     : std_ulogic;
         ld_sp_lz     : std_ulogic_vector(5 downto 0);
-        st_sp_data   : std_ulogic_vector(31 downto 0);
+        wr_sel       : std_ulogic_vector(1 downto 0);
     end record;
-
-    type byte_sel_t is array(0 to 7) of std_ulogic;
-    subtype byte_trim_t is std_ulogic_vector(1 downto 0);
-    type trim_ctl_t is array(0 to 7) of byte_trim_t;
 
     signal r, rin : reg_stage_t;
     signal lsu_sum : std_ulogic_vector(63 downto 0);
@@ -296,11 +299,8 @@ begin
         variable data_permuted : std_ulogic_vector(63 downto 0);
         variable data_trimmed : std_ulogic_vector(63 downto 0);
         variable store_data : std_ulogic_vector(63 downto 0);
-        variable data_in : std_ulogic_vector(63 downto 0);
         variable byte_rev : std_ulogic;
         variable length : std_ulogic_vector(3 downto 0);
-        variable use_second : byte_sel_t;
-        variable trim_ctl : trim_ctl_t;
         variable negative : std_ulogic;
         variable sprn : std_ulogic_vector(9 downto 0);
         variable exception : std_ulogic;
@@ -310,37 +310,25 @@ begin
         variable mmu_mtspr : std_ulogic;
         variable itlb_fault : std_ulogic;
         variable misaligned : std_ulogic;
-        variable fp_reg_conv : std_ulogic;
-        variable lfs_done : std_ulogic;
     begin
         v := r;
         req := '0';
-        v.mfspr := '0';
         mmu_mtspr := '0';
         itlb_fault := '0';
         sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
         dsisr := (others => '0');
         mmureq := '0';
-        fp_reg_conv := '0';
+        v.wr_sel := "11";
 
         write_enable := '0';
-        lfs_done := '0';
 
         do_update := r.do_update;
         v.do_update := '0';
 
         -- load data formatting
-        byte_offset := unsigned(r.addr(2 downto 0));
-        brev_lenm1 := "000";
-        if r.byte_reverse = '1' then
-            brev_lenm1 := unsigned(r.length(2 downto 0)) - 1;
-        end if;
-
         -- shift and byte-reverse data bytes
         for i in 0 to 7 loop
-            kk := ('0' & (to_unsigned(i, 3) xor brev_lenm1)) + ('0' & byte_offset);
-            use_second(i) := kk(3);
-            j := to_integer(kk(2 downto 0)) * 8;
+            j := to_integer(r.byte_index(i)) * 8;
             data_permuted(i * 8 + 7 downto i * 8) := d_in.data(j + 7 downto j);
         end loop;
 
@@ -362,62 +350,32 @@ begin
 
         -- trim and sign-extend
         for i in 0 to 7 loop
-            if i < to_integer(unsigned(r.length)) then
-                if r.dwords_done = '1' then
-                    trim_ctl(i) := '1' & not use_second(i);
-                else
-                    trim_ctl(i) := "10";
-                end if;
-            else
-                trim_ctl(i) := '0' & (negative and r.sign_extend);
-            end if;
-            case trim_ctl(i) is
+            case r.trim_ctl(i) is
                 when "11" =>
                     data_trimmed(i * 8 + 7 downto i * 8) := r.load_data(i * 8 + 7 downto i * 8);
                 when "10" =>
                     data_trimmed(i * 8 + 7 downto i * 8) := data_permuted(i * 8 + 7 downto i * 8);
                 when "01" =>
-                    data_trimmed(i * 8 + 7 downto i * 8) := x"FF";
+                    data_trimmed(i * 8 + 7 downto i * 8) := (others => negative);
                 when others =>
                     data_trimmed(i * 8 + 7 downto i * 8) := x"00";
             end case;
         end loop;
 
         if HAS_FPU then
-            -- Single-precision FP conversion
-            v.st_sp_data := store_sp_data;
+            -- Single-precision FP conversion for loads
             v.ld_sp_data := data_trimmed(31 downto 0);
             v.ld_sp_nz := or (data_trimmed(22 downto 0));
             v.ld_sp_lz := count_left_zeroes(data_trimmed(22 downto 0));
         end if;
 
         -- Byte reversing and rotating for stores.
-        -- Done in the first cycle (when l_in.valid = 1) for integer stores
-        -- and DP float stores, and in the second cycle for SP float stores.
-        store_data := r.store_data;
-        if l_in.valid = '1' or (HAS_FPU and r.state = FPR_CONV) then
-            if HAS_FPU and r.state = FPR_CONV then
-                data_in := x"00000000" & r.st_sp_data;
-                byte_offset := unsigned(r.addr(2 downto 0));
-                byte_rev := r.byte_reverse;
-                length := r.length;
-            else
-                data_in := l_in.data;
-                byte_offset := unsigned(lsu_sum(2 downto 0));
-                byte_rev := l_in.byte_reverse;
-                length := l_in.length;
-            end if;
-            brev_lenm1 := "000";
-            if byte_rev = '1' then
-                brev_lenm1 := unsigned(length(2 downto 0)) - 1;
-            end if;
-            for i in 0 to 7 loop
-                k := (to_unsigned(i, 3) - byte_offset) xor brev_lenm1;
-                j := to_integer(k) * 8;
-                store_data(i * 8 + 7 downto i * 8) := data_in(j + 7 downto j);
-            end loop;
-        end if;
-        v.store_data := store_data;
+        -- Done in the second cycle (the cycle after l_in.valid = 1).
+        for i in 0 to 7 loop
+            k := (to_unsigned(i, 3) - r.byte_offset) xor r.brev_mask;
+            j := to_integer(k) * 8;
+            store_data(i * 8 + 7 downto i * 8) := r.store_data(j + 7 downto j);
+        end loop;
 
         -- compute (addr + 8) & ~7 for the second doubleword when unaligned
         next_addr := std_ulogic_vector(unsigned(r.addr(63 downto 3)) + 1) & "000";
@@ -449,20 +407,17 @@ begin
         case r.state is
         when IDLE =>
 
-        when FPR_CONV =>
-            req := '1';
-            if r.second_bytes /= "00000000" then
-                v.state := SECOND_REQ;
-            else
-                v.state := ACK_WAIT;
-            end if;
-
         when SECOND_REQ =>
             req := '1';
             v.state := ACK_WAIT;
             v.last_dword := '0';
 
         when ACK_WAIT =>
+            -- r.wr_sel gets set one cycle after we come into ACK_WAIT state,
+            -- which is OK because the dcache always takes at least two cycles.
+            if r.update = '1' and (r.load = '0' or (HAS_FPU and r.load_sp = '1')) then
+                v.wr_sel := "01";
+            end if;
             if d_in.error = '1' then
                 -- dcache will discard the second request if it
                 -- gets an error on the 1st of two requests
@@ -493,9 +448,11 @@ begin
                         -- SP to DP conversion takes a cycle
                         -- Write back rA update in this cycle if needed
                         do_update := r.update;
+                        v.wr_sel := "10";
                         v.state := FINISH_LFS;
                     elsif r.extra_cycle = '1' then
                         -- loads with rA update need an extra cycle
+                        v.wr_sel := "01";
                         v.state := COMPLETE;
                         v.do_update := r.update;
                     else
@@ -533,7 +490,6 @@ begin
         when TLBIE_WAIT =>
 
         when FINISH_LFS =>
-            lfs_done := '1';
 
         when COMPLETE =>
             exception := r.align_intr;
@@ -572,6 +528,12 @@ begin
             v.wait_mmu := '0';
             v.do_update := '0';
             v.extra_cycle := '0';
+
+            if HAS_FPU and l_in.is_32bit = '1' then
+                v.store_data := x"00000000" & store_sp_data;
+            else
+                v.store_data := l_in.data;
+            end if;
 
             addr := lsu_sum;
             if l_in.second = '1' then
@@ -621,12 +583,7 @@ begin
 
             case l_in.op is
                 when OP_STORE =>
-                    if HAS_FPU and l_in.is_32bit = '1' then
-                        v.state := FPR_CONV;
-                        fp_reg_conv := '1';
-                    else
-                        req := '1';
-                    end if;
+                    req := '1';
                 when OP_LOAD =>
                     req := '1';
                     v.load := '1';
@@ -647,7 +604,7 @@ begin
                     v.state := TLBIE_WAIT;
                     v.wait_mmu := '1';
                 when OP_MFSPR =>
-                    v.mfspr := '1';
+                    v.wr_sel := "00";
                     -- partial decode on SPR number should be adequate given
                     -- the restricted set that get sent down this path
                     if sprn(9) = '0' and sprn(5) = '0' then
@@ -696,8 +653,46 @@ begin
                 end if;
             end if;
 
-            v.busy := req or mmureq or mmu_mtspr or fp_reg_conv;
+            v.busy := req or mmureq or mmu_mtspr;
         end if;
+
+        -- Work out controls for store formatting
+        if l_in.valid = '1' then
+            byte_offset := unsigned(lsu_sum(2 downto 0));
+            byte_rev := l_in.byte_reverse;
+            length := l_in.length;
+            brev_lenm1 := "000";
+            if byte_rev = '1' then
+                brev_lenm1 := unsigned(length(2 downto 0)) - 1;
+            end if;
+            v.byte_offset := byte_offset;
+            v.brev_mask := brev_lenm1;
+        end if;
+
+        -- Work out load formatter controls for next cycle
+        byte_offset := unsigned(v.addr(2 downto 0));
+        brev_lenm1 := "000";
+        if v.byte_reverse = '1' then
+            brev_lenm1 := unsigned(v.length(2 downto 0)) - 1;
+        end if;
+
+        for i in 0 to 7 loop
+            kk := ('0' & (to_unsigned(i, 3) xor brev_lenm1)) + ('0' & byte_offset);
+            v.use_second(i) := kk(3);
+            v.byte_index(i) := kk(2 downto 0);
+        end loop;
+
+        for i in 0 to 7 loop
+            if i < to_integer(unsigned(v.length)) then
+                if v.dwords_done = '1' then
+                    v.trim_ctl(i) := '1' & not v.use_second(i);
+                else
+                    v.trim_ctl(i) := "10";
+                end if;
+            else
+                v.trim_ctl(i) := '0' & v.sign_extend;
+            end if;
+        end loop;
 
         -- Update outputs to dcache
         d_out.valid <= req and not v.align_intr;
@@ -729,23 +724,24 @@ begin
         -- Multiplex either cache data to the destination GPR or
         -- the address for the rA update.
         l_out.valid <= done;
-        if r.mfspr = '1' then
+        case r.wr_sel is
+        when "00" =>
             l_out.write_enable <= '1';
             l_out.write_reg <= r.write_reg;
             l_out.write_data <= r.sprval;
-        elsif do_update = '1' then
-            l_out.write_enable <= '1';
+        when "01" =>
+            l_out.write_enable <= do_update;
             l_out.write_reg <= gpr_to_gspr(r.update_reg);
             l_out.write_data <= r.addr;
-        elsif lfs_done = '1' then
+        when "10" =>
             l_out.write_enable <= '1';
             l_out.write_reg <= r.write_reg;
             l_out.write_data <= load_dp_data;
-        else
+        when others =>
             l_out.write_enable <= write_enable;
             l_out.write_reg <= r.write_reg;
             l_out.write_data <= data_trimmed;
-        end if;
+        end case;
         l_out.xerc <= r.xerc;
         l_out.rc <= r.rc and done;
         l_out.store_done <= d_in.store_done;

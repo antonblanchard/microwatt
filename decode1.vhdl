@@ -31,6 +31,7 @@ end entity decode1;
 architecture behaviour of decode1 is
     signal r, rin : Decode1ToDecode2Type;
     signal s      : Decode1ToDecode2Type;
+    signal f, fin : Decode1ToFetch1Type;
 
     constant illegal_inst : decode_rom_t :=
         (NONE, NONE, OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
@@ -46,6 +47,14 @@ architecture behaviour of decode1 is
 
     signal ri, ri_in : reg_internal_t;
     signal si        : reg_internal_t;
+
+    type br_predictor_t is record
+        br_nia    : std_ulogic_vector(61 downto 0);
+        br_offset : signed(23 downto 0);
+        predict   : std_ulogic;
+    end record;
+
+    signal br, br_in : br_predictor_t;
 
     subtype major_opcode_t is unsigned(5 downto 0);
     type major_rom_array_t is array(0 to 63) of decode_rom_t;
@@ -537,6 +546,13 @@ begin
                     ri <= ri_in;
                 end if;
             end if;
+            if rst = '1' then
+                br.br_nia <= (others => '0');
+                br.br_offset <= (others => '0');
+                br.predict <= '0';
+            else
+                br <= br_in;
+            end if;
         end if;
     end process;
     busy_out <= s.valid;
@@ -544,14 +560,13 @@ begin
     decode1_1: process(all)
         variable v : Decode1ToDecode2Type;
         variable vi : reg_internal_t;
-        variable f : Decode1ToFetch1Type;
         variable majorop : major_opcode_t;
         variable minor4op : std_ulogic_vector(10 downto 0);
         variable op_19_bits: std_ulogic_vector(2 downto 0);
         variable sprn : spr_num_t;
-        variable br_nia    : std_ulogic_vector(61 downto 0);
         variable br_target : std_ulogic_vector(61 downto 0);
         variable br_offset : signed(23 downto 0);
+        variable bv : br_predictor_t;
     begin
         v := Decode1ToDecode2Init;
         vi := reg_internal_t_init;
@@ -707,17 +722,22 @@ begin
         -- Branch predictor
         -- Note bclr, bcctr and bctar are predicted not taken as we have no
         -- count cache or link stack.
-        br_nia := f_in.nia(63 downto 2);
+        bv.br_nia := f_in.nia(63 downto 2);
         if f_in.insn(1) = '1' then
-            br_nia := (others => '0');
+            bv.br_nia := (others => '0');
         end if;
-        br_target := std_ulogic_vector(signed(br_nia) + br_offset);
-        f.redirect := v.br_pred and f_in.valid and not flush_in and not s.valid;
-        f.redirect_nia := br_target & "00";
+        bv.br_offset := br_offset;
+        if f_in.next_predicted = '1' then
+            v.br_pred := '1';
+        end if;
+        bv.predict := v.br_pred and f_in.valid and not flush_in and not busy_out and not f_in.next_predicted;
+        -- after a clock edge...
+        br_target := std_ulogic_vector(signed(br.br_nia) + br.br_offset);
 
         -- Update registers
         rin <= v;
         ri_in <= vi;
+        br_in <= bv;
 
         -- Update outputs
         d_out <= r;
@@ -729,8 +749,9 @@ begin
         if ri.force_single = '1' then
             d_out.decode.sgl_pipe <= '1';
         end if;
-        f_out <= f;
-        flush_out <= f.redirect;
+        f_out.redirect <= br.predict;
+        f_out.redirect_nia <= br_target & "00";
+        flush_out <= bv.predict or br.predict;
     end process;
 
     d1_log: if LOG_LENGTH > 0 generate

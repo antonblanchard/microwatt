@@ -134,6 +134,7 @@ targets:
       - log_length=2048
       - uart_is_16550
       - has_fpu
+      - has_btc
     tools:
       vivado: {part : xc7a100tcsg324-1}
     toplevel : toplevel
@@ -218,6 +219,7 @@ targets:
       - log_length=2048
       - uart_is_16550
       - has_fpu
+      - has_btc
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -235,6 +237,7 @@ targets:
       - log_length=2048
       - uart_is_16550
       - has_fpu
+      - has_btc
     generate: [litedram_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
@@ -254,6 +257,7 @@ targets:
       - uart_is_16550
       - has_uart1
       - has_fpu=false
+      - has_btc=false
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
@@ -273,6 +277,7 @@ targets:
       - uart_is_16550
       - has_uart1
       - has_fpu=false
+      - has_btc=false
     generate: [litedram_arty, liteeth_arty]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -292,6 +297,7 @@ targets:
       - uart_is_16550
       - has_uart1
       - has_fpu
+      - has_btc
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -311,6 +317,7 @@ targets:
       - uart_is_16550
       - has_uart1
       - has_fpu
+      - has_btc
     generate: [litedram_arty, liteeth_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
@@ -329,6 +336,7 @@ targets:
       - log_length=512
       - uart_is_16550
       - has_fpu=false
+      - has_btc=false
     tools:
       vivado: {part : xc7a35tcpg236-1}
     toplevel : toplevel
@@ -392,6 +400,12 @@ parameters:
   has_fpu:
     datatype    : bool
     description : Include a floating-point unit in the core
+    paramtype   : generic
+    default     : true
+
+  has_btc:
+    datatype    : bool
+    description : Include a branch target cache in the core
     paramtype   : generic
     default     : true
 
