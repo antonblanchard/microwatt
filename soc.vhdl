@@ -916,5 +916,45 @@ begin
 		 wb_in => wishbone_debug_in,
 		 wb_out => wishbone_debug_out);
 
+--pragma synthesis_off
+    wb_x_state: process(system_clk)
+    begin
+        if rising_edge(system_clk) then
+            if not rst then
+                -- Wishbone arbiter
+                assert not(is_x(wb_masters_out(0).cyc)) and not(is_x(wb_masters_out(0).stb)) severity failure;
+                assert not(is_x(wb_masters_out(1).cyc)) and not(is_x(wb_masters_out(1).stb)) severity failure;
+                assert not(is_x(wb_masters_out(2).cyc)) and not(is_x(wb_masters_out(2).stb)) severity failure;
+                assert not(is_x(wb_masters_in(0).ack)) severity failure;
+                assert not(is_x(wb_masters_in(1).ack)) severity failure;
+                assert not(is_x(wb_masters_in(2).ack)) severity failure;
+
+                -- Main memory wishbones
+                assert not(is_x(wb_bram_in.cyc)) and not (is_x(wb_bram_in.stb)) severity failure;
+                assert not(is_x(wb_dram_in.cyc)) and not (is_x(wb_dram_in.stb)) severity failure;
+                assert not(is_x(wb_io_in.cyc)) and not (is_x(wb_io_in.stb)) severity failure;
+                assert not(is_x(wb_bram_out.ack)) severity failure;
+                assert not(is_x(wb_dram_out.ack)) severity failure;
+                assert not(is_x(wb_io_out.ack)) severity failure;
+
+                -- I/O wishbones
+                assert not(is_x(wb_uart0_in.cyc)) and not(is_x(wb_uart0_in.stb)) severity failure;
+                assert not(is_x(wb_uart1_in.cyc)) and not(is_x(wb_uart1_in.stb)) severity failure;
+                assert not(is_x(wb_spiflash_in.cyc)) and not(is_x(wb_spiflash_in.stb)) severity failure;
+                assert not(is_x(wb_xics_icp_in.cyc)) and not(is_x(wb_xics_icp_in.stb)) severity failure;
+                assert not(is_x(wb_xics_ics_in.cyc)) and not(is_x(wb_xics_ics_in.stb)) severity failure;
+                assert not(is_x(wb_ext_io_in.cyc)) and not(is_x(wb_ext_io_in.stb)) severity failure;
+                assert not(is_x(wb_syscon_in.cyc)) and not(is_x(wb_syscon_in.stb)) severity failure;
+                assert not(is_x(wb_uart0_out.ack)) severity failure;
+                assert not(is_x(wb_uart1_out.ack)) severity failure;
+                assert not(is_x(wb_spiflash_out.ack)) severity failure;
+                assert not(is_x(wb_xics_icp_out.ack)) severity failure;
+                assert not(is_x(wb_xics_ics_out.ack)) severity failure;
+                assert not(is_x(wb_ext_io_out.ack)) severity failure;
+                assert not(is_x(wb_syscon_out.ack)) severity failure;
+            end if;
+        end if;
+    end process;
+--pragma synthesis_on
 
 end architecture behaviour;
