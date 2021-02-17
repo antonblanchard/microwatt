@@ -20,6 +20,15 @@ def flash(config, flash_proxy, address, data, filetype="", set_qe=False):
     print(script)
     subprocess.call(["openocd", "-f", config, "-c", script])
 
+def get_version():
+    a = subprocess.run(["openocd", "-v"], capture_output=True)
+    if a.returncode != 0:
+        return ""
+    if a.stderr.count(b"0.10"):
+        return ""
+    if a.stderr.count(b"0.11"):
+        return "_openocd_v0.11"
+
 parser = argparse.ArgumentParser()
 parser.add_argument("file", help="file to write to flash")
 parser.add_argument("-a", "--address", help="offset in flash", type=lambda x: int(x,0), default=0)
@@ -27,12 +36,14 @@ parser.add_argument("-f", "--fpga", help="a35, a100 or a200", default="a35")
 parser.add_argument("-t", "--filetype", help="file type such as 'bin'", default="")
 args = parser.parse_args()
 
+version = get_version()
+
 if args.fpga.lower() == "a35":
-        proxy = "bscan_spi_xc7a35t.bit"
+        proxy = "bscan_spi_xc7a35t{}.bit".format(version)
 elif args.fpga.lower() == "a100":
-        proxy = "bscan_spi_xc7a100t.bit"
+        proxy = "bscan_spi_xc7a100t{}.bit".format(version)
 elif args.fpga.lower() == "a200":
-        proxy = "bscan_spi_xc7a200t.bit"
+        proxy = "bscan_spi_xc7a200t{}.bit".format(version)
 else:
     print("error: specify a35, a100 or a200 when flashing")
     sys.exit()

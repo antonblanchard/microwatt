@@ -23,10 +23,11 @@ Info : JTAG tap: xc7.tap tap/device found: 0x0362d093 (mfg: 0x049 (Xilinx), part
 Error: Unknown flash device (ID 0x00ffffff)
 
 If you find yourself with a later openocd version that contians 867bdb2e9248
-("jtagspi: new protocol that includes transfer length") you should fetch the
-bitstream from the master branch:
+("jtagspi: new protocol that includes transfer length"), such as v0.11 as
+packaged by Debian Bullseye, you should use the bitstream from the master
+branch:
 
 https://github.com/quartiq/bscan_spi_bitstreams/blob/master/bscan_spi_xc7a35t.bit?raw=true
 https://github.com/quartiq/bscan_spi_bitstreams/blob/master/bscan_spi_xc7a100t.bit?raw=true
 
-
+These are in the microwatt repository as bscan_spi_xc7a*t_openocd_v0.11.bit.
