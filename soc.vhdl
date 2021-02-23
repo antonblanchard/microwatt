@@ -24,6 +24,7 @@ use work.wishbone_types.all;
 -- 0xc0004000: XICS ICP
 -- 0xc0005000: XICS ICS
 -- 0xc0006000: SPI Flash controller
+-- 0xc0007000: GPIO controller
 -- 0xc8nnnnnn: External IO bus
 -- 0xf0000000: Flash "ROM" mapping
 -- 0xff000000: DRAM init code (if any) or flash ROM (**)
@@ -66,7 +67,8 @@ entity soc is
         LOG_LENGTH         : natural := 512;
         HAS_LITEETH        : boolean := false;
 	UART0_IS_16550     : boolean := true;
-	HAS_UART1          : boolean := false
+	HAS_UART1          : boolean := false;
+        NGPIO              : natural := 0
 	);
     port(
 	rst          : in  std_ulogic;
@@ -100,6 +102,11 @@ entity soc is
         spi_flash_sdat_o  : out std_ulogic_vector(SPI_FLASH_DLINES-1 downto 0);
         spi_flash_sdat_oe : out std_ulogic_vector(SPI_FLASH_DLINES-1 downto 0);
         spi_flash_sdat_i  : in  std_ulogic_vector(SPI_FLASH_DLINES-1 downto 0) := (others => '1');
+
+        -- GPIO signals
+        gpio_out : out std_ulogic_vector(NGPIO - 1 downto 0);
+        gpio_dir : out std_ulogic_vector(NGPIO - 1 downto 0);
+        gpio_in  : in  std_ulogic_vector(NGPIO - 1 downto 0) := (others => '0');
 
 	-- DRAM controller signals
 	alt_reset    : in std_ulogic := '0'
@@ -167,6 +174,11 @@ architecture behaviour of soc is
     signal ics_to_icp       : ics_to_icp_t;
     signal core_ext_irq     : std_ulogic;
 
+    -- GPIO signals:
+    signal wb_gpio_in    : wb_io_master_out;
+    signal wb_gpio_out   : wb_io_slave_out;
+    signal gpio_intr     : std_ulogic := '0';
+
     -- Main memory signals:
     signal wb_bram_in     : wishbone_master_out;
     signal wb_bram_out    : wishbone_slave_out;
@@ -192,6 +204,7 @@ architecture behaviour of soc is
     signal rst_uart    : std_ulogic := '1';
     signal rst_xics    : std_ulogic := '1';
     signal rst_spi     : std_ulogic := '1';
+    signal rst_gpio    : std_ulogic := '1';
     signal rst_bram    : std_ulogic := '1';
     signal rst_dtm     : std_ulogic := '1';
     signal rst_wbar    : std_ulogic := '1';
@@ -206,6 +219,7 @@ architecture behaviour of soc is
                            SLAVE_IO_UART1,
                            SLAVE_IO_SPI_FLASH_REG,
                            SLAVE_IO_SPI_FLASH_MAP,
+                           SLAVE_IO_GPIO,
                            SLAVE_IO_EXTERNAL,
                            SLAVE_IO_NONE);
     signal slave_io_dbg : slave_io_type;
@@ -243,6 +257,7 @@ begin
             rst_uart    <= rst;
             rst_spi     <= rst;
             rst_xics    <= rst;
+            rst_gpio    <= rst;
             rst_bram    <= rst;
             rst_dtm     <= rst;
             rst_wbar    <= rst;
@@ -530,6 +545,8 @@ begin
 	    slave_io := SLAVE_IO_ICS;
 	elsif std_match(match, x"C0006") then
 	    slave_io := SLAVE_IO_SPI_FLASH_REG;
+        elsif std_match(match, x"C0007") then
+            slave_io := SLAVE_IO_GPIO;
 	end if;
         slave_io_dbg <= slave_io;
 	wb_uart0_in <= wb_sio_out;
@@ -540,6 +557,8 @@ begin
 	wb_spiflash_in.cyc <= '0';
         wb_spiflash_is_reg <= '0';
         wb_spiflash_is_map <= '0';
+        wb_gpio_in <= wb_sio_out;
+        wb_gpio_in.cyc <= '0';
 
 	 -- Only give xics 8 bits of wb addr (for now...)
 	wb_xics_icp_in <= wb_sio_out;
@@ -619,6 +638,9 @@ begin
 	    wb_spiflash_in.cyc <= wb_sio_out.cyc;
 	    wb_sio_in <= wb_spiflash_out;
             wb_spiflash_is_reg <= '1';
+        when SLAVE_IO_GPIO =>
+            wb_gpio_in.cyc <= wb_sio_out.cyc;
+            wb_sio_in <= wb_gpio_out;
 	when others =>
 	end case;
 
@@ -811,6 +833,21 @@ begin
             icp_out => ics_to_icp
 	    );
 
+    gpio : entity work.gpio
+        generic map(
+            NGPIO => NGPIO
+            )
+        port map(
+            clk      => system_clk,
+            rst      => rst_gpio,
+            wb_in    => wb_gpio_in,
+            wb_out   => wb_gpio_out,
+            gpio_in  => gpio_in,
+            gpio_out => gpio_out,
+            gpio_dir => gpio_dir,
+            intr     => gpio_intr
+            );
+
     -- Assign external interrupts
     interrupts: process(all)
     begin
@@ -818,6 +855,7 @@ begin
         int_level_in(0) <= uart0_irq;
         int_level_in(1) <= ext_irq_eth;
         int_level_in(2) <= uart1_irq;
+        int_level_in(3) <= gpio_intr;
     end process;
 
     -- BRAM Memory slave
