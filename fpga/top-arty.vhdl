@@ -37,12 +37,6 @@ entity toplevel is
         uart_main_tx : out std_ulogic;
         uart_main_rx : in  std_ulogic;
 
-	-- UART1 signals:
-	uart_pmod_tx    : out std_ulogic;
-	uart_pmod_rx    : in std_ulogic;
-	uart_pmod_cts_n : in std_ulogic;
-	uart_pmod_rts_n : out std_ulogic;
-
         -- LEDs
         led0_b  : out std_ulogic;
         led0_g  : out std_ulogic;
@@ -193,7 +187,7 @@ begin
             LOG_LENGTH         => LOG_LENGTH,
             HAS_LITEETH        => USE_LITEETH,
             UART0_IS_16550     => UART_IS_16550,
-            HAS_UART1          => HAS_UART1,
+            HAS_UART1          => false,
             NGPIO              => NGPIO
             )
         port map (
@@ -206,8 +200,8 @@ begin
             uart0_rxd         => uart_main_rx,
 
 	    -- UART1 signals
-	    uart1_txd         => uart_pmod_tx,
-	    uart1_rxd         => uart_pmod_rx,
+	    --uart1_txd         => uart_pmod_tx,
+	    --uart1_rxd         => uart_pmod_rx,
 
             -- SPI signals
             spi_flash_sck     => spi_sck,
@@ -235,7 +229,7 @@ begin
             alt_reset            => core_alt_reset
             );
 
-    uart_pmod_rts_n <= '0';
+    --uart_pmod_rts_n <= '0';
 
     -- SPI Flash
     --
@@ -592,8 +586,8 @@ begin
     gpio_in(27) <= shield_io(39);
     gpio_in(28) <= shield_io(40);
     gpio_in(29) <= shield_io(41);
-    gpio_in(30) <= shield_io(42);
-    gpio_in(31) <= gpio_out(31);
+    gpio_in(30) <= shield_io(43);
+    gpio_in(31) <= shield_io(44);
 
     shield_io(0) <= gpio_out(0) when gpio_dir(0) = '1' else 'Z';
     shield_io(1) <= gpio_out(1) when gpio_dir(1) = '1' else 'Z';
@@ -625,7 +619,7 @@ begin
     shield_io(39) <= gpio_out(27) when gpio_dir(27) = '1' else 'Z';
     shield_io(40) <= gpio_out(28) when gpio_dir(28) = '1' else 'Z';
     shield_io(41) <= gpio_out(29) when gpio_dir(29) = '1' else 'Z';
-    shield_io(42) <= gpio_out(30) when gpio_dir(30) = '1' else 'Z';
-    led7 <= gpio_out(31) and gpio_dir(31);
+    shield_io(43) <= gpio_out(30) when gpio_dir(30) = '1' else 'Z';
+    shield_io(44) <= gpio_out(31) when gpio_dir(31) = '1' else 'Z';
 
 end architecture behaviour;
