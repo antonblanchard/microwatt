@@ -5,13 +5,16 @@ name : ::uart16550
 filesets:
   core:
     files:
-    - raminfr.v
-    - uart_defines.v
-    - uart_receiver.v
-    - uart_regs.v
-    - uart_rfifo.v
-    - uart_sync_flops.v
-    - uart_tfifo.v
-    - uart_top.v
-    - uart_transmitter.v
-    - uart_wb.v
+    - raminfr.v : { filetype = "verilog" }
+    - uart_regs.v : { filetype = "verilog" }
+    - uart_rfifo.v : { filetype = "verilog" }
+    - uart_sync_flops.v : { filetype = "verilog" }
+    - uart_tfifo.v : { filetype = "verilog" }
+    - uart_transmitter.v : { filetype = "verilog" }
+    - uart_wb.v : { filetype = "verilog" }
+  uart_receiver:
+    files:
+    - uart_receiver.v : { filetype = "verilog" }
+  uart_top:
+    files:
+    - uart_wb.v : { filetype = "verilog" }
