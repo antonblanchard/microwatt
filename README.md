@@ -97,6 +97,14 @@ sudo dnf copr enable sharkcz/danny
 sudo dnf install fusesoc
 ```
 
+- If this is your first time using fusesoc, initialize fusesoc. 
+  This is needed to be able to pull down fussoc library components referenced 
+  by microwatt. Run
+
+```
+fusesoc init
+```
+
 - Create a working directory and point FuseSoC at microwatt:
 
 ```
@@ -106,6 +114,8 @@ fusesoc library add microwatt /path/to/microwatt/
 ```
 
 - Build using FuseSoC. For hello world (Replace nexys_video with your FPGA board such as --target=arty_a7-100):
+  You may wish to ensure you have [installed Digilent Board files](https://reference.digilentinc.com/vivado/installing-vivado/start#installing_digilent_board_files) 
+  or appropriate files for your board first.
 
 ```
 fusesoc run --target=nexys_video microwatt --memory_size=16384 --ram_init_file=/path/to/microwatt/fpga/hello_world.hex
