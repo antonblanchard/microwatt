@@ -63,6 +63,7 @@ entity soc is
         SPI_FLASH_OFFSET   : integer := 0;
         SPI_FLASH_DEF_CKDV : natural := 2;
         SPI_FLASH_DEF_QUAD : boolean := false;
+        SPI_BOOT_CLOCKS    : boolean := true;
         LOG_LENGTH         : natural := 512;
         HAS_LITEETH        : boolean := false;
 	UART0_IS_16550     : boolean := true;
@@ -764,7 +765,8 @@ begin
             generic map (
                 DATA_LINES    => SPI_FLASH_DLINES,
                 DEF_CLK_DIV   => SPI_FLASH_DEF_CKDV,
-                DEF_QUAD_READ => SPI_FLASH_DEF_QUAD
+                DEF_QUAD_READ => SPI_FLASH_DEF_QUAD,
+                BOOT_CLOCKS   => SPI_BOOT_CLOCKS
                 )
             port map(
                 rst => rst_spi,
