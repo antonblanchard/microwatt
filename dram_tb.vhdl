@@ -104,10 +104,10 @@ begin
 
     -- Read data receive queue
     data_queue: entity work.sync_fifo
-	generic map (
-	    DEPTH => 16,
-	    WIDTH => rd_data'length
-	    )
+        generic map (
+            DEPTH => 16,
+            WIDTH => rd_data'length
+            )
         port map (
             clk      => clk,
             reset    => soc_rst or reset_acks,

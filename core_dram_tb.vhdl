@@ -9,7 +9,7 @@ use work.utils.all;
 
 entity core_dram_tb is
     generic (
-	MEMORY_SIZE    : natural := (384*1024);
+        MEMORY_SIZE    : natural := (384*1024);
         MAIN_RAM_FILE  : string  := "main_ram.bin";
         DRAM_INIT_FILE : string  := "";
         DRAM_INIT_SIZE : natural := 16#c000#
@@ -57,25 +57,25 @@ architecture behave of core_dram_tb is
 begin
 
     soc0: entity work.soc
-	generic map(
-	    SIM => true,
-	    MEMORY_SIZE => MEMORY_SIZE,
-	    RAM_INIT_FILE => MAIN_RAM_FILE,
+        generic map(
+            SIM => true,
+            MEMORY_SIZE => MEMORY_SIZE,
+            RAM_INIT_FILE => MAIN_RAM_FILE,
             HAS_DRAM => true,
-	    DRAM_SIZE => 256 * 1024 * 1024,
+            DRAM_SIZE => 256 * 1024 * 1024,
             DRAM_INIT_SIZE => ROM_SIZE,
-	    CLK_FREQ => 100000000,
+            CLK_FREQ => 100000000,
             HAS_SPI_FLASH    => true,
             SPI_FLASH_DLINES => 4,
             SPI_FLASH_OFFSET => 0
-	    )
-	port map(
-	    rst => soc_rst,
-	    system_clk => system_clk,
-	    wb_dram_in => wb_dram_in,
-	    wb_dram_out => wb_dram_out,
-	    wb_ext_io_in => wb_ext_io_in,
-	    wb_ext_io_out => wb_ext_io_out,
+            )
+        port map(
+            rst => soc_rst,
+            system_clk => system_clk,
+            wb_dram_in => wb_dram_in,
+            wb_dram_out => wb_dram_out,
+            wb_ext_io_in => wb_ext_io_in,
+            wb_ext_io_out => wb_ext_io_out,
             wb_ext_is_dram_csr => wb_ext_is_dram_csr,
             wb_ext_is_dram_init => wb_ext_is_dram_init,
             spi_flash_sck     => spi_sck,
@@ -83,8 +83,8 @@ begin
             spi_flash_sdat_o  => spi_sdat_o,
             spi_flash_sdat_oe => spi_sdat_oe,
             spi_flash_sdat_i  => spi_sdat_i,
-	    alt_reset => core_alt_reset
-	    );
+            alt_reset => core_alt_reset
+            );
 
         flash: entity work.s25fl128s
         generic map (
@@ -142,18 +142,18 @@ begin
 
     clk_process: process
     begin
-	clk <= '0';
-	wait for clk_period/2;
-	clk <= '1';
-	wait for clk_period/2;
+        clk <= '0';
+        wait for clk_period/2;
+        clk <= '1';
+        wait for clk_period/2;
     end process;
 
     rst_process: process
     begin
-	rst <= '1';
-	wait for 10*clk_period;
-	rst <= '0';
-	wait;
+        rst <= '1';
+        wait for 10*clk_period;
+        rst <= '0';
+        wait;
     end process;
 
     jtag: entity work.sim_jtag;
