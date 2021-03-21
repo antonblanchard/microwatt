@@ -8,11 +8,11 @@ use work.helpers.all;
 entity zero_counter is
     port (
         clk         : in std_logic;
-	rs          : in std_ulogic_vector(63 downto 0);
-	count_right : in std_ulogic;
-	is_32bit    : in std_ulogic;
-	result      : out std_ulogic_vector(63 downto 0)
-	);
+        rs          : in std_ulogic_vector(63 downto 0);
+        count_right : in std_ulogic;
+        is_32bit    : in std_ulogic;
+        result      : out std_ulogic_vector(63 downto 0)
+        );
 end entity zero_counter;
 
 architecture behaviour of zero_counter is
