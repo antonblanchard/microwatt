@@ -17,7 +17,7 @@ entity control is
         valid_in            : in std_ulogic;
         repeated            : in std_ulogic;
         flush_in            : in std_ulogic;
-	busy_in             : in std_ulogic;
+        busy_in             : in std_ulogic;
         deferred            : in std_ulogic;
         sgl_pipe_in         : in std_ulogic;
         stop_mark_in        : in std_ulogic;
