@@ -134,21 +134,21 @@ begin
 
     -- Dump registers if core terminates
     sim_dump_test: if SIM generate
-	dump_registers: process(all)
-	begin
-	    if sim_dump = '1' then
-		loop_0: for i in 0 to 31 loop
-		    report "GPR" & integer'image(i) & " " & to_hstring(registers(i));
-		end loop loop_0;
+        dump_registers: process(all)
+        begin
+            if sim_dump = '1' then
+                loop_0: for i in 0 to 31 loop
+                    report "GPR" & integer'image(i) & " " & to_hstring(registers(i));
+                end loop loop_0;
 
-		report "LR " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_LR)))));
-		report "CTR " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_CTR)))));
-		report "XER " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_XER)))));
-		sim_dump_done <= '1';
-	    else
-		sim_dump_done <= '0';
-	    end if;
-	end process;
+                report "LR " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_LR)))));
+                report "CTR " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_CTR)))));
+                report "XER " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_XER)))));
+                sim_dump_done <= '1';
+            else
+                sim_dump_done <= '0';
+            end if;
+        end process;
     end generate;
 
     -- Keep GHDL synthesis happy
