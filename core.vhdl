@@ -3,6 +3,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
+use work.params.all;
 use work.common.all;
 use work.wishbone_types.all;
 
@@ -15,13 +16,7 @@ entity core is
         HAS_BTC : boolean := true;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512;
-        ICACHE_NUM_LINES : natural := 64;
-        ICACHE_NUM_WAYS : natural := 2;
-        ICACHE_TLB_SIZE : natural := 64;
-        DCACHE_NUM_LINES : natural := 64;
-        DCACHE_NUM_WAYS : natural := 2;
-        DCACHE_TLB_SET_SIZE : natural := 64;
-        DCACHE_TLB_NUM_WAYS : natural := 2
+        CACHE_PARAMS : CACHE_PARAMS_T := CACHE_PARAMS_DEFAULT
         );
     port (
         clk          : in std_ulogic;
@@ -223,10 +218,10 @@ begin
     icache_0: entity work.icache
         generic map(
             SIM => SIM,
-            LINE_SIZE => 64,
-            NUM_LINES => ICACHE_NUM_LINES,
-            NUM_WAYS => ICACHE_NUM_WAYS,
-            TLB_SIZE => ICACHE_TLB_SIZE,
+            LINE_SIZE => CACHE_PARAMS.LINE_SIZE,
+            NUM_LINES => CACHE_PARAMS.ICACHE_NUM_LINES,
+            NUM_WAYS => CACHE_PARAMS.ICACHE_NUM_WAYS,
+            TLB_SIZE => CACHE_PARAMS.ICACHE_TLB_SIZE,
             LOG_LENGTH => LOG_LENGTH
             )
         port map(
@@ -406,11 +401,11 @@ begin
 
     dcache_0: entity work.dcache
         generic map(
-            LINE_SIZE => 64,
-            NUM_LINES => DCACHE_NUM_LINES,
-            NUM_WAYS => DCACHE_NUM_WAYS,
-            TLB_SET_SIZE => DCACHE_TLB_SET_SIZE,
-            TLB_NUM_WAYS => DCACHE_TLB_NUM_WAYS,
+            LINE_SIZE => CACHE_PARAMS.LINE_SIZE,
+            NUM_LINES => CACHE_PARAMS.DCACHE_NUM_LINES,
+            NUM_WAYS => CACHE_PARAMS.DCACHE_NUM_WAYS,
+            TLB_SET_SIZE => CACHE_PARAMS.DCACHE_TLB_SET_SIZE,
+            TLB_NUM_WAYS => CACHE_PARAMS.DCACHE_TLB_NUM_WAYS,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (

@@ -5,6 +5,7 @@ name : ::microwatt:0
 filesets:
   core:
     files:
+      - params.vhdl
       - decode_types.vhdl
       - wishbone_types.vhdl
       - common.vhdl

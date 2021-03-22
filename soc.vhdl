@@ -6,6 +6,7 @@ use std.textio.all;
 use std.env.stop;
 
 library work;
+use work.params.all;
 use work.common.all;
 use work.wishbone_types.all;
 
@@ -67,13 +68,7 @@ entity soc is
         HAS_LITEETH        : boolean := false;
 	UART0_IS_16550     : boolean := true;
 	HAS_UART1          : boolean := false;
-        ICACHE_NUM_LINES   : natural := 64;
-        ICACHE_NUM_WAYS    : natural := 2;
-        ICACHE_TLB_SIZE    : natural := 64;
-        DCACHE_NUM_LINES   : natural := 64;
-        DCACHE_NUM_WAYS    : natural := 2;
-        DCACHE_TLB_SET_SIZE : natural := 64;
-        DCACHE_TLB_NUM_WAYS : natural := 2
+        CACHE_PARAMS       : CACHE_PARAMS_T := CACHE_PARAMS_DEFAULT
 	);
     port(
 	rst          : in  std_ulogic;
@@ -267,13 +262,7 @@ begin
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
 	    ALT_RESET_ADDRESS => (23 downto 0 => '0', others => '1'),
             LOG_LENGTH => LOG_LENGTH,
-            ICACHE_NUM_LINES => ICACHE_NUM_LINES,
-            ICACHE_NUM_WAYS => ICACHE_NUM_WAYS,
-            ICACHE_TLB_SIZE => ICACHE_TLB_SIZE,
-            DCACHE_NUM_LINES => DCACHE_NUM_LINES,
-            DCACHE_NUM_WAYS => DCACHE_NUM_WAYS,
-            DCACHE_TLB_SET_SIZE => DCACHE_TLB_SET_SIZE,
-            DCACHE_TLB_NUM_WAYS => DCACHE_TLB_NUM_WAYS
+            CACHE_PARAMS => CACHE_PARAMS
 	    )
 	port map(
 	    clk => system_clk,
