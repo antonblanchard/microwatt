@@ -1,6 +1,9 @@
 GHDL ?= ghdl
-GHDLFLAGS=--std=08 -frelaxed
+GHDLFLAGS=--std=08
 CFLAGS=-O3 -Wall
+VERILATOR_FLAGS=-O3
+# It takes forever to build with optimisation, so disable by default
+#VERILATOR_CFLAGS=-O3
 
 GHDLSYNTH ?= ghdl.so
 YOSYS     ?= yosys
@@ -50,13 +53,13 @@ core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
 	loadstore1.vhdl mmu.vhdl dcache.vhdl writeback.vhdl core_debug.vhdl \
 	core.vhdl fpu.vhdl
 
-soc_files = $(core_files) wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_fifo.vhdl \
+soc_files = wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_fifo.vhdl \
 	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl \
 	spi_rxtx.vhdl spi_flash_ctrl.vhdl
 
 uart_files = $(wildcard uart16550/*.v)
 
-soc_sim_files = $(soc_files) sim_console.vhdl sim_pp_uart.vhdl sim_bram_helpers.vhdl \
+soc_sim_files = $(core_files) $(soc_files) sim_console.vhdl sim_pp_uart.vhdl sim_bram_helpers.vhdl \
 	sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl dmi_dtm_xilinx.vhdl \
 	sim_16550_uart.vhdl \
 	random.vhdl glibc_random.vhdl glibc_random_helpers.vhdl
@@ -115,8 +118,6 @@ $(soc_dram_tbs):
 	$(error "Verilator is required to make this target !")
 else
 
-VERILATOR_CFLAGS=-O3
-VERILATOR_FLAGS=-O3
 verilated_dram: litedram/generated/sim/litedram_core.v
 	verilator $(VERILATOR_FLAGS) -CFLAGS $(VERILATOR_CFLAGS) -Wno-fatal --cc $< --trace
 	make -C obj_dir -f ../litedram/extras/sim_dram_verilate.mk VERILATOR_ROOT=$(VERILATOR_ROOT)
@@ -126,7 +127,7 @@ SIM_DRAM_CFLAGS += -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=1 -DVL_PRINTF=printf -fa
 sim_litedram_c.o: litedram/extras/sim_litedram_c.cpp verilated_dram
 	$(CC)  $(CPPFLAGS) $(SIM_DRAM_CFLAGS) $(CFLAGS) -c $< -o $@
 
-soc_dram_files = $(soc_files) litedram/extras/litedram-wrapper-l2.vhdl litedram/generated/sim/litedram-initmem.vhdl
+soc_dram_files = $(core_files) $(soc_files) litedram/extras/litedram-wrapper-l2.vhdl litedram/generated/sim/litedram-initmem.vhdl
 soc_dram_sim_files = $(soc_sim_files) litedram/extras/sim_litedram.vhdl
 soc_dram_sim_obj_files = $(soc_sim_obj_files) sim_litedram_c.o
 dram_link_files=-Wl,obj_dir/Vlitedram_core__ALL.a -Wl,obj_dir/verilated.o -Wl,obj_dir/verilated_vcd_c.o -Wl,-lstdc++
@@ -184,7 +185,7 @@ CLK_FREQUENCY=50000000
 clkgen=fpga/clk_gen_bypass.vhd
 endif
 
-fpga_files = $(core_files) $(soc_files) fpga/soc_reset.vhdl \
+fpga_files = fpga/soc_reset.vhdl \
 	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram.vhdl \
 	nonrandom.vhdl
 
@@ -198,7 +199,7 @@ microwatt.v: $(synth_files) $(RAM_INIT_FILE)
 
 # Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
-	verilator -O3 -CFLAGS "-DCLK_FREQUENCY=$(CLK_FREQUENCY)" --assert --cc microwatt.v --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Iuart16550 -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
+	verilator $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" --assert --cc $< --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Iuart16550 -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
 	make -C obj_dir -f Vmicrowatt.mk
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
 
