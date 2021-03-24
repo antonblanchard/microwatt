@@ -67,7 +67,14 @@ entity soc is
         LOG_LENGTH         : natural := 512;
         HAS_LITEETH        : boolean := false;
 	UART0_IS_16550     : boolean := true;
-	HAS_UART1          : boolean := false
+	HAS_UART1          : boolean := false;
+        ICACHE_NUM_LINES   : natural := 64;
+        ICACHE_NUM_WAYS    : natural := 2;
+        ICACHE_TLB_SIZE    : natural := 64;
+        DCACHE_NUM_LINES   : natural := 64;
+        DCACHE_NUM_WAYS    : natural := 2;
+        DCACHE_TLB_SET_SIZE : natural := 64;
+        DCACHE_TLB_NUM_WAYS : natural := 2
 	);
     port(
 	rst          : in  std_ulogic;
@@ -260,7 +267,14 @@ begin
             HAS_BTC => HAS_BTC,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
 	    ALT_RESET_ADDRESS => (23 downto 0 => '0', others => '1'),
-            LOG_LENGTH => LOG_LENGTH
+            LOG_LENGTH => LOG_LENGTH,
+            ICACHE_NUM_LINES => ICACHE_NUM_LINES,
+            ICACHE_NUM_WAYS => ICACHE_NUM_WAYS,
+            ICACHE_TLB_SIZE => ICACHE_TLB_SIZE,
+            DCACHE_NUM_LINES => DCACHE_NUM_LINES,
+            DCACHE_NUM_WAYS => DCACHE_NUM_WAYS,
+            DCACHE_TLB_SET_SIZE => DCACHE_TLB_SET_SIZE,
+            DCACHE_TLB_NUM_WAYS => DCACHE_TLB_NUM_WAYS
 	    )
 	port map(
 	    clk => system_clk,
