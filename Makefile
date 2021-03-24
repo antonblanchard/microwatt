@@ -1,7 +1,7 @@
 GHDL ?= ghdl
 GHDLFLAGS=--std=08
 CFLAGS=-O3 -Wall
-VERILATOR_FLAGS=-O3
+VERILATOR_FLAGS=-O3 #--trace
 # It takes forever to build with optimisation, so disable by default
 #VERILATOR_CFLAGS=-O3
 
@@ -119,7 +119,7 @@ $(soc_dram_tbs):
 else
 
 verilated_dram: litedram/generated/sim/litedram_core.v
-	verilator $(VERILATOR_FLAGS) -CFLAGS $(VERILATOR_CFLAGS) -Wno-fatal --cc $< --trace
+	verilator $(VERILATOR_FLAGS) -CFLAGS $(VERILATOR_CFLAGS) -Wno-fatal --cc $<
 	make -C obj_dir -f ../litedram/extras/sim_dram_verilate.mk VERILATOR_ROOT=$(VERILATOR_ROOT)
 
 SIM_DRAM_CFLAGS  = -I. -Iobj_dir -Ilitedram/generated/sim -I$(VERILATOR_ROOT)/include -I$(VERILATOR_ROOT)/include/vltstd
@@ -199,7 +199,7 @@ microwatt.v: $(synth_files) $(RAM_INIT_FILE)
 
 # Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
-	verilator $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" --assert --cc $< --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Iuart16550 -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
+	verilator $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" --assert --cc $< --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Iuart16550 -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT
 	make -C obj_dir -f Vmicrowatt.mk
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
 
