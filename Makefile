@@ -1,5 +1,5 @@
 GHDL ?= ghdl
-GHDLFLAGS=--std=08 -frelaxed
+GHDLFLAGS=--std=08
 CFLAGS=-O3 -Wall
 VERILATOR_FLAGS=-O3
 # It takes forever to build with optimisation, so disable by default
