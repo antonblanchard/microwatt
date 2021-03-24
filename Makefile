@@ -55,14 +55,17 @@ all = core_tb icache_tb dcache_tb dmi_dtm_tb \
 
 all: $(all)
 
-core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
-	utils.vhdl plru.vhdl cache_ram.vhdl icache.vhdl \
+base_core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
+	utils.vhdl plru.vhdl icache.vhdl \
 	decode1.vhdl helpers.vhdl insn_helpers.vhdl \
-	control.vhdl decode2.vhdl register_file.vhdl \
+	control.vhdl decode2.vhdl \
 	cr_file.vhdl crhelpers.vhdl ppc_fx_insns.vhdl rotator.vhdl \
-	logical.vhdl countzero.vhdl multiply.vhdl divider.vhdl execute1.vhdl \
+	logical.vhdl countzero.vhdl divider.vhdl execute1.vhdl \
 	loadstore1.vhdl mmu.vhdl dcache.vhdl writeback.vhdl core_debug.vhdl \
 	core.vhdl fpu.vhdl pmu.vhdl
+
+core_files = $(base_core_files) register_file.vhdl cache_ram.vhdl multiply.vhdl
+asic_core_files = $(base_core_files) asic/register_file.vhdl asic/cache_ram.vhdl asic/multiply.vhdl
 
 soc_files = wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_fifo.vhdl \
 	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl gpio.vhdl soc.vhdl \
@@ -217,7 +220,6 @@ GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=$(MEMORY_SIZE) -gRAM_INIT_FILE=$(RAM_INIT_FILE
 	-gRESET_LOW=$(RESET_LOW) -gCLK_INPUT=$(CLK_INPUT) -gCLK_FREQUENCY=$(CLK_FREQUENCY) -gICACHE_NUM_LINES=$(ICACHE_NUM_LINES) \
 	$(LITEDRAM_GHDL_ARG)
 
-
 ifeq ($(FPGA_TARGET), verilator)
 RESET_LOW=true
 CLK_INPUT=50000000
@@ -225,11 +227,23 @@ CLK_FREQUENCY=50000000
 clkgen=fpga/clk_gen_bypass.vhd
 endif
 
+ifeq ($(FPGA_TARGET), caravel)
+MEMORY_SIZE=4096
+RESET_LOW=true
+CLK_INPUT=100000000
+CLK_FREQUENCY=100000000
+endif
+
 fpga_files = fpga/soc_reset.vhdl \
 	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram.vhdl \
 	nonrandom.vhdl
 
+asic_files = fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd asic/main_bram.vhdl \
+	asic/top-asic.vhdl $(dmi_dtm) nonrandom.vhdl
+
 synth_files = $(core_files) $(soc_files) $(soc_extra_synth) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
+
+asic_synth_files = $(asic_core_files) $(soc_files) $(asic_files)
 
 microwatt.json: $(synth_files) $(RAM_INIT_FILE)
 	$(YOSYS) $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; read_verilog $(uart_files) $(soc_extra_v); synth_ecp5 -abc9 -nowidelut -json $@  $(SYNTH_ECP5_FLAGS)"
@@ -237,9 +251,16 @@ microwatt.json: $(synth_files) $(RAM_INIT_FILE)
 microwatt.v: $(synth_files) $(RAM_INIT_FILE)
 	$(YOSYS) $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
 
+microwatt_asic.v: $(asic_synth_files)
+	$(YOSYS) $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(asic_synth_files) -e toplevel; write_verilog $@"
+
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
 	$(VERILATOR) $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" -Iuart16550 --assert --cc --exe --build $^ -o $@ -top-module toplevel
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
+
+microwatt_asic-verilator: microwatt_asic.v asic/microwatt_asic-verilator.cpp verilator/uart-verilator.c
+	$(VERILATOR) $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" -Iuart16550 -Iasic/behavioural --assert --cc --exe --build $^ -o $@ -top-module toplevel
+	@cp -f obj_dir/microwatt_asic-verilator microwatt_asic-verilator
 
 microwatt_out.config: microwatt.json $(LPF)
 	$(NEXTPNR) --json $< --lpf $(LPF) --textcfg $@.tmp $(NEXTPNR_FLAGS) --package $(PACKAGE)
@@ -323,6 +344,7 @@ _clean:
 	rm -f scripts/mw_debug/mw_debug
 	rm -f microwatt.bin microwatt.json microwatt.svf microwatt_out.config
 	rm -f microwatt.v microwatt-verilator
+	rm -f microwatt_asic.v microwatt_asic-verilator
 	rm -rf obj_dir/
 
 clean: _clean
