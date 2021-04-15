@@ -32,6 +32,7 @@ use work.wishbone_types.all;
 -- 0xc8000000: LiteDRAM control (CSRs)
 -- 0xc8020000: LiteEth CSRs (*)
 -- 0xc8030000: LiteEth MMIO (*)
+-- 0xc8040000: LiteSDCard CSRs
 
 -- (*) LiteEth must be a single aligned 32KB block as the CSRs and MMIOs
 --     are actually decoded as a single wishbone which LiteEth will
@@ -45,6 +46,8 @@ use work.wishbone_types.all;
 --
 --   0  : UART0
 --   1  : Ethernet
+--   2  : UART1
+--   3  : SD card
 
 entity soc is
     generic (
@@ -74,7 +77,8 @@ entity soc is
         DCACHE_NUM_LINES   : natural := 64;
         DCACHE_NUM_WAYS    : natural := 2;
         DCACHE_TLB_SET_SIZE : natural := 64;
-        DCACHE_TLB_NUM_WAYS : natural := 2
+        DCACHE_TLB_NUM_WAYS : natural := 2;
+        HAS_SD_CARD        : boolean := false
 	);
     port(
 	rst          : in  std_ulogic;
@@ -90,9 +94,15 @@ entity soc is
 	wb_ext_is_dram_csr   : out std_ulogic;
 	wb_ext_is_dram_init  : out std_ulogic;
 	wb_ext_is_eth        : out std_ulogic;
+	wb_ext_is_sdcard     : out std_ulogic;
+
+        -- external DMA wishbone with 32-bit data/address
+        wishbone_dma_in      : out wb_io_slave_out := wb_io_slave_out_init;
+        wishbone_dma_out     : in wb_io_master_out := wb_io_master_out_init;
 
         -- External interrupts
         ext_irq_eth          : in std_ulogic := '0';
+        ext_irq_sdcard       : in std_ulogic := '0';
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
@@ -121,12 +131,12 @@ architecture behaviour of soc is
     signal wishbone_dcore_out : wishbone_master_out;
     signal wishbone_icore_in  : wishbone_slave_out;
     signal wishbone_icore_out : wishbone_master_out;
-    signal wishbone_debug_in : wishbone_slave_out;
+    signal wishbone_debug_in  : wishbone_slave_out;
     signal wishbone_debug_out : wishbone_master_out;
 
     -- Arbiter array (ghdl doesnt' support assigning the array
     -- elements in the entity instantiation)
-    constant NUM_WB_MASTERS : positive := 3;
+    constant NUM_WB_MASTERS : positive := 4;
     signal wb_masters_out : wishbone_master_out_vector(0 to NUM_WB_MASTERS-1);
     signal wb_masters_in  : wishbone_slave_out_vector(0 to NUM_WB_MASTERS-1);
 
@@ -219,6 +229,37 @@ architecture behaviour of soc is
                            SLAVE_IO_NONE);
     signal slave_io_dbg : slave_io_type;
 
+    function wishbone_widen_data(wb : wb_io_master_out) return wishbone_master_out is
+        variable wwb : wishbone_master_out;
+    begin
+        wwb.adr := wb.adr & "00";       -- XXX note wrong adr usage in wishbone_master_out
+        wwb.dat := wb.dat & wb.dat;
+        wwb.sel := x"00";
+        if wwb.adr(2) = '0' then
+            wwb.sel(3 downto 0) := wb.sel;
+        else
+            wwb.sel(7 downto 4) := wb.sel;
+        end if;
+        wwb.cyc := wb.cyc;
+        wwb.stb := wb.stb;
+        wwb.we := wb.we;
+        return wwb;
+    end;
+
+    function wishbone_narrow_data(wwbs : wishbone_slave_out; adr : std_ulogic_vector(29 downto 0))
+        return wb_io_slave_out is
+        variable wbs : wb_io_slave_out;
+    begin
+        wbs.ack := wwbs.ack;
+        wbs.stall := wwbs.stall;
+        if adr(0) = '0' then
+            wbs.dat := wwbs.dat(31 downto 0);
+        else
+            wbs.dat := wwbs.dat(63 downto 32);
+        end if;
+        return wbs;
+    end;
+
     -- This is the component exported by the 16550 compatible
     -- UART from FuseSoC.
     --
@@ -243,6 +284,7 @@ architecture behaviour of soc is
         dcd_pad_i   : in std_ulogic
         );
     end component;
+
 begin
 
     resets: process(system_clk)
@@ -298,10 +340,12 @@ begin
     -- Wishbone bus master arbiter & mux
     wb_masters_out <= (0 => wishbone_dcore_out,
 		       1 => wishbone_icore_out,
-		       2 => wishbone_debug_out);
+                       2 => wishbone_widen_data(wishbone_dma_out),
+		       3 => wishbone_debug_out);
     wishbone_dcore_in <= wb_masters_in(0);
     wishbone_icore_in <= wb_masters_in(1);
-    wishbone_debug_in <= wb_masters_in(2);
+    wishbone_dma_in   <= wishbone_narrow_data(wb_masters_in(2), wishbone_dma_out.adr);
+    wishbone_debug_in <= wb_masters_in(3);
     wishbone_arbiter_0: entity work.wishbone_arbiter
 	generic map(
 	    NUM_MASTERS => NUM_WB_MASTERS
@@ -589,6 +633,7 @@ begin
 	wb_ext_is_dram_csr   <= '0';
 	wb_ext_is_dram_init  <= '0';
 	wb_ext_is_eth        <= '0';
+        wb_ext_is_sdcard     <= '0';
 
         -- Default response, ack & return all 1's
         wb_sio_in.dat <= (others => '1');
@@ -615,6 +660,9 @@ begin
                 ext_valid := true;
             elsif wb_sio_out.adr(23 downto 16) = x"03" and HAS_LITEETH then
                 wb_ext_is_eth       <= '1';
+                ext_valid := true;
+            elsif wb_sio_out.adr(23 downto 16) = x"04" and HAS_SD_CARD then
+                wb_ext_is_sdcard    <= '1';
                 ext_valid := true;
             end if;
             if ext_valid then
@@ -665,6 +713,7 @@ begin
 	    HAS_SPI_FLASH => HAS_SPI_FLASH,
 	    SPI_FLASH_OFFSET => SPI_FLASH_OFFSET,
             HAS_LITEETH => HAS_LITEETH,
+            HAS_SD_CARD => HAS_SD_CARD,
             UART0_IS_16550 => UART0_IS_16550,
             HAS_UART1 => HAS_UART1
 	)
@@ -848,6 +897,7 @@ begin
         int_level_in(0) <= uart0_irq;
         int_level_in(1) <= ext_irq_eth;
         int_level_in(2) <= uart1_irq;
+        int_level_in(3) <= ext_irq_sdcard;
     end process;
 
     -- BRAM Memory slave

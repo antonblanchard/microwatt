@@ -72,6 +72,19 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/input_
 #set_property -dict { PACKAGE_PIN A18 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_9 }];
 #set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_10 }];
 
+# connection to Digilent PmodSD on JA
+set_property -dict { PACKAGE_PIN G13 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[3] }];
+set_property -dict { PACKAGE_PIN B11 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_cmd }];
+set_property -dict { PACKAGE_PIN A11 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[0] }];
+set_property -dict { PACKAGE_PIN D12 IOSTANDARD LVCMOS33 SLEW FAST } [get_ports { sdcard_clk }];
+set_property -dict { PACKAGE_PIN D13 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[1] }];
+set_property -dict { PACKAGE_PIN B18 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[2] }];
+set_property -dict { PACKAGE_PIN A18 IOSTANDARD LVCMOS33 } [get_ports { sdcard_cd }];
+#set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { sdcard_wp }];
+
+# Put registers into IOBs to improve timing
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdcard_*}]
+
 ################################################################################
 # PMOD header JB (high-speed, no protection resisters)
 ################################################################################
@@ -84,6 +97,16 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/input_
 #set_property -dict { PACKAGE_PIN J18 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_8 }];
 #set_property -dict { PACKAGE_PIN K15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_9 }];
 #set_property -dict { PACKAGE_PIN J15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_10 }];
+
+# connection to Digilent PmodSD on JB
+#set_property -dict { PACKAGE_PIN E15 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[3] }];
+#set_property -dict { PACKAGE_PIN E16 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_cmd }];
+#set_property -dict { PACKAGE_PIN D15 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[0] }];
+#set_property -dict { PACKAGE_PIN C15 IOSTANDARD LVCMOS33 SLEW FAST } [get_ports { sdcard_clk }];
+#set_property -dict { PACKAGE_PIN J17 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[1] }];
+#set_property -dict { PACKAGE_PIN J18 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[2] }];
+#set_property -dict { PACKAGE_PIN K15 IOSTANDARD LVCMOS33 } [get_ports { sdcard_cd }];
+#set_property -dict { PACKAGE_PIN J15 IOSTANDARD LVCMOS33 } [get_ports { sdcard_wp }];
 
 ################################################################################
 # PMOD header JC (high-speed, no protection resisters)

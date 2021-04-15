@@ -116,6 +116,9 @@ filesets:
   liteeth:
       depend : [":microwatt:liteeth"]
 
+  litesdcard:
+      depend : [":microwatt:litesdcard"]
+
   uart16550:
       depend : ["::uart16550"]
 
@@ -243,7 +246,7 @@ targets:
 
   arty_a7-35-nodram:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific, litesdcard]
     parameters :
       - memory_size
       - ram_init_file
@@ -256,18 +259,20 @@ targets:
       - has_uart1
       - has_fpu=false
       - has_btc=false
+      - use_litesdcard
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
 
   arty_a7-35:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific, litesdcard]
     parameters :
       - memory_size
       - ram_init_file
       - use_litedram=true
       - use_liteeth=true
+      - use_litesdcard
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=3145728
@@ -276,14 +281,14 @@ targets:
       - has_uart1
       - has_fpu=false
       - has_btc=false
-    generate: [litedram_arty, liteeth_arty]
+    generate: [litedram_arty, liteeth_arty, litesdcard_arty]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
 
   arty_a7-100-nodram:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific, litesdcard]
     parameters :
       - memory_size
       - ram_init_file
@@ -296,18 +301,20 @@ targets:
       - has_uart1
       - has_fpu
       - has_btc
+      - use_litesdcard
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
 
   arty_a7-100:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific, litesdcard]
     parameters:
       - memory_size
       - ram_init_file
       - use_litedram=true
       - use_liteeth=true
+      - use_litesdcard
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=4194304
@@ -316,7 +323,7 @@ targets:
       - has_uart1
       - has_fpu
       - has_btc
-    generate: [litedram_arty, liteeth_arty]
+    generate: [litedram_arty, liteeth_arty, litesdcard_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
@@ -352,6 +359,10 @@ generate:
 
   liteeth_arty:
     generator: liteeth_gen
+    parameters: {board : arty}
+
+  litesdcard_arty:
+    generator: litesdcard_gen
     parameters: {board : arty}
 
   litedram_nexys_video:
@@ -422,6 +433,12 @@ parameters:
   use_liteeth:
     datatype    : bool
     description : Use liteEth
+    paramtype   : generic
+    default     : false
+
+  use_litesdcard:
+    datatype    : bool
+    description : Use LiteSDCard
     paramtype   : generic
     default     : false
 
