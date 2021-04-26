@@ -147,6 +147,9 @@ architecture behave of core is
 
     signal msr : std_ulogic_vector(63 downto 0);
 
+    -- PMU event bus
+    signal writeback_events : WritebackEventType;
+
     -- Debug status
     signal dbg_core_is_stopped: std_ulogic;
 
@@ -352,6 +355,7 @@ begin
             bypass_cr_data => execute1_cr_bypass,
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
+            wb_events => writeback_events,
             terminate_out => terminate,
             log_out => log_data(134 downto 120),
             log_rd_addr => log_rd_addr,
@@ -441,6 +445,7 @@ begin
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             f_out => writeback_to_fetch1,
+            events => writeback_events,
             interrupt_out => do_interrupt,
             complete_out => complete
             );

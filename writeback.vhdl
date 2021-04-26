@@ -19,6 +19,9 @@ entity writeback is
         c_out        : out WritebackToCrFileType;
         f_out        : out WritebackToFetch1Type;
 
+        -- PMU event bus
+        events       : out WritebackEventType;
+
         flush_out    : out std_ulogic;
         interrupt_out: out std_ulogic;
         complete_out : out instr_tag_t
@@ -100,6 +103,7 @@ begin
         elsif fp_in.valid = '1' then
             complete_out <= fp_in.instr_tag;
         end if;
+        events.instr_complete <= complete_out.valid;
 
         intr := e_in.interrupt or l_in.interrupt or fp_in.interrupt;
 
