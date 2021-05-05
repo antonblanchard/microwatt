@@ -19,13 +19,13 @@ architecture behave of countzero_tb is
 
 begin
     zerocounter_0: entity work.zero_counter
-	port map (
+        port map (
             clk => clk,
-	    rs => rs,
-	    result => result,
-	    count_right => count_right,
-	    is_32bit => is_32bit
-	);
+            rs => rs,
+            result => result,
+            count_right => count_right,
+            is_32bit => is_32bit
+        );
 
     clk_process: process
     begin
@@ -109,6 +109,6 @@ begin
             end loop;
         end loop;
 
-	std.env.finish;
+        std.env.finish;
     end process;
 end behave;

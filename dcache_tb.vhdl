@@ -70,69 +70,69 @@ begin
 
     stim: process
     begin
-	-- Clear stuff
- 	d_in.valid <= '0';
- 	d_in.load <= '0';
- 	d_in.nc <= '0';
- 	d_in.addr <= (others => '0');
- 	d_in.data <= (others => '0');
+        -- Clear stuff
+        d_in.valid <= '0';
+        d_in.load <= '0';
+        d_in.nc <= '0';
+        d_in.addr <= (others => '0');
+        d_in.data <= (others => '0');
         m_in.valid <= '0';
         m_in.addr <= (others => '0');
         m_in.pte <= (others => '0');
 
         wait for 4*clk_period;
-	wait until rising_edge(clk);
+        wait until rising_edge(clk);
 
-	-- Cacheable read of address 4
-	d_in.load <= '1';
-	d_in.nc <= '0';
+        -- Cacheable read of address 4
+        d_in.load <= '1';
+        d_in.nc <= '0';
         d_in.addr <= x"0000000000000004";
         d_in.valid <= '1';
-	wait until rising_edge(clk);
+        wait until rising_edge(clk);
         d_in.valid <= '0';
 
-	wait until rising_edge(clk) and d_out.valid = '1';
+        wait until rising_edge(clk) and d_out.valid = '1';
         assert d_out.data = x"0000000100000000"
-	    report "data @" & to_hstring(d_in.addr) &
-	    "=" & to_hstring(d_out.data) &
-	    " expected 0000000100000000"
-	    severity failure;
+            report "data @" & to_hstring(d_in.addr) &
+            "=" & to_hstring(d_out.data) &
+            " expected 0000000100000000"
+            severity failure;
 --      wait for clk_period;
 
-	-- Cacheable read of address 30
-	d_in.load <= '1';
-	d_in.nc <= '0';
+        -- Cacheable read of address 30
+        d_in.load <= '1';
+        d_in.nc <= '0';
         d_in.addr <= x"0000000000000030";
         d_in.valid <= '1';
-	wait until rising_edge(clk);
+        wait until rising_edge(clk);
         d_in.valid <= '0';
 
-	wait until rising_edge(clk) and d_out.valid = '1';
+        wait until rising_edge(clk) and d_out.valid = '1';
         assert d_out.data = x"0000000D0000000C"
-	    report "data @" & to_hstring(d_in.addr) &
-	    "=" & to_hstring(d_out.data) &
-	    " expected 0000000D0000000C"
-	    severity failure;
+            report "data @" & to_hstring(d_in.addr) &
+            "=" & to_hstring(d_out.data) &
+            " expected 0000000D0000000C"
+            severity failure;
 
-	-- Non-cacheable read of address 100
-	d_in.load <= '1';
-	d_in.nc <= '1';
+        -- Non-cacheable read of address 100
+        d_in.load <= '1';
+        d_in.nc <= '1';
         d_in.addr <= x"0000000000000100";
         d_in.valid <= '1';
-	wait until rising_edge(clk);
-	d_in.valid <= '0';
-	wait until rising_edge(clk) and d_out.valid = '1';
+        wait until rising_edge(clk);
+        d_in.valid <= '0';
+        wait until rising_edge(clk) and d_out.valid = '1';
         assert d_out.data = x"0000004100000040"
-	    report "data @" & to_hstring(d_in.addr) &
-	    "=" & to_hstring(d_out.data) &
-	    " expected 0000004100000040"
-	    severity failure;
+            report "data @" & to_hstring(d_in.addr) &
+            "=" & to_hstring(d_out.data) &
+            " expected 0000004100000040"
+            severity failure;
 
-	wait until rising_edge(clk);
-	wait until rising_edge(clk);
-	wait until rising_edge(clk);
-	wait until rising_edge(clk);
+        wait until rising_edge(clk);
+        wait until rising_edge(clk);
+        wait until rising_edge(clk);
+        wait until rising_edge(clk);
 
-	std.env.finish;
+        std.env.finish;
     end process;
 end;

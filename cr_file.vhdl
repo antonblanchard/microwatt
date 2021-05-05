@@ -48,11 +48,11 @@ begin
 
         crs_updated <= cr_tmp;
 
-	if w_in.write_xerc_enable = '1' then
-	    xerc_updated <= w_in.write_xerc_data;
-	else
-	    xerc_updated <= xerc;
-	end if;
+        if w_in.write_xerc_enable = '1' then
+            xerc_updated <= w_in.write_xerc_data;
+        else
+            xerc_updated <= xerc;
+        end if;
 
     end process;
 
@@ -62,12 +62,12 @@ begin
         if rising_edge(clk) then
             if w_in.write_cr_enable = '1' then
                 report "Writing " & to_hstring(w_in.write_cr_data) & " to CR mask " & to_hstring(w_in.write_cr_mask);
-		crs <= crs_updated;
+                crs <= crs_updated;
             end if;
-	    if w_in.write_xerc_enable = '1' then
+            if w_in.write_xerc_enable = '1' then
                 report "Writing XERC";
-		xerc <= xerc_updated;
-	    end if;
+                xerc <= xerc_updated;
+            end if;
         end if;
     end process;
 
@@ -87,7 +87,7 @@ begin
         begin
             if sim_dump = '1' then
                 report "CR 00000000" & to_hstring(crs);
-		assert false report "end of test" severity failure;
+                assert false report "end of test" severity failure;
             end if;
         end process;
     end generate;

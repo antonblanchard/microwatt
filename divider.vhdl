@@ -123,9 +123,9 @@ begin
     divider_out: process(clk)
     begin
         if rising_edge(clk) then
-	    d_out.valid <= '0';
+            d_out.valid <= '0';
             d_out.write_reg_data <= oresult;
-	    d_out.overflow <= did_ovf;
+            d_out.overflow <= did_ovf;
             if count = "1000000" then
                 d_out.valid <= '1';
             end if;

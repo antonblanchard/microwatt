@@ -19,7 +19,7 @@ architecture behave of wishbone_bram_tb is
 
     impure function to_adr(a: integer) return std_ulogic_vector is
     begin
-	return std_ulogic_vector(to_unsigned(a, w_out.adr'length));
+        return std_ulogic_vector(to_unsigned(a, w_out.adr'length));
     end;
 begin
     simple_ram_0: entity work.wishbone_bram_wrapper
@@ -57,7 +57,7 @@ begin
 
         w_out.cyc <= '1';
 
-	-- Test read 0
+        -- Test read 0
         w_out.stb <= '1';
         w_out.sel <= "11111111";
         w_out.adr <= to_adr(0);
@@ -71,7 +71,7 @@ begin
         wait until rising_edge(clk);
         assert w_in.ack = '0';
 
-	-- Test read 8
+        -- Test read 8
         w_out.stb <= '1';
         w_out.sel <= "11111111";
         w_out.adr <= to_adr(8);
@@ -85,7 +85,7 @@ begin
         wait until rising_edge(clk);
         assert w_in.ack = '0';
 
-	-- Test write byte at 0
+        -- Test write byte at 0
         w_out.stb <= '1';
         w_out.sel <= "00000001";
         w_out.adr <= to_adr(0);
@@ -98,7 +98,7 @@ begin
         wait until rising_edge(clk);
         assert w_in.ack = '0';
 
-	-- Test read back
+        -- Test read back
         w_out.stb <= '1';
         w_out.sel <= "11111111";
         w_out.adr <= to_adr(0);
@@ -113,7 +113,7 @@ begin
         wait until rising_edge(clk);
         assert w_in.ack = '0';
 
-	-- Test write dword at 4
+        -- Test write dword at 4
         w_out.stb <= '1';
         w_out.sel <= "11110000";
         w_out.adr <= to_adr(0);
@@ -126,7 +126,7 @@ begin
         wait until rising_edge(clk);
         assert w_in.ack = '0';
 
-	-- Test read back
+        -- Test read back
         w_out.stb <= '1';
         w_out.sel <= "11111111";
         w_out.adr <= to_adr(0);
@@ -141,7 +141,7 @@ begin
         wait until rising_edge(clk);
         assert w_in.ack = '0';
 
-	-- Test write qword at 8
+        -- Test write qword at 8
         w_out.stb <= '1';
         w_out.sel <= "11111111";
         w_out.adr <= to_adr(8);
@@ -154,7 +154,7 @@ begin
         wait until rising_edge(clk);
         assert w_in.ack = '0';
 
-	-- Test read back
+        -- Test read back
         w_out.stb <= '1';
         w_out.sel <= "11111111";
         w_out.adr <= to_adr(8);

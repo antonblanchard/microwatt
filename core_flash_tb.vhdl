@@ -10,10 +10,10 @@ entity core_flash_tb is
 end core_flash_tb;
 
 architecture behave of core_flash_tb is
-	signal clk, rst: std_logic;
+        signal clk, rst: std_logic;
 
-	-- testbench signals
-	constant clk_period : time := 10 ns;
+        -- testbench signals
+        constant clk_period : time := 10 ns;
 
         -- SPI
         signal spi_sck     : std_ulogic;
@@ -28,24 +28,24 @@ architecture behave of core_flash_tb is
 begin
 
     soc0: entity work.soc
-	generic map(
-	    SIM => true,
-	    MEMORY_SIZE => (384*1024),
-	    RAM_INIT_FILE => "main_ram.bin",
-	    CLK_FREQ => 100000000,
+        generic map(
+            SIM => true,
+            MEMORY_SIZE => (384*1024),
+            RAM_INIT_FILE => "main_ram.bin",
+            CLK_FREQ => 100000000,
             HAS_SPI_FLASH    => true,
             SPI_FLASH_DLINES => 4,
             SPI_FLASH_OFFSET => 0
-	    )
-	port map(
-	    rst => rst,
-	    system_clk => clk,
+            )
+        port map(
+            rst => rst,
+            system_clk => clk,
             spi_flash_sck     => spi_sck,
             spi_flash_cs_n    => spi_cs_n,
             spi_flash_sdat_o  => spi_sdat_o,
             spi_flash_sdat_oe => spi_sdat_oe,
             spi_flash_sdat_i  => spi_sdat_i
-	    );
+            );
 
     flash: entity work.s25fl128s
         generic map (
@@ -78,18 +78,18 @@ begin
     
     clk_process: process
     begin
-	clk <= '0';
-	wait for clk_period/2;
-	clk <= '1';
-	wait for clk_period/2;
+        clk <= '0';
+        wait for clk_period/2;
+        clk <= '1';
+        wait for clk_period/2;
     end process;
 
     rst_process: process
     begin
-	rst <= '1';
-	wait for 10*clk_period;
-	rst <= '0';
-	wait;
+        rst <= '1';
+        wait for 10*clk_period;
+        rst <= '0';
+        wait;
     end process;
 
     jtag: entity work.sim_jtag;
