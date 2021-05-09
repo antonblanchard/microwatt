@@ -63,6 +63,7 @@ architecture behave of loadstore1 is
         store        : std_ulogic;
         flush        : std_ulogic;
         touch        : std_ulogic;
+        sync         : std_ulogic;
         tlbie        : std_ulogic;
         dcbz         : std_ulogic;
         read_spr     : std_ulogic;
@@ -103,7 +104,7 @@ architecture behave of loadstore1 is
         incomplete   : std_ulogic;
     end record;
     constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0',
-                                          flush => '0', touch => '0', tlbie => '0',
+                                          flush => '0', touch => '0', sync => '0', tlbie => '0',
                                           dcbz => '0', read_spr => '0', write_spr => '0', mmu_op => '0',
                                           instr_fault => '0', do_update => '0',
                                           mode_32bit => '0', prefixed => '0',
@@ -506,6 +507,8 @@ begin
         end if;
 
         case l_in.op is
+            when OP_SYNC =>
+                v.sync := '1';
             when OP_STORE =>
                 v.store := '1';
                 if l_in.length = "0000" then
@@ -547,7 +550,7 @@ begin
                 v.mmu_op := '1';
             when others =>
         end case;
-        v.dc_req := l_in.valid and (v.load or v.store or v.dcbz) and not v.align_intr;
+        v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz) and not v.align_intr;
         v.incomplete := v.dc_req and v.two_dwords;
 
         -- Work out controls for load and store formatting
@@ -994,6 +997,7 @@ begin
             d_out.dcbz <= stage1_req.dcbz;
             d_out.flush <= stage1_req.flush;
             d_out.touch <= stage1_req.touch;
+            d_out.sync <= stage1_req.sync;
             d_out.nc <= stage1_req.nc;
             d_out.reserve <= stage1_req.reserve;
             d_out.atomic_qw <= stage1_req.atomic_qw;
@@ -1009,6 +1013,7 @@ begin
             d_out.dcbz <= r2.req.dcbz;
             d_out.flush <= r2.req.flush;
             d_out.touch <= r2.req.touch;
+            d_out.sync <= r2.req.sync;
             d_out.nc <= r2.req.nc;
             d_out.reserve <= r2.req.reserve;
             d_out.atomic_qw <= r2.req.atomic_qw;

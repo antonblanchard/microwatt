@@ -299,11 +299,13 @@ architecture rtl of dcache is
         op_lmiss  : std_ulogic;
         op_store  : std_ulogic;
         op_flush  : std_ulogic;
+        op_sync   : std_ulogic;
         nc        : std_ulogic;
         valid     : std_ulogic;
         dcbz      : std_ulogic;
         flush     : std_ulogic;
         touch     : std_ulogic;
+        sync      : std_ulogic;
         reserve   : std_ulogic;
         first_dw  : std_ulogic;
         last_dw   : std_ulogic;
@@ -404,6 +406,7 @@ architecture rtl of dcache is
     signal req_op_load_miss : std_ulogic;
     signal req_op_store     : std_ulogic;
     signal req_op_flush     : std_ulogic;
+    signal req_op_sync      : std_ulogic;
     signal req_op_bad       : std_ulogic;
     signal req_op_nop       : std_ulogic;
     signal req_data         : std_ulogic_vector(63 downto 0);
@@ -1144,8 +1147,11 @@ begin
         req_op_store <= '0';
         req_op_nop <= '0';
         req_op_flush <= '0';
+        req_op_sync <= '0';
         if go = '1' then
-            if r0.req.touch = '1' then
+            if r0.req.sync = '1' then
+                req_op_sync <= '1';
+            elsif r0.req.touch = '1' then
                 if access_ok = '1' and is_hit = '0' and nc = '0' then
                     req_op_load_miss <= '1';
                 elsif access_ok = '1' and is_hit = '1' and nc = '0' then
@@ -1241,7 +1247,7 @@ begin
                 report "completing ld/st with error";
             end if;
 
-            -- Slow ops (load miss, NC, stores)
+            -- Slow ops (load miss, NC, stores, sync)
             if r1.slow_valid = '1' then
                 report "completing store or load miss data=" & to_hstring(r1.data_out);
             end if;
@@ -1517,12 +1523,14 @@ begin
                     req.op_lmiss := req_op_load_miss;
                     req.op_store := req_op_store;
                     req.op_flush := req_op_flush;
+                    req.op_sync := req_op_sync;
                     req.nc := req_nc;
                     req.valid := req_go;
                     req.mmu_req := r0.mmu_req;
                     req.dcbz := r0.req.dcbz;
                     req.flush := r0.req.flush;
                     req.touch := r0.req.touch;
+                    req.sync := r0.req.sync;
                     req.reserve := r0.req.reserve;
                     req.first_dw := not r0.req.atomic_qw or r0.req.atomic_first;
                     req.last_dw := not r0.req.atomic_qw or r0.req.atomic_last;
@@ -1547,7 +1555,8 @@ begin
 
                     -- Store the incoming request from r0, if it is a slow request
                     -- Note that r1.full = 1 implies none of the req_op_* are 1
-                    if req_op_load_miss = '1' or req_op_store = '1' or req_op_flush = '1' then
+                    if req_op_load_miss = '1' or req_op_store = '1' or req_op_flush = '1' or
+                        req_op_sync = '1' then
                         r1.req <= req;
                         r1.full <= '1';
                     end if;
@@ -1671,6 +1680,14 @@ begin
 
                     if req.op_flush = '1' then
                         r1.state <= FLUSH_CYCLE;
+                    end if;
+
+                    if req.op_sync = '1' then
+                        -- sync/lwsync can complete now that the state machine
+                        -- is idle.
+                        r1.full <= '0';
+                        r1.slow_valid <= '1';
+                        r1.ls_valid <= '1';
                     end if;
 
                 when RELOAD_WAIT_ACK =>
