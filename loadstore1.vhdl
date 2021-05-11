@@ -61,6 +61,8 @@ architecture behave of loadstore1 is
         dc_req       : std_ulogic;
         load         : std_ulogic;
         store        : std_ulogic;
+        flush        : std_ulogic;
+        touch        : std_ulogic;
         tlbie        : std_ulogic;
         dcbz         : std_ulogic;
         read_spr     : std_ulogic;
@@ -100,7 +102,8 @@ architecture behave of loadstore1 is
         two_dwords   : std_ulogic;
         incomplete   : std_ulogic;
     end record;
-    constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0', tlbie => '0',
+    constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0',
+                                          flush => '0', touch => '0', tlbie => '0',
                                           dcbz => '0', read_spr => '0', write_spr => '0', mmu_op => '0',
                                           instr_fault => '0', do_update => '0',
                                           mode_32bit => '0', prefixed => '0',
@@ -470,7 +473,7 @@ begin
         addr_mask := std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1);
 
         -- Do length_to_sel and work out if we are doing 2 dwords
-        long_sel := xfer_data_sel(v.length, addr(2 downto 0));
+        long_sel := xfer_data_sel(l_in.length, addr(2 downto 0));
         v.byte_sel := long_sel(7 downto 0);
         v.second_bytes := long_sel(15 downto 8);
         if long_sel(15 downto 8) /= "00000000" then
@@ -505,6 +508,9 @@ begin
         case l_in.op is
             when OP_STORE =>
                 v.store := '1';
+                if l_in.length = "0000" then
+                    v.touch := '1';
+                end if;
             when OP_LOAD =>
                 if l_in.update = '0' or l_in.second = '0' then
                     v.load := '1';
@@ -512,10 +518,16 @@ begin
                         -- Allow an extra cycle for SP->DP precision conversion
                         v.load_sp := '1';
                     end if;
+                    if l_in.length = "0000" then
+                        v.touch := '1';
+                    end if;
                 else
                     -- write back address to RA
                     v.do_update := '1';
                 end if;
+            when OP_DCBF =>
+                v.load := '1';
+                v.flush := '1';
             when OP_DCBZ =>
                 v.dcbz := '1';
                 v.align_intr := v.nc;
@@ -541,7 +553,7 @@ begin
         -- Work out controls for load and store formatting
         brev_lenm1 := "000";
         if v.byte_reverse = '1' then
-            brev_lenm1 := unsigned(v.length(2 downto 0)) - 1;
+            brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
         end if;
         v.brev_mask := brev_lenm1;
 
@@ -882,7 +894,8 @@ begin
 
         if d_in.valid = '1' then
             if r2.req.incomplete = '0' then
-                write_enable := r2.req.load and not r2.req.load_sp;
+                write_enable := r2.req.load and not r2.req.load_sp and
+                                not r2.req.flush and not r2.req.touch;
                 -- stores write back rA update
                 do_update := r2.req.update and r2.req.store;
             end if;
@@ -977,6 +990,8 @@ begin
             d_out.valid <= stage1_dcreq;
             d_out.load <= stage1_req.load;
             d_out.dcbz <= stage1_req.dcbz;
+            d_out.flush <= stage1_req.flush;
+            d_out.touch <= stage1_req.touch;
             d_out.nc <= stage1_req.nc;
             d_out.reserve <= stage1_req.reserve;
             d_out.atomic_qw <= stage1_req.atomic_qw;
@@ -990,6 +1005,8 @@ begin
             d_out.valid <= req;
             d_out.load <= r2.req.load;
             d_out.dcbz <= r2.req.dcbz;
+            d_out.flush <= r2.req.flush;
+            d_out.touch <= r2.req.touch;
             d_out.nc <= r2.req.nc;
             d_out.reserve <= r2.req.reserve;
             d_out.atomic_qw <= r2.req.atomic_qw;

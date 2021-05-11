@@ -1184,8 +1184,8 @@ begin
                 else
                     illegal := '1';
                 end if;
-	    when OP_NOP | OP_DCBF | OP_DCBST | OP_XCBT | OP_DCBTST =>
-            -- Do nothing
+	    when OP_NOP | OP_DCBST | OP_ICBT =>
+                -- Do nothing
 	    when OP_ADD =>
                 if e_in.output_carry = '1' then
                     if e_in.input_carry /= OV then
@@ -1653,11 +1653,10 @@ begin
                 v.e.srr1 := (others => '0');
                 v.e.srr1(47 - 33) := '1';
                 v.e.srr1(47 - 34) := ex1.prev_prefixed;
-                if ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or
-                    ex1.prev_op = OP_XCBT or ex1.prev_op = OP_DCBST or ex1.prev_op = OP_DCBF then
+                if ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or ex1.prev_op = OP_ICBT or
+                    ex1.prev_op = OP_DCBF then
                     v.e.srr1(47 - 35) := '1';
-                elsif ex1.prev_op = OP_STORE or ex1.prev_op = OP_DCBZ or
-                    ex1.prev_op = OP_DCBTST then
+                elsif ex1.prev_op = OP_STORE or ex1.prev_op = OP_DCBZ then
                     v.e.srr1(47 - 36) := '1';
                 end if;
 
