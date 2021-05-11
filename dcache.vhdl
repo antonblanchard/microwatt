@@ -1458,18 +1458,11 @@ begin
 		    end case;
 
                 when RELOAD_WAIT_ACK =>
-                    -- Requests are all sent if stb is 0
-		    stbs_done := r1.wb.stb = '0';
-
 		    -- If we are still sending requests, was one accepted ?
-		    if wishbone_in.stall = '0' and not stbs_done then
-			-- That was the last word ? We are done sending. Clear
-			-- stb and set stbs_done so we can handle an eventual last
-			-- ack on the same cycle.
-			--
+                    if wishbone_in.stall = '0' and r1.wb.stb = '1' then
+			-- That was the last word ? We are done sending. Clear stb.
 			if is_last_row_addr(r1.wb.adr, r1.end_row_ix) then
 			    r1.wb.stb <= '0';
-			    stbs_done := true;
 			end if;
 
 			-- Calculate the next row address
@@ -1500,7 +1493,7 @@ begin
 			end if;
 
 			-- Check for completion
-			if stbs_done and is_last_row(r1.store_row, r1.end_row_ix) then
+			if is_last_row(r1.store_row, r1.end_row_ix) then
 			    -- Complete wishbone cycle
 			    r1.wb.cyc <= '0';
 
