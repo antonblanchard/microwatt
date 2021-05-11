@@ -133,6 +133,7 @@ architecture behaviour of soc is
     -- Wishbone master (output of arbiter):
     signal wb_master_in       : wishbone_slave_out;
     signal wb_master_out      : wishbone_master_out;
+    signal wb_snoop           : wishbone_master_out;
 
     -- Main "IO" bus, from main slave decoder to the latch
     signal wb_io_in     : wishbone_master_out;
@@ -284,6 +285,7 @@ begin
 	    wishbone_insn_out => wishbone_icore_out,
 	    wishbone_data_in => wishbone_dcore_in,
 	    wishbone_data_out => wishbone_dcore_out,
+            wb_snoop_in => wb_snoop,
 	    dmi_addr => dmi_addr(3 downto 0),
 	    dmi_dout => dmi_core_dout,
 	    dmi_din => dmi_dout,
@@ -312,6 +314,18 @@ begin
 	    wb_slave_out => wb_master_out,
 	    wb_slave_in => wb_master_in
 	    );
+
+    -- Snoop bus going to caches.
+    -- Gate stb with stall so the caches don't see the stalled strobes.
+    -- That way if the caches see a strobe when their wishbone is stalled,
+    -- they know it is an access by another master.
+    process(all)
+    begin
+        wb_snoop <= wb_master_out;
+        if wb_master_in.stall = '1' then
+            wb_snoop.stb <= '0';
+        end if;
+    end process;
 
     -- Top level Wishbone slaves address decoder & mux
     --

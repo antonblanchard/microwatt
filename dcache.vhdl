@@ -39,6 +39,8 @@ entity dcache is
         m_in         : in MmuToDcacheType;
         m_out        : out DcacheToMmuType;
 
+        snoop_in     : in wishbone_master_out := wishbone_master_out_init;
+
 	stall_out    : out std_ulogic;
 
         wishbone_out : out wishbone_master_out;
@@ -415,6 +417,11 @@ architecture rtl of dcache is
     type tlb_plru_out_t is array(tlb_index_t) of std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
     signal tlb_plru_victim : tlb_plru_out_t;
 
+    signal snoop_tag_set : cache_tags_set_t;
+    signal snoop_valid   : std_ulogic;
+    signal snoop_wrtag   : cache_tag_t;
+    signal snoop_index   : index_t;
+
     --
     -- Helper functions to decode incoming requests
     --
@@ -528,7 +535,8 @@ begin
     assert LINE_SIZE mod ROW_SIZE = 0 report "LINE_SIZE not multiple of ROW_SIZE" severity FAILURE;
     assert ispow2(LINE_SIZE)    report "LINE_SIZE not power of 2" severity FAILURE;
     assert ispow2(NUM_LINES)    report "NUM_LINES not power of 2" severity FAILURE;
-    assert ispow2(ROW_PER_LINE) report "ROW_PER_LINE not power of 2" severity FAILURE;
+    assert ispow2(ROW_PER_LINE) and ROW_PER_LINE > 1
+        report "ROW_PER_LINE not power of 2 greater than 1" severity FAILURE;
     assert (ROW_BITS = INDEX_BITS + ROW_LINEBITS)
 	report "geometry bits don't add up" severity FAILURE;
     assert (LINE_OFF_BITS = ROW_OFF_BITS + ROW_LINEBITS)
@@ -780,6 +788,24 @@ begin
                 index := get_index(d_in.addr);
             end if;
             cache_tag_set <= cache_tags(index);
+        end if;
+    end process;
+
+    -- Cache tag RAM second read port, for snooping
+    cache_tag_read_2 : process(clk)
+        variable addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+    begin
+        if rising_edge(clk) then
+            addr := (others => '0');
+            addr(snoop_in.adr'left downto 0) := snoop_in.adr;
+            snoop_tag_set <= cache_tags(get_index(addr));
+            snoop_wrtag <= get_tag(addr);
+            snoop_index <= get_index(addr);
+            -- Don't snoop our own cycles
+            snoop_valid <= '0';
+            if not (r1.wb.cyc = '1' and wishbone_in.stall = '0') then
+                snoop_valid <= snoop_in.cyc and snoop_in.stb and snoop_in.we;
+            end if;
         end if;
     end process;
 
@@ -1292,6 +1318,13 @@ begin
                         r1.mmu_done <= '1';
                     end if;
                 end if;
+
+                -- Do invalidations from snooped stores to memory
+                for i in way_t loop
+                    if snoop_valid = '1' and read_tag(i, snoop_tag_set) = snoop_wrtag then
+                        cache_valids(snoop_index)(i) <= '0';
+                    end if;
+                end loop;
 
                 if r1.write_tag = '1' then
                     -- Store new tag in selected way

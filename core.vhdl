@@ -37,6 +37,8 @@ entity core is
         wishbone_data_in  : in wishbone_slave_out;
         wishbone_data_out : out wishbone_master_out;
 
+        wb_snoop_in     : in wishbone_master_out;
+
 	dmi_addr	: in std_ulogic_vector(3 downto 0);
 	dmi_din	        : in std_ulogic_vector(63 downto 0);
 	dmi_dout	: out std_ulogic_vector(63 downto 0);
@@ -423,6 +425,7 @@ begin
             stall_out => dcache_stall_out,
             wishbone_in => wishbone_data_in,
             wishbone_out => wishbone_data_out,
+            snoop_in => wb_snoop_in,
             log_out => log_data(170 downto 151)
             );
 
