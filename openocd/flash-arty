@@ -6,7 +6,6 @@ import subprocess
 import sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-CONFIG = os.path.join(BASE, "xilinx-xc7.cfg")
 
 def flash(config, flash_proxy, address, data, filetype="", set_qe=False):
     script = "; ".join([
@@ -49,5 +48,6 @@ else:
     sys.exit()
 
 proxy = os.path.join(BASE, proxy)
+config = os.path.join(BASE, "xilinx-xc7{}.cfg".format(version))
 
-flash(CONFIG, proxy, args.address, args.file, args.filetype.lower())
+flash(config, proxy, args.address, args.file, args.filetype.lower())
