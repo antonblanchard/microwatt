@@ -243,6 +243,7 @@ begin
 	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
             wishbone_in => wishbone_insn_in,
+            wb_snoop_in => wb_snoop_in,
             log_out => log_data(96 downto 43)
             );
 
