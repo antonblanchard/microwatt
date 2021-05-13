@@ -44,6 +44,8 @@ package wishbone_types is
         stb : std_ulogic;
         we  : std_ulogic;
     end record;
+    constant wb_io_master_out_init : wb_io_master_out := (adr => (others => '0'), dat => (others => '0'),
+                                                          sel => "0000", cyc => '0', stb => '0', we => '0');
 
     type wb_io_slave_out is record
         dat   : std_ulogic_vector(31 downto 0);

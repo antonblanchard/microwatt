@@ -68,6 +68,8 @@ entity icache is
         wishbone_out : out wishbone_master_out;
         wishbone_in  : in wishbone_slave_out;
 
+        wb_snoop_in  : in wishbone_master_out := wishbone_master_out_init;
+
         log_out      : out std_ulogic_vector(53 downto 0)
         );
 end entity icache;
@@ -220,8 +222,13 @@ architecture rtl of icache is
     signal plru_victim : plru_out_t;
     signal replace_way : way_t;
 
+    -- Memory write snoop signals
+    signal snoop_valid : std_ulogic;
+    signal snoop_index : index_t;
+    signal snoop_hits  : cache_way_valids_t;
+
     -- Return the cache line index (tag index) for an address
-    function get_index(addr: std_ulogic_vector(63 downto 0)) return index_t is
+    function get_index(addr: std_ulogic_vector) return index_t is
     begin
         return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto LINE_OFF_BITS)));
     end;
@@ -614,7 +621,10 @@ begin
     -- Cache miss/reload synchronous machine
     icache_miss : process(clk)
 	variable tagset    : cache_tags_set_t;
-	variable stbs_done : boolean;
+        variable tag       : cache_tag_t;
+        variable snoop_addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+        variable snoop_tag : cache_tag_t;
+        variable snoop_cache_tags : cache_tags_set_t;
     begin
         if rising_edge(clk) then
 	    -- On reset, clear all valid bits to force misses
@@ -633,13 +643,43 @@ begin
 
 		-- Not useful normally but helps avoiding tons of sim warnings
 		r.wb.adr <= (others => '0');
+
+                snoop_valid <= '0';
+                snoop_index <= 0;
+                snoop_hits <= (others => '0');
             else
+                -- Detect snooped writes and decode address into index and tag
+                -- Since we never write, any write should be snooped
+                snoop_valid <= wb_snoop_in.cyc and wb_snoop_in.stb and wb_snoop_in.we;
+                snoop_addr := (others => '0');
+                snoop_addr(wb_snoop_in.adr'left downto 0) := wb_snoop_in.adr;
+                snoop_index <= get_index(snoop_addr);
+                snoop_cache_tags := cache_tags(get_index(snoop_addr));
+                snoop_tag := get_tag(snoop_addr, '0');
+                snoop_hits <= (others => '0');
+                for i in way_t loop
+                    tag := read_tag(i, snoop_cache_tags);
+                    -- Ignore endian bit in comparison
+                    tag(TAG_BITS - 1) := '0';
+                    if tag = snoop_tag then
+                        snoop_hits(i) <= '1';
+                    end if;
+                end loop;
+
                 -- Process cache invalidations
                 if inval_in = '1' then
                     for i in index_t loop
                         cache_valids(i) <= (others => '0');
                     end loop;
                     r.store_valid <= '0';
+                else
+                    -- Do invalidations from snooped stores to memory, one
+                    -- cycle after the address appears on wb_snoop_in.
+                    for i in way_t loop
+                        if snoop_valid = '1' and snoop_hits(i) = '1' then
+                            cache_valids(snoop_index)(i) <= '0';
+                        end if;
+                    end loop;
                 end if;
 
 		-- Main state machine
@@ -697,18 +737,13 @@ begin
 
                         r.state <= WAIT_ACK;
                     end if;
-		    -- Requests are all sent if stb is 0
-		    stbs_done := r.wb.stb = '0';
 
 		    -- If we are still sending requests, was one accepted ?
-		    if wishbone_in.stall = '0' and not stbs_done then
-			-- That was the last word ? We are done sending. Clear
-			-- stb and set stbs_done so we can handle an eventual last
-			-- ack on the same cycle.
+		    if wishbone_in.stall = '0' and r.wb.stb = '1' then
+			-- That was the last word ? We are done sending. Clear stb.
 			--
 			if is_last_row_addr(r.wb.adr, r.end_row_ix) then
 			    r.wb.stb <= '0';
-			    stbs_done := true;
 			end if;
 
 			-- Calculate the next row address
@@ -719,7 +754,7 @@ begin
 		    if wishbone_in.ack = '1' then
                         r.rows_valid(r.store_row mod ROW_PER_LINE) <= '1';
 			-- Check for completion
-			if stbs_done and is_last_row(r.store_row, r.end_row_ix) then
+			if is_last_row(r.store_row, r.end_row_ix) then
 			    -- Complete wishbone cycle
 			    r.wb.cyc <= '0';
 

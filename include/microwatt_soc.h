@@ -17,6 +17,7 @@
 #define DRAM_CTRL_BASE	0xc8000000  /* LiteDRAM control registers */
 #define LETH_CSR_BASE	0xc8020000  /* LiteEth CSR registers */
 #define LETH_SRAM_BASE	0xc8030000  /* LiteEth MMIO space */
+#define LSDC_CSR_BASE	0xc8040000  /* LiteSDCard MMIO space */
 #define SPI_FLASH_BASE  0xf0000000  /* SPI Flash memory map */
 #define DRAM_INIT_BASE  0xff000000  /* Internal DRAM init firmware */
 
@@ -40,6 +41,7 @@
 #define   SYS_REG_INFO_HAS_LARGE_SYSCON	        (1ull << 5)
 #define   SYS_REG_INFO_HAS_UART1 		(1ull << 6)
 #define   SYS_REG_INFO_HAS_ARTB                 (1ull << 7)
+#define   SYS_REG_INFO_HAS_LITESDCARD 		(1ull << 8)
 #define SYS_REG_BRAMINFO		0x10
 #define   SYS_REG_BRAMINFO_SIZE_MASK		0xfffffffffffffull
 #define SYS_REG_DRAMINFO		0x18

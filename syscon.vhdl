@@ -18,6 +18,7 @@ entity syscon is
         HAS_SPI_FLASH    : boolean;
         SPI_FLASH_OFFSET : integer;
 	HAS_LITEETH      : boolean;
+        HAS_SD_CARD      : boolean;
         UART0_IS_16550   : boolean;
         HAS_UART1        : boolean
 	);
@@ -65,6 +66,7 @@ architecture behaviour of syscon is
     constant SYS_REG_INFO_HAS_LSYS    : integer := 5;  -- Has 6-bit address syscon
     constant SYS_REG_INFO_HAS_URT1    : integer := 6;  -- Has second UART
     constant SYS_REG_INFO_HAS_ARTB    : integer := 7;  -- Has architected TB frequency
+    constant SYS_REG_INFO_HAS_SDCARD  : integer := 8;  -- Has LiteSDCard SD-card interface
 
     -- BRAMINFO contains the BRAM size in the bottom 52 bits
     -- DRAMINFO contains the DRAM size if any in the bottom 52 bits
@@ -107,6 +109,7 @@ architecture behaviour of syscon is
     signal info_has_uart : std_ulogic;
     signal info_has_spif : std_ulogic;
     signal info_has_leth : std_ulogic;
+    signal info_has_lsdc : std_ulogic;
     signal info_has_urt1 : std_ulogic;
     signal info_clk      : std_ulogic_vector(39 downto 0);
     signal info_fl_off   : std_ulogic_vector(31 downto 0);
@@ -128,15 +131,17 @@ begin
     info_has_bram <= '1' when BRAM_SIZE /= 0 else '0';
     info_has_spif <= '1' when HAS_SPI_FLASH  else '0';
     info_has_leth <= '1' when HAS_LITEETH    else '0';
+    info_has_lsdc <= '1' when HAS_SD_CARD    else '0';
     info_has_urt1 <= '1' when HAS_UART1      else '0';
     info_clk <= std_ulogic_vector(to_unsigned(CLK_FREQ, 40));
-    reg_info <= (SYS_REG_INFO_HAS_UART  => info_has_uart,
-		 SYS_REG_INFO_HAS_DRAM  => info_has_dram,
-                 SYS_REG_INFO_HAS_BRAM  => info_has_bram,
-                 SYS_REG_INFO_HAS_SPIF  => info_has_spif,
-                 SYS_REG_INFO_HAS_LETH  => info_has_leth,
-                 SYS_REG_INFO_HAS_LSYS  => '1',
-                 SYS_REG_INFO_HAS_URT1  => info_has_urt1,
+    reg_info <= (SYS_REG_INFO_HAS_UART   => info_has_uart,
+		 SYS_REG_INFO_HAS_DRAM   => info_has_dram,
+                 SYS_REG_INFO_HAS_BRAM   => info_has_bram,
+                 SYS_REG_INFO_HAS_SPIF   => info_has_spif,
+                 SYS_REG_INFO_HAS_LETH   => info_has_leth,
+                 SYS_REG_INFO_HAS_SDCARD => info_has_lsdc,
+                 SYS_REG_INFO_HAS_LSYS   => '1',
+                 SYS_REG_INFO_HAS_URT1   => info_has_urt1,
 		 others => '0');
 
     reg_braminfo <= x"000" & std_ulogic_vector(to_unsigned(BRAM_SIZE, 52));
