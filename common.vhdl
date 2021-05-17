@@ -606,6 +606,7 @@ package common is
 	nc : std_ulogic;
         reserve : std_ulogic;
         atomic_qw : std_ulogic;                         -- part of a quadword atomic op
+        atomic_first : std_ulogic;
         atomic_last : std_ulogic;
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;

@@ -85,6 +85,7 @@ architecture behave of loadstore1 is
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
         atomic_qw    : std_ulogic;
+        atomic_first : std_ulogic;
         atomic_last  : std_ulogic;
         rc           : std_ulogic;
         nc           : std_ulogic;              -- non-cacheable access
@@ -110,7 +111,7 @@ architecture behave of loadstore1 is
                                           elt_length => x"0", byte_reverse => '0', brev_mask => "000",
                                           sign_extend => '0', update => '0',
                                           xerc => xerc_init, reserve => '0',
-                                          atomic_qw => '0', atomic_last => '0',
+                                          atomic_qw => '0', atomic_first => '0', atomic_last => '0',
                                           rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
                                           sprsel => "00", ric => "00", is_slbia => '0', align_intr => '0',
@@ -478,20 +479,20 @@ begin
 
         -- check alignment for larx/stcx
         misaligned := or (addr_mask and addr(2 downto 0));
+        if l_in.repeat = '1' and l_in.update = '0' and addr(3) /= l_in.second then
+            misaligned := '1';
+        end if;
         v.align_intr := l_in.reserve and misaligned;
+
+        v.atomic_first := not misaligned and not l_in.second;
+        v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
 
         -- is this a quadword load or store? i.e. lq plq stq pstq lqarx stqcx.
         if l_in.repeat = '1' and l_in.update = '0' then
-            -- is the access aligned?
-            if misaligned = '0' and addr(3) = l_in.second then
+            if misaligned = '0' then
                 -- Since the access is aligned we have to do it atomically
                 v.atomic_qw := '1';
-                v.atomic_last := l_in.second;
             else
-                -- lqarx/stqcx have to be aligned
-                if l_in.reserve = '1' then
-                    v.align_intr := '1';
-                end if;
                 -- We require non-prefixed lq in LE mode to be aligned in order
                 -- to avoid the case where RA = RT+1 and the second access faults
                 -- after the first has overwritten RA.
@@ -979,6 +980,7 @@ begin
             d_out.nc <= stage1_req.nc;
             d_out.reserve <= stage1_req.reserve;
             d_out.atomic_qw <= stage1_req.atomic_qw;
+            d_out.atomic_first <= stage1_req.atomic_first;
             d_out.atomic_last <= stage1_req.atomic_last;
             d_out.addr <= stage1_req.addr;
             d_out.byte_sel <= stage1_req.byte_sel;
@@ -991,6 +993,7 @@ begin
             d_out.nc <= r2.req.nc;
             d_out.reserve <= r2.req.reserve;
             d_out.atomic_qw <= r2.req.atomic_qw;
+            d_out.atomic_first <= r2.req.atomic_first;
             d_out.atomic_last <= r2.req.atomic_last;
             d_out.addr <= r2.req.addr;
             d_out.byte_sel <= r2.req.byte_sel;
