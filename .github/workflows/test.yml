@@ -61,7 +61,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCKER: 1
-      SYNTH_ECP5_FLAGS: -noflatten
       FPGA_TARGET: ${{matrix.task}}
     steps:
     - uses: actions/checkout@v2
