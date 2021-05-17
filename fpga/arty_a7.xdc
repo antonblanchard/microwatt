@@ -10,15 +10,6 @@ set_property -dict { PACKAGE_PIN D10 IOSTANDARD LVCMOS33 } [get_ports { uart_mai
 set_property -dict { PACKAGE_PIN A9  IOSTANDARD LVCMOS33 } [get_ports { uart_main_rx }];
 
 ################################################################################
-# Pmod Header JC: UART (bottom)
-################################################################################
-
-set_property -dict { PACKAGE_PIN U14 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_cts_n }];
-set_property -dict { PACKAGE_PIN V14 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_tx }];
-set_property -dict { PACKAGE_PIN T13 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_rx }];
-set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { uart_pmod_rts_n }];
-
-################################################################################
 # RGB LEDs
 ################################################################################
 
@@ -138,39 +129,39 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdca
 # Arduino/chipKIT shield connector
 ################################################################################
 
-#set_property -dict { PACKAGE_PIN V15 IOSTANDARD LVCMOS33 } [get_ports { shield_io0 }];
-#set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 } [get_ports { shield_io1 }];
-#set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 } [get_ports { shield_io2 }];
-#set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 } [get_ports { shield_io3 }];
-#set_property -dict { PACKAGE_PIN R12 IOSTANDARD LVCMOS33 } [get_ports { shield_io4 }];
-#set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 } [get_ports { shield_io5 }];
-#set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 } [get_ports { shield_io6 }];
-#set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 } [get_ports { shield_io7 }];
-#set_property -dict { PACKAGE_PIN N15 IOSTANDARD LVCMOS33 } [get_ports { shield_io8 }];
-#set_property -dict { PACKAGE_PIN M16 IOSTANDARD LVCMOS33 } [get_ports { shield_io9 }];
-#set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 } [get_ports { shield_io10 }];
-#set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 } [get_ports { shield_io11 }];
-#set_property -dict { PACKAGE_PIN R17 IOSTANDARD LVCMOS33 } [get_ports { shield_io12 }];
-#set_property -dict { PACKAGE_PIN P17 IOSTANDARD LVCMOS33 } [get_ports { shield_io13 }];
-#set_property -dict { PACKAGE_PIN U11 IOSTANDARD LVCMOS33 } [get_ports { shield_io26 }];
-#set_property -dict { PACKAGE_PIN V16 IOSTANDARD LVCMOS33 } [get_ports { shield_io27 }];
-#set_property -dict { PACKAGE_PIN M13 IOSTANDARD LVCMOS33 } [get_ports { shield_io28 }];
-#set_property -dict { PACKAGE_PIN R10 IOSTANDARD LVCMOS33 } [get_ports { shield_io29 }];
-#set_property -dict { PACKAGE_PIN R11 IOSTANDARD LVCMOS33 } [get_ports { shield_io30 }];
-#set_property -dict { PACKAGE_PIN R13 IOSTANDARD LVCMOS33 } [get_ports { shield_io31 }];
-#set_property -dict { PACKAGE_PIN R15 IOSTANDARD LVCMOS33 } [get_ports { shield_io32 }];
-#set_property -dict { PACKAGE_PIN P15 IOSTANDARD LVCMOS33 } [get_ports { shield_io33 }];
-#set_property -dict { PACKAGE_PIN R16 IOSTANDARD LVCMOS33 } [get_ports { shield_io34 }];
-#set_property -dict { PACKAGE_PIN N16 IOSTANDARD LVCMOS33 } [get_ports { shield_io35 }];
-#set_property -dict { PACKAGE_PIN N14 IOSTANDARD LVCMOS33 } [get_ports { shield_io36 }];
-#set_property -dict { PACKAGE_PIN U17 IOSTANDARD LVCMOS33 } [get_ports { shield_io37 }];
-#set_property -dict { PACKAGE_PIN T18 IOSTANDARD LVCMOS33 } [get_ports { shield_io38 }];
-#set_property -dict { PACKAGE_PIN R18 IOSTANDARD LVCMOS33 } [get_ports { shield_io39 }];
-#set_property -dict { PACKAGE_PIN P18 IOSTANDARD LVCMOS33 } [get_ports { shield_io40 }];
-#set_property -dict { PACKAGE_PIN N17 IOSTANDARD LVCMOS33 } [get_ports { shield_io41 }];
-#set_property -dict { PACKAGE_PIN M17 IOSTANDARD LVCMOS33 } [get_ports { shield_ioa }];
-#set_property -dict { PACKAGE_PIN L18 IOSTANDARD LVCMOS33 } [get_ports { shield_scl }];
-#set_property -dict { PACKAGE_PIN M18 IOSTANDARD LVCMOS33 } [get_ports { shield_sda }];
+set_property -dict { PACKAGE_PIN V15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[0] }];
+set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[1] }];
+set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[2] }];
+set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[3] }];
+set_property -dict { PACKAGE_PIN R12 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[4] }];
+set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[5] }];
+set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[6] }];
+set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[7] }];
+set_property -dict { PACKAGE_PIN N15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[8] }];
+set_property -dict { PACKAGE_PIN M16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[9] }];
+set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[10] }];
+set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[11] }];
+set_property -dict { PACKAGE_PIN R17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[12] }];
+set_property -dict { PACKAGE_PIN P17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[13] }];
+set_property -dict { PACKAGE_PIN U11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[26] }];
+set_property -dict { PACKAGE_PIN V16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[27] }];
+set_property -dict { PACKAGE_PIN M13 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[28] }];
+set_property -dict { PACKAGE_PIN R10 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[29] }];
+set_property -dict { PACKAGE_PIN R11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[30] }];
+set_property -dict { PACKAGE_PIN R13 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[31] }];
+set_property -dict { PACKAGE_PIN R15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[32] }];
+set_property -dict { PACKAGE_PIN P15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[33] }];
+set_property -dict { PACKAGE_PIN R16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[34] }];
+set_property -dict { PACKAGE_PIN N16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[35] }];
+set_property -dict { PACKAGE_PIN N14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[36] }];
+set_property -dict { PACKAGE_PIN U17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[37] }];
+set_property -dict { PACKAGE_PIN T18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[38] }];
+set_property -dict { PACKAGE_PIN R18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[39] }];
+set_property -dict { PACKAGE_PIN P18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[40] }];
+set_property -dict { PACKAGE_PIN N17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[41] }];
+set_property -dict { PACKAGE_PIN M17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[42] }]; # A
+set_property -dict { PACKAGE_PIN L18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[43] }]; # SCL
+set_property -dict { PACKAGE_PIN M18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[44] }]; # SDA
 #set_property -dict { PACKAGE_PIN C2  IOSTANDARD LVCMOS33 } [get_ports { shield_rst }];
 
 #set_property -dict { PACKAGE_PIN C1  IOSTANDARD LVCMOS33 } [get_ports { spi_hdr_ss }];

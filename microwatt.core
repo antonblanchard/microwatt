@@ -44,6 +44,7 @@ filesets:
       - wishbone_bram_wrapper.vhdl
       - soc.vhdl
       - xics.vhdl
+      - gpio.vhdl
       - syscon.vhdl
       - sync_fifo.vhdl
       - spi_rxtx.vhdl

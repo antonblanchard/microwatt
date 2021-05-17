@@ -54,7 +54,7 @@ core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
 	core.vhdl fpu.vhdl
 
 soc_files = wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_fifo.vhdl \
-	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl soc.vhdl \
+	wishbone_debug_master.vhdl xics.vhdl syscon.vhdl gpio.vhdl soc.vhdl \
 	spi_rxtx.vhdl spi_flash_ctrl.vhdl
 
 uart_files = $(wildcard uart16550/*.v)
