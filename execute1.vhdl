@@ -58,6 +58,7 @@ architecture behaviour of execute1 is
         cur_instr : Decode2ToExecute1Type;
         busy: std_ulogic;
         terminate: std_ulogic;
+        intr_pending : std_ulogic;
         fp_exception_next : std_ulogic;
         trace_next : std_ulogic;
         prev_op : insn_type_t;
@@ -71,7 +72,7 @@ architecture behaviour of execute1 is
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit,
          cur_instr => Decode2ToExecute1Init,
-         busy => '0', terminate => '0',
+         busy => '0', terminate => '0', intr_pending => '0',
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL, br_taken => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
          others => (others => '0'));
@@ -655,8 +656,6 @@ begin
 
     execute1_1: process(all)
 	variable v : reg_type;
-	variable lo, hi : integer;
-	variable sh, mb, me : std_ulogic_vector(5 downto 0);
 	variable bo, bi : std_ulogic_vector(4 downto 0);
 	variable overflow : std_ulogic;
         variable lv : Execute1ToLoadstore1Type;
@@ -702,18 +701,7 @@ begin
 	ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
 	ctrl_tmp.dec <= std_ulogic_vector(unsigned(ctrl.dec) - 1);
 
-	irq_valid := '0';
-	if ctrl.msr(MSR_EE) = '1' then
-	    if ctrl.dec(63) = '1' then
-		v.e.intr_vec := 16#900#;
-		report "IRQ valid: DEC";
-		irq_valid := '1';
-	    elsif ext_irq_in = '1' then
-		v.e.intr_vec := 16#500#;
-		report "IRQ valid: External";
-		irq_valid := '1';
-	    end if;
-	end if;
+        irq_valid := ctrl.msr(MSR_EE) and (ctrl.dec(63) or ext_irq_in);
 
 	v.terminate := '0';
 	icache_inval <= '0';
@@ -728,9 +716,11 @@ begin
 	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
         rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
 
-        v.e.srr1 := (others => '0');
-	exception := '0';
         illegal := '0';
+        if r.intr_pending = '1' then
+            v.e.srr1 := r.e.srr1;
+            v.e.intr_vec := r.e.intr_vec;
+        end if;
         if valid_in = '1' then
             v.e.last_nia := e_in.nia;
         else
@@ -742,12 +732,14 @@ begin
 
         do_trace := valid_in and ctrl.msr(MSR_SE);
         if valid_in = '1' then
+            v.cur_instr := e_in;
             v.prev_op := e_in.insn_type;
         end if;
 
-        -- Determine if there is any exception to be taken
+        -- Determine if there is any interrupt to be taken
         -- before/instead of executing this instruction
-        if valid_in = '1' and e_in.second = '0' and l_in.in_progress = '0' then
+        exception := r.intr_pending;
+        if valid_in = '1' and e_in.second = '0' and r.intr_pending = '0' then
             if HAS_FPU and r.fp_exception_next = '1' then
                 -- This is used for FP-type program interrupts that
                 -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.
@@ -771,6 +763,13 @@ begin
             elsif irq_valid = '1' then
                 -- Don't deliver the interrupt until we have a valid instruction
                 -- coming in, so we have a valid NIA to put in SRR0.
+                if ctrl.dec(63) = '1' then
+                    v.e.intr_vec := 16#900#;
+                    report "IRQ valid: DEC";
+                elsif ext_irq_in = '1' then
+                    v.e.intr_vec := 16#500#;
+                    report "IRQ valid: External";
+                end if;
                 exception := '1';
 
             elsif ctrl.msr(MSR_PR) = '1' and instr_is_privileged(e_in.insn_type, e_in.insn) then
@@ -792,9 +791,17 @@ begin
                 report "FP unavailable interrupt";
             end if;
         end if;
+        if exception = '1' and l_in.in_progress = '1' then
+            -- We can't send this interrupt to writeback yet because there are
+            -- still instructions in loadstore1 that haven't completed.
+            v.intr_pending := '1';
+            v.busy := '1';
+        end if;
+        if l_in.interrupt = '1' then
+            v.intr_pending := '0';
+        end if;
 
 	if valid_in = '1' and exception = '0' and illegal = '0' and e_in.unit = ALU then
-            v.cur_instr := e_in;
 	    v.e.valid := '1';
 
 	    case_0: case e_in.insn_type is
@@ -1136,7 +1143,10 @@ begin
             report "illegal";
         end if;
 
-        v.e.interrupt := exception;
+        v.e.interrupt := exception and not (l_in.in_progress or l_in.interrupt);
+        if v.e.interrupt = '1' then
+            v.intr_pending := '0';
+        end if;
 
         if do_trace = '1' then
             v.trace_next := '1';
@@ -1157,6 +1167,7 @@ begin
             ctrl_tmp.msr(MSR_LE) <= '1';
             v.trace_next := '0';
             v.fp_exception_next := '0';
+            v.intr_pending := '0';
         end if;
 
         if hold_wr_data = '0' then

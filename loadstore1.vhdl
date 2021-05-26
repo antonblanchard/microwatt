@@ -944,6 +944,7 @@ begin
         -- update busy signal back to execute1
         e_out.busy <= busy;
         e_out.in_progress <= in_progress;
+        e_out.interrupt <= r3.interrupt;
 
         -- Busy calculation.
         stage3_busy_next <= r2.req.valid and not (complete or part_done or exception);
