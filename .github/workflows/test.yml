@@ -33,7 +33,6 @@ jobs:
       max-parallel: 3
       matrix:
         task: [
-          "tests_unit",
           "tests_console",
           "{1..99}",
           "{100..199}",

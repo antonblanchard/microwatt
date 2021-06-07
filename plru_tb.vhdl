@@ -1,3 +1,6 @@
+library vunit_lib;
+context vunit_lib.vunit_context;
+
 library ieee;
 use ieee.std_logic_1164.all;
 
@@ -6,6 +9,7 @@ use work.common.all;
 use work.wishbone_types.all;
 
 entity plru_tb is
+    generic (runner_cfg : string := runner_cfg_default);
 end plru_tb;
 
 architecture behave of plru_tb is
@@ -50,6 +54,8 @@ begin
 
     stim: process
     begin
+        test_runner_setup(runner, runner_cfg);
+
         wait for 4*clk_period;
 
         report "accessing 1:";
@@ -103,6 +109,6 @@ begin
         wait for clk_period;
         report "lru:" & to_hstring(lru);
 
-        std.env.finish;
+        test_runner_cleanup(runner);
     end process;
 end;

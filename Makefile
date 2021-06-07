@@ -39,8 +39,8 @@ ECPPACK   = $(DOCKERBIN) $(DOCKERARGS) hdlc/prjtrellis ecppack
 OPENOCD   = $(DOCKERBIN) $(DOCKERARGS) --device /dev/bus/usb hdlc/prog openocd
 endif
 
-all = core_tb icache_tb dcache_tb multiply_tb dmi_dtm_tb divider_tb \
-	rotator_tb countzero_tb wishbone_bram_tb soc_reset_tb
+all = core_tb icache_tb dcache_tb dmi_dtm_tb \
+	wishbone_bram_tb soc_reset_tb
 
 all: $(all)
 
@@ -62,7 +62,7 @@ uart_files = $(wildcard uart16550/*.v)
 soc_sim_files = $(core_files) $(soc_files) sim_console.vhdl sim_pp_uart.vhdl sim_bram_helpers.vhdl \
 	sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl dmi_dtm_xilinx.vhdl \
 	sim_16550_uart.vhdl \
-	random.vhdl glibc_random.vhdl glibc_random_helpers.vhdl
+	foreign_random.vhdl glibc_random.vhdl glibc_random_helpers.vhdl
 
 soc_sim_c_files = sim_vhpi_c.c sim_bram_helpers_c.c sim_console_c.c \
 	sim_jtag_socket_c.c
@@ -79,7 +79,6 @@ $(unisim_lib): $(unisim_lib_files)
 	$(GHDL) -i --std=08 --work=unisim --workdir=$(unisim_dir) $^
 GHDLFLAGS += -P$(unisim_dir)
 
-core_tbs = multiply_tb divider_tb rotator_tb countzero_tb
 soc_tbs = core_tb icache_tb dcache_tb dmi_dtm_tb wishbone_bram_tb
 soc_flash_tbs = core_flash_tb
 soc_dram_tbs = dram_tb core_dram_tb
@@ -104,9 +103,6 @@ $(soc_flash_tbs): %: $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) $(fmf_l
 
 $(soc_tbs): %: $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) %.vhdl
 	$(GHDL) -c $(GHDLFLAGS) $(soc_sim_link) $(soc_sim_files) $@.vhdl -e $@
-
-$(core_tbs): %: $(core_files) glibc_random.vhdl glibc_random_helpers.vhdl %.vhdl
-	$(GHDL) -c $(GHDLFLAGS) $(core_files) glibc_random.vhdl glibc_random_helpers.vhdl $@.vhdl -e $@
 
 soc_reset_tb: fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl
 	$(GHDL) -c $(GHDLFLAGS) fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl -e $@
@@ -236,19 +232,15 @@ test_micropython: core_tb
 test_micropython_long: core_tb
 	@./scripts/test_micropython_long.py
 
-tests_core_tb = $(patsubst %_tb,%_tb_test,$(core_tbs))
 tests_soc_tb = $(patsubst %_tb,%_tb_test,$(soc_tbs))
 
 %_test: %
 	./$< --assert-level=error > /dev/null
 
-tests_core: $(tests_core_tb)
-
 tests_soc: $(tests_soc_tb)
 
 # FIXME SOC tests have bit rotted, so disable for now
-#tests_unit: tests_core tests_soc
-tests_unit: tests_core
+#tests_unit: tests_soc
 
 TAGS:
 	find . -name '*.vhdl' | xargs ./scripts/vhdltags

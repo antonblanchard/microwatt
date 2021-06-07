@@ -1,3 +1,6 @@
+library vunit_lib;
+context vunit_lib.vunit_context;
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -5,10 +8,13 @@ use ieee.numeric_std.all;
 library work;
 use work.decode_types.all;
 use work.common.all;
-use work.glibc_random.all;
 use work.ppc_fx_insns.all;
 
+library osvvm;
+use osvvm.RandomPkg.all;
+
 entity divider_tb is
+    generic (runner_cfg : string := runner_cfg_default);
 end divider_tb;
 
 architecture behave of divider_tb is
@@ -37,7 +43,12 @@ begin
         variable q128: std_ulogic_vector(127 downto 0);
         variable q64: std_ulogic_vector(63 downto 0);
         variable rem32: std_ulogic_vector(31 downto 0);
+        variable rnd : RandomPType;
     begin
+        rnd.InitSeed(stim_process'path_name);
+
+        test_runner_setup(runner, runner_cfg);
+
         rst <= '1';
         wait for clk_period;
         rst <= '0';
@@ -94,8 +105,8 @@ begin
         divd_loop : for dlength in 1 to 8 loop
             for vlength in 1 to dlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
-                    rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(signed(rnd.RandSlv(dlength * 8)), 64));
+                    rb := std_ulogic_vector(resize(signed(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
                     d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
@@ -129,8 +140,8 @@ begin
         divdu_loop : for dlength in 1 to 8 loop
             for vlength in 1 to dlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(unsigned(pseudorand(dlength * 8)), 64));
-                    rb := std_ulogic_vector(resize(unsigned(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(unsigned(rnd.RandSlv(dlength * 8)), 64));
+                    rb := std_ulogic_vector(resize(unsigned(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
@@ -164,8 +175,8 @@ begin
         divde_loop : for vlength in 1 to 8 loop
             for dlength in 1 to vlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
-                    rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(signed(rnd.RandSlv(dlength * 8)), 64));
+                    rb := std_ulogic_vector(resize(signed(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
                     d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
@@ -205,8 +216,8 @@ begin
         divdeu_loop : for vlength in 1 to 8 loop
             for dlength in 1 to vlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(unsigned(pseudorand(dlength * 8)), 64));
-                    rb := std_ulogic_vector(resize(unsigned(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(unsigned(rnd.RandSlv(dlength * 8)), 64));
+                    rb := std_ulogic_vector(resize(unsigned(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
@@ -243,8 +254,8 @@ begin
         divw_loop : for dlength in 1 to 4 loop
             for vlength in 1 to dlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
-                    rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(signed(rnd.RandSlv(dlength * 8)), 64));
+                    rb := std_ulogic_vector(resize(signed(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
                     d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
@@ -280,8 +291,8 @@ begin
         divwu_loop : for dlength in 1 to 4 loop
             for vlength in 1 to dlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(unsigned(pseudorand(dlength * 8)), 64));
-                    rb := std_ulogic_vector(resize(unsigned(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(unsigned(rnd.RandSlv(dlength * 8)), 64));
+                    rb := std_ulogic_vector(resize(unsigned(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
@@ -317,8 +328,8 @@ begin
         divwe_loop : for vlength in 1 to 4 loop
             for dlength in 1 to vlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 32)) & x"00000000";
-                    rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(signed(rnd.RandSlv(dlength * 8)), 32)) & x"00000000";
+                    rb := std_ulogic_vector(resize(signed(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
                     d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
@@ -358,8 +369,8 @@ begin
         divweu_loop : for vlength in 1 to 4 loop
             for dlength in 1 to vlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(unsigned(pseudorand(dlength * 8)), 32)) & x"00000000";
-                    rb := std_ulogic_vector(resize(unsigned(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(unsigned(rnd.RandSlv(dlength * 8)), 32)) & x"00000000";
+                    rb := std_ulogic_vector(resize(unsigned(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
@@ -395,8 +406,8 @@ begin
         modsd_loop : for dlength in 1 to 8 loop
             for vlength in 1 to dlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
-                    rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(signed(rnd.RandSlv(dlength * 8)), 64));
+                    rb := std_ulogic_vector(resize(signed(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
                     d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
@@ -433,8 +444,8 @@ begin
         modud_loop : for dlength in 1 to 8 loop
             for vlength in 1 to dlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(unsigned(pseudorand(dlength * 8)), 64));
-                    rb := std_ulogic_vector(resize(unsigned(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(unsigned(rnd.RandSlv(dlength * 8)), 64));
+                    rb := std_ulogic_vector(resize(unsigned(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
@@ -471,8 +482,8 @@ begin
         modsw_loop : for dlength in 1 to 4 loop
             for vlength in 1 to dlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(signed(pseudorand(dlength * 8)), 64));
-                    rb := std_ulogic_vector(resize(signed(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(signed(rnd.RandSlv(dlength * 8)), 64));
+                    rb := std_ulogic_vector(resize(signed(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra when ra(63) = '0' else std_ulogic_vector(- signed(ra));
                     d1.divisor <= rb when rb(63) = '0' else std_ulogic_vector(- signed(rb));
@@ -514,8 +525,8 @@ begin
         moduw_loop : for dlength in 1 to 4 loop
             for vlength in 1 to dlength loop
                 for i in 0 to 100 loop
-                    ra := std_ulogic_vector(resize(unsigned(pseudorand(dlength * 8)), 64));
-                    rb := std_ulogic_vector(resize(unsigned(pseudorand(vlength * 8)), 64));
+                    ra := std_ulogic_vector(resize(unsigned(rnd.RandSlv(dlength * 8)), 64));
+                    rb := std_ulogic_vector(resize(unsigned(rnd.RandSlv(vlength * 8)), 64));
 
                     d1.dividend <= ra;
                     d1.divisor <= rb;
@@ -547,6 +558,6 @@ begin
             end loop;
         end loop;
 
-        std.env.finish;
+        test_runner_cleanup(runner);
     end process;
 end behave;

@@ -1,3 +1,6 @@
+library vunit_lib;
+context vunit_lib.vunit_context;
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -5,10 +8,13 @@ use ieee.numeric_std.all;
 library work;
 use work.decode_types.all;
 use work.common.all;
-use work.glibc_random.all;
 use work.ppc_fx_insns.all;
 
+library osvvm;
+use osvvm.RandomPkg.all;
+
 entity multiply_tb is
+    generic (runner_cfg : string := runner_cfg_default);
 end multiply_tb;
 
 architecture behave of multiply_tb is
@@ -46,7 +52,12 @@ begin
         variable ra, rb, rt, behave_rt: std_ulogic_vector(63 downto 0);
         variable si: std_ulogic_vector(15 downto 0);
         variable sign: std_ulogic;
+        variable rnd : RandomPType;
     begin
+        rnd.InitSeed(stim_process'path_name);
+
+        test_runner_setup(runner, runner_cfg);
+
         wait for clk_period;
 
         m1.valid <= '1';
@@ -84,8 +95,8 @@ begin
 
         -- test mulld
         mulld_loop : for i in 0 to 1000 loop
-            ra := pseudorand(ra'length);
-            rb := pseudorand(rb'length);
+            ra := rnd.RandSlv(ra'length);
+            rb := rnd.RandSlv(rb'length);
 
             behave_rt := ppc_mulld(ra, rb);
 
@@ -110,8 +121,8 @@ begin
 
         -- test mulhdu
         mulhdu_loop : for i in 0 to 1000 loop
-            ra := pseudorand(ra'length);
-            rb := pseudorand(rb'length);
+            ra := rnd.RandSlv(ra'length);
+            rb := rnd.RandSlv(rb'length);
 
             behave_rt := ppc_mulhdu(ra, rb);
 
@@ -135,8 +146,8 @@ begin
 
         -- test mulhd
         mulhd_loop : for i in 0 to 1000 loop
-            ra := pseudorand(ra'length);
-            rb := pseudorand(rb'length);
+            ra := rnd.RandSlv(ra'length);
+            rb := rnd.RandSlv(rb'length);
 
             behave_rt := ppc_mulhd(ra, rb);
 
@@ -161,8 +172,8 @@ begin
 
         -- test mullw
         mullw_loop : for i in 0 to 1000 loop
-            ra := pseudorand(ra'length);
-            rb := pseudorand(rb'length);
+            ra := rnd.RandSlv(ra'length);
+            rb := rnd.RandSlv(rb'length);
 
             behave_rt := ppc_mullw(ra, rb);
 
@@ -189,8 +200,8 @@ begin
 
         -- test mulhw
         mulhw_loop : for i in 0 to 1000 loop
-            ra := pseudorand(ra'length);
-            rb := pseudorand(rb'length);
+            ra := rnd.RandSlv(ra'length);
+            rb := rnd.RandSlv(rb'length);
 
             behave_rt := ppc_mulhw(ra, rb);
 
@@ -218,8 +229,8 @@ begin
 
         -- test mulhwu
         mulhwu_loop : for i in 0 to 1000 loop
-            ra := pseudorand(ra'length);
-            rb := pseudorand(rb'length);
+            ra := rnd.RandSlv(ra'length);
+            rb := rnd.RandSlv(rb'length);
 
             behave_rt := ppc_mulhwu(ra, rb);
 
@@ -246,8 +257,8 @@ begin
 
         -- test mulli
         mulli_loop : for i in 0 to 1000 loop
-            ra := pseudorand(ra'length);
-            si := pseudorand(si'length);
+            ra := rnd.RandSlv(ra'length);
+            si := rnd.RandSlv(si'length);
 
             behave_rt := ppc_mulli(ra, si);
 
@@ -271,7 +282,7 @@ begin
                 report "bad mulli expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(63 downto 0));
         end loop;
 
-        std.env.finish;
+        test_runner_cleanup(runner);
         wait;
     end process;
 end behave;

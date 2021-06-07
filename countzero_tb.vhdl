@@ -1,12 +1,18 @@
+library vunit_lib;
+context vunit_lib.vunit_context;
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
 use work.common.all;
-use work.glibc_random.all;
+
+library osvvm;
+use osvvm.RandomPkg.all;
 
 entity countzero_tb is
+    generic (runner_cfg : string := runner_cfg_default);
 end countzero_tb;
 
 architecture behave of countzero_tb is
@@ -37,7 +43,12 @@ begin
 
     stim_process: process
         variable r: std_ulogic_vector(63 downto 0);
+        variable rnd : RandomPType;
     begin
+        rnd.InitSeed(stim_process'path_name);
+
+        test_runner_setup(runner, runner_cfg);
+
         -- test with input = 0
         report "test zero input";
         rs <= (others => '0');
@@ -63,7 +74,7 @@ begin
         report "test cntlzd/w";
         count_right <= '0';
         for j in 0 to 100 loop
-            r := pseudorand(64);
+            r := rnd.RandSlv(64);
             r(63) := '1';
             for i in 0 to 63 loop
                 rs <= r;
@@ -88,7 +99,7 @@ begin
         report "test cnttzd/w";
         count_right <= '1';
         for j in 0 to 100 loop
-            r := pseudorand(64);
+            r := rnd.RandSlv(64);
             r(0) := '1';
             for i in 0 to 63 loop
                 rs <= r;
@@ -109,6 +120,6 @@ begin
             end loop;
         end loop;
 
-        std.env.finish;
+        test_runner_cleanup(runner);
     end process;
 end behave;

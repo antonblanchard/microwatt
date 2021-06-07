@@ -1,14 +1,20 @@
+library vunit_lib;
+context vunit_lib.vunit_context;
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
 use work.common.all;
-use work.glibc_random.all;
 use work.ppc_fx_insns.all;
 use work.insn_helpers.all;
 
+library osvvm;
+use osvvm.RandomPkg.all;
+
 entity rotator_tb is
+    generic (runner_cfg : string := runner_cfg_default);
 end rotator_tb;
 
 architecture behave of rotator_tb is
@@ -41,7 +47,12 @@ begin
     stim_process: process
         variable behave_ra: std_ulogic_vector(63 downto 0);
         variable behave_ca_ra: std_ulogic_vector(64 downto 0);
+        variable rnd : RandomPType;
     begin
+        rnd.InitSeed(stim_process'path_name);
+
+        test_runner_setup(runner, runner_cfg);
+
         -- rlwinm, rlwnm
         report "test rlw[i]nm";
         ra <= (others => '0');
@@ -52,9 +63,9 @@ begin
         clear_right <= '1';
         extsw <= '0';
         rlwnm_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= pseudorand(7);
-            insn <= x"00000" & '0' & pseudorand(10) & '0';
+            rs <= rnd.RandSlv(64);
+            shift <= rnd.RandSlv(7);
+            insn <= x"00000" & '0' & rnd.RandSlv(10) & '0';
             wait for clk_period;
             behave_ra := ppc_rlwinm(rs, shift(4 downto 0), insn_mb32(insn), insn_me32(insn));
             assert behave_ra = result
@@ -69,10 +80,10 @@ begin
         clear_left <= '1';
         clear_right <= '1';
         rlwimi_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            ra <= pseudorand(64);
-            shift <= "00" & pseudorand(5);
-            insn <= x"00000" & '0' & pseudorand(10) & '0';
+            rs <= rnd.RandSlv(64);
+            ra <= rnd.RandSlv(64);
+            shift <= "00" & rnd.RandSlv(5);
+            insn <= x"00000" & '0' & rnd.RandSlv(10) & '0';
             wait for clk_period;
             behave_ra := ppc_rlwimi(ra, rs, shift(4 downto 0), insn_mb32(insn), insn_me32(insn));
             assert behave_ra = result
@@ -88,9 +99,9 @@ begin
         clear_left <= '1';
         clear_right <= '0';
         rldicl_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= pseudorand(7);
-            insn <= x"00000" & '0' & pseudorand(10) & '0';
+            rs <= rnd.RandSlv(64);
+            shift <= rnd.RandSlv(7);
+            insn <= x"00000" & '0' & rnd.RandSlv(10) & '0';
             wait for clk_period;
             behave_ra := ppc_rldicl(rs, shift(5 downto 0), insn_mb(insn));
             assert behave_ra = result
@@ -106,9 +117,9 @@ begin
         clear_left <= '0';
         clear_right <= '1';
         rldicr_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= pseudorand(7);
-            insn <= x"00000" & '0' & pseudorand(10) & '0';
+            rs <= rnd.RandSlv(64);
+            shift <= rnd.RandSlv(7);
+            insn <= x"00000" & '0' & rnd.RandSlv(10) & '0';
             wait for clk_period;
             behave_ra := ppc_rldicr(rs, shift(5 downto 0), insn_me(insn));
             --report "rs = " & to_hstring(rs);
@@ -129,9 +140,9 @@ begin
         clear_left <= '1';
         clear_right <= '1';
         rldic_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= '0' & pseudorand(6);
-            insn <= x"00000" & '0' & pseudorand(10) & '0';
+            rs <= rnd.RandSlv(64);
+            shift <= '0' & rnd.RandSlv(6);
+            insn <= x"00000" & '0' & rnd.RandSlv(10) & '0';
             wait for clk_period;
             behave_ra := ppc_rldic(rs, shift(5 downto 0), insn_mb(insn));
             assert behave_ra = result
@@ -146,10 +157,10 @@ begin
         clear_left <= '1';
         clear_right <= '1';
         rldimi_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            ra <= pseudorand(64);
-            shift <= '0' & pseudorand(6);
-            insn <= x"00000" & '0' & pseudorand(10) & '0';
+            rs <= rnd.RandSlv(64);
+            ra <= rnd.RandSlv(64);
+            shift <= '0' & rnd.RandSlv(6);
+            insn <= x"00000" & '0' & rnd.RandSlv(10) & '0';
             wait for clk_period;
             behave_ra := ppc_rldimi(ra, rs, shift(5 downto 0), insn_mb(insn));
             assert behave_ra = result
@@ -165,8 +176,8 @@ begin
         clear_left <= '0';
         clear_right <= '0';
         slw_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= pseudorand(7);
+            rs <= rnd.RandSlv(64);
+            shift <= rnd.RandSlv(7);
             wait for clk_period;
             behave_ra := ppc_slw(rs, std_ulogic_vector(resize(unsigned(shift), 64)));
             assert behave_ra = result
@@ -182,8 +193,8 @@ begin
         clear_left <= '0';
         clear_right <= '0';
         sld_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= pseudorand(7);
+            rs <= rnd.RandSlv(64);
+            shift <= rnd.RandSlv(7);
             wait for clk_period;
             behave_ra := ppc_sld(rs, std_ulogic_vector(resize(unsigned(shift), 64)));
             assert behave_ra = result
@@ -199,8 +210,8 @@ begin
         clear_left <= '0';
         clear_right <= '0';
         srw_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= pseudorand(7);
+            rs <= rnd.RandSlv(64);
+            shift <= rnd.RandSlv(7);
             wait for clk_period;
             behave_ra := ppc_srw(rs, std_ulogic_vector(resize(unsigned(shift), 64)));
             assert behave_ra = result
@@ -216,8 +227,8 @@ begin
         clear_left <= '0';
         clear_right <= '0';
         srd_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= pseudorand(7);
+            rs <= rnd.RandSlv(64);
+            shift <= rnd.RandSlv(7);
             wait for clk_period;
             behave_ra := ppc_srd(rs, std_ulogic_vector(resize(unsigned(shift), 64)));
             assert behave_ra = result
@@ -233,8 +244,8 @@ begin
         clear_left <= '0';
         clear_right <= '0';
         sraw_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= '0' & pseudorand(6);
+            rs <= rnd.RandSlv(64);
+            shift <= '0' & rnd.RandSlv(6);
             wait for clk_period;
             behave_ca_ra := ppc_sraw(rs, std_ulogic_vector(resize(unsigned(shift), 64)));
             --report "rs = " & to_hstring(rs);
@@ -254,8 +265,8 @@ begin
         clear_left <= '0';
         clear_right <= '0';
         srad_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= pseudorand(7);
+            rs <= rnd.RandSlv(64);
+            shift <= rnd.RandSlv(7);
             wait for clk_period;
             behave_ca_ra := ppc_srad(rs, std_ulogic_vector(resize(unsigned(shift), 64)));
             --report "rs = " & to_hstring(rs);
@@ -276,8 +287,8 @@ begin
         clear_right <= '0';
         extsw <= '1';
         extswsli_loop : for i in 0 to 1000 loop
-            rs <= pseudorand(64);
-            shift <= '0' & pseudorand(6);
+            rs <= rnd.RandSlv(64);
+            shift <= '0' & rnd.RandSlv(6);
             wait for clk_period;
             behave_ra := rs;
             behave_ra(63 downto 32) := (others => rs(31));
@@ -291,6 +302,6 @@ begin
                 report "bad extswsli expected " & to_hstring(behave_ra) & " got " & to_hstring(result);
         end loop;
 
-        std.env.finish;
+        test_runner_cleanup(runner);
     end process;
 end behave;
