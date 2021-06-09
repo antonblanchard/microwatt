@@ -7,8 +7,8 @@ prj.add_osvvm()
 root = Path(__file__).parent
 
 lib = prj.add_library("lib")
-lib.add_source_files(root / "litedram/extras/*.vhdl")
-lib.add_source_files(root / "litedram/generated/sim/*.vhdl")
+lib.add_source_files(root / "litedram" / "extras" / "*.vhdl")
+lib.add_source_files(root / "litedram" / "generated" / "sim" / "*.vhdl")
 
 # Use multiply.vhd and not xilinx-mult.vhd. Use VHDL-based random.
 vhdl_files = glob(str(root / "*.vhdl"))
@@ -22,6 +22,8 @@ vhdl_files = [
 lib.add_source_files(vhdl_files)
 
 unisim = prj.add_library("unisim")
-unisim.add_source_files(root / "sim-unisim/*.vhdl")
+unisim.add_source_files(root / "sim-unisim" / "*.vhdl")
+
+prj.set_sim_option("disable_ieee_warnings", True)
 
 prj.main()

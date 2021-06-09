@@ -58,56 +58,56 @@ begin
 
         wait for 4*clk_period;
 
-        report "accessing 1:";
+        info("accessing 1:");
         acc <= "001";
         acc_en <= '1';
         wait for clk_period;
-        report "lru:" & to_hstring(lru);
+        info("lru:" & to_hstring(lru));
 
-        report "accessing 2:";
+        info("accessing 2:");
         acc <= "010";
         wait for clk_period;
-        report "lru:" & to_hstring(lru);
+        info("lru:" & to_hstring(lru));
 
-        report "accessing 7:";
+        info("accessing 7:");
         acc <= "111";
         wait for clk_period;
-        report "lru:" & to_hstring(lru);
+        info("lru:" & to_hstring(lru));
 
-        report "accessing 4:";
+        info("accessing 4:");
         acc <= "100";
         wait for clk_period;
-        report "lru:" & to_hstring(lru);
+        info("lru:" & to_hstring(lru));
 
-        report "accessing 3:";
+        info("accessing 3:");
         acc <= "011";
         wait for clk_period;
-        report "lru:" & to_hstring(lru);
+        info("lru:" & to_hstring(lru));
 
-        report "accessing 5:";
+        info("accessing 5:");
         acc <= "101";
         wait for clk_period;
-        report "lru:" & to_hstring(lru);
+        info("lru:" & to_hstring(lru));
 
-        report "accessing 3:";
+        info("accessing 3:");
         acc <= "011";
         wait for clk_period;
-        report "lru:" & to_hstring(lru);
+        info("lru:" & to_hstring(lru));
 
-        report "accessing 5:";
+        info("accessing 5:");
         acc <= "101";
         wait for clk_period;
-        report "lru:" & to_hstring(lru);
+        info("lru:" & to_hstring(lru));
 
-        report "accessing 6:";
+        info("accessing 6:");
         acc <= "110";
         wait for clk_period;
-        report "lru:" & to_hstring(lru);
+        info("lru:" & to_hstring(lru));
 
-        report "accessing 0:";
+        info("accessing 0:");
         acc <= "000";
         wait for clk_period;
-        report "lru:" & to_hstring(lru);
+        info("lru:" & to_hstring(lru));
 
         test_runner_cleanup(runner);
     end process;

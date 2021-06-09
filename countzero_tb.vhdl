@@ -19,8 +19,7 @@ architecture behave of countzero_tb is
     constant clk_period: time := 10 ns;
     signal rs: std_ulogic_vector(63 downto 0);
     signal is_32bit, count_right: std_ulogic := '0';
-    signal result: std_ulogic_vector(63 downto 0);
-    signal randno: std_ulogic_vector(63 downto 0);
+    signal res: std_ulogic_vector(63 downto 0);
     signal clk: std_ulogic;
 
 begin
@@ -28,7 +27,7 @@ begin
         port map (
             clk => clk,
             rs => rs,
-            result => result,
+            result => res,
             count_right => count_right,
             is_32bit => is_32bit
         );
@@ -55,21 +54,17 @@ begin
                 is_32bit <= '0';
                 count_right <= '0';
                 wait for clk_period;
-                assert result = x"0000000000000040"
-                    report "bad cntlzd 0 = " & to_hstring(result);
+                check_equal(res, 16#40#, result("for cntlzd"));
                 count_right <= '1';
                 wait for clk_period;
-                assert result = x"0000000000000040"
-                    report "bad cnttzd 0 = " & to_hstring(result);
+                check_equal(res, 16#40#, result("for cnttzd"));
                 is_32bit <= '1';
                 count_right <= '0';
                 wait for clk_period;
-                assert result = x"0000000000000020"
-                    report "bad cntlzw 0 = " & to_hstring(result);
+                check_equal(res, 16#20#, result("for cntlzw"));
                 count_right <= '1';
                 wait for clk_period;
-                assert result = x"0000000000000020"
-                    report "bad cnttzw 0 = " & to_hstring(result);
+                check_equal(res, 16#20#, result("for cnttzw"));
 
             elsif run("Test cntlzd/w") then
                 count_right <= '0';
@@ -80,17 +75,14 @@ begin
                         rs <= r;
                         is_32bit <= '0';
                         wait for clk_period;
-                        assert to_integer(unsigned(result)) = i
-                            report "bad cntlzd " & to_hstring(rs) & " -> " & to_hstring(result);
+                        check_equal(res, i, result("for cntlzd " & to_hstring(rs)));
                         rs <= r(31 downto 0) & r(63 downto 32);
                         is_32bit <= '1';
                         wait for clk_period;
                         if i < 32 then
-                            assert to_integer(unsigned(result)) = i
-                                report "bad cntlzw " & to_hstring(rs) & " -> " & to_hstring(result);
+                            check_equal(res, i, result("for cntlzw " & to_hstring(rs)));
                         else
-                            assert to_integer(unsigned(result)) = 32
-                                report "bad cntlzw " & to_hstring(rs) & " -> " & to_hstring(result);
+                            check_equal(res, 32, result("for cntlzw " & to_hstring(rs)));
                         end if;
                         r := '0' & r(63 downto 1);
                     end loop;
@@ -105,16 +97,13 @@ begin
                         rs <= r;
                         is_32bit <= '0';
                         wait for clk_period;
-                        assert to_integer(unsigned(result)) = i
-                            report "bad cnttzd " & to_hstring(rs) & " -> " & to_hstring(result);
+                        check_equal(res, i, result("for cnttzd " & to_hstring(rs)));
                         is_32bit <= '1';
                         wait for clk_period;
                         if i < 32 then
-                            assert to_integer(unsigned(result)) = i
-                                report "bad cnttzw " & to_hstring(rs) & " -> " & to_hstring(result);
+                            check_equal(res, i, result("for cnttzw " & to_hstring(rs)));
                         else
-                            assert to_integer(unsigned(result)) = 32
-                                report "bad cnttzw " & to_hstring(rs) & " -> " & to_hstring(result);
+                            check_equal(res, 32, result("for cnttzw " & to_hstring(rs)));
                         end if;
                         r := r(62 downto 0) & '0';
                     end loop;

@@ -67,33 +67,33 @@ begin
                 m1.data2 <= x"0000000000001111";
 
                 wait for clk_period;
-                assert m2.valid = '0';
+                check_false(?? m2.valid, result("for valid"));
 
                 m1.valid <= '0';
 
                 wait for clk_period;
-                assert m2.valid = '0';
+                check_false(?? m2.valid, result("for valid"));
 
                 wait for clk_period;
-                assert m2.valid = '0';
+                check_false(?? m2.valid, result("for valid"));
 
                 wait for clk_period;
-                assert m2.valid = '1';
-                assert m2.result = x"00000000000000000000000001111000";
+                check_true(?? m2.valid, result("for valid"));
+                check_equal(m2.result, 16#1111000#);
 
                 wait for clk_period;
-                assert m2.valid = '0';
+                check_false(?? m2.valid, result("for valid"));
 
                 m1.valid <= '1';
 
                 wait for clk_period;
-                assert m2.valid = '0';
+                check_false(?? m2.valid, result("for valid"));
 
                 m1.valid <= '0';
 
                 wait for clk_period * (pipeline_depth-1);
-                assert m2.valid = '1';
-                assert m2.result = x"00000000000000000000000001111000";
+                check_true(?? m2.valid, result("for valid"));
+                check_equal(m2.result, 16#1111000#);
 
             elsif run("Test mulld") then
                 mulld_loop : for i in 0 to 1000 loop
@@ -115,10 +115,8 @@ begin
 
                     wait for clk_period * (pipeline_depth-1);
 
-                    assert m2.valid = '1';
-
-                    assert to_hstring(behave_rt) = to_hstring(m2.result(63 downto 0))
-                        report "bad mulld expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(63 downto 0));
+                    check_true(?? m2.valid, result("for valid"));
+                    check_equal(m2.result(63 downto 0), behave_rt, result("for mulld " & to_hstring(behave_rt)));
                 end loop;
 
             elsif run("Test mulhdu") then
@@ -140,10 +138,8 @@ begin
 
                     wait for clk_period * (pipeline_depth-1);
 
-                    assert m2.valid = '1';
-
-                    assert to_hstring(behave_rt) = to_hstring(m2.result(127 downto 64))
-                        report "bad mulhdu expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(127 downto 64));
+                    check_true(?? m2.valid, result("for valid"));
+                    check_equal(m2.result(127 downto 64), behave_rt, result("for mulhdu " & to_hstring(behave_rt)));
                 end loop;
 
             elsif run("Test mulhd") then
@@ -166,10 +162,8 @@ begin
 
                     wait for clk_period * (pipeline_depth-1);
 
-                    assert m2.valid = '1';
-
-                    assert to_hstring(behave_rt) = to_hstring(m2.result(127 downto 64))
-                        report "bad mulhd expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(127 downto 64));
+                    check_true(?? m2.valid, result("for valid"));
+                    check_equal(m2.result(127 downto 64), behave_rt, result("for mulhd " & to_hstring(behave_rt)));
                 end loop;
 
             elsif run("Test mullw") then
@@ -194,10 +188,8 @@ begin
 
                     wait for clk_period * (pipeline_depth-1);
 
-                    assert m2.valid = '1';
-
-                    assert to_hstring(behave_rt) = to_hstring(m2.result(63 downto 0))
-                        report "bad mullw expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(63 downto 0));
+                    check_true(?? m2.valid, result("for valid"));
+                    check_equal(m2.result(63 downto 0), behave_rt, result("for mullw " & to_hstring(behave_rt)));
                 end loop;
 
             elsif run("Test mulhw") then
@@ -222,11 +214,8 @@ begin
 
                     wait for clk_period * (pipeline_depth-1);
 
-                    assert m2.valid = '1';
-
-                    assert to_hstring(behave_rt) = to_hstring(m2.result(63 downto 32) & m2.result(63 downto 32))
-                        report "bad mulhw expected " & to_hstring(behave_rt) & " got " &
-                        to_hstring(m2.result(63 downto 32) & m2.result(63 downto 32));
+                    check_true(?? m2.valid, result("for valid"));
+                    check_equal(m2.result(63 downto 32) & m2.result(63 downto 32), behave_rt, result("for mulhw " & to_hstring(behave_rt)));
                 end loop;
 
             elsif run("Test mulhwu") then
@@ -250,11 +239,8 @@ begin
 
                     wait for clk_period * (pipeline_depth-1);
 
-                    assert m2.valid = '1';
-
-                    assert to_hstring(behave_rt) = to_hstring(m2.result(63 downto 32) & m2.result(63 downto 32))
-                        report "bad mulhwu expected " & to_hstring(behave_rt) & " got " &
-                        to_hstring(m2.result(63 downto 32) & m2.result(63 downto 32));
+                    check_true(?? m2.valid, result("for valid"));
+                    check_equal(m2.result(63 downto 32) & m2.result(63 downto 32), behave_rt, result("for mulhwu " & to_hstring(behave_rt)));
                 end loop;
 
             elsif run("Test mulli") then
@@ -278,10 +264,8 @@ begin
 
                     wait for clk_period * (pipeline_depth-1);
 
-                    assert m2.valid = '1';
-
-                    assert to_hstring(behave_rt) = to_hstring(m2.result(63 downto 0))
-                        report "bad mulli expected " & to_hstring(behave_rt) & " got " & to_hstring(m2.result(63 downto 0));
+                    check_true(?? m2.valid, result("for valid"));
+                    check_equal(m2.result(63 downto 0), behave_rt, result("for mulli " & to_hstring(behave_rt)));
                 end loop;
             end if;
         end loop;
