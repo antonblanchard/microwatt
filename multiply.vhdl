@@ -7,7 +7,7 @@ use work.common.all;
 
 entity multiply is
     generic (
-        PIPELINE_DEPTH : natural := 4
+        PIPELINE_DEPTH : positive := 4
         );
     port (
         clk   : in std_logic;

@@ -14,14 +14,15 @@ library osvvm;
 use osvvm.RandomPkg.all;
 
 entity multiply_tb is
-    generic (runner_cfg : string := runner_cfg_default);
+    generic (
+      runner_cfg : string := runner_cfg_default;
+      pipeline_depth : positive := 4
+    );
 end multiply_tb;
 
 architecture behave of multiply_tb is
     signal clk              : std_ulogic;
     constant clk_period     : time := 10 ns;
-
-    constant pipeline_depth : integer := 4;
 
     signal m1               : MultiplyInputType := MultiplyInputInit;
     signal m2               : MultiplyOutputType;
@@ -61,39 +62,24 @@ begin
         while test_suite loop
             if run("Test interface") then
                 wait for clk_period;
-
-                m1.valid <= '1';
+                
                 m1.data1 <= x"0000000000001000";
                 m1.data2 <= x"0000000000001111";
 
-                wait for clk_period;
-                check_false(?? m2.valid, result("for valid"));
-
-                m1.valid <= '0';
-
-                wait for clk_period;
-                check_false(?? m2.valid, result("for valid"));
-
-                wait for clk_period;
-                check_false(?? m2.valid, result("for valid"));
-
-                wait for clk_period;
-                check_true(?? m2.valid, result("for valid"));
-                check_equal(m2.result, 16#1111000#);
-
-                wait for clk_period;
-                check_false(?? m2.valid, result("for valid"));
-
-                m1.valid <= '1';
-
-                wait for clk_period;
-                check_false(?? m2.valid, result("for valid"));
-
-                m1.valid <= '0';
-
-                wait for clk_period * (pipeline_depth-1);
-                check_true(?? m2.valid, result("for valid"));
-                check_equal(m2.result, 16#1111000#);
+                for iteration in 1 to 2 loop
+                  m1.valid <= '1', '0' after clk_period;
+                  for cycles in 1 to pipeline_depth - 1 loop
+                    wait for clk_period;
+                    check_false(?? m2.valid, result("for valid"));
+                  end loop;
+  
+                  wait for clk_period;
+                  check_true(?? m2.valid, result("for valid"));
+                  check_equal(m2.result, 16#1111000#);
+  
+                  wait for clk_period;
+                  check_false(?? m2.valid, result("for valid"));
+                end loop;
 
             elsif run("Test mulld") then
                 mulld_loop : for i in 0 to 1000 loop

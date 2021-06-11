@@ -24,6 +24,13 @@ lib.add_source_files(vhdl_files)
 unisim = prj.add_library("unisim")
 unisim.add_source_files(root / "sim-unisim" / "*.vhdl")
 
+multiply_tb = lib.test_bench("multiply_tb")
+for pipeline_depth in [1, 4]:
+    multiply_tb.add_config(
+        name=f"pipeline_depth={pipeline_depth}",
+        generics=dict(pipeline_depth=pipeline_depth),
+    )
+
 prj.set_sim_option("disable_ieee_warnings", True)
 
 prj.main()
