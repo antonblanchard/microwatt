@@ -477,7 +477,7 @@ begin
                 v.read_spr := '1';
             when OP_MTSPR =>
                 v.write_spr := '1';
-                v.mmu_op := sprn(9) or sprn(5);
+                v.mmu_op := sprn(8) or sprn(5);
             when OP_FETCH_FAILED =>
                 -- send it to the MMU to do the radix walk
                 v.instr_fault := '1';
@@ -732,7 +732,7 @@ begin
                 write_enable := '1';
                 -- partial decode on SPR number should be adequate given
                 -- the restricted set that get sent down this path
-                if r2.req.sprn(9) = '0' and r2.req.sprn(5) = '0' then
+                if r2.req.sprn(8) = '0' and r2.req.sprn(5) = '0' then
                     if r2.req.sprn(0) = '0' then
                         sprval := x"00000000" & r3.dsisr;
                     else
