@@ -67,7 +67,7 @@ begin
                 d1.divisor  <= x"0000000000001111";
 
                 wait for clk_period;
-                assert d2.valid = '0';
+                check_false(?? d2.valid, result("for valid"));
 
                 d1.valid <= '0';
 
@@ -78,16 +78,16 @@ begin
                     end if;
                 end loop;
 
-                assert d2.valid = '1';
-                assert d2.write_reg_data = x"000000000000f001" report "result " & to_hstring(d2.write_reg_data);
+                check_true(?? d2.valid, result("for valid"));
+                check_equal(d2.write_reg_data, 16#f001#);
 
                 wait for clk_period;
-                assert d2.valid = '0' report "valid";
+                check_false(?? d2.valid, result("for valid"));
 
                 d1.valid <= '1';
 
                 wait for clk_period;
-                assert d2.valid = '0' report "valid";
+                check_false(?? d2.valid, result("for valid"));
 
                 d1.valid <= '0';
 
@@ -98,11 +98,11 @@ begin
                     end if;
                 end loop;
 
-                assert d2.valid = '1';
-                assert d2.write_reg_data = x"000000000000f001" report "result " & to_hstring(d2.write_reg_data);
+                check_true(?? d2.valid, result("for valid"));
+                check_equal(d2.write_reg_data, 16#f001#);
 
                 wait for clk_period;
-                assert d2.valid = '0';
+                check_false(?? d2.valid, result("for valid"));
 
             elsif run("Test divd") then
                 divd_loop : for dlength in 1 to 8 loop
@@ -126,14 +126,13 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if rb /= x"0000000000000000" and (ra /= x"8000000000000000" or rb /= x"ffffffffffffffff") then
                                 behave_rt := ppc_divd(ra, rb);
                             end if;
-                            assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
-                                report "bad divd expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                            check_equal(d2.write_reg_data, behave_rt, result("for divd"));
                         end loop;
                     end loop;
                 end loop;
@@ -158,14 +157,13 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if rb /= x"0000000000000000" then
                                 behave_rt := ppc_divdu(ra, rb);
                             end if;
-                            assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
-                                report "bad divdu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                            check_equal(d2.write_reg_data, behave_rt, result("for divdu"));
                         end loop;
                     end loop;
                 end loop;
@@ -193,7 +191,7 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if rb /= x"0000000000000000" then
@@ -204,8 +202,7 @@ begin
                                     behave_rt := q128(63 downto 0);
                                 end if;
                             end if;
-                            assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
-                                report "bad divde expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
+                            check_equal(d2.write_reg_data, behave_rt, result("for divde"));
                         end loop;
                     end loop;
                 end loop;
@@ -231,7 +228,7 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if unsigned(rb) > unsigned(ra) then
@@ -239,8 +236,7 @@ begin
                                 q128 := std_ulogic_vector(unsigned(d128) / unsigned(rb));
                                 behave_rt := q128(63 downto 0);
                             end if;
-                            assert to_hstring(behave_rt) = to_hstring(d2.write_reg_data)
-                                report "bad divdeu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
+                            check_equal(d2.write_reg_data, behave_rt, result("for divdeu"));
                         end loop;
                     end loop;
                 end loop;
@@ -268,14 +264,13 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if rb /= x"0000000000000000" and (ra /= x"ffffffff80000000" or rb /= x"ffffffffffffffff") then
                                 behave_rt := ppc_divw(ra, rb);
                             end if;
-                            assert behave_rt = d2.write_reg_data
-                                report "bad divw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                            check_equal(d2.write_reg_data, behave_rt, result("for divw"));
                         end loop;
                     end loop;
                 end loop;
@@ -301,14 +296,13 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if rb /= x"0000000000000000" then
                                 behave_rt := ppc_divwu(ra, rb);
                             end if;
-                            assert behave_rt = d2.write_reg_data
-                                report "bad divwu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                            check_equal(d2.write_reg_data, behave_rt, result("for divwu"));
                         end loop;
                     end loop;
                 end loop;
@@ -336,7 +330,7 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if rb /= x"0000000000000000" then
@@ -345,8 +339,7 @@ begin
                                     q64(63 downto 31) = x"ffffffff" & '1' then
                                     behave_rt := x"00000000" & q64(31 downto 0);
                                 end if;
-                                assert behave_rt = d2.write_reg_data
-                                    report "bad divwe expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
+                                check_equal(d2.write_reg_data, behave_rt, result("for divwe"));
                             end if;
                         end loop;
                     end loop;
@@ -373,14 +366,13 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if unsigned(rb(31 downto 0)) > unsigned(ra(63 downto 32)) then
                                 behave_rt := std_ulogic_vector(unsigned(ra) / unsigned(rb));
                             end if;
-                            assert behave_rt = d2.write_reg_data
-                                report "bad divweu expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data) & " for ra = " & to_hstring(ra) & " rb = " & to_hstring(rb);
+                            check_equal(d2.write_reg_data, behave_rt, result("for divweu"));
                         end loop;
                     end loop;
                 end loop;
@@ -408,14 +400,13 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if rb /= x"0000000000000000" then
                                 behave_rt := std_ulogic_vector(signed(ra) rem signed(rb));
                             end if;
-                            assert behave_rt = d2.write_reg_data
-                                report "bad modsd expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                            check_equal(d2.write_reg_data, behave_rt, result("for modsd"));
                         end loop;
                     end loop;
                 end loop;
@@ -441,14 +432,13 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if rb /= x"0000000000000000" then
                                 behave_rt := std_ulogic_vector(unsigned(ra) rem unsigned(rb));
                             end if;
-                            assert behave_rt = d2.write_reg_data
-                                report "bad modud expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                            check_equal(d2.write_reg_data, behave_rt, result("for modud"));
                         end loop;
                     end loop;
                 end loop;
@@ -477,7 +467,7 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if rb /= x"0000000000000000" then
@@ -488,8 +478,7 @@ begin
                                     behave_rt := x"ffffffff" & rem32;
                                 end if;
                             end if;
-                            assert behave_rt = d2.write_reg_data
-                                report "bad modsw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                            check_equal(d2.write_reg_data, behave_rt, result("for modsw"));
                         end loop;
                     end loop;
                 end loop;
@@ -516,14 +505,13 @@ begin
                                     exit;
                                 end if;
                             end loop;
-                            assert d2.valid = '1';
+                            check_true(?? d2.valid, result("for valid"));
 
                             behave_rt := (others => '0');
                             if rb /= x"0000000000000000" then
                                 behave_rt := x"00000000" & std_ulogic_vector(unsigned(ra(31 downto 0)) rem unsigned(rb(31 downto 0)));
                             end if;
-                            assert behave_rt(31 downto 0) = d2.write_reg_data(31 downto 0)
-                                report "bad moduw expected " & to_hstring(behave_rt) & " got " & to_hstring(d2.write_reg_data);
+                            check_equal(d2.write_reg_data(31 downto 0), behave_rt(31 downto 0), result("for moduw"));
                         end loop;
                     end loop;
                 end loop;
