@@ -33,7 +33,6 @@ jobs:
       max-parallel: 3
       matrix:
         task: [
-          "tests_unit",
           "tests_console",
           "{1..99}",
           "{100..199}",
@@ -51,6 +50,14 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: bash -c "make -j$(nproc) ${{ matrix.task }}"
+
+  VUnit:
+    needs: [build]
+    runs-on: ubuntu-latest
+    container: ghdl/vunit:llvm
+    steps:
+    - uses: actions/checkout@v2
+    - run: python3 ./run.py -p10
 
   symbiflow:
     strategy:

@@ -2,8 +2,8 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-library osvvm;
-use osvvm.RandomPkg.all;
+library work;
+use work.glibc_random.all;
 
 entity random is
     port (
@@ -20,10 +20,9 @@ begin
 
     process(clk)
         variable rand : std_ulogic_vector(63 downto 0);
-        variable rnd : RandomPType;
     begin
         if rising_edge(clk) then
-            rand := rnd.RandSlv(64);
+            rand := pseudorand(64);
             data <= rand;
             raw <= rand;
         end if;
