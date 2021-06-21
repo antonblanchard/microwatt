@@ -14,7 +14,7 @@ extern int call_with_msr(unsigned long arg, int (*fn)(unsigned long), unsigned l
 #define SRR0	26
 #define SRR1	27
 #define PID	48
-#define PRTBL	720
+#define PTCR	464
 #define PVR	287
 
 static inline unsigned long mfspr(int sprnum)
@@ -106,15 +106,18 @@ void zero_memory(void *ptr, unsigned long nbytes)
  */
 unsigned long *pgdir = (unsigned long *) 0x10000;
 unsigned long *proc_tbl = (unsigned long *) 0x12000;
-unsigned long free_ptr = 0x13000;
+unsigned long *part_tbl = (unsigned long *) 0x13000;
+unsigned long free_ptr = 0x14000;
 
 void init_mmu(void)
 {
+	/* set up partition table */
+	store_pte(&part_tbl[1], (unsigned long)proc_tbl);
 	/* set up process table */
 	zero_memory(proc_tbl, 512 * sizeof(unsigned long));
 	/* RTS = 0 (2GB address space), RPDS = 10 (1024-entry top level) */
 	store_pte(&proc_tbl[2 * 1], (unsigned long) pgdir | 10);
-	mtspr(PRTBL, (unsigned long)proc_tbl);
+	mtspr(PTCR, (unsigned long)part_tbl);
 	mtspr(PID, 1);
 	zero_memory(pgdir, 1024 * sizeof(unsigned long));
 }

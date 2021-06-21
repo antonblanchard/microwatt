@@ -609,7 +609,7 @@ begin
                     vi.force_single := '1';
                     -- send MMU-related SPRs to loadstore1
                     case sprn is
-                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PRTBL =>
+                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
                             vi.override_decode.unit := LDST;
                             vi.override_unit := '1';
                         when others =>

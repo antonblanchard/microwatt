@@ -33,7 +33,7 @@ static inline void do_tlbie(unsigned long rb, unsigned long rs)
 #define SPRG0	272
 #define SPRG1	273
 #define SPRG3	275
-#define PRTBL	720
+#define PTCR	464
 
 static inline unsigned long mfspr(int sprnum)
 {
@@ -121,15 +121,18 @@ void zero_memory(void *ptr, unsigned long nbytes)
  * Set up an MMU translation tree using memory starting at the 64k point.
  * We use 3 levels, mapping 512GB, with 4kB PGD/PMD/PTE pages.
  */
-unsigned long *proc_tbl = (unsigned long *) 0x10000;
-unsigned long *pgdir = (unsigned long *) 0x11000;
-unsigned long free_ptr = 0x12000;
+unsigned long *part_tbl = (unsigned long *) 0x10000;
+unsigned long *proc_tbl = (unsigned long *) 0x11000;
+unsigned long *pgdir = (unsigned long *) 0x12000;
+unsigned long free_ptr = 0x13000;
 
 void init_mmu(void)
 {
+	/* set up partition table */
+	store_pte(&part_tbl[1], (unsigned long)proc_tbl);
 	/* set up process table */
 	zero_memory(proc_tbl, 512 * sizeof(unsigned long));
-	mtspr(PRTBL, (unsigned long)proc_tbl);
+	mtspr(PTCR, (unsigned long)part_tbl);
 	mtspr(PID, 1);
 	zero_memory(pgdir, 512 * sizeof(unsigned long));
 	/* RTS = 8 (512GB address space), RPDS = 9 (512-entry top level) */

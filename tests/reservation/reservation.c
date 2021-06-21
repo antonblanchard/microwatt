@@ -18,7 +18,6 @@ extern unsigned long do_stqcx(unsigned long dst, unsigned long regs);
 #define PID	48
 #define SPRG0	272
 #define SPRG1	273
-#define PRTBL	720
 
 static inline unsigned long mfspr(int sprnum)
 {

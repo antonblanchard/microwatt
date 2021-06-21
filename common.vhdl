@@ -51,7 +51,7 @@ package common is
     constant SPR_HSPRG0 : spr_num_t := 304;
     constant SPR_HSPRG1 : spr_num_t := 305;
     constant SPR_PID    : spr_num_t := 48;
-    constant SPR_PRTBL  : spr_num_t := 720;
+    constant SPR_PTCR   : spr_num_t := 464;
     constant SPR_PVR	: spr_num_t := 287;
 
     -- GPR indices in the register file (GPR only)

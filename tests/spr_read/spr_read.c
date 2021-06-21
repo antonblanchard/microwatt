@@ -38,7 +38,7 @@ void print_test(char *str)
 #define SPR_HSPRG0	304
 #define SPR_HSPRG1	305
 #define SPR_PID		48
-#define SPR_PRTBL	720
+#define SPR_PTCR	464
 #define SPR_PVR		287
 
 #define __stringify_1(x...)	#x
@@ -83,7 +83,7 @@ int main(void)
 	DO_ONE(SPR_HSPRG0);
 	DO_ONE(SPR_HSPRG1);
 	DO_ONE(SPR_PID);
-	DO_ONE(SPR_PRTBL);
+	DO_ONE(SPR_PTCR);
 	DO_ONE(SPR_PVR);
 
 	puts(PASS);

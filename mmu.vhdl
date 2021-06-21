@@ -29,6 +29,9 @@ architecture behave of mmu is
     type state_t is (IDLE,
                      DO_TLBIE,
                      TLB_WAIT,
+                     PART_TBL_READ,
+                     PART_TBL_WAIT,
+                     PART_TBL_DONE,
                      PROC_TBL_READ,
                      PROC_TBL_WAIT,
                      SEGMENT_CHECK,
@@ -47,12 +50,14 @@ architecture behave of mmu is
         addr      : std_ulogic_vector(63 downto 0);
         inval_all : std_ulogic;
         -- config SPRs
-        prtbl     : std_ulogic_vector(63 downto 0);
+        ptcr      : std_ulogic_vector(63 downto 0);
         pid       : std_ulogic_vector(31 downto 0);
         -- internal state
         state     : state_t;
         done      : std_ulogic;
         err       : std_ulogic;
+        prtbl     : std_ulogic_vector(63 downto 0);
+        ptb_valid : std_ulogic;
         pgtbl0    : std_ulogic_vector(63 downto 0);
         pt0_valid : std_ulogic;
         pgtbl3    : std_ulogic_vector(63 downto 0);
@@ -77,7 +82,7 @@ architecture behave of mmu is
 begin
     -- Multiplex internal SPR values back to loadstore1, selected
     -- by l_in.sprn.
-    l_out.sprval <= r.prtbl when l_in.sprn(9) = '1' else x"00000000" & r.pid;
+    l_out.sprval <= r.ptcr when l_in.sprn(8) = '1' else x"00000000" & r.pid;
 
     mmu_0: process(clk)
     begin
@@ -85,9 +90,10 @@ begin
             if rst = '1' then
                 r.state <= IDLE;
                 r.valid <= '0';
+                r.ptb_valid <= '0';
                 r.pt0_valid <= '0';
                 r.pt3_valid <= '0';
-                r.prtbl <= (others => '0');
+                r.ptcr <= (others => '0');
                 r.pid <= (others => '0');
             else
                 if rin.valid = '1' then
@@ -185,6 +191,7 @@ begin
         variable tlb_load : std_ulogic;
         variable itlb_load : std_ulogic;
         variable tlbie_req : std_ulogic;
+        variable ptbl_rd : std_ulogic;
         variable prtbl_rd : std_ulogic;
         variable pt_valid : std_ulogic;
         variable effpid : std_ulogic_vector(31 downto 0);
@@ -215,6 +222,7 @@ begin
         itlb_load := '0';
         tlbie_req := '0';
         v.inval_all := '0';
+        ptbl_rd := '0';
         prtbl_rd := '0';
 
         -- Radix tree data structures in memory are big-endian,
@@ -256,11 +264,15 @@ begin
                     if l_in.sprn(3) = '1' then
                         v.pt0_valid := '0';
                         v.pt3_valid := '0';
+                        v.ptb_valid := '0';
                     end if;
                     v.state := DO_TLBIE;
                 else
                     v.valid := '1';
-                    if pt_valid = '0' then
+                    if r.ptb_valid = '0' then
+                        -- need to fetch process table base from partition table
+                        v.state := PART_TBL_READ;
+                    elsif pt_valid = '0' then
                         -- need to fetch process table entry
                         -- set v.shift so we can use finalmask for generating
                         -- the process table entry address
@@ -277,13 +289,14 @@ begin
             end if;
             if l_in.mtspr = '1' then
                 -- Move to PID needs to invalidate L1 TLBs and cached
-                -- pgtbl0 value.  Move to PRTBL does that plus
-                -- invalidating the cached pgtbl3 value as well.
-                if l_in.sprn(9) = '0' then
+                -- pgtbl0 value.  Move to PTCR does that plus
+                -- invalidating the cached pgtbl3 and prtbl values as well.
+                if l_in.sprn(8) = '0' then
                     v.pid := l_in.rs(31 downto 0);
                 else
-                    v.prtbl := l_in.rs;
+                    v.ptcr := l_in.rs;
                     v.pt3_valid := '0';
+                    v.ptb_valid := '0';
                 end if;
                 v.pt0_valid := '0';
                 v.inval_all := '1';
@@ -299,6 +312,22 @@ begin
             if d_in.done = '1' then
                 v.state := RADIX_FINISH;
             end if;
+
+        when PART_TBL_READ =>
+            dcreq := '1';
+            ptbl_rd := '1';
+            v.state := PART_TBL_WAIT;
+
+        when PART_TBL_WAIT =>
+            if d_in.done = '1' then
+                v.prtbl := data;
+                v.ptb_valid := '1';
+                v.state := PART_TBL_DONE;
+            end if;
+
+        when PART_TBL_DONE =>
+            v.shift := unsigned('0' & r.prtbl(4 downto 0));
+            v.state := PROC_TBL_READ;
 
         when PROC_TBL_READ =>
             dcreq := '1';
@@ -449,6 +478,9 @@ begin
         elsif tlb_load = '1' then
             addr := r.addr(63 downto 12) & x"000";
             tlb_data := pte;
+        elsif ptbl_rd = '1' then
+            addr := x"00" & r.ptcr(55 downto 12) & x"008";
+            tlb_data := (others => '0');
         elsif prtbl_rd = '1' then
             addr := prtable_addr;
             tlb_data := (others => '0');
