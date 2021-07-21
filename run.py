@@ -1,6 +1,5 @@
 from pathlib import Path
 from vunit import VUnit
-from glob import glob
 
 prj = VUnit.from_argv()
 prj.add_osvvm()
@@ -11,7 +10,7 @@ lib.add_source_files(root / "litedram" / "extras" / "*.vhdl")
 lib.add_source_files(root / "litedram" / "generated" / "sim" / "*.vhdl")
 
 # Use multiply.vhd and not xilinx-mult.vhd. Use VHDL-based random.
-vhdl_files = glob(str(root / "*.vhdl"))
+vhdl_files = root.glob("*.vhdl")
 vhdl_files = [
     src_file
     for src_file in vhdl_files
