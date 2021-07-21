@@ -54,10 +54,11 @@ jobs:
   VUnit:
     needs: [build]
     runs-on: ubuntu-latest
-    container: ghdl/vunit:llvm
     steps:
     - uses: actions/checkout@v2
-    - run: python3 ./run.py -p10
+    - uses: docker://ghdl/vunit:llvm
+      with:
+        args: python3 ./run.py -p10
 
   symbiflow:
     strategy:
