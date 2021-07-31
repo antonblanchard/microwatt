@@ -143,6 +143,10 @@ RAM_INIT_FILE=hello_world/hello_world.hex
 
 FPGA_TARGET ?= ORANGE-CRAB
 
+# FIXME: icache RAMs aren't being inferrenced as block RAMs on ECP5
+# with yosys, so make it smaller for now as a workaround.
+ICACHE_NUM_LINES=4
+
 # OrangeCrab with ECP85
 ifeq ($(FPGA_TARGET), ORANGE-CRAB)
 RESET_LOW=true
@@ -168,7 +172,7 @@ OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
 endif
 
 GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=$(MEMORY_SIZE) -gRAM_INIT_FILE=$(RAM_INIT_FILE) \
-	-gRESET_LOW=$(RESET_LOW) -gCLK_INPUT=$(CLK_INPUT) -gCLK_FREQUENCY=$(CLK_FREQUENCY)
+	-gRESET_LOW=$(RESET_LOW) -gCLK_INPUT=$(CLK_INPUT) -gCLK_FREQUENCY=$(CLK_FREQUENCY) -gICACHE_NUM_LINES=$(ICACHE_NUM_LINES)
 
 clkgen=fpga/clk_gen_ecp5.vhd
 toplevel=fpga/top-generic.vhdl
