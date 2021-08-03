@@ -11,7 +11,13 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    container: ghdl/vunit:llvm
+    strategy:
+      fail-fast: false
+      matrix:
+        backend:
+        - llvm
+        - gcc
+    container: ghdl/vunit:${{ matrix.backend }}
     steps:
     - uses: actions/checkout@v2
     - run: make GNATMAKE='gnatmake -j'$(nproc)
