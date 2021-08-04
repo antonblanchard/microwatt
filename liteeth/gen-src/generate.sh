@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TARGETS=arty
+TARGETS="arty nexys-video"
 
 ME=$(realpath $0)
 echo ME=$ME
