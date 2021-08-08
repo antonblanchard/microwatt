@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-from fusesoc.capi2.generator import Generator
 from litex.build.tools import write_to_file
 from litex.build.tools import replace_in_file
 from litex.build.generic_platform import *
@@ -55,18 +54,19 @@ def build_init_code(build_dir, is_sim):
     def add_var(k, v):
         env_vars.append("{}={}\n".format(k, _makefile_escape(v)))
 
-    add_var("BUILD_DIR", sw_dir)
-    add_var("SRC_DIR", src_dir)
-    add_var("GENINC_DIR", sw_inc_dir)
-    add_var("LXSRC_DIR", lxbios_src_dir)
+    makefile = os.path.join(src_dir, "Makefile")
+    cmd = ["make", "-C", build_dir, "-f", makefile]
+    cmd.append("BUILD_DIR=%s" % sw_dir)
+    cmd.append("SRC_DIR=%s" % src_dir)
+    cmd.append("GENINC_DIR=%s" % sw_inc_dir)
+    cmd.append("LXSRC_DIR=%s" % lxbios_src_dir)
+
     if is_sim:
-        add_var("EXTRA_CFLAGS", "-D__SIM__")
-    write_to_file(os.path.join(gen_inc_dir, "variables.mak"), "".join(env_vars))
+        cmd.append("EXTRA_CFLAGS=%s" % "-D__SIM__")
 
     # Build init code
     print(" Generating init software...")
-    makefile = os.path.join(src_dir, "Makefile")
-    r = subprocess.check_call(["make", "-C", build_dir, "-I", gen_inc_dir, "-f", makefile])
+    r = subprocess.check_call(cmd)
     print("Make result:", r)
 
     return os.path.join(sw_dir, "obj", "sdram_init.hex")
