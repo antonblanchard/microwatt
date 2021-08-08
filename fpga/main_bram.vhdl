@@ -9,20 +9,20 @@ library work;
 
 entity main_bram is
     generic(
-	WIDTH        : natural := 64;
-	HEIGHT_BITS  : natural := 1024;
-	MEMORY_SIZE  : natural := 65536;
-	RAM_INIT_FILE : string
-	);
+        WIDTH        : natural := 64;
+        HEIGHT_BITS  : natural := 1024;
+        MEMORY_SIZE  : natural := 65536;
+        RAM_INIT_FILE : string
+        );
     port(
-	clk  : in std_logic;
-	addr : in std_logic_vector(HEIGHT_BITS - 1 downto 0) ;
-	di   : in std_logic_vector(WIDTH-1 downto 0);
-	do   : out std_logic_vector(WIDTH-1 downto 0);
-	sel  : in std_logic_vector((WIDTH/8)-1 downto 0);
-	re   : in std_ulogic;
-	we   : in std_ulogic
-	);
+        clk  : in std_logic;
+        addr : in std_logic_vector(HEIGHT_BITS - 1 downto 0) ;
+        di   : in std_logic_vector(WIDTH-1 downto 0);
+        do   : out std_logic_vector(WIDTH-1 downto 0);
+        sel  : in std_logic_vector((WIDTH/8)-1 downto 0);
+        re   : in std_ulogic;
+        we   : in std_ulogic
+        );
 end entity main_bram;
 
 architecture behaviour of main_bram is
@@ -63,20 +63,20 @@ begin
     -- Actual RAM template    
     memory_0: process(clk)
     begin
-	if rising_edge(clk) then
-	    if we = '1' then
-		for i in 0 to 7 loop
-		    if sel(i) = '1' then
-			memory(to_integer(unsigned(addr)))((i + 1) * 8 - 1 downto i * 8) <=
-			    di((i + 1) * 8 - 1 downto i * 8);
-		    end if;
-		end loop;
-	    end if;
-	    if re = '1' then
-		obuf <= memory(to_integer(unsigned(addr)));
-	    end if;
-	    do <= obuf;
-	end if;
+        if rising_edge(clk) then
+            if we = '1' then
+                for i in 0 to 7 loop
+                    if sel(i) = '1' then
+                        memory(to_integer(unsigned(addr)))((i + 1) * 8 - 1 downto i * 8) <=
+                            di((i + 1) * 8 - 1 downto i * 8);
+                    end if;
+                end loop;
+            end if;
+            if re = '1' then
+                obuf <= memory(to_integer(unsigned(addr)));
+            end if;
+            do <= obuf;
+        end if;
     end process;
 
 end architecture behaviour;
