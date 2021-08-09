@@ -531,7 +531,7 @@ set_property CONFIG_MODE SPIx4 [current_design]
 # Clock constraints
 ################################################################################
 
-create_clock -add -name sys_clk_pin -period 10.00 -waveform {0 5} [get_ports { ext_clk }];
+create_clock -name sys_clk_pin -period 10.00 [get_ports { ext_clk }];
 
 create_clock -name eth_rx_clk -period 40.0 [get_ports { eth_clocks_rx }]
 

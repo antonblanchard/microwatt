@@ -1,5 +1,5 @@
 set_property -dict {PACKAGE_PIN E3 IOSTANDARD LVCMOS33} [get_ports ext_clk]
-create_clock -period 10.000 -name sys_clk_pin -waveform {0.000 5.000} -add [get_ports ext_clk]
+create_clock -period 10.000 -name sys_clk_pin [get_ports ext_clk]
 
 set_property -dict {PACKAGE_PIN C12 IOSTANDARD LVCMOS33} [get_ports ext_rst]
 
