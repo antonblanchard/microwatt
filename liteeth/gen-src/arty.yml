@@ -8,8 +8,9 @@ vendor:     xilinx
 clk_freq:   100e6
 core:       wishbone
 endianness: little
+ntxslots:   2
+nrxslots:   2
 
 soc:
     mem_map:
         ethmac: 0x00010000
-    csr_data_width: 32
