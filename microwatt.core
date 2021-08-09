@@ -365,7 +365,7 @@ generate:
 
   litesdcard_arty:
     generator: litesdcard_gen
-    parameters: {board : arty}
+    parameters: {vendor : xilinx}
 
   litedram_nexys_video:
     generator: litedram_gen
