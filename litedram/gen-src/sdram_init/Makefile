@@ -1,6 +1,5 @@
 #### Directories
 
-include variables.mak
 OBJ = $(BUILD_DIR)/obj
 
 LXINC_DIR=$(LXSRC_DIR)/include

@@ -1,17 +1,10 @@
 #!/usr/bin/python3
 
-from fusesoc.capi2.generator import Generator
 from litex.build.tools import write_to_file
 from litex.build.tools import replace_in_file
-from litex.build.generic_platform import *
-from litex.build.xilinx import XilinxPlatform
-from litex.build.lattice import LatticePlatform
-from litex.soc.integration.builder import *
 from litedram.gen import *
 import subprocess
 import os
-import sys
-import yaml
 import shutil
 
 def make_new_dir(base, added):
@@ -28,9 +21,6 @@ gen_src_dir = os.path.join(base_dir, "gen-src")
 gen_dir = make_new_dir(base_dir, "generated")
 
 # Build the init code for microwatt-initialized DRAM
-#
-# XXX Not working yet
-#
 def build_init_code(build_dir, is_sim):
 
     # More path fudging
@@ -45,7 +35,7 @@ def build_init_code(build_dir, is_sim):
     print(" lx src dir:", lxbios_src_dir)
 
     # Generate mem.h (hard wire size, it's not important)
-    mem_h = "#define MAIN_RAM_BASE 0x40000000\n#define MAIN_RAM_SIZE 0x10000000"
+    mem_h = "#define MAIN_RAM_BASE 0x40000000UL\n#define MAIN_RAM_SIZE 0x10000000UL\n"
     write_to_file(os.path.join(gen_inc_dir, "mem.h"), mem_h)
 
     # Environment
@@ -55,18 +45,19 @@ def build_init_code(build_dir, is_sim):
     def add_var(k, v):
         env_vars.append("{}={}\n".format(k, _makefile_escape(v)))
 
-    add_var("BUILD_DIR", sw_dir)
-    add_var("SRC_DIR", src_dir)
-    add_var("GENINC_DIR", sw_inc_dir)
-    add_var("LXSRC_DIR", lxbios_src_dir)
+    makefile = os.path.join(src_dir, "Makefile")
+    cmd = ["make", "-C", build_dir, "-f", makefile]
+    cmd.append("BUILD_DIR=%s" % sw_dir)
+    cmd.append("SRC_DIR=%s" % src_dir)
+    cmd.append("GENINC_DIR=%s" % sw_inc_dir)
+    cmd.append("LXSRC_DIR=%s" % lxbios_src_dir)
+
     if is_sim:
-        add_var("EXTRA_CFLAGS", "-D__SIM__")
-    write_to_file(os.path.join(gen_inc_dir, "variables.mak"), "".join(env_vars))
+        cmd.append("EXTRA_CFLAGS=%s" % "-D__SIM__")
 
     # Build init code
     print(" Generating init software...")
-    makefile = os.path.join(src_dir, "Makefile")
-    r = subprocess.check_call(["make", "-C", build_dir, "-I", gen_inc_dir, "-f", makefile])
+    r = subprocess.check_call(cmd)
     print("Make result:", r)
 
     return os.path.join(sw_dir, "obj", "sdram_init.hex")
@@ -76,48 +67,17 @@ def generate_one(t):
     print("Generating target:", t)
 
     # Is it a simulation ?
-    is_sim = t is "sim"
+    is_sim = "sim" in t
 
     # Muck with directory path
     build_dir = make_new_dir(build_top_dir, t)
     t_dir = make_new_dir(gen_dir, t)
 
-    # Grab config file
-    cfile = os.path.join(gen_src_dir, t  + ".yml")
-    core_config = yaml.load(open(cfile).read(), Loader=yaml.Loader)
-
-    ### TODO: Make most stuff below a function in litedram gen.py and
-    ###       call it rather than duplicate it
-    ###
-
-    # Convert YAML elements to Python/LiteX
-    for k, v in core_config.items():
-        replaces = {"False": False, "True": True, "None": None}
-        for r in replaces.keys():
-            if v == r:
-                core_config[k] = replaces[r]
-        if "clk_freq" in k:
-            core_config[k] = float(core_config[k])
-        if k == "sdram_module":
-            core_config[k] = getattr(litedram_modules, core_config[k])
-        if k == "sdram_phy":
-            core_config[k] = getattr(litedram_phys, core_config[k])
-
-    # Generate core
+    cmd = ["litedram_gen", "--output-dir=%s" % build_dir]
     if is_sim:
-        platform = SimPlatform("", io=[])
-    elif core_config["sdram_phy"] in [litedram_phys.ECP5DDRPHY]:
-        platform = LatticePlatform("LFE5UM5G-45F-8BG381C", io=[], toolchain="trellis")
-    elif core_config["sdram_phy"] in [litedram_phys.A7DDRPHY, litedram_phys.K7DDRPHY, litedram_phys.V7DDRPHY]:
-        platform = XilinxPlatform("", io=[], toolchain="vivado")
-    else:
-        raise ValueError("Unsupported SDRAM PHY: {}".format(core_config["sdram_phy"]))
-
-    soc      = LiteDRAMCore(platform, core_config, is_sim = is_sim, integrated_rom_size=0x6000)
-
-    # Build into build_dir
-    builder  = Builder(soc, output_dir=build_dir, compile_gateware=False)
-    vns      = builder.build(build_name="litedram_core", regular_comb=False)
+        cmd.append("--sim")
+    cmd.append("%s.yml" % t)
+    subprocess.check_call(cmd)
 
     # Grab generated gatewar dir
     gw_dir = os.path.join(build_dir, "gateware")
