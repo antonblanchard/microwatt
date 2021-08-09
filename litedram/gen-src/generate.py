@@ -35,7 +35,7 @@ def build_init_code(build_dir, is_sim):
     print(" lx src dir:", lxbios_src_dir)
 
     # Generate mem.h (hard wire size, it's not important)
-    mem_h = "#define MAIN_RAM_BASE 0x40000000\n#define MAIN_RAM_SIZE 0x10000000"
+    mem_h = "#define MAIN_RAM_BASE 0x40000000UL\n#define MAIN_RAM_SIZE 0x10000000UL\n"
     write_to_file(os.path.join(gen_inc_dir, "mem.h"), mem_h)
 
     # Environment
