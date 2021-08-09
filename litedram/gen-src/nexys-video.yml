@@ -3,13 +3,11 @@
 
 {
     # General ------------------------------------------------------------------
-    "cpu":        "None",  # Type of CPU used for init/calib (vexriscv, lm32)
-    "cpu_variant":"standard",
+    "cpu":        "None",  # CPU type (ex vexriscv, serv, None)
     "speedgrade": -1,          # FPGA speedgrade
     "memtype":    "DDR3",      # DRAM type
 
     # PHY ----------------------------------------------------------------------
-    "cmd_delay":       0,             # Command additional delay (in taps)
     "cmd_latency":     0,             # Command additional latency
     "sdram_module":    "MT41K256M16", # SDRAM modules of the board or SO-DIMM
     "sdram_module_nb": 2,             # Number of byte groups
@@ -35,8 +33,4 @@
             "type": "native",
         },
     },
-
-    # CSR Port -----------------------------------------------------------------
-    "csr_alignment"  : 32,
-    "csr_data_width" : 32,
 }
