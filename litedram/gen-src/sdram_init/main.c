@@ -262,6 +262,8 @@ uint64_t main(void)
 		printf("SPIFLASH ");
 	if (ftr & SYS_REG_INFO_HAS_LITEETH)
 		printf("ETHERNET ");
+	if (ftr & SYS_REG_INFO_HAS_LITESDCARD)
+		printf("SDCARD ");
 	printf("\n");
 	if (ftr & SYS_REG_INFO_HAS_BRAM) {
 		val = readq(SYSCON_BASE + SYS_REG_BRAMINFO) & SYS_REG_BRAMINFO_SIZE_MASK;
