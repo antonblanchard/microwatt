@@ -12,4 +12,4 @@ generators:
       based on the board type.
 
       Parameters:
-        board: The board type (arty)
+        board: The board type (arty, nexys-video)

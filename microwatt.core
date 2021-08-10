@@ -228,11 +228,12 @@ targets:
 
   nexys_video:
     default_tool: vivado
-    filesets: [core, nexys_video, soc, fpga, debug_xilinx, litedram, uart16550, xilinx_specific]
+    filesets: [core, nexys_video, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific]
     parameters:
       - memory_size
       - ram_init_file
       - use_litedram=true
+      - use_liteeth=true
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=10485760
@@ -240,7 +241,7 @@ targets:
       - uart_is_16550
       - has_fpu
       - has_btc
-    generate: [litedram_nexys_video]
+    generate: [litedram_nexys_video, liteeth_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
     toplevel : toplevel
@@ -368,6 +369,10 @@ generate:
 
   litedram_nexys_video:
     generator: litedram_gen
+    parameters: {board : nexys-video}
+
+  liteeth_nexys_video:
+    generator: liteeth_gen
     parameters: {board : nexys-video}
 
   litedram_acorn_cle_215:

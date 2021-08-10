@@ -2,10 +2,10 @@
 # License: BSD
 
 # PHY ----------------------------------------------------------------------
-phy:        LiteEthPHYMII
+phy:        LiteEthS7PHYRGMII
 vendor:     xilinx
 # Core ---------------------------------------------------------------------
-clk_freq:   100e6
+clk_freq:   125e6
 core:       wishbone
 endianness: little
 ntxslots:   2
