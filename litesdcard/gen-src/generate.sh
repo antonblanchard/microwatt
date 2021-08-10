@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TARGETS=arty
+VENDORS="xilinx"
 
 ME=$(realpath $0)
 echo ME=$ME
@@ -13,12 +13,7 @@ mkdir -p $BUILD_PATH
 GEN_PATH=$PARENT_PATH/generated
 mkdir -p $GEN_PATH
 
-# Note litesdcard/gen.py doesn't parse a YAML file, instead it takes
-# a --vendor=xxx parameter, where xxx = xilinx or lattice.  If we
-# want to generate litesdcard for ecp5 we'll have to invent a way to
-# map arty to xilinx and ecp5 to lattice
-
-for i in $TARGETS
+for i in $VENDORS
 do
     TARGET_BUILD_PATH=$BUILD_PATH/$i
     TARGET_GEN_PATH=$GEN_PATH/$i
@@ -28,7 +23,7 @@ do
     mkdir -p $TARGET_GEN_PATH
 
     echo "Generating $i in $TARGET_BUILD_PATH"    
-    (cd $TARGET_BUILD_PATH && litesdcard_gen)
+    (cd $TARGET_BUILD_PATH && litesdcard_gen --vendor $i)
 
     cp $TARGET_BUILD_PATH/build/gateware/litesdcard_core.v $TARGET_GEN_PATH/
 done

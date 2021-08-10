@@ -9,7 +9,7 @@ generators:
     description: Generate a litesdcard SD-card controller
     usage: |
       litesdcard_gen adds the pre-generated LiteX LiteSDCard SD-card controller
-      based on the board type.
+      based on the vendor type.
 
       Parameters:
-        board: The board type (arty)
+        vendor: The vendor type (xilinx)

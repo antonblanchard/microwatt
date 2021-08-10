@@ -6,13 +6,13 @@ import pathlib
 
 class LiteSDCardGenerator(Generator):
     def run(self):
-        board = self.config.get('board')
+        vendor = self.config.get('vendor')
 
         # Collect a bunch of directory path
         script_dir = os.path.dirname(sys.argv[0])
-        gen_dir = os.path.join(script_dir, "generated", board)
+        gen_dir = os.path.join(script_dir, "generated", vendor)
 
-        print("Adding LiteSDCard for board... ", board)
+        print("Adding LiteSDCard for vendor... ", vendor)
 
         # Add files to fusesoc
         files = []
