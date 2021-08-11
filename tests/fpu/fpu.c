@@ -106,9 +106,11 @@ int fooiw;
 
 int do_fp_op(long arg)
 {
+	unsigned long tmp;
+
 	switch (arg) {
 	case 0:
-		asm("lfd 31,0(%0)" : : "b" (&foo));
+		asm("ld %0,0(%1); lfd 31,0(%1)" : "=&r" (tmp) : "b" (&foo));
 		break;
 	case 1:
 		asm("stfd 31,0(%0)" : : "b" (&foow) : "memory");
