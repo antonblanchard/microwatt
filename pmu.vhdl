@@ -227,7 +227,12 @@ begin
             event := '1';
         end if;
         if mmcr0(MMCR0_PMCjCE) = '1' and
-            (pmcs(2)(31) or pmcs(3)(31) or pmcs(4)(31) or pmcs(5)(31) or pmcs(6)(31)) = '1' then
+            (pmcs(2)(31) or pmcs(3)(31) or pmcs(4)(31)) = '1' then
+            event := '1';
+        end if;
+        if mmcr0(MMCR0_PMCjCE) = '1' and
+            mmcr0(MMCR0_PMCC + 1 downto MMCR0_PMCC) /= "11" and
+            (pmcs(5)(31) or pmcs(6)(31)) = '1' then
             event := '1';
         end if;
 
@@ -309,10 +314,8 @@ begin
             when others =>
         end case;
 
-        if mmcr0(MMCR0_PMCC + 1 downto MMCR0_PMCC) /= "11" then
-            inc(5) := (mmcr0(MMCR0_CC56RUN) or p_in.run) and p_in.occur.instr_complete;
-            inc(6) := mmcr0(MMCR0_CC56RUN) or p_in.run;
-        end if;
+        inc(5) := (mmcr0(MMCR0_CC56RUN) or p_in.run) and p_in.occur.instr_complete;
+        inc(6) := mmcr0(MMCR0_CC56RUN) or p_in.run;
 
         -- Evaluate freeze conditions
         freeze := mmcr0(MMCR0_FC) or
@@ -345,6 +348,14 @@ begin
                 inc(i) := '0';
             end if;
         end loop;
+
+        -- When MMCR0[PMCC] = "11", PMC5 and PMC6 are not controlled by the
+        -- MMCRs and don't generate events, but do continue to count run
+        -- instructions and run cycles.
+        if mmcr0(MMCR0_PMCC + 1 downto MMCR0_PMCC) = "11" then
+            inc(5) := p_in.run and p_in.occur.instr_complete;
+            inc(6) := p_in.run;
+        end if;
 
         doinc <= inc;
         doevent <= event;
