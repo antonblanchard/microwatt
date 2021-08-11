@@ -55,9 +55,6 @@ filesets:
     files:
       - fpga/main_bram.vhdl
       - fpga/soc_reset.vhdl
-      - fpga/pp_fifo.vhd
-      - fpga/pp_soc_uart.vhd
-      - fpga/pp_utilities.vhd
       - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
     file_type : vhdlSource-2008
 
@@ -134,7 +131,6 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - log_length=2048
-      - uart_is_16550
       - has_fpu
       - has_btc
     tools:
@@ -152,7 +148,6 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=10485760
       - log_length=2048
-      - uart_is_16550
     tools:
       vivado: {part : xc7a200tsbg484-2}
     toplevel : toplevel
@@ -169,7 +164,6 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=10485760
       - log_length=2048
-      - uart_is_16550=false
     tools:
       vivado: {part : xc7k325tffg900-2}
     toplevel : toplevel
@@ -185,7 +179,6 @@ targets:
       - no_bram
       - spi_flash_offset=10485760
       - log_length=2048
-      - uart_is_16550
     generate: [litedram_acorn_cle_215]
     tools:
       vivado: {part : xc7a200tsbg484-2}
@@ -202,7 +195,6 @@ targets:
       - no_bram
       - spi_flash_offset=10485760
       - log_length=2048
-      - uart_is_16550=false
     generate: [litedram_genesys2]
     tools:
       vivado: {part : xc7k325tffg900-2}
@@ -219,7 +211,6 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=10485760
       - log_length=2048
-      - uart_is_16550
       - has_fpu
       - has_btc
     tools:
@@ -239,7 +230,6 @@ targets:
       - no_bram
       - spi_flash_offset=10485760
       - log_length=2048
-      - uart_is_16550
       - has_fpu
       - has_btc
     generate: [litedram_nexys_video, liteeth_nexys_video, litesdcard_nexys_video]
@@ -258,7 +248,6 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=3145728
       - log_length=512
-      - uart_is_16550
       - has_uart1
       - has_fpu=false
       - has_btc=false
@@ -280,7 +269,6 @@ targets:
       - no_bram
       - spi_flash_offset=3145728
       - log_length=512
-      - uart_is_16550
       - has_uart1
       - has_fpu=false
       - has_btc=false
@@ -300,7 +288,6 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=4194304
       - log_length=2048
-      - uart_is_16550
       - has_uart1
       - has_fpu
       - has_btc
@@ -322,7 +309,6 @@ targets:
       - no_bram
       - spi_flash_offset=4194304
       - log_length=2048
-      - uart_is_16550
       - has_uart1
       - has_fpu
       - has_btc
@@ -342,7 +328,6 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - log_length=512
-      - uart_is_16550
       - has_fpu=false
       - has_btc=false
     tools:
@@ -452,12 +437,6 @@ parameters:
     description : Use LiteSDCard
     paramtype   : generic
     default     : false
-
-  uart_is_16550:
-    datatype    : bool
-    description : Use 16550-compatible UART from OpenCores
-    paramtype   : generic
-    default     : true
 
   has_uart1:
     datatype    : bool

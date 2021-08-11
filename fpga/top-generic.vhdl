@@ -15,8 +15,7 @@ entity toplevel is
         HAS_BTC       : boolean  := false;
         ICACHE_NUM_LINES : natural := 64;
         LOG_LENGTH    : natural := 512;
-	DISABLE_FLATTEN_CORE : boolean := false;
-        UART_IS_16550 : boolean  := true
+	DISABLE_FLATTEN_CORE : boolean := false
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -76,8 +75,7 @@ begin
             HAS_BTC       => HAS_BTC,
 	    ICACHE_NUM_LINES => ICACHE_NUM_LINES,
             LOG_LENGTH    => LOG_LENGTH,
-	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
-            UART0_IS_16550     => UART_IS_16550
+	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
 	    )
 	port map (
 	    system_clk        => system_clk,

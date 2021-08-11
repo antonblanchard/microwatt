@@ -61,21 +61,6 @@
 
 
 /*
- * Register definitions for the potato UART
- */
-#define POTATO_CONSOLE_TX		0x00
-#define POTATO_CONSOLE_RX		0x08
-#define POTATO_CONSOLE_STATUS		0x10
-#define   POTATO_CONSOLE_STATUS_RX_EMPTY		0x01
-#define   POTATO_CONSOLE_STATUS_TX_EMPTY		0x02
-#define   POTATO_CONSOLE_STATUS_RX_FULL			0x04
-#define   POTATO_CONSOLE_STATUS_TX_FULL			0x08
-#define POTATO_CONSOLE_CLOCK_DIV	0x18
-#define POTATO_CONSOLE_IRQ_EN		0x20
-#define   POTATO_CONSOLE_IRQ_RX				0x01
-#define   POTATO_CONSOLE_IRQ_TX				0x02
-
-/*
  * Register definitionss for our standard (16550 style) UART
  */
 #define UART_REG_RX       0x00

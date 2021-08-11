@@ -63,7 +63,7 @@ soc_files = wishbone_arbiter.vhdl wishbone_bram_wrapper.vhdl sync_fifo.vhdl \
 
 uart_files = $(wildcard uart16550/*.v)
 
-soc_sim_files = $(core_files) $(soc_files) sim_console.vhdl sim_pp_uart.vhdl sim_bram_helpers.vhdl \
+soc_sim_files = $(core_files) $(soc_files) sim_console.vhdl sim_bram_helpers.vhdl \
 	sim_bram.vhdl sim_jtag_socket.vhdl sim_jtag.vhdl dmi_dtm_xilinx.vhdl \
 	sim_16550_uart.vhdl \
 	foreign_random.vhdl glibc_random.vhdl glibc_random_helpers.vhdl
@@ -190,7 +190,7 @@ clkgen=fpga/clk_gen_bypass.vhd
 endif
 
 fpga_files = fpga/soc_reset.vhdl \
-	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram.vhdl \
+	fpga/main_bram.vhdl \
 	nonrandom.vhdl
 
 synth_files = $(core_files) $(soc_files) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)

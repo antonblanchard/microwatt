@@ -25,7 +25,6 @@ entity toplevel is
         SPI_FLASH_DEF_QUAD : boolean := true;
         LOG_LENGTH         : natural := 512;
         USE_LITEETH        : boolean  := false;
-        UART_IS_16550      : boolean  := false;
         HAS_UART1          : boolean  := true;
         USE_LITESDCARD     : boolean := false;
         NGPIO              : natural := 32
@@ -204,7 +203,6 @@ begin
             SPI_FLASH_DEF_QUAD => SPI_FLASH_DEF_QUAD,
             LOG_LENGTH         => LOG_LENGTH,
             HAS_LITEETH        => USE_LITEETH,
-            UART0_IS_16550     => UART_IS_16550,
             HAS_UART1          => HAS_UART1,
             HAS_SD_CARD        => USE_LITESDCARD,
             NGPIO              => NGPIO

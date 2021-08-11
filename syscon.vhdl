@@ -19,7 +19,6 @@ entity syscon is
         SPI_FLASH_OFFSET : integer;
 	HAS_LITEETH      : boolean;
         HAS_SD_CARD      : boolean;
-        UART0_IS_16550   : boolean;
         HAS_UART1        : boolean
 	);
     port (
@@ -88,7 +87,7 @@ architecture behaviour of syscon is
     -- UART0/1 info registers bits
     --
     --  0 ..31  : UART clock freq (in HZ)
-    --      32  : UART is 16550 (otherwise pp)
+    --      32  : UART is 16550
     --
 
     -- Ctrl register
@@ -160,7 +159,7 @@ begin
 		    SYS_REG_CTRL_BITS-1 downto 0 => reg_ctrl);
 
     -- UART info registers read composition
-    uinfo_16550   <= '1' when UART0_IS_16550 else '0';
+    uinfo_16550   <= '1';
     uinfo_freq    <= std_ulogic_vector(to_unsigned(CLK_FREQ, 32));
     reg_uart0info <= (32           => uinfo_16550,
                       31 downto 0  => uinfo_freq,

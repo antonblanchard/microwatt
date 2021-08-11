@@ -11,82 +11,11 @@
  * Core UART functions to implement for a port
  */
 
-bool uart_is_std;
-
 static uint64_t uart_base;
 
 static unsigned long uart_divisor(unsigned long uart_freq, unsigned long bauds)
 {
 	return uart_freq / (bauds * 16);
-}
-
-static uint64_t potato_uart_reg_read(int offset)
-{
-	return readq(uart_base + offset);
-}
-
-static void potato_uart_reg_write(int offset, uint64_t val)
-{
-	writeq(val, uart_base + offset);
-}
-
-static int potato_uart_rx_empty(void)
-{
-	uint64_t val;
-
-	val = potato_uart_reg_read(POTATO_CONSOLE_STATUS);
-
-	if (val & POTATO_CONSOLE_STATUS_RX_EMPTY)
-		return 1;
-
-	return 0;
-}
-
-static int potato_uart_tx_full(void)
-{
-	uint64_t val;
-
-	val = potato_uart_reg_read(POTATO_CONSOLE_STATUS);
-
-	if (val & POTATO_CONSOLE_STATUS_TX_FULL)
-		return 1;
-
-	return 0;
-}
-
-static char potato_uart_read(void)
-{
-	uint64_t val;
-
-	val = potato_uart_reg_read(POTATO_CONSOLE_RX);
-
-	return (char)(val & 0x000000ff);
-}
-
-static void potato_uart_write(char c)
-{
-	uint64_t val;
-
-	val = c;
-
-	potato_uart_reg_write(POTATO_CONSOLE_TX, val);
-}
-
-static void potato_uart_init(uint64_t uart_freq)
-{
-	unsigned long div = uart_divisor(uart_freq, UART_BAUDS) - 1;
-	potato_uart_reg_write(POTATO_CONSOLE_CLOCK_DIV, div);
-}
-
-static void potato_uart_set_irq_en(bool rx_irq, bool tx_irq)
-{
-	uint64_t en = 0;
-
-	if (rx_irq)
-		en |= POTATO_CONSOLE_IRQ_RX;
-	if (tx_irq)
-		en |= POTATO_CONSOLE_IRQ_TX;
-	potato_uart_reg_write(POTATO_CONSOLE_IRQ_EN, en);
 }
 
 static bool std_uart_rx_empty(void)
@@ -137,28 +66,16 @@ static void std_uart_init(uint64_t uart_freq)
 
 int getchar(void)
 {
-	if (uart_is_std) {
-		while (std_uart_rx_empty())
-			/* Do nothing */ ;
-		return std_uart_read();
-	} else {
-		while (potato_uart_rx_empty())
-			/* Do nothing */ ;
-		return potato_uart_read();
-	}
+	while (std_uart_rx_empty())
+		/* Do nothing */ ;
+	return std_uart_read();
 }
 
 int putchar(int c)
 {
-	if (uart_is_std) {
-		while(std_uart_tx_full())
-			/* Do Nothing */;
-		std_uart_write(c);
-	} else {
-		while (potato_uart_tx_full())
-			/* Do Nothing */;
-		potato_uart_write(c);
-	}
+	while(std_uart_tx_full())
+		/* Do Nothing */;
+	std_uart_write(c);
 	return c;
 }
 
@@ -205,19 +122,10 @@ void console_init(void)
 		uart_freq = proc_freq;
 
 	uart_base = UART_BASE;
-	if (uart_info & SYS_REG_UART_IS_16550) {
-		uart_is_std = true;
-		std_uart_init(proc_freq);
-	} else {
-		uart_is_std = false;
-		potato_uart_init(proc_freq);
-	}
+	std_uart_init(proc_freq);
 }
 
 void console_set_irq_en(bool rx_irq, bool tx_irq)
 {
-	if (uart_is_std)
-		std_uart_set_irq_en(rx_irq, tx_irq);
-	else
-		potato_uart_set_irq_en(rx_irq, tx_irq);
+	std_uart_set_irq_en(rx_irq, tx_irq);
 }

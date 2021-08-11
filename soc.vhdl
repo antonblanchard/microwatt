@@ -71,7 +71,6 @@ entity soc is
         SPI_BOOT_CLOCKS    : boolean := true;
         LOG_LENGTH         : natural := 512;
         HAS_LITEETH        : boolean := false;
-	UART0_IS_16550     : boolean := true;
 	HAS_UART1          : boolean := false;
         ICACHE_NUM_LINES   : natural := 64;
         ICACHE_NUM_WAYS    : natural := 2;
@@ -243,6 +242,8 @@ architecture behaviour of soc is
                            SLAVE_IO_EXTERNAL,
                            SLAVE_IO_NONE);
     signal slave_io_dbg : slave_io_type;
+
+    signal uart0_irq_l : std_ulogic;
 
     function wishbone_widen_data(wb : wb_io_master_out) return wishbone_master_out is
         variable wwb : wishbone_master_out;
@@ -737,7 +738,6 @@ begin
 	    SPI_FLASH_OFFSET => SPI_FLASH_OFFSET,
             HAS_LITEETH => HAS_LITEETH,
             HAS_SD_CARD => HAS_SD_CARD,
-            UART0_IS_16550 => UART0_IS_16550,
             HAS_UART1 => HAS_UART1
 	)
 	port map(
@@ -750,74 +750,41 @@ begin
 	    soc_reset => open -- XXX TODO
 	    );
 
-    --
     -- UART0
-    --
-    -- Either potato (legacy) or 16550
-    --
-    uart0_pp: if not UART0_IS_16550 generate
-	uart0: entity work.pp_soc_uart
-	    generic map(
-		FIFO_DEPTH => 32
-		)
-	    port map(
-		clk => system_clk,
-		reset => rst_uart,
-		txd => uart0_txd,
-		rxd => uart0_rxd,
-		irq => uart0_irq,
-		wb_adr_in => wb_uart0_in.adr(11 downto 0),
-		wb_dat_in => wb_uart0_in.dat(7 downto 0),
-		wb_dat_out => uart0_dat8,
-		wb_cyc_in => wb_uart0_in.cyc,
-		wb_stb_in => wb_uart0_in.stb,
-		wb_we_in => wb_uart0_in.we,
-		wb_ack_out => wb_uart0_out.ack
-		);
-    end generate;
+    uart0: uart_top
+        port map (
+            wb_clk_i   => system_clk,
+            wb_rst_i   => rst_uart,
+            wb_adr_i   => wb_uart0_in.adr(4 downto 2),
+            wb_dat_i   => wb_uart0_in.dat(7 downto 0),
+            wb_dat_o   => uart0_dat8,
+            wb_we_i    => wb_uart0_in.we,
+            wb_stb_i   => wb_uart0_in.stb,
+            wb_cyc_i   => wb_uart0_in.cyc,
+            wb_ack_o   => wb_uart0_out.ack,
+            int_o      => uart0_irq_l,
+            stx_pad_o  => uart0_txd,
+            srx_pad_i  => uart0_rxd,
+            rts_pad_o  => open,
+            cts_pad_i  => '1',
+            dtr_pad_o  => open,
+            dsr_pad_i  => '1',
+            ri_pad_i   => '0',
+            dcd_pad_i  => '1'
+            );
 
-    uart0_16550 : if UART0_IS_16550 generate
-        signal irq_l : std_ulogic;
+    -- Add a register on the irq out, helps timing
+    uart0_irq_latch: process(system_clk)
     begin
-	uart0: uart_top
-	    port map (
-		wb_clk_i   => system_clk,
-		wb_rst_i   => rst_uart,
-		wb_adr_i   => wb_uart0_in.adr(4 downto 2),
-		wb_dat_i   => wb_uart0_in.dat(7 downto 0),
-		wb_dat_o   => uart0_dat8,
-		wb_we_i    => wb_uart0_in.we,
-		wb_stb_i   => wb_uart0_in.stb,
-		wb_cyc_i   => wb_uart0_in.cyc,
-		wb_ack_o   => wb_uart0_out.ack,
-		int_o      => irq_l,
-		stx_pad_o  => uart0_txd,
-		srx_pad_i  => uart0_rxd,
-		rts_pad_o  => open,
-		cts_pad_i  => '1',
-		dtr_pad_o  => open,
-		dsr_pad_i  => '1',
-		ri_pad_i   => '0',
-		dcd_pad_i  => '1'
-		);
-
-        -- Add a register on the irq out, helps timing
-        uart0_irq_latch: process(system_clk)
-        begin
-            if rising_edge(system_clk) then
-                uart0_irq <= irq_l;
-            end if;
-        end process;
-    end generate;
+        if rising_edge(system_clk) then
+            uart0_irq <= uart0_irq_l;
+        end if;
+    end process;
 
     wb_uart0_out.dat <= x"000000" & uart0_dat8;
     wb_uart0_out.stall <= not wb_uart0_out.ack;
 
-    --
     -- UART1
-    --
-    -- Always 16550 if it exists
-    --
     uart1: if HAS_UART1 generate
         signal irq_l : std_ulogic;
     begin
