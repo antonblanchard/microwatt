@@ -21,6 +21,7 @@ package common is
     constant MSR_FE1 : integer := (63 - 55);    -- Floating Exception mode
     constant MSR_IR  : integer := (63 - 58);    -- Instruction Relocation
     constant MSR_DR  : integer := (63 - 59);    -- Data Relocation
+    constant MSR_PMM : integer := (63 - 61);    -- Performance Monitor Mark
     constant MSR_RI  : integer := (63 - 62);    -- Recoverable Interrupt
     constant MSR_LE  : integer := (63 - 63);    -- Little Endian
 
@@ -53,6 +54,34 @@ package common is
     constant SPR_PID    : spr_num_t := 48;
     constant SPR_PTCR   : spr_num_t := 464;
     constant SPR_PVR	: spr_num_t := 287;
+
+    -- PMU registers
+    constant SPR_UPMC1  : spr_num_t := 771;
+    constant SPR_UPMC2  : spr_num_t := 772;
+    constant SPR_UPMC3  : spr_num_t := 773;
+    constant SPR_UPMC4  : spr_num_t := 774;
+    constant SPR_UPMC5  : spr_num_t := 775;
+    constant SPR_UPMC6  : spr_num_t := 776;
+    constant SPR_UMMCR0 : spr_num_t := 779;
+    constant SPR_UMMCR1 : spr_num_t := 782;
+    constant SPR_UMMCR2 : spr_num_t := 769;
+    constant SPR_UMMCRA : spr_num_t := 770;
+    constant SPR_USIER  : spr_num_t := 768;
+    constant SPR_USIAR  : spr_num_t := 780;
+    constant SPR_USDAR  : spr_num_t := 781;
+    constant SPR_PMC1   : spr_num_t := 787;
+    constant SPR_PMC2   : spr_num_t := 788;
+    constant SPR_PMC3   : spr_num_t := 789;
+    constant SPR_PMC4   : spr_num_t := 790;
+    constant SPR_PMC5   : spr_num_t := 791;
+    constant SPR_PMC6   : spr_num_t := 792;
+    constant SPR_MMCR0  : spr_num_t := 795;
+    constant SPR_MMCR1  : spr_num_t := 798;
+    constant SPR_MMCR2  : spr_num_t := 785;
+    constant SPR_MMCRA  : spr_num_t := 786;
+    constant SPR_SIER   : spr_num_t := 784;
+    constant SPR_SIAR   : spr_num_t := 796;
+    constant SPR_SDAR   : spr_num_t := 797;
 
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
@@ -302,6 +331,49 @@ package common is
     constant Execute1ToDividerInit: Execute1ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0',
                                                               is_extended => '0', is_modulus => '0',
                                                               neg_result => '0', others => (others => '0'));
+
+    type PMUEventType is record
+        no_instr_avail      : std_ulogic;
+        dispatch            : std_ulogic;
+        ext_interrupt       : std_ulogic;
+        instr_complete      : std_ulogic;
+        fp_complete         : std_ulogic;
+        ld_complete         : std_ulogic;
+        st_complete         : std_ulogic;
+        br_taken_complete   : std_ulogic;
+        br_mispredict       : std_ulogic;
+        ipref_discard       : std_ulogic;
+        itlb_miss           : std_ulogic;
+        itlb_miss_resolved  : std_ulogic;
+        icache_miss         : std_ulogic;
+        dc_miss_resolved    : std_ulogic;
+        dc_ld_miss_resolved : std_ulogic;
+        dc_store_miss       : std_ulogic;
+        dtlb_miss_resolved  : std_ulogic;
+        ld_miss_nocache     : std_ulogic;
+        ld_fill_nocache     : std_ulogic;
+    end record;
+    constant PMUEventInit : PMUEventType := (others => '0');
+
+    type Execute1ToPMUType is record
+        mfspr   : std_ulogic;
+        mtspr   : std_ulogic;
+        spr_num : std_ulogic_vector(4 downto 0);
+        spr_val : std_ulogic_vector(63 downto 0);
+        tbbits  : std_ulogic_vector(3 downto 0);        -- event bits from timebase
+        pmm_msr : std_ulogic;                           -- PMM bit from MSR
+        pr_msr  : std_ulogic;                           -- PR bit from MSR
+        run     : std_ulogic;
+        nia     : std_ulogic_vector(63 downto 0);
+        addr    : std_ulogic_vector(63 downto 0);
+        addr_v  : std_ulogic;
+        occur   : PMUEventType;
+    end record;
+
+    type PMUToExecute1Type is record
+        spr_val : std_ulogic_vector(63 downto 0);
+        intr    : std_ulogic;
+    end record;
 
     type Decode2ToRegisterFileType is record
 	read1_enable : std_ulogic;
@@ -594,6 +666,10 @@ package common is
 							       write_xerc_data => xerc_init,
 							       write_cr_mask => (others => '0'),
 							       write_cr_data => (others => '0'));
+
+    type WritebackEventType is record
+        instr_complete      : std_ulogic;
+    end record;
 
 end common;
 

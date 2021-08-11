@@ -45,6 +45,9 @@ entity execute1 is
 	icache_inval : out std_ulogic;
 	terminate_out : out std_ulogic;
 
+        -- PMU event buses
+        wb_events    : in WritebackEventType;
+
         log_out : out std_ulogic_vector(14 downto 0);
         log_rd_addr : out std_ulogic_vector(31 downto 0);
         log_rd_data : in std_ulogic_vector(63 downto 0);
@@ -124,6 +127,10 @@ architecture behaviour of execute1 is
     signal random_raw  : std_ulogic_vector(63 downto 0);
     signal random_cond : std_ulogic_vector(63 downto 0);
     signal random_err  : std_ulogic;
+
+    -- PMU signals
+    signal x_to_pmu : Execute1ToPMUType;
+    signal pmu_to_x : PMUToExecute1Type;
 
     -- signals for logging
     signal exception_log : std_ulogic;
@@ -279,6 +286,14 @@ begin
             err => random_err
             );
 
+    pmu_0: entity work.pmu
+        port map (
+            clk => clk,
+            rst => rst,
+            p_in => x_to_pmu,
+            p_out => pmu_to_x
+            );
+
     dbg_msr_out <= ctrl.msr;
     log_rd_addr <= r.log_addr_spr;
 
@@ -286,6 +301,14 @@ begin
     b_in <= e_in.read_data2;
     c_in <= e_in.read_data3;
     cr_in <= e_in.cr;
+
+    x_to_pmu.occur <= (instr_complete => wb_events.instr_complete, others => '0');
+    x_to_pmu.nia <= current.nia;
+    x_to_pmu.addr <= (others => '0');
+    x_to_pmu.addr_v <= '0';
+    x_to_pmu.spr_num <= e_in.insn(20 downto 16);
+    x_to_pmu.spr_val <= c_in;
+    x_to_pmu.run <= '1';
 
     -- XER forwarding. To avoid having to track XER hazards, we use
     -- the previously latched value.  Since the XER common bits
@@ -693,6 +716,15 @@ begin
         v.cntz_in_progress := '0';
         v.mul_finish := '0';
 
+        x_to_pmu.mfspr <= '0';
+        x_to_pmu.mtspr <= '0';
+        x_to_pmu.tbbits(3) <= ctrl.tb(63 - 47);
+        x_to_pmu.tbbits(2) <= ctrl.tb(63 - 51);
+        x_to_pmu.tbbits(1) <= ctrl.tb(63 - 55);
+        x_to_pmu.tbbits(0) <= ctrl.tb(63 - 63);
+        x_to_pmu.pmm_msr <= ctrl.msr(MSR_PMM);
+        x_to_pmu.pr_msr <= ctrl.msr(MSR_PR);
+
         spr_result <= (others => '0');
         spr_val := (others => '0');
 
@@ -701,7 +733,7 @@ begin
 	ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
 	ctrl_tmp.dec <= std_ulogic_vector(unsigned(ctrl.dec) - 1);
 
-        irq_valid := ctrl.msr(MSR_EE) and (ctrl.dec(63) or ext_irq_in);
+        irq_valid := ctrl.msr(MSR_EE) and (pmu_to_x.intr or ctrl.dec(63) or ext_irq_in);
 
 	v.terminate := '0';
 	icache_inval <= '0';
@@ -763,7 +795,10 @@ begin
             elsif irq_valid = '1' then
                 -- Don't deliver the interrupt until we have a valid instruction
                 -- coming in, so we have a valid NIA to put in SRR0.
-                if ctrl.dec(63) = '1' then
+                if pmu_to_x.intr = '1' then
+                    v.e.intr_vec := 16#f00#;
+                    report "IRQ valid: PMU";
+                elsif ctrl.dec(63) = '1' then
                     v.e.intr_vec := 16#900#;
                     report "IRQ valid: DEC";
                 elsif ext_irq_in = '1' then
@@ -963,6 +998,12 @@ begin
                     when 725 =>     -- LOG_DATA SPR
                         spr_val := log_rd_data;
                         v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
+                    when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
+                        SPR_UMMCR0 | SPR_UMMCR1 | SPR_UMMCR2 | SPR_UMMCRA | SPR_USIER | SPR_USIAR | SPR_USDAR |
+                        SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
+                        SPR_MMCR0 | SPR_MMCR1 | SPR_MMCR2 | SPR_MMCRA | SPR_SIER | SPR_SIAR | SPR_SDAR =>
+                        x_to_pmu.mfspr <= '1';
+                        spr_val := pmu_to_x.spr_val;
                     when others =>
                         -- mfspr from unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode
@@ -1017,6 +1058,11 @@ begin
 			ctrl_tmp.dec <= c_in;
                     when 724 =>     -- LOG_ADDR SPR
                         v.log_addr_spr := c_in(31 downto 0);
+                    when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
+                        SPR_UMMCR0 | SPR_UMMCR2 | SPR_UMMCRA |
+                        SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
+                        SPR_MMCR0 | SPR_MMCR1 | SPR_MMCR2 | SPR_MMCRA | SPR_SIER | SPR_SIAR | SPR_SDAR =>
+                        x_to_pmu.mtspr <= '1';
 		    when others =>
                         -- mtspr to unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode

@@ -27,6 +27,7 @@ filesets:
       - dcache.vhdl
       - divider.vhdl
       - rotator.vhdl
+      - pmu.vhdl
       - writeback.vhdl
       - insn_helpers.vhdl
       - core.vhdl
