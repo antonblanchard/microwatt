@@ -13,6 +13,8 @@ ECPPACK   ?= ecppack
 OPENOCD   ?= openocd
 VUNITRUN  ?= python3 ./run.py
 VERILATOR ?= verilator
+DFUUTIL   ?= dfu-util
+DFUSUFFIX ?= dfu-suffix
 
 # We need a version of GHDL built with either the LLVM or gcc backend.
 # Fedora provides this, but other distros may not. Another option is to use
@@ -176,6 +178,8 @@ PACKAGE=CSFBGA285
 NEXTPNR_FLAGS=--85k --speed 8 --freq 40
 OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5U-85F.cfg
+DFU_VENDOR=1209
+DFU_PRODUCT=5af0
 endif
 
 # ECP5-EVN
@@ -231,6 +235,14 @@ microwatt.svf: microwatt.bit
 
 prog: microwatt.svf
 	$(OPENOCD) -f $(OPENOCD_JTAG_CONFIG) -f $(OPENOCD_DEVICE_CONFIG) -c "transport select jtag; init; svf $<; exit"
+
+microwatt.dfu: microwatt.bit
+	cp $< $@.tmp
+	$(DFUSUFFIX) -v $(DFU_VENDOR) -p $(DFU_PRODUCT) -a $@.tmp
+	mv $@.tmp $@
+
+dfuprog: microwatt.dfu
+	$(DFUUTIL) -a 0 -D $<
 
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 tests_console = $(sort $(patsubst tests/%.console_out,%,$(wildcard tests/*.console_out)))
