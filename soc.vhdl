@@ -26,6 +26,7 @@ use work.wishbone_types.all;
 -- 0xc0006000: SPI Flash controller
 -- 0xc0007000: GPIO controller
 -- 0xc8nnnnnn: External IO bus
+-- 0xcb000000: LPC slave (same addr as Kestral)
 -- 0xf0000000: Flash "ROM" mapping
 -- 0xff000000: DRAM init code (if any) or flash ROM (**)
 
@@ -50,6 +51,8 @@ use work.wishbone_types.all;
 --   2  : UART1
 --   3  : SD card
 --   4  : GPIO
+--   5  : LPC UART
+--   6  : LPC IPMI
 
 entity soc is
     generic (
@@ -60,6 +63,7 @@ entity soc is
         HAS_FPU            : boolean := true;
         HAS_BTC            : boolean := true;
         HAS_SHORT_MULT     : boolean := false;
+        HAS_LPC            : boolean := false;
 	DISABLE_FLATTEN_CORE : boolean := false;
 	HAS_DRAM           : boolean  := false;
 	DRAM_SIZE          : integer := 0;
@@ -129,6 +133,17 @@ entity soc is
         gpio_dir : out std_ulogic_vector(NGPIO - 1 downto 0);
         gpio_in  : in  std_ulogic_vector(NGPIO - 1 downto 0) := (others => '0');
 
+	-- LPC signals
+	lpc_data_o        : out std_ulogic_vector(3 downto 0);
+	lpc_data_oe       : out std_ulogic;
+	lpc_data_i        : in std_ulogic_vector(3 downto 0) := (others => '1');
+	lpc_frame_n       : in std_ulogic := '1';
+	lpc_reset_n       : in std_ulogic := '1';
+	lpc_clock         : in std_ulogic := '1';
+	lpc_irq_o         : out std_ulogic;
+	lpc_irq_oe        : out std_ulogic;
+	lpc_irq_i         : in std_ulogic := '0';
+
 	-- DRAM controller signals
 	alt_reset    : in std_ulogic := '0'
 	);
@@ -146,7 +161,7 @@ architecture behaviour of soc is
 
     -- Arbiter array (ghdl doesnt' support assigning the array
     -- elements in the entity instantiation)
-    constant NUM_WB_MASTERS : positive := 4;
+    constant NUM_WB_MASTERS : positive := 5;
     signal wb_masters_out : wishbone_master_out_vector(0 to NUM_WB_MASTERS-1);
     signal wb_masters_in  : wishbone_slave_out_vector(0 to NUM_WB_MASTERS-1);
 
@@ -187,6 +202,26 @@ architecture behaviour of soc is
     signal wb_spiflash_is_reg : std_ulogic;
     signal wb_spiflash_is_map : std_ulogic;
 
+    -- LPC Flash controller signals:
+    signal wb_lpc_in     : wb_io_master_out;
+    signal wb_lpc_out    : wb_io_slave_out;
+    signal lpc_vuart_irq  : std_ulogic;
+    signal lpc_ipmi_irq  : std_ulogic;
+
+    -- LPC master wb
+    signal lpc_master_wb_cyc : std_ulogic;
+    signal lpc_master_wb_stb : std_ulogic;
+    signal lpc_master_wb_err : std_ulogic;
+    signal lpc_master_wb_addr : std_ulogic_vector(29 downto 0);
+
+    signal wb_lpc_dma_out  : wb_io_master_out := wb_io_master_out_init;
+    signal wb_lpc_dma_in   : wb_io_slave_out;
+    signal wb_lpc_dma_nr   : wb_io_master_out;
+    signal wb_lpc_dma_ir   : wb_io_slave_out;
+
+    -- for conversion from non-pipelined wishbone to pipelined
+    signal wb_lpc_dma_stb_sent   : std_ulogic;
+
     -- XICS signals:
     signal wb_xics_icp_in   : wb_io_master_out;
     signal wb_xics_icp_out  : wb_io_slave_out;
@@ -225,6 +260,7 @@ architecture behaviour of soc is
     signal rst_core    : std_ulogic := '1';
     signal rst_uart    : std_ulogic := '1';
     signal rst_xics    : std_ulogic := '1';
+    signal rst_lpc     : std_ulogic := '1';
     signal rst_spi     : std_ulogic := '1';
     signal rst_gpio    : std_ulogic := '1';
     signal rst_bram    : std_ulogic := '1';
@@ -243,6 +279,7 @@ architecture behaviour of soc is
                            SLAVE_IO_SPI_FLASH_MAP,
                            SLAVE_IO_GPIO,
                            SLAVE_IO_EXTERNAL,
+                           SLAVE_IO_LPC,
                            SLAVE_IO_NONE);
     signal slave_io_dbg : slave_io_type;
 
@@ -312,6 +349,7 @@ begin
             rst_spi     <= rst;
             rst_xics    <= rst;
             rst_gpio    <= rst;
+            rst_lpc     <= rst;
             rst_bram    <= rst;
             rst_dtm     <= rst;
             rst_wbar    <= rst;
@@ -360,11 +398,13 @@ begin
     wb_masters_out <= (0 => wishbone_dcore_out,
 		       1 => wishbone_icore_out,
                        2 => wishbone_widen_data(wishbone_dma_out),
-		       3 => wishbone_debug_out);
+                       3 => wishbone_widen_data(wb_lpc_dma_out),
+		       4 => wishbone_debug_out);
     wishbone_dcore_in <= wb_masters_in(0);
     wishbone_icore_in <= wb_masters_in(1);
     wishbone_dma_in   <= wishbone_narrow_data(wb_masters_in(2), wishbone_dma_out.adr);
-    wishbone_debug_in <= wb_masters_in(3);
+    wb_lpc_dma_in <= wishbone_narrow_data(wb_masters_in(3), wb_lpc_dma_out.adr);
+    wishbone_debug_in <= wb_masters_in(4);
     wishbone_arbiter_0: entity work.wishbone_arbiter
 	generic map(
 	    NUM_MASTERS => NUM_WB_MASTERS
@@ -616,6 +656,8 @@ begin
 	    slave_io := SLAVE_IO_UART1;
 	elsif std_match(match, x"C8---") then
 	    slave_io := SLAVE_IO_EXTERNAL;
+	elsif std_match(match, x"CB---") then
+	    slave_io := SLAVE_IO_LPC;
 	elsif std_match(match, x"C0004") then
 	    slave_io := SLAVE_IO_ICP;
 	elsif std_match(match, x"C0005") then
@@ -636,6 +678,8 @@ begin
         wb_spiflash_is_map <= '0';
         wb_gpio_in <= wb_sio_out;
         wb_gpio_in.cyc <= '0';
+	wb_lpc_in <= wb_sio_out;
+	wb_lpc_in.cyc <= '0';
 
 	 -- Only give xics 8 bits of wb addr (for now...)
 	wb_xics_icp_in <= wb_sio_out;
@@ -693,6 +737,9 @@ begin
                 wb_sio_in <= wb_ext_io_out;
             end if;
 
+	when SLAVE_IO_LPC =>
+	    wb_lpc_in.cyc <= wb_sio_out.cyc;
+	    wb_sio_in <= wb_lpc_out;
 	when SLAVE_IO_SYSCON =>
 	    wb_syscon_in.cyc <= wb_sio_out.cyc;
 	    wb_sio_in <= wb_syscon_out;
@@ -892,6 +939,115 @@ begin
         wb_spiflash_out.stall <= wb_spiflash_in.cyc and not wb_spiflash_out.ack;
     end generate;
 
+    lpc_gen: if HAS_LPC generate
+	component lpc_top port (
+	    clk     : in std_ulogic;
+	    rst     : in std_ulogic;
+
+	    lclk    : in std_ulogic;
+	    lframe  : in std_ulogic;
+	    lreset  : in std_ulogic;
+	    lad_en  : out std_ulogic;
+	    lad_out : out std_ulogic_vector(3 downto 0);
+	    lad_in  : in std_ulogic_vector(3 downto 0);
+
+	    adr     : in std_ulogic_vector(13 downto 0);
+	    dat_w   : in std_ulogic_vector(31 downto 0);
+	    dat_r   : out std_ulogic_vector(31 downto 0);
+	    ack     : out std_ulogic;
+	    cyc     : in std_ulogic;
+	    sel     : in std_ulogic;
+	    stb     : in std_ulogic;
+	    we      : in std_ulogic;
+
+	    dma_adr   : out std_ulogic_vector(29 downto 0);
+	    dma_dat_w : out std_ulogic_vector(31 downto 0);
+	    dma_dat_r : in std_ulogic_vector(31 downto 0);
+	    dma_ack   : in std_ulogic;
+	    dma_cyc   : out std_ulogic;
+	    dma_sel   : out std_ulogic_vector(3 downto 0);
+	    dma_stb   : out std_ulogic;
+	    dma_we    : out std_ulogic;
+
+	    bmc_ipmi_irq   : out std_ulogic;
+	    bmc_vuart_irq  : out std_ulogic;
+	    target_ipmi_irq  : out std_ulogic;
+	    target_vuart_irq : out std_ulogic
+	    );
+	end component;
+    begin
+        lpc0: lpc_top
+            port map(
+                rst => rst_lpc,
+                clk => system_clk,
+
+		adr => wb_lpc_in.adr(13 downto 0),
+		dat_w => wb_lpc_in.dat(31 downto 0),
+		dat_r => wb_lpc_out.dat(31 downto 0),
+		ack => wb_lpc_out.ack,
+		cyc => wb_lpc_in.cyc,
+		sel => wb_lpc_in.sel(0),
+		stb => wb_lpc_in.stb,
+		we => wb_lpc_in.we,
+
+		dma_adr => wb_lpc_dma_nr.adr(29 downto 0),
+		dma_dat_w => wb_lpc_dma_nr.dat(31 downto 0),
+		dma_dat_r => wb_lpc_dma_ir.dat(31 downto 0),
+		dma_sel => wb_lpc_dma_nr.sel,
+		dma_cyc => wb_lpc_dma_nr.cyc,
+		dma_stb => wb_lpc_dma_nr.stb,
+		dma_ack => wb_lpc_dma_ir.ack,
+		dma_we => wb_lpc_dma_nr.we,
+
+		lclk => lpc_clock,
+		lframe => lpc_frame_n,
+		lreset => lpc_reset_n,
+		lad_out => lpc_data_o,
+		lad_in => lpc_data_i,
+		lad_en => lpc_data_oe,
+
+		bmc_ipmi_irq => lpc_ipmi_irq,
+		bmc_vuart_irq => lpc_vuart_irq
+                );
+	lpc_master_wb_err <= '0';
+	lpc_irq_o <= '0';
+	lpc_irq_oe <= '0';
+	-- FIXME hook up irqs
+
+        wb_lpc_out.stall <= not wb_lpc_out.ack;
+
+        -- Convert non-pipelined DMA wishbone to pipelined by suppressing
+        -- non-acknowledged strobes
+        process(system_clk)
+        begin
+            if rising_edge(system_clk) then
+                wb_lpc_dma_out <= wb_lpc_dma_nr;
+                if wb_lpc_dma_stb_sent = '1' or
+                    (wb_lpc_dma_out.stb = '1' and wb_lpc_dma_in.stall = '0') then
+                    wb_lpc_dma_out.stb <= '0';
+                end if;
+                if wb_lpc_dma_nr.cyc = '0' or wb_lpc_dma_ir.ack = '1' then
+                    wb_lpc_dma_stb_sent <= '0';
+                elsif wb_lpc_dma_in.stall = '0' then
+                    wb_lpc_dma_stb_sent <= wb_lpc_dma_nr.stb;
+                end if;
+                wb_lpc_dma_ir <= wb_lpc_dma_in;
+            end if;
+        end process;
+
+    end generate;
+
+    no_lpc_gen: if not HAS_LPC generate
+	lpc_data_o <= (others => '0');
+	lpc_data_oe <= '0';
+	lpc_irq_o <= '0';
+	lpc_irq_oe <= '0';
+
+	wb_lpc_out.dat <= (others => '1');
+        wb_lpc_out.ack  <= wb_lpc_in.cyc and wb_lpc_in.stb;
+        wb_lpc_out.stall <= wb_lpc_in.cyc and not wb_lpc_out.ack;
+    end generate;
+
     xics_icp: entity work.xics_icp
 	port map(
 	    clk => system_clk,
@@ -942,6 +1098,8 @@ begin
         int_level_in(2) <= uart1_irq;
         int_level_in(3) <= ext_irq_sdcard;
         int_level_in(4) <= gpio_intr;
+        int_level_in(5) <= lpc_vuart_irq;
+        int_level_in(6) <= lpc_ipmi_irq;
     end process;
 
     -- BRAM Memory slave

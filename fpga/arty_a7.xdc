@@ -80,14 +80,14 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdca
 # PMOD header JB (high-speed, no protection resisters)
 ################################################################################
 
-#set_property -dict { PACKAGE_PIN E15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_1 }];
-#set_property -dict { PACKAGE_PIN E16 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_2 }];
-#set_property -dict { PACKAGE_PIN D15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_3 }];
-#set_property -dict { PACKAGE_PIN C15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_4 }];
-#set_property -dict { PACKAGE_PIN J17 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_7 }];
-#set_property -dict { PACKAGE_PIN J18 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_8 }];
-#set_property -dict { PACKAGE_PIN K15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_9 }];
-#set_property -dict { PACKAGE_PIN J15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_10 }];
+set_property -dict { PACKAGE_PIN E15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb[1] }];
+set_property -dict { PACKAGE_PIN E16 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb[2] }];
+set_property -dict { PACKAGE_PIN D15 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { pmod_jb[3] }];
+set_property -dict { PACKAGE_PIN C15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[6] }];
+set_property -dict { PACKAGE_PIN J17 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { pmod_jb[7] }];
+set_property -dict { PACKAGE_PIN J18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[7] }];
+set_property -dict { PACKAGE_PIN K15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb[9] }];
+set_property -dict { PACKAGE_PIN J15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb[10] }];
 
 # connection to Digilent PmodSD on JB
 #set_property -dict { PACKAGE_PIN E15 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[3] }];
@@ -103,14 +103,14 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdca
 # PMOD header JC (high-speed, no protection resisters)
 ################################################################################
 
-#set_property -dict { PACKAGE_PIN U12 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_1 }];
-#set_property -dict { PACKAGE_PIN V12 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_2 }];
-#set_property -dict { PACKAGE_PIN V10 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_3 }];
-#set_property -dict { PACKAGE_PIN V11 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_4 }];
-#set_property -dict { PACKAGE_PIN U14 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_7 }];
-#set_property -dict { PACKAGE_PIN V14 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_8 }];
-#set_property -dict { PACKAGE_PIN T13 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_9 }];
-#set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_10 }];
+set_property -dict { PACKAGE_PIN U12 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { pmod_jc[1] }];
+set_property -dict { PACKAGE_PIN V12 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc[2] }];
+set_property -dict { PACKAGE_PIN V10 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { pmod_jc[3] }];
+set_property -dict { PACKAGE_PIN V11 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc[4] }];
+set_property -dict { PACKAGE_PIN U14 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { pmod_jc[7] }];
+set_property -dict { PACKAGE_PIN V14 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc[8] }];
+set_property -dict { PACKAGE_PIN T13 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { pmod_jc[9] }];
+set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc[10] }];
 
 ################################################################################
 # PMOD header JD (standard, 200 ohm protection resisters)
@@ -135,8 +135,8 @@ set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_po
 set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[3] }];
 set_property -dict { PACKAGE_PIN R12 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[4] }];
 set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[5] }];
-set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[6] }];
-set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[7] }];
+set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb[4] }];
+set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb[8] }];
 set_property -dict { PACKAGE_PIN N15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[8] }];
 set_property -dict { PACKAGE_PIN M16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[9] }];
 set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io[10] }];
@@ -552,3 +552,4 @@ set_false_path -quiet -through [get_nets -hierarchical -filter {mr_ff == TRUE}]
 set_false_path -quiet -to [get_pins -filter {REF_PIN_NAME == PRE} -of_objects [get_cells -hierarchical -filter {ars_ff1 == TRUE || ars_ff2 == TRUE}]]
 
 set_max_delay 2 -quiet -from [get_pins -filter {REF_PIN_NAME == C} -of_objects [get_cells -hierarchical -filter {ars_ff1 == TRUE}]] -to [get_pins -filter {REF_PIN_NAME == D} -of_objects [get_cells -hierarchical -filter {ars_ff2 == TRUE}]]
+

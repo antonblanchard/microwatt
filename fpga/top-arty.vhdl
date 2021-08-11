@@ -17,6 +17,7 @@ entity toplevel is
         HAS_FPU            : boolean  := true;
         HAS_BTC            : boolean  := true;
         HAS_SHORT_MULT     : boolean  := false;
+        HAS_LPC            : boolean  := true;
         USE_LITEDRAM       : boolean  := false;
         NO_BRAM            : boolean  := false;
         DISABLE_FLATTEN_CORE : boolean := false;
@@ -59,6 +60,10 @@ entity toplevel is
 
         -- GPIO
         shield_io        : inout std_ulogic_vector(44 downto 0);
+
+	-- LPC
+	pmod_jb          : inout std_ulogic_vector(10 downto 1);
+	pmod_jc          : inout std_ulogic_vector(10 downto 1);
 
         -- Ethernet
         eth_ref_clk      : out std_ulogic;
@@ -163,6 +168,18 @@ architecture behaviour of toplevel is
     signal gpio_out    : std_ulogic_vector(NGPIO - 1 downto 0);
     signal gpio_dir    : std_ulogic_vector(NGPIO - 1 downto 0);
 
+    -- LPC
+    signal lpc_data_o        : std_ulogic_vector(3 downto 0);
+    signal lpc_data_o_reg    : std_ulogic_vector(3 downto 0);
+    signal lpc_data_oe       : std_ulogic;
+    signal lpc_data_i        : std_ulogic_vector(3 downto 0);
+    signal lpc_irq_o         : std_ulogic;
+    signal lpc_irq_oe        : std_ulogic;
+    signal lpc_irq_i         : std_ulogic;
+    signal lpc_frame_n       : std_ulogic;
+    signal lpc_reset_n       : std_ulogic;
+    signal lpc_clock         : std_ulogic;
+
     -- Fixup various memory sizes based on generics
     function get_bram_size return natural is
     begin
@@ -196,6 +213,7 @@ begin
             HAS_FPU            => HAS_FPU,
             HAS_BTC            => HAS_BTC,
             HAS_SHORT_MULT     => HAS_SHORT_MULT,
+            HAS_LPC            => HAS_LPC,
             HAS_DRAM           => USE_LITEDRAM,
             DRAM_SIZE          => 256 * 1024 * 1024,
             DRAM_INIT_SIZE     => PAYLOAD_SIZE,
@@ -238,6 +256,17 @@ begin
             gpio_out          => gpio_out,
             gpio_dir          => gpio_dir,
 
+	    -- LPC
+	    lpc_data_o        => lpc_data_o,
+	    lpc_data_oe       => lpc_data_oe,
+	    lpc_data_i        => lpc_data_i,
+	    lpc_frame_n       => lpc_frame_n,
+	    lpc_reset_n       => lpc_reset_n,
+	    lpc_clock         => lpc_clock,
+	    lpc_irq_o         => lpc_irq_o,
+	    lpc_irq_oe        => lpc_irq_oe,
+	    lpc_irq_i         => lpc_irq_i,
+
             -- External interrupts
             ext_irq_eth       => ext_irq_eth,
             ext_irq_sdcard    => ext_irq_sdcard,
@@ -262,6 +291,35 @@ begin
             );
 
     --uart_pmod_rts_n <= '0';
+
+    -- LPC inout/bidir pins (assignments requested by paulus)
+    lpc_clock <= pmod_jb(1);
+    pmod_jb(2) <= '0';
+
+    lpc_data_i(0) <= pmod_jc(1);
+    lpc_data_i(1) <= pmod_jc(3);
+    lpc_data_i(2) <= pmod_jc(7);
+    lpc_data_i(3) <= pmod_jc(9);
+    lpc_data_o_reg <= lpc_data_o;
+
+    pmod_jc(1) <= lpc_data_o_reg(0) when lpc_data_oe = '1' and ext_rst_n = '1' else 'Z';
+    pmod_jc(2) <= '0';
+    pmod_jc(3) <= lpc_data_o_reg(1) when lpc_data_oe = '1' and ext_rst_n = '1' else 'Z';
+    pmod_jc(4) <= '0';
+    pmod_jc(7) <= lpc_data_o_reg(2) when lpc_data_oe = '1' and ext_rst_n = '1' else 'Z';
+    pmod_jc(8) <= '0';
+    pmod_jc(9) <= lpc_data_o_reg(3) when lpc_data_oe = '1' and ext_rst_n = '1' else 'Z';
+    pmod_jc(10) <= '0';
+
+    lpc_reset_n <= pmod_jb(3);
+    pmod_jb(4) <= 'Z';          -- actually comes out on 40-pin connector
+    lpc_frame_n <= pmod_jb(7);
+    pmod_jb(7) <= 'Z';
+    pmod_jb(8) <= 'Z';          -- actually comes out on 40-pin connector
+    pmod_jb(9) <= lpc_irq_o  when lpc_irq_oe  = '1' and ext_rst_n = '1' else 'Z';
+    lpc_irq_i <= pmod_jb(9);
+    pmod_jb(10) <= lpc_data_oe;
+
 
     -- SPI Flash
     --
@@ -699,8 +757,8 @@ begin
     gpio_in(3) <= shield_io(3);
     gpio_in(4) <= shield_io(4);
     gpio_in(5) <= shield_io(5);
-    gpio_in(6) <= shield_io(6);
-    gpio_in(7) <= shield_io(7);
+    gpio_in(6) <= shield_io(6); -- actually comes out on JB4
+    gpio_in(7) <= shield_io(7); -- actually comes out on JB8
     gpio_in(8) <= shield_io(8);
     gpio_in(9) <= shield_io(9);
     gpio_in(10) <= shield_io(10);

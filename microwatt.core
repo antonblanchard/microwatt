@@ -50,6 +50,7 @@ filesets:
       - sync_fifo.vhdl
       - spi_rxtx.vhdl
       - spi_flash_ctrl.vhdl
+      - lpc/lpc.v        : {file_type : verilogSource}
     file_type : vhdlSource-2008
 
   fpga:
@@ -339,6 +340,7 @@ targets:
       - has_fpu
       - has_btc
       - has_short_mult
+      - has_lpc
     generate: [litedram_arty, liteeth_arty, litesdcard_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
@@ -501,6 +503,12 @@ parameters:
   has_short_mult:
     datatype    : bool
     description : Include a 16 bit x 16 bit single-cycle multiplier in the core
+    paramtype   : generic
+    default     : false
+
+  has_lpc:
+    datatype    : bool
+    description : Include an LPC slave in the SOC
     paramtype   : generic
     default     : false
 
