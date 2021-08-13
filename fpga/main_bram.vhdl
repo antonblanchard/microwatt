@@ -17,8 +17,8 @@ entity main_bram is
     port(
         clk  : in std_logic;
         addr : in std_logic_vector(HEIGHT_BITS - 1 downto 0) ;
-        di   : in std_logic_vector(WIDTH-1 downto 0);
-        do   : out std_logic_vector(WIDTH-1 downto 0);
+        din  : in std_logic_vector(WIDTH-1 downto 0);
+        dout : out std_logic_vector(WIDTH-1 downto 0);
         sel  : in std_logic_vector((WIDTH/8)-1 downto 0);
         re   : in std_ulogic;
         we   : in std_ulogic
@@ -68,14 +68,14 @@ begin
                 for i in 0 to 7 loop
                     if sel(i) = '1' then
                         memory(to_integer(unsigned(addr)))((i + 1) * 8 - 1 downto i * 8) <=
-                            di((i + 1) * 8 - 1 downto i * 8);
+                            din((i + 1) * 8 - 1 downto i * 8);
                     end if;
                 end loop;
             end if;
             if re = '1' then
                 obuf <= memory(to_integer(unsigned(addr)));
             end if;
-            do <= obuf;
+            dout <= obuf;
         end if;
     end process;
 
