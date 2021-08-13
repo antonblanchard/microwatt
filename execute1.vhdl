@@ -47,6 +47,9 @@ entity execute1 is
 
         -- PMU event buses
         wb_events    : in WritebackEventType;
+        ls_events    : in Loadstore1EventType;
+        dc_events    : in DcacheEventType;
+        ic_events    : in IcacheEventType;
 
         log_out : out std_ulogic_vector(14 downto 0);
         log_rd_addr : out std_ulogic_vector(31 downto 0);
@@ -70,6 +73,11 @@ architecture behaviour of execute1 is
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
+        no_instr_avail : std_ulogic;
+        instr_dispatch : std_ulogic;
+        ext_interrupt : std_ulogic;
+        taken_branch_event : std_ulogic;
+        br_mispredict : std_ulogic;
         log_addr_spr : std_ulogic_vector(31 downto 0);
     end record;
     constant reg_type_init : reg_type :=
@@ -78,6 +86,8 @@ architecture behaviour of execute1 is
          busy => '0', terminate => '0', intr_pending => '0',
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL, br_taken => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
+         no_instr_avail => '0', instr_dispatch => '0', ext_interrupt => '0',
+         taken_branch_event => '0', br_mispredict => '0',
          others => (others => '0'));
 
     signal r, rin : reg_type;
@@ -302,7 +312,24 @@ begin
     c_in <= e_in.read_data3;
     cr_in <= e_in.cr;
 
-    x_to_pmu.occur <= (instr_complete => wb_events.instr_complete, others => '0');
+    x_to_pmu.occur <= (instr_complete => wb_events.instr_complete,
+                       fp_complete => wb_events.fp_complete,
+                       ld_complete => ls_events.load_complete,
+                       st_complete => ls_events.store_complete,
+                       itlb_miss => ls_events.itlb_miss,
+                       dc_load_miss => dc_events.load_miss,
+                       dc_ld_miss_resolved => dc_events.dcache_refill,
+                       dc_store_miss => dc_events.store_miss,
+                       dtlb_miss => dc_events.dtlb_miss,
+                       dtlb_miss_resolved => dc_events.dtlb_miss_resolved,
+                       icache_miss => ic_events.icache_miss,
+                       itlb_miss_resolved => ic_events.itlb_miss_resolved,
+                       no_instr_avail => r.no_instr_avail,
+                       dispatch => r.instr_dispatch,
+                       ext_interrupt => r.ext_interrupt,
+                       br_taken_complete => r.taken_branch_event,
+                       br_mispredict => r.br_mispredict,
+                       others => '0');
     x_to_pmu.nia <= current.nia;
     x_to_pmu.addr <= (others => '0');
     x_to_pmu.addr_v <= '0';
@@ -715,6 +742,9 @@ begin
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
         v.mul_finish := '0';
+        v.ext_interrupt := '0';
+        v.taken_branch_event := '0';
+        v.br_mispredict := '0';
 
         x_to_pmu.mfspr <= '0';
         x_to_pmu.mtspr <= '0';
@@ -804,6 +834,7 @@ begin
                 elsif ext_irq_in = '1' then
                     v.e.intr_vec := 16#500#;
                     report "IRQ valid: External";
+                    v.ext_interrupt := '1';
                 end if;
                 exception := '1';
 
@@ -835,6 +866,9 @@ begin
         if l_in.interrupt = '1' then
             v.intr_pending := '0';
         end if;
+
+        v.no_instr_avail := not (e_in.valid or l_in.busy or l_in.in_progress or r.busy or fp_in.busy);
+        v.instr_dispatch := valid_in and not exception and not illegal;
 
 	if valid_in = '1' and exception = '0' and illegal = '0' and e_in.unit = ALU then
 	    v.e.valid := '1';
@@ -905,6 +939,7 @@ begin
                 if ctrl.msr(MSR_BE) = '1' then
                     do_trace := '1';
                 end if;
+                v.taken_branch_event := '1';
             when OP_BC | OP_BCREG =>
                 -- read_data1 is CTR
 		-- for OP_BCREG, read_data2 is target register (CTR, LR or TAR)
@@ -920,6 +955,7 @@ begin
                     taken_branch := r.br_taken;
                 end if;
                 v.br_taken := taken_branch;
+                v.taken_branch_event := taken_branch;
                 abs_branch := e_in.br_abs;
                 if e_in.repeat = '0' or e_in.second = '1' then
                     is_branch := '1';
@@ -1114,6 +1150,7 @@ begin
                 end if;
                 if taken_branch /= e_in.br_pred then
                     v.e.redirect := '1';
+                    v.br_mispredict := is_direct_branch;
                 end if;
                 v.e.br_last := is_direct_branch;
                 v.e.br_taken := taken_branch;

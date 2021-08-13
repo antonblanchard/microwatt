@@ -46,6 +46,8 @@ entity dcache is
         wishbone_out : out wishbone_master_out;
         wishbone_in  : in wishbone_slave_out;
 
+        events       : out DcacheEventType;
+
         log_out      : out std_ulogic_vector(19 downto 0)
         );
 end entity dcache;
@@ -355,6 +357,8 @@ architecture rtl of dcache is
 
     signal r1 : reg_stage_1_t;
 
+    signal ev : DcacheEventType;
+
     -- Reservation information
     --
     type reservation_t is record
@@ -412,6 +416,7 @@ architecture rtl of dcache is
     signal rc_ok : std_ulogic;
     signal perm_ok : std_ulogic;
     signal access_ok : std_ulogic;
+    signal tlb_miss : std_ulogic;
 
     -- TLB PLRU output interface
     type tlb_plru_out_t is array(tlb_index_t) of std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
@@ -605,6 +610,8 @@ begin
     r0_valid <= r0_full and not r1.full and not d_in.hold;
     stall_out <= r0_stall;
 
+    events <= ev;
+
     -- TLB
     -- Operates in the second cycle on the request latched in r0.req.
     -- TLB updates write the entry at the end of the second cycle.
@@ -689,6 +696,7 @@ begin
             pte <= (others => '0');
         end if;
         valid_ra <= tlb_hit or not r0.req.virt_mode;
+        tlb_miss <= r0_valid and r0.req.virt_mode and not tlb_hit;
         if r0.req.virt_mode = '1' then
             ra <= pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
                   r0.req.addr(TLB_LG_PGSZ - 1 downto ROW_OFF_BITS) &
@@ -712,6 +720,7 @@ begin
         if rising_edge(clk) then
             tlbie := r0_valid and r0.tlbie;
             tlbwe := r0_valid and r0.tlbld;
+            ev.dtlb_miss_resolved <= tlbwe;
             if rst = '1' or (tlbie = '1' and r0.doall = '1') then
                 -- clear all valid bits at once
                 for i in tlb_index_t loop
@@ -1286,6 +1295,11 @@ begin
                 r1.forward_valid1 <= '0';
             end if;
 
+            ev.dcache_refill <= '0';
+            ev.load_miss <= '0';
+            ev.store_miss <= '0';
+            ev.dtlb_miss <= tlb_miss;
+
 	    -- On reset, clear all valid bits to force misses
             if rst = '1' then
 		for i in index_t loop
@@ -1417,6 +1431,7 @@ begin
 			-- Track that we had one request sent
 			r1.state <= RELOAD_WAIT_ACK;
                         r1.write_tag <= '1';
+                        ev.load_miss <= '1';
 
 		    when OP_LOAD_NC =>
                         r1.wb.cyc <= '1';
@@ -1449,6 +1464,9 @@ begin
                         r1.wb.we <= '1';
                         r1.wb.cyc <= '1';
                         r1.wb.stb <= '1';
+                        if req.op = OP_STORE_MISS then
+                            ev.store_miss <= '1';
+                        end if;
 
 		    -- OP_NONE and OP_BAD do nothing
                     -- OP_BAD & OP_STCX_FAIL were handled above already
@@ -1500,6 +1518,7 @@ begin
 			    -- Cache line is now valid
 			    cache_valids(r1.store_index)(r1.store_way) <= '1';
 
+                            ev.dcache_refill <= not r1.dcbz;
                             r1.state <= IDLE;
 			end if;
 

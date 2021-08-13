@@ -148,6 +148,9 @@ architecture behave of core is
     signal msr : std_ulogic_vector(63 downto 0);
 
     -- PMU event bus
+    signal icache_events    : IcacheEventType;
+    signal loadstore_events : Loadstore1EventType;
+    signal dcache_events    : DcacheEventType;
     signal writeback_events : WritebackEventType;
 
     -- Debug status
@@ -247,6 +250,7 @@ begin
             wishbone_out => wishbone_insn_out,
             wishbone_in => wishbone_insn_in,
             wb_snoop_in => wb_snoop_in,
+            events => icache_events,
             log_out => log_data(96 downto 43)
             );
 
@@ -356,6 +360,9 @@ begin
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
             wb_events => writeback_events,
+            ls_events => loadstore_events,
+            dc_events => dcache_events,
+            ic_events => icache_events,
             terminate_out => terminate,
             log_out => log_data(134 downto 120),
             log_rd_addr => log_rd_addr,
@@ -397,6 +404,7 @@ begin
             m_out => loadstore1_to_mmu,
             m_in => mmu_to_loadstore1,
             dc_stall => dcache_stall_out,
+            events => loadstore_events,
             log_out => log_data(149 downto 140)
             );
 
@@ -431,6 +439,7 @@ begin
             wishbone_in => wishbone_data_in,
             wishbone_out => wishbone_data_out,
             snoop_in => wb_snoop_in,
+            events => dcache_events,
             log_out => log_data(170 downto 151)
             );
 

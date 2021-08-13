@@ -70,6 +70,7 @@ entity icache is
 
         wb_snoop_in  : in wishbone_master_out := wishbone_master_out_init;
 
+        events       : out IcacheEventType;
         log_out      : out std_ulogic_vector(53 downto 0)
         );
 end entity icache;
@@ -196,6 +197,8 @@ architecture rtl of icache is
     end record;
 
     signal r : reg_internal_t;
+
+    signal ev : IcacheEventType;
 
     -- Async signals on incoming request
     signal req_index   : index_t;
@@ -494,6 +497,7 @@ begin
                 itlb_ptes(wr_index) <= m_in.pte;
                 itlb_valids(wr_index) <= '1';
             end if;
+            ev.itlb_miss_resolved <= m_in.tlbld and not rst;
         end if;
     end process;
 
@@ -627,6 +631,7 @@ begin
         variable snoop_cache_tags : cache_tags_set_t;
     begin
         if rising_edge(clk) then
+            ev.icache_miss <= '0';
 	    -- On reset, clear all valid bits to force misses
             if rst = '1' then
 		for i in index_t loop
@@ -699,6 +704,7 @@ begin
 			    " way:" & integer'image(replace_way) &
 			    " tag:" & to_hstring(req_tag) &
                             " RA:" & to_hstring(real_addr);
+                        ev.icache_miss <= '1';
 
 			-- Keep track of our index and way for subsequent stores
 			r.store_index <= req_index;

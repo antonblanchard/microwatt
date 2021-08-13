@@ -209,6 +209,11 @@ package common is
         next_predicted: std_ulogic;
     end record;
 
+    type IcacheEventType is record
+        icache_miss : std_ulogic;
+        itlb_miss_resolved : std_ulogic;
+    end record;
+
     type Decode1ToDecode2Type is record
 	valid: std_ulogic;
 	stop_mark : std_ulogic;
@@ -347,8 +352,10 @@ package common is
         itlb_miss_resolved  : std_ulogic;
         icache_miss         : std_ulogic;
         dc_miss_resolved    : std_ulogic;
+        dc_load_miss        : std_ulogic;
         dc_ld_miss_resolved : std_ulogic;
         dc_store_miss       : std_ulogic;
+        dtlb_miss           : std_ulogic;
         dtlb_miss_resolved  : std_ulogic;
         ld_miss_nocache     : std_ulogic;
         ld_fill_nocache     : std_ulogic;
@@ -468,6 +475,14 @@ package common is
         cache_paradox : std_ulogic;
     end record;
 
+    type DcacheEventType is record
+        load_miss          : std_ulogic;
+        store_miss         : std_ulogic;
+        dcache_refill      : std_ulogic;
+        dtlb_miss          : std_ulogic;
+        dtlb_miss_resolved : std_ulogic;
+    end record;
+
     type Loadstore1ToMmuType is record
         valid : std_ulogic;
         tlbie : std_ulogic;
@@ -536,6 +551,12 @@ package common is
          xerc => xerc_init, rc => '0', store_done => '0',
          interrupt => '0', intr_vec => 0,
          srr0 => (others => '0'), srr1 => (others => '0'));
+
+    type Loadstore1EventType is record
+        load_complete  : std_ulogic;
+        store_complete : std_ulogic;
+        itlb_miss      : std_ulogic;
+    end record;
 
     type Execute1ToWritebackType is record
 	valid: std_ulogic;
@@ -668,7 +689,8 @@ package common is
 							       write_cr_data => (others => '0'));
 
     type WritebackEventType is record
-        instr_complete      : std_ulogic;
+        instr_complete : std_ulogic;
+        fp_complete    : std_ulogic;
     end record;
 
 end common;

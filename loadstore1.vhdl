@@ -33,6 +33,8 @@ entity loadstore1 is
 
         dc_stall  : in std_ulogic;
 
+        events  : out Loadstore1EventType;
+
         log_out : out std_ulogic_vector(9 downto 0)
         );
 end loadstore1;
@@ -146,6 +148,7 @@ architecture behave of loadstore1 is
         intr_vec     : integer range 0 to 16#fff#;
         nia          : std_ulogic_vector(63 downto 0);
         srr1         : std_ulogic_vector(15 downto 0);
+        events       : Loadstore1EventType;
     end record;
 
     signal req_in   : request_t;
@@ -668,6 +671,7 @@ begin
         do_update := '0';
         v.convert_lfs := '0';
         v.srr1 := (others => '0');
+        v.events := (others => '0');
 
         -- load data formatting
         -- shift and byte-reverse data bytes
@@ -796,6 +800,7 @@ begin
                     mmu_mtspr := r2.req.write_spr;
                     if r2.req.instr_fault = '1' then
                         v.state := MMU_LOOKUP;
+                        v.events.itlb_miss := '1';
                     else
                         v.state := TLBIE_WAIT;
                     end if;
@@ -837,6 +842,9 @@ begin
             v.stage1_en := '1';
             v.state := IDLE;
         end if;
+
+        v.events.load_complete := r2.req.load and complete;
+        v.events.store_complete := (r2.req.store or r2.req.dcbz) and complete;
 
         -- generate DSI or DSegI for load/store exceptions
         -- or ISI or ISegI for instruction fetch exceptions
@@ -945,6 +953,8 @@ begin
         e_out.busy <= busy;
         e_out.in_progress <= in_progress;
         e_out.interrupt <= r3.interrupt;
+
+        events <= r3.events;
 
         -- Busy calculation.
         stage3_busy_next <= r2.req.valid and not (complete or part_done or exception);

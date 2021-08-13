@@ -290,13 +290,13 @@ begin
             when x"f8" =>
                 inc(3) := tbbit;
             when x"fe" =>
-                inc(3) := p_in.occur.ld_fill_nocache;
+                inc(3) := p_in.occur.dtlb_miss;
             when others =>
         end case;
 
         case mmcr1(7 downto 0) is
             when x"f0" =>
-                inc(4) := p_in.occur.dc_store_miss;
+                inc(4) := p_in.occur.dc_load_miss;
             when x"f2" =>
                 inc(4) := p_in.occur.dispatch;
             when x"f4" =>
