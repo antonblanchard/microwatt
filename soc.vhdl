@@ -81,7 +81,8 @@ entity soc is
         DCACHE_TLB_SET_SIZE : natural := 64;
         DCACHE_TLB_NUM_WAYS : natural := 2;
         HAS_SD_CARD        : boolean := false;
-        NGPIO              : natural := 0
+        HAS_GPIO           : boolean := false;
+        NGPIO              : natural := 32
 	);
     port(
 	rst          : in  std_ulogic;
@@ -913,20 +914,22 @@ begin
             icp_out => ics_to_icp
 	    );
 
-    gpio : entity work.gpio
-        generic map(
-            NGPIO => NGPIO
-            )
-        port map(
-            clk      => system_clk,
-            rst      => rst_gpio,
-            wb_in    => wb_gpio_in,
-            wb_out   => wb_gpio_out,
-            gpio_in  => gpio_in,
-            gpio_out => gpio_out,
-            gpio_dir => gpio_dir,
-            intr     => gpio_intr
-            );
+    gpio0_gen: if HAS_GPIO generate
+        gpio : entity work.gpio
+            generic map(
+                NGPIO => NGPIO
+                )
+            port map(
+                clk      => system_clk,
+                rst      => rst_gpio,
+                wb_in    => wb_gpio_in,
+                wb_out   => wb_gpio_out,
+                gpio_in  => gpio_in,
+                gpio_out => gpio_out,
+                gpio_dir => gpio_dir,
+                intr     => gpio_intr
+                );
+    end generate;
 
     -- Assign external interrupts
     interrupts: process(all)
