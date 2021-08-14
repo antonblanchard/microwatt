@@ -241,8 +241,14 @@ $(tests_console): core_tb
 test_micropython: core_tb
 	@./scripts/test_micropython.py
 
+test_micropython_verilator: microwatt-verilator
+	@./scripts/test_micropython_verilator.py
+
 test_micropython_long: core_tb
 	@./scripts/test_micropython_long.py
+
+test_micropython_verilator_long: microwatt-verilator
+	@./scripts/test_micropython_verilator_long.py
 
 tests_soc_tb = $(patsubst %_tb,%_tb_test,$(soc_tbs))
 
