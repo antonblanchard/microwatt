@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "Vmicrowatt.h"
+#include "Vtoplevel.h"
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 
@@ -24,7 +24,7 @@ double sc_time_stamp(void)
 VerilatedVcdC *tfp;
 #endif
 
-void tick(Vmicrowatt *top)
+void tick(Vtoplevel *top)
 {
 	top->ext_clk = 1;
 	top->eval();
@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 	Verilated::commandArgs(argc, argv);
 
 	// init top verilog instance
-	Vmicrowatt* top = new Vmicrowatt;
+	Vtoplevel* top = new Vtoplevel;
 
 #if VM_TRACE
 	// init trace dump
