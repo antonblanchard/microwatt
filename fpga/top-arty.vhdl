@@ -28,6 +28,7 @@ entity toplevel is
         UART_IS_16550      : boolean  := false;
         HAS_UART1          : boolean  := true;
         USE_LITESDCARD     : boolean := false;
+        HAS_GPIO           : boolean := true;
         NGPIO              : natural := 32
         );
     port(
@@ -207,6 +208,7 @@ begin
             UART0_IS_16550     => UART_IS_16550,
             HAS_UART1          => HAS_UART1,
             HAS_SD_CARD        => USE_LITESDCARD,
+            HAS_GPIO           => HAS_GPIO,
             NGPIO              => NGPIO
             )
         port map (
