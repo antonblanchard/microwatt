@@ -141,8 +141,8 @@ $(soc_dram_tbs): %: $(soc_dram_files) $(soc_dram_sim_files) $(soc_dram_sim_obj_f
 endif
 
 # Hello world
-MEMORY_SIZE=8192
-RAM_INIT_FILE=hello_world/hello_world.hex
+MEMORY_SIZE ?=8192
+RAM_INIT_FILE ?=hello_world/hello_world.hex
 
 # Micropython
 #MEMORY_SIZE=393216
