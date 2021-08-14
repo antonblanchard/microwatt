@@ -46,8 +46,8 @@ begin
 	port map(
 	    clk => clk,
 	    addr => ram_addr,
-	    di => wishbone_in.dat,
-	    do => wishbone_out.dat,
+	    din  => wishbone_in.dat,
+	    dout => wishbone_out.dat,
 	    sel => wishbone_in.sel,
 	    re => ram_re,
 	    we => ram_we

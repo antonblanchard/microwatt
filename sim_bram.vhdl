@@ -21,8 +21,8 @@ entity main_bram is
     port(
         clk  : in std_logic;
         addr : in std_logic_vector(HEIGHT_BITS - 1 downto 0) ;
-        di   : in std_logic_vector(WIDTH-1 downto 0);
-        do   : out std_logic_vector(WIDTH-1 downto 0);
+        din  : in std_logic_vector(WIDTH-1 downto 0);
+        dout : out std_logic_vector(WIDTH-1 downto 0);
         sel  : in std_logic_vector((WIDTH/8)-1 downto 0);
         re   : in std_ulogic;
         we   : in std_ulogic
@@ -50,9 +50,9 @@ begin
             addr64 := (others => '0');
             addr64(HEIGHT_BITS + 2 downto 3) := addr;
             if we = '1' then        
-                report "RAM writing " & to_hstring(di) & " to " &
+                report "RAM writing " & to_hstring(din) & " to " &
                     to_hstring(addr & pad_zeros) & " sel:" & to_hstring(sel);
-                behavioural_write(di, addr64, to_integer(unsigned(sel)), identifier);
+                behavioural_write(din, addr64, to_integer(unsigned(sel)), identifier);
             end if;
             if re = '1' then
                 behavioural_read(ret_dat_v, addr64, to_integer(unsigned(sel)), identifier);
@@ -60,7 +60,7 @@ begin
                     " returns " & to_hstring(ret_dat_v);
                 obuf <= ret_dat_v(obuf'left downto 0);
             end if;
-            do <= obuf;
+            dout <= obuf;
         end if;
     end process;
 
