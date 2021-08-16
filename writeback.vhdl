@@ -104,6 +104,7 @@ begin
             complete_out <= fp_in.instr_tag;
         end if;
         events.instr_complete <= complete_out.valid;
+        events.fp_complete <= fp_in.valid;
 
         intr := e_in.interrupt or l_in.interrupt or fp_in.interrupt;
 
