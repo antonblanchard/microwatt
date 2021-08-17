@@ -1,7 +1,8 @@
 GHDL ?= ghdl
 GHDLFLAGS=--std=08
 CFLAGS=-O3 -Wall
-VERILATOR_FLAGS=-O3 #--trace
+# Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
+VERILATOR_FLAGS=-O3 -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
 # It takes forever to build with optimisation, so disable by default
 #VERILATOR_CFLAGS=-O3
 
@@ -11,6 +12,7 @@ NEXTPNR   ?= nextpnr-ecp5
 ECPPACK   ?= ecppack
 OPENOCD   ?= openocd
 VUNITRUN  ?= python3 ./run.py
+VERILATOR ?= verilator
 
 # We need a version of GHDL built with either the LLVM or gcc backend.
 # Fedora provides this, but other distros may not. Another option is to use
@@ -39,6 +41,7 @@ NEXTPNR   = $(DOCKERBIN) $(DOCKERARGS) hdlc/nextpnr:ecp5 nextpnr-ecp5
 ECPPACK   = $(DOCKERBIN) $(DOCKERARGS) hdlc/prjtrellis ecppack
 OPENOCD   = $(DOCKERBIN) $(DOCKERARGS) --device /dev/bus/usb hdlc/prog openocd
 VUNITRUN  = $(DOCKERBIN) $(DOCKERARGS) ghdl/vunit:llvm python3 ./run.py
+VERILATOR = $(DOCKERBIN) $(DOCKERARGS) verilator/verilator:latest
 endif
 
 VUNITARGS += -p10
@@ -138,8 +141,8 @@ $(soc_dram_tbs): %: $(soc_dram_files) $(soc_dram_sim_files) $(soc_dram_sim_obj_f
 endif
 
 # Hello world
-MEMORY_SIZE=8192
-RAM_INIT_FILE=hello_world/hello_world.hex
+MEMORY_SIZE ?=8192
+RAM_INIT_FILE ?=hello_world/hello_world.hex
 
 # Micropython
 #MEMORY_SIZE=393216
@@ -201,10 +204,8 @@ microwatt.json: $(synth_files) $(RAM_INIT_FILE)
 microwatt.v: $(synth_files) $(RAM_INIT_FILE)
 	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
 
-# Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
-	verilator $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" --assert --cc $< --exe verilator/microwatt-verilator.cpp verilator/uart-verilator.c -o $@ -Iuart16550 -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT
-	make -C obj_dir -f Vmicrowatt.mk
+	$(VERILATOR) $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" -Iuart16550 --assert --cc --exe --build $^ -o $@ -top-module toplevel
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
 
 microwatt_out.config: microwatt.json $(LPF)
@@ -240,8 +241,14 @@ $(tests_console): core_tb
 test_micropython: core_tb
 	@./scripts/test_micropython.py
 
+test_micropython_verilator: microwatt-verilator
+	@./scripts/test_micropython_verilator.py
+
 test_micropython_long: core_tb
 	@./scripts/test_micropython_long.py
+
+test_micropython_verilator_long: microwatt-verilator
+	@./scripts/test_micropython_verilator_long.py
 
 tests_soc_tb = $(patsubst %_tb,%_tb_test,$(soc_tbs))
 

@@ -93,3 +93,17 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: make DOCKER=1 microwatt.v
+
+  verilator:
+    runs-on: ubuntu-latest
+    env:
+      DOCKER: 1
+      FPGA_TARGET: verilator
+      RAM_INIT_FILE: micropython/firmware.hex
+      MEMORY_SIZE: 524288
+    steps:
+    - uses: actions/checkout@v2
+    - run: |
+        sudo apt update
+        sudo apt install -y python3-pexpect
+        make -j$(nproc) test_micropython_verilator test_micropython_verilator_long
