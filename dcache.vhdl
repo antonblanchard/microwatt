@@ -578,6 +578,7 @@ begin
                 r.doall := m_in.doall;
                 r.tlbld := m_in.tlbld;
                 r.mmu_req := '1';
+                r.d_valid := '1';
             else
                 r.req := d_in;
                 r.req.data := (others => '0');
@@ -585,21 +586,19 @@ begin
                 r.doall := '0';
                 r.tlbld := '0';
                 r.mmu_req := '0';
+                r.d_valid := '0';
             end if;
-            r.d_valid := '0';
             if rst = '1' then
                 r0_full <= '0';
             elsif (r1.full = '0' and d_in.hold = '0') or r0_full = '0' then
                 r0 <= r;
                 r0_full <= r.req.valid;
-            end if;
-            -- Sample data the cycle after a request comes in from loadstore1.
-            -- If another request has come in already then the data will get
-            -- put directly into req.data below.
-            if r0.req.valid = '1' and r.req.valid = '0' and r0.d_valid = '0' and
-                r0.mmu_req = '0' then
+            elsif r0.d_valid = '0' then
+                -- Sample data the cycle after a request comes in from loadstore1.
+                -- If this request is already moving into r1 then the data will get
+                -- put directly into req.data in the dcache_slow process below.
                 r0.req.data <= d_in.data;
-                r0.d_valid <= '1';
+                r0.d_valid <= r0.req.valid;
             end if;
         end if;
     end process;
