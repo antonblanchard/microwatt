@@ -162,3 +162,26 @@ test_bdnzl:
 	li	%r3,0
 9:	mtlr	%r10
 	blr
+
+/* Test that a load that hits stores gets the correct data */
+	.global test_loadhitstore
+test_loadhitstore:
+	addi	%r5,%r1,-16
+	ld	%r0,0(%r5)
+	li	%r0,0
+	std	%r0,0(%r5)
+	li	%r6,0x66
+	li	%r7,0x77
+	.balign	64
+	nop
+	nop
+	nop
+	nop
+	stb	%r6,2(%r5)
+	stb	%r7,3(%r5)
+	ld	%r0,0(%r5)
+	sldi	%r6,%r6,16
+	sldi	%r7,%r7,24
+	or	%r7,%r6,%r7
+	subf	%r3,%r0,%r7
+	blr
