@@ -122,7 +122,7 @@ architecture rtl of dcache is
     type cache_valids_t is array(index_t) of cache_way_valids_t;
     type row_per_line_valid_t is array(0 to ROW_PER_LINE - 1) of std_ulogic;
 
-    -- Storage. Hopefully "cache_rows" is a BRAM, the rest is LUTs
+    -- Storage. Hopefully implemented in LUTs
     signal cache_tags    : cache_tags_array_t;
     signal cache_tag_set : cache_tags_set_t;
     signal cache_valids  : cache_valids_t;
@@ -386,12 +386,15 @@ architecture rtl of dcache is
     signal r0_stall   : std_ulogic;
 
     signal fwd_same_tag : std_ulogic;
-    signal use_forward  : std_ulogic;
+    signal use_forward_st : std_ulogic;
+    signal use_forward_rl : std_ulogic;
     signal use_forward2 : std_ulogic;
 
     -- Cache RAM interface
     type cache_ram_out_t is array(way_t) of cache_row_t;
     signal cache_out   : cache_ram_out_t;
+    signal ram_wr_data : cache_row_t;
+    signal ram_wr_select : std_ulogic_vector(ROW_SIZE - 1 downto 0);
 
     -- PLRU output interface
     type plru_out_t is array(index_t) of std_ulogic_vector(WAY_BITS-1 downto 0);
@@ -903,12 +906,13 @@ begin
         fwd_same_tag <= fwd_match;
 
         -- Whether to use forwarded data for a load or not
-        use_forward <= '0';
+        use_forward_st <= '0';
+        use_forward_rl <= '0';
         if r1.store_row = req_row and rel_match = '1' then
-            -- Use the forwarding path if last cycle was a write to this row
-            if (r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1') or
-                r1.write_bram = '1' then
-                use_forward <= '1';
+            -- Use the forwarding path if this cycle is a write to this row
+            use_forward_st <= r1.write_bram;
+            if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' then
+                use_forward_rl <= '1';
             end if;
         end if;
         use_forward2 <= '0';
@@ -931,9 +935,9 @@ begin
             -- For a store, consider this a hit even if the row isn't valid
             -- since it will be by the time we perform the store.
             -- For a load, check the appropriate row valid bit; but also,
-            -- if use_forward is 1 then we can consider this a hit.
+            -- if use_forward_rl is 1 then we can consider this a hit.
             is_hit := not r0.req.load or r1.rows_valid(req_row mod ROW_PER_LINE) or
-                      use_forward;
+                      use_forward_rl;
             hit_way := replace_way;
         end if;
 
@@ -1101,6 +1105,13 @@ begin
 
     end process;
 
+    -- RAM write data and select multiplexers
+    ram_wr_data <= r1.req.data when r1.write_bram = '1' else
+                   wishbone_in.dat when r1.dcbz = '0' else
+                   (others => '0');
+    ram_wr_select <= r1.req.byte_sel when r1.write_bram = '1' else
+                     (others => '1');
+
     --
     -- Generate a cache RAM for each way. This handles the normal
     -- reads, writes from reloads and the special store-hit update
@@ -1134,7 +1145,7 @@ begin
 		rd_data => dout,
 		wr_sel  => wr_sel_m,
 		wr_addr => wr_addr,
-		wr_data => wr_data
+		wr_data => ram_wr_data
 		);
 	process(all)
 	begin
@@ -1150,37 +1161,13 @@ begin
 	    -- For timing, the mux on wr_data/sel/addr is not dependent on anything
 	    -- other than the current state.
 	    --
-            wr_sel_m <= (others => '0');
-
-	    do_write <= '0';
-            if r1.write_bram = '1' then
-                -- Write store data to BRAM.  This happens one cycle after the
-                -- store is in r0.
-                wr_data <= r1.req.data;
-                wr_sel  <= r1.req.byte_sel;
-                wr_addr <= std_ulogic_vector(to_unsigned(get_row(r1.req.real_addr), ROW_BITS));
-                if i = r1.req.hit_way then
-                    do_write <= '1';
-                end if;
-	    else
-		-- Otherwise, we might be doing a reload or a DCBZ
-                if r1.dcbz = '1' then
-                    wr_data <= (others => '0');
-                else
-                    wr_data <= wishbone_in.dat;
-                end if;
-                wr_sel <= (others => '1');
-
-                if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' and replace_way = i then
-                    do_write <= '1';
-                end if;
-	    end if;
             wr_addr <= std_ulogic_vector(to_unsigned(r1.store_row, ROW_BITS));
 
-            -- Mask write selects with do_write since BRAM doesn't
-            -- have a global write-enable
-            if do_write = '1' then
-                wr_sel_m <= wr_sel;
+            wr_sel_m <= (others => '0');
+            if i = replace_way and
+                (r1.write_bram = '1' or
+                 (r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1')) then
+                wr_sel_m <= ram_wr_select;
             end if;
 
         end process;
@@ -1191,18 +1178,58 @@ begin
     -- It also handles error cases (TLB miss, cache paradox)
     --
     dcache_fast_hit : process(clk)
+        variable j        : integer;
+        variable sel      : std_ulogic_vector(1 downto 0);
+        variable data_out : std_ulogic_vector(63 downto 0);
     begin
         if rising_edge(clk) then
             if req_op /= OP_NONE then
-		report "op:" & op_t'image(req_op) &
-		    " addr:" & to_hstring(r0.req.addr) &
-		    " nc:" & std_ulogic'image(r0.req.nc) &
-		    " idx:" & integer'image(req_index) &
-		    " tag:" & to_hstring(req_tag) &
-		    " way: " & integer'image(req_hit_way);
-	    end if;
+                report "op:" & op_t'image(req_op) &
+                    " addr:" & to_hstring(r0.req.addr) &
+                    " nc:" & std_ulogic'image(r0.req.nc) &
+                    " idx:" & integer'image(req_index) &
+                    " tag:" & to_hstring(req_tag) &
+                    " way: " & integer'image(req_hit_way);
+            end if;
             if r0_valid = '1' then
                 r1.mmu_req <= r0.mmu_req;
+            end if;
+
+            -- Bypass/forwarding multiplexer for load data.
+            -- Use the bypass if are reading the row of BRAM that was written 0 or 1
+            -- cycles ago, including for the slow_valid = 1 cases (i.e. completing a
+            -- load miss or a non-cacheable load), which are handled via the r1.full case.
+            for i in 0 to 7 loop
+                if r1.full = '1' or use_forward_rl = '1' then
+                    sel := '0' & r1.dcbz;
+                elsif use_forward_st = '1' and r1.req.byte_sel(i) = '1' then
+                    sel := "01";
+                elsif use_forward2 = '1' and r1.forward_sel(i) = '1' then
+                    sel := "10";
+                else
+                    sel := "11";
+                end if;
+                j := i * 8;
+                case sel is
+                    when "00" =>
+                        data_out(j + 7 downto j) := wishbone_in.dat(j + 7 downto j);
+                    when "01" =>
+                        data_out(j + 7 downto j) := r1.req.data(j + 7 downto j);
+                    when "10" =>
+                        data_out(j + 7 downto j) := r1.forward_data(j + 7 downto j);
+                    when others =>
+                        data_out(j + 7 downto j) := cache_out(req_hit_way)(j + 7 downto j);
+                end case;
+            end loop;
+            r1.data_out <= data_out;
+
+            r1.forward_data <= ram_wr_data;
+            r1.forward_tag <= r1.reload_tag;
+            r1.forward_row <= r1.store_row;
+            r1.forward_sel <= ram_wr_select;
+            r1.forward_valid <= r1.write_bram;
+            if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' then
+                r1.forward_valid <= '1';
             end if;
 
             -- Fast path for load/store hits. Set signals for the writeback controls.
@@ -1259,56 +1286,8 @@ begin
         variable stbs_done : boolean;
         variable req       : mem_access_request_t;
         variable acks      : unsigned(2 downto 0);
-        variable data_out  : std_ulogic_vector(63 downto 0);
-        variable data_fwd  : std_ulogic_vector(63 downto 0);
-        variable fwd_in    : std_ulogic_vector(63 downto 0);
-        variable fwd_sel   : std_ulogic_vector(7 downto 0);
-        variable j         : integer;
-        variable fwd_byte  : std_ulogic_vector(7 downto 0);
     begin
         if rising_edge(clk) then
-            fwd_sel := (others => '1');
-            if r1.write_bram = '1' then
-                fwd_in := r1.req.data;
-                fwd_sel := r1.req.byte_sel;
-            elsif r1.dcbz = '1' then
-                fwd_in := (others => '0');
-            else
-                fwd_in := wishbone_in.dat;
-            end if;
-
-            -- Use the bypass if are reading the row that was written 0 or 1 cycles
-            -- ago, including for the slow_valid = 1 cases (i.e. completing a load
-            -- miss or a non-cacheable load), which are handled via the r1.full case.
-            data_fwd := r1.forward_data;
-            fwd_byte := (others => '0');
-            if r1.full = '1' then
-                data_fwd := fwd_in;
-                fwd_byte := (others => '1');
-            elsif use_forward = '1' then
-                data_fwd := fwd_in;
-                fwd_byte := fwd_sel;
-            elsif use_forward2 = '1' then
-                fwd_byte := r1.forward_sel;
-            end if;
-            data_out := cache_out(req_hit_way);
-            for i in 0 to 7 loop
-                j := i * 8;
-                if fwd_byte(i) = '1' then
-                    data_out(j + 7 downto j) := data_fwd(j + 7 downto j);
-                end if;
-            end loop;
-            r1.data_out <= data_out;
-
-            r1.forward_data <= fwd_in;
-            r1.forward_tag <= r1.reload_tag;
-            r1.forward_row <= r1.store_row;
-            r1.forward_sel <= fwd_sel;
-            r1.forward_valid <= r1.write_bram;
-            if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' then
-                r1.forward_valid <= '1';
-            end if;
-
             ev.dcache_refill <= '0';
             ev.load_miss <= '0';
             ev.store_miss <= '0';
@@ -1563,6 +1542,7 @@ begin
                             (req.op = OP_STORE_MISS or req.op = OP_STORE_HIT) then
                             r1.wb.stb <= '1';
                             stbs_done := false;
+                            r1.store_way <= req.hit_way;
                             r1.store_row <= get_row(req.real_addr);
                             if req.op = OP_STORE_HIT then
                                 r1.write_bram <= '1';
