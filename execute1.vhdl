@@ -683,7 +683,7 @@ begin
                 end if;
             when "100" =>
                 -- MCRXRX
-                newcrf := xerc_in.ov & xerc_in.ca & xerc_in.ov32 & xerc_in.ca32;
+                newcrf := xerc_in.ov & xerc_in.ov32 & xerc_in.ca & xerc_in.ca32;
             when others =>
         end case;
         if current.insn_type = OP_MTCRF then
