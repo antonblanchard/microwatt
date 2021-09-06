@@ -153,7 +153,7 @@ begin
         for i in 0 to 7 loop
             j := i * 8;
             if rs(j+7 downto j+6) = "00" then
-                permute(i) <= rb(to_integer(unsigned(rs(j+5 downto j))));
+                permute(i) <= rb(to_integer(unsigned(not rs(j+5 downto j))));
             else
                 permute(i) <= '0';
             end if;
