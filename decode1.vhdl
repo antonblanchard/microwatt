@@ -740,6 +740,8 @@ begin
         bv.br_offset := br_offset;
         if f_in.next_predicted = '1' then
             v.br_pred := '1';
+        elsif f_in.next_pred_ntaken = '1' then
+            v.br_pred := '0';
         end if;
         bv.predict := v.br_pred and f_in.valid and not flush_in and not busy_out and not f_in.next_predicted;
         -- after a clock edge...
