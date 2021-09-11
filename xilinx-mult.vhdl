@@ -992,3 +992,84 @@ begin
     end process;
 
 end architecture behaviour;
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+library unisim;
+use unisim.vcomponents.all;
+
+entity short_multiply is
+    port (
+        clk   : in std_logic;
+
+        a_in  : in std_ulogic_vector(15 downto 0);
+        b_in  : in std_ulogic_vector(15 downto 0);
+        m_out : out std_ulogic_vector(31 downto 0)
+        );
+end entity short_multiply;
+
+architecture behaviour of short_multiply is
+    signal mshort_p : std_ulogic_vector(47 downto 0);
+begin
+    mshort: DSP48E1
+        generic map (
+            ACASCREG => 0,
+            ALUMODEREG => 0,
+            AREG => 0,
+            BCASCREG => 0,
+            BREG => 0,
+            CARRYINREG => 0,
+            CARRYINSELREG => 0,
+            CREG => 0,
+            INMODEREG => 0,
+            MREG => 0,
+            OPMODEREG => 0,
+            PREG => 0
+            )
+        port map (
+            A => std_ulogic_vector(resize(signed(a_in(15 downto 0)), 30)),
+            ACIN => (others => '0'),
+            ALUMODE => "0000",
+            B => std_ulogic_vector(resize(signed(b_in(15 downto 0)), 18)),
+            BCIN => (others => '0'),
+            C => 48x"0",
+            CARRYCASCIN => '0',
+            CARRYIN => '0',
+            CARRYINSEL => "000",
+            CEA1 => '0',
+            CEA2 => '0',
+            CEAD => '0',
+            CEALUMODE => '0',
+            CEB1 => '0',
+            CEB2 => '0',
+            CEC => '0',
+            CECARRYIN => '0',
+            CECTRL => '0',
+            CED => '0',
+            CEINMODE => '0',
+            CEM => '0',
+            CEP => '0',
+            CLK => clk,
+            D => (others => '0'),
+            INMODE => "00000",
+            MULTSIGNIN => '0',
+            OPMODE => "0110101",
+            P => mshort_p,
+            PCIN => (others => '0'),
+            RSTA => '0',
+            RSTALLCARRYIN => '0',
+            RSTALUMODE => '0',
+            RSTB => '0',
+            RSTC => '0',
+            RSTCTRL => '0',
+            RSTD => '0',
+            RSTINMODE => '0',
+            RSTM => '0',
+            RSTP => '0'
+            );
+
+    m_out <= mshort_p(31 downto 0);
+
+end architecture behaviour;

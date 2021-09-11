@@ -59,6 +59,7 @@ entity soc is
 	SIM                : boolean;
         HAS_FPU            : boolean := true;
         HAS_BTC            : boolean := true;
+        HAS_SHORT_MULT     : boolean := false;
 	DISABLE_FLATTEN_CORE : boolean := false;
 	HAS_DRAM           : boolean  := false;
 	DRAM_SIZE          : integer := 0;
@@ -325,6 +326,7 @@ begin
 	    SIM => SIM,
             HAS_FPU => HAS_FPU,
             HAS_BTC => HAS_BTC,
+            HAS_SHORT_MULT => HAS_SHORT_MULT,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
 	    ALT_RESET_ADDRESS => (23 downto 0 => '0', others => '1'),
             LOG_LENGTH => LOG_LENGTH,
