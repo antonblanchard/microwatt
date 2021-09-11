@@ -1363,7 +1363,7 @@ begin
                         req.data := d_in.data;
                     end if;
                     -- Select all bytes for dcbz and for cacheable loads
-                    if r0.req.dcbz = '1' or (r0.req.load = '1' and r0.req.nc = '0') then
+                    if r0.req.dcbz = '1' or (r0.req.load = '1' and r0.req.nc = '0' and perm_attr.nocache = '0') then
                         req.byte_sel := (others => '1');
                     else
                         req.byte_sel := r0.req.byte_sel;
