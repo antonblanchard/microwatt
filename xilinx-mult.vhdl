@@ -24,7 +24,6 @@ architecture behaviour of multiply is
     signal m11_pc, m12_pc, m13_pc : std_ulogic_vector(47 downto 0);
     signal m20_p, m21_p, m22_p, m23_p : std_ulogic_vector(47 downto 0);
     signal s0_pc, s1_pc : std_ulogic_vector(47 downto 0);
-    signal product_lo : std_ulogic_vector(31 downto 0);
     signal product : std_ulogic_vector(127 downto 0);
     signal addend : std_ulogic_vector(127 downto 0);
     signal s0_carry, p0_carry : std_ulogic_vector(3 downto 0);
@@ -33,7 +32,7 @@ architecture behaviour of multiply is
     signal p1_pat, p1_patb : std_ulogic;
 
     signal req_32bit, r32_1 : std_ulogic;
-    signal req_not, rnot_1 : std_ulogic;
+    signal rnot_1 : std_ulogic;
     signal valid_1 : std_ulogic;
     signal overflow, ovf_in : std_ulogic;
 
@@ -49,9 +48,11 @@ begin
             BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
+            CREG => 0,
             INMODEREG => 0,
+            MREG => 0,
             OPMODEREG => 0,
-            PREG => 0
+            PREG => 1
             )
         port map (
             A => "0000000" & m_in.data1(22 downto 0),
@@ -69,13 +70,13 @@ begin
             CEALUMODE => '0',
             CEB1 => '0',
             CEB2 => '0',
-            CEC => '1',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => m_in.valid,
-            CEP => '0',
+            CEM => '0',
+            CEP => m_in.valid,
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
@@ -160,9 +161,11 @@ begin
             BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
+            CREG => 0,
             INMODEREG => 0,
+            MREG => 0,
             OPMODEREG => 0,
-            PREG => 0
+            PREG => 1
             )
         port map (
             A => "0000000" & m_in.data1(22 downto 0),
@@ -180,13 +183,13 @@ begin
             CEALUMODE => '0',
             CEB1 => '0',
             CEB2 => '0',
-            CEC => '1',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => m_in.valid,
-            CEP => '0',
+            CEM => '0',
+            CEP => m_in.valid,
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
@@ -215,9 +218,11 @@ begin
             BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
+            CREG => 0,
             INMODEREG => 0,
+            MREG => 0,
             OPMODEREG => 0,
-            PREG => 0
+            PREG => 1
             )
         port map (
             A => "0000000" & m_in.data1(22 downto 0),
@@ -235,13 +240,13 @@ begin
             CEALUMODE => '0',
             CEB1 => '0',
             CEB2 => '0',
-            CEC => '1',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => m_in.valid,
-            CEP => '0',
+            CEM => '0',
+            CEP => m_in.valid,
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
@@ -709,18 +714,18 @@ begin
 
     s0: DSP48E1
         generic map (
-            ACASCREG => 1,
+            ACASCREG => 0,
             ALUMODEREG => 0,
-            AREG => 1,
-            BCASCREG => 1,
-            BREG => 1,
+            AREG => 0,
+            BCASCREG => 0,
+            BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
-            CREG => 1,
+            CREG => 0,
             INMODEREG => 0,
             MREG => 0,
             OPMODEREG => 0,
-            PREG => 0,
+            PREG => 1,
             USE_MULT => "none"
             )
         port map (
@@ -735,18 +740,18 @@ begin
             CARRYINSEL => "000",
             CARRYOUT => s0_carry,
             CEA1 => '0',
-            CEA2 => valid_1,
+            CEA2 => '0',
             CEAD => '0',
             CEALUMODE => '0',
             CEB1 => '0',
-            CEB2 => valid_1,
-            CEC => valid_1,
+            CEB2 => '0',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
             CEM => '0',
-            CEP => '0',
+            CEP => valid_1,
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
@@ -953,8 +958,6 @@ begin
             RSTP => '0'
             );
 
-    product(31 downto 0) <= product_lo xor (31 downto 0 => req_not);
-
     mult_out: process(all)
         variable ov : std_ulogic;
     begin
@@ -974,12 +977,15 @@ begin
     process(clk)
     begin
         if rising_edge(clk) then
-            product_lo <= m10_p(8 downto 0) & m01_p(5 downto 0) & m00_p(16 downto 0);
+            if rnot_1 = '0' then
+                product(31 downto 0) <= m10_p(8 downto 0) & m01_p(5 downto 0) & m00_p(16 downto 0);
+            else
+                product(31 downto 0) <= not (m10_p(8 downto 0) & m01_p(5 downto 0) & m00_p(16 downto 0));
+            end if;
             m_out.valid <= valid_1;
             valid_1 <= m_in.valid;
             req_32bit <= r32_1;
             r32_1 <= m_in.is_32bit;
-            req_not <= rnot_1;
             rnot_1 <= m_in.not_result;
             overflow <= ovf_in;
         end if;

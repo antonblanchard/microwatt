@@ -40,7 +40,8 @@ architecture behaviour of fetch1 is
     type reg_internal_t is record
         mode_32bit: std_ulogic;
         rd_is_niap4: std_ulogic;
-        predicted: std_ulogic;
+        predicted_taken: std_ulogic;
+        pred_not_taken: std_ulogic;
         predicted_nia: std_ulogic_vector(63 downto 0);
     end record;
     signal r, r_next : Fetch1ToIcacheType;
@@ -52,7 +53,7 @@ architecture behaviour of fetch1 is
     constant BTC_TAG_BITS : integer := 62 - BTC_ADDR_BITS;
     constant BTC_TARGET_BITS : integer := 62;
     constant BTC_SIZE : integer := 2 ** BTC_ADDR_BITS;
-    constant BTC_WIDTH : integer := BTC_TAG_BITS + BTC_TARGET_BITS;
+    constant BTC_WIDTH : integer := BTC_TAG_BITS + BTC_TARGET_BITS + 1;
     type btc_mem_type is array (0 to BTC_SIZE - 1) of std_ulogic_vector(BTC_WIDTH - 1 downto 0);
 
     signal btc_rd_data : std_ulogic_vector(BTC_WIDTH - 1 downto 0) := (others => '0');
@@ -83,8 +84,10 @@ begin
             end if;
             if advance_nia = '1' then
                 r.predicted <= r_next.predicted;
+                r.pred_ntaken <= r_next.pred_ntaken;
                 r.nia <= r_next.nia;
-                r_int.predicted <= r_next_int.predicted;
+                r_int.predicted_taken <= r_next_int.predicted_taken;
+                r_int.pred_not_taken <= r_next_int.pred_not_taken;
                 r_int.predicted_nia <= r_next_int.predicted_nia;
                 r_int.rd_is_niap4 <= r_next.sequential;
             end if;
@@ -107,13 +110,12 @@ begin
         signal btc_wr : std_ulogic;
         signal btc_wr_data : std_ulogic_vector(BTC_WIDTH - 1 downto 0);
         signal btc_wr_addr : std_ulogic_vector(BTC_ADDR_BITS - 1 downto 0);
-        signal btc_wr_v : std_ulogic;
     begin
-        btc_wr_data <= w_in.br_nia(63 downto BTC_ADDR_BITS + 2) &
+        btc_wr_data <= w_in.br_taken &
+                       w_in.br_nia(63 downto BTC_ADDR_BITS + 2) &
                        w_in.redirect_nia(63 downto 2);
         btc_wr_addr <= w_in.br_nia(BTC_ADDR_BITS + 1 downto 2);
         btc_wr <= w_in.br_last;
-        btc_wr_v <= w_in.br_taken;
 
         btc_ram : process(clk)
             variable raddr : unsigned(BTC_ADDR_BITS - 1 downto 0);
@@ -131,7 +133,7 @@ begin
                 if inval_btc = '1' or rst = '1' then
                     btc_valids <= (others => '0');
                 elsif btc_wr = '1' then
-                    btc_valids(to_integer(unsigned(btc_wr_addr))) <= btc_wr_v;
+                    btc_valids(to_integer(unsigned(btc_wr_addr))) <= '1';
                 end if;
             end if;
         end process;
@@ -145,7 +147,9 @@ begin
 	v_int := r_int;
         v.sequential := '0';
         v.predicted := '0';
-        v_int.predicted := '0';
+        v.pred_ntaken := '0';
+        v_int.predicted_taken := '0';
+        v_int.pred_not_taken := '0';
 
 	if rst = '1' then
 	    if alt_reset_in = '1' then
@@ -172,19 +176,21 @@ begin
             if r_int.mode_32bit = '1' then
                 v.nia(63 downto 32) := (others => '0');
             end if;
-        elsif r_int.predicted = '1' then
+        elsif r_int.predicted_taken = '1' then
             v.nia := r_int.predicted_nia;
             v.predicted := '1';
         else
             v.sequential := '1';
+            v.pred_ntaken := r_int.pred_not_taken;
             v.nia := std_ulogic_vector(unsigned(r.nia) + 4);
             if r_int.mode_32bit = '1' then
                 v.nia(63 downto 32) := x"00000000";
             end if;
             if btc_rd_valid = '1' and r_int.rd_is_niap4 = '1' and
-                btc_rd_data(BTC_WIDTH - 1 downto BTC_TARGET_BITS)
+                btc_rd_data(BTC_WIDTH - 2 downto BTC_TARGET_BITS)
                 = v.nia(BTC_TAG_BITS + BTC_ADDR_BITS + 1 downto BTC_ADDR_BITS + 2) then
-                v_int.predicted := '1';
+                v_int.predicted_taken := btc_rd_data(BTC_WIDTH - 1);
+                v_int.pred_not_taken := not btc_rd_data(BTC_WIDTH - 1);
             end if;
         end if;
         v_int.predicted_nia := btc_rd_data(BTC_TARGET_BITS - 1 downto 0) & "00";
