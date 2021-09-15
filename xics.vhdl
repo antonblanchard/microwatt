@@ -111,7 +111,7 @@ begin
             v.wb_ack := '1'; -- always ack
             if wb_in.we = '1' then -- write
                 -- writes to both XIRR are the same
-                case wb_in.adr(7 downto 0) is
+                case wb_in.adr(5 downto 0) & "00" is
                 when XIRR_POLL =>
                     report "ICP XIRR_POLL write";
                     v.cppr := be_in(31 downto 24);
@@ -138,7 +138,7 @@ begin
 
             else -- read
 
-                case wb_in.adr(7 downto 0) is
+                case wb_in.adr(5 downto 0) & "00" is
                 when XIRR_POLL =>
                     report "ICP XIRR_POLL read";
                     be_out := r.cppr & r.xisr;
@@ -308,12 +308,12 @@ begin
 
     assert SRC_NUM = 16 report "Fixup address decode with log2";
 
-    reg_is_xive   <= wb_in.adr(11);
-    reg_is_config <= '1' when wb_in.adr(11 downto 0) = x"000" else '0';
-    reg_is_debug  <= '1' when wb_in.adr(11 downto 0) = x"004" else '0';
+    reg_is_xive   <= wb_in.adr(9);
+    reg_is_config <= '1' when wb_in.adr(9 downto 0) = 10x"000" else '0';
+    reg_is_debug  <= '1' when wb_in.adr(9 downto 0) = 10x"001" else '0';
 
     -- Register index XX FIXME: figure out bits from SRC_NUM
-    reg_idx <= to_integer(unsigned(wb_in.adr(5 downto 2)));
+    reg_idx <= to_integer(unsigned(wb_in.adr(3 downto 0)));
 
     -- Latch interrupt inputs for timing
     int_latch: process(clk)

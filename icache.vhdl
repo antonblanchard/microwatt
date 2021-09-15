@@ -237,7 +237,7 @@ architecture rtl of icache is
     end;
 
     -- Return the cache row index (data memory) for an address
-    function get_row(addr: std_ulogic_vector(63 downto 0)) return row_t is
+    function get_row(addr: std_ulogic_vector) return row_t is
     begin
         return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto ROW_OFF_BITS)));
     end;
@@ -253,7 +253,7 @@ architecture rtl of icache is
     -- Returns whether this is the last row of a line
     function is_last_row_addr(addr: wishbone_addr_type; last: row_in_line_t) return boolean is
     begin
-	return unsigned(addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS)) = last;
+	return unsigned(addr(LINE_OFF_BITS - ROW_OFF_BITS - 1 downto 0)) = last;
     end;
 
     -- Returns whether this is the last row of a line
@@ -269,10 +269,10 @@ architecture rtl of icache is
 	variable result  : wishbone_addr_type;
     begin
 	-- Is there no simpler way in VHDL to generate that 3 bits adder ?
-	row_idx := addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS);
+	row_idx := addr(ROW_LINEBITS - 1 downto 0);
 	row_idx := std_ulogic_vector(unsigned(row_idx) + 1);
 	result := addr;
-	result(LINE_OFF_BITS-1 downto ROW_OFF_BITS) := row_idx;
+	result(ROW_LINEBITS - 1 downto 0) := row_idx;
 	return result;
     end;
 
@@ -525,7 +525,7 @@ begin
 	-- used for cache miss processing if needed
 	--
 	req_laddr <= (63 downto REAL_ADDR_BITS => '0') &
-                     real_addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
+                     real_addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS)&
 		     (ROW_OFF_BITS-1 downto 0 => '0');
 
 	-- Test if pending request is a hit on any way
@@ -658,7 +658,7 @@ begin
                 -- Since we never write, any write should be snooped
                 snoop_valid <= wb_snoop_in.cyc and wb_snoop_in.stb and wb_snoop_in.we;
                 snoop_addr := (others => '0');
-                snoop_addr(wb_snoop_in.adr'left downto 0) := wb_snoop_in.adr;
+                snoop_addr(wb_snoop_in.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS) := wb_snoop_in.adr;
                 snoop_index <= get_index(snoop_addr);
                 snoop_cache_tags := cache_tags(get_index(snoop_addr));
                 snoop_tag := get_tag(snoop_addr, '0');
@@ -717,7 +717,7 @@ begin
 			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line and start the WB cycle.
 			--
-			r.wb.adr <= req_laddr(r.wb.adr'left downto 0);
+			r.wb.adr <= req_laddr(r.wb.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS);
 			r.wb.cyc <= '1';
 			r.wb.stb <= '1';
 
@@ -804,7 +804,7 @@ begin
                 log_data <= i_out.valid &
                             i_out.insn &
                             wishbone_in.ack &
-                            r.wb.adr(5 downto 3) &
+                            r.wb.adr(2 downto 0) &
                             r.wb.stb & r.wb.cyc &
                             wishbone_in.stall &
                             stall_out &

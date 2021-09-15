@@ -171,7 +171,7 @@ begin
 
     -- Wishbone response
     wb_rsp.ack <= wishbone_in.cyc and wishbone_in.stb;
-    with wishbone_in.adr(SYS_REG_BITS+2 downto 3) select reg_out <=
+    with wishbone_in.adr(SYS_REG_BITS downto 1) select reg_out <=
 	SIG_VALUE	when SYS_REG_SIG,
 	reg_info        when SYS_REG_INFO,
 	reg_braminfo    when SYS_REG_BRAMINFO,
@@ -183,7 +183,7 @@ begin
         reg_uart0info   when SYS_REG_UART0_INFO,
         reg_uart1info   when SYS_REG_UART1_INFO,
 	(others => '0') when others;
-    wb_rsp.dat   <= reg_out(63 downto 32) when wishbone_in.adr(2) = '1' else
+    wb_rsp.dat   <= reg_out(63 downto 32) when wishbone_in.adr(0) = '1' else
                   reg_out(31 downto 0);
     wb_rsp.stall <= '0';
 
@@ -205,8 +205,8 @@ begin
 	    else
 		if wishbone_in.cyc and wishbone_in.stb and wishbone_in.we then
                     -- Change this if CTRL ever has more than 32 bits
-		    if wishbone_in.adr(SYS_REG_BITS+2 downto 3) = SYS_REG_CTRL and
-                        wishbone_in.adr(2) = '0' then
+		    if wishbone_in.adr(SYS_REG_BITS downto 1) = SYS_REG_CTRL and
+                        wishbone_in.adr(0) = '0' then
 			reg_ctrl(SYS_REG_CTRL_BITS-1 downto 0) <=
 			    wishbone_in.dat(SYS_REG_CTRL_BITS-1 downto 0);
 		    end if;

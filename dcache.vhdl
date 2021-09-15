@@ -456,7 +456,7 @@ architecture rtl of dcache is
     -- Returns whether this is the last row of a line
     function is_last_row_addr(addr: wishbone_addr_type; last: row_in_line_t) return boolean is
     begin
-	return unsigned(addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS)) = last;
+	return unsigned(addr(LINE_OFF_BITS - ROW_OFF_BITS - 1 downto 0)) = last;
     end;
 
     -- Returns whether this is the last row of a line
@@ -471,10 +471,10 @@ architecture rtl of dcache is
 	variable result  : wishbone_addr_type;
     begin
 	-- Is there no simpler way in VHDL to generate that 3 bits adder ?
-	row_idx := addr(LINE_OFF_BITS-1 downto ROW_OFF_BITS);
+	row_idx := addr(ROW_LINEBITS - 1 downto 0);
 	row_idx := std_ulogic_vector(unsigned(row_idx) + 1);
 	result := addr;
-	result(LINE_OFF_BITS-1 downto ROW_OFF_BITS) := row_idx;
+	result(ROW_LINEBITS - 1 downto 0) := row_idx;
 	return result;
     end;
 
@@ -807,7 +807,7 @@ begin
     begin
         if rising_edge(clk) then
             addr := (others => '0');
-            addr(snoop_in.adr'left downto 0) := snoop_in.adr;
+            addr(snoop_in.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS) := snoop_in.adr;
             snoop_tag_set <= cache_tags(get_index(addr));
             snoop_wrtag <= get_tag(addr);
             snoop_index <= get_index(addr);
@@ -1383,7 +1383,7 @@ begin
 		-- Main state machine
 		case r1.state is
                 when IDLE =>
-                    r1.wb.adr <= req.real_addr(r1.wb.adr'left downto 0);
+                    r1.wb.adr <= req.real_addr(r1.wb.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS);
                     r1.wb.sel <= req.byte_sel;
                     r1.wb.dat <= req.data;
                     r1.dcbz <= req.dcbz;
@@ -1532,8 +1532,8 @@ begin
                         -- See if there is another store waiting to be done
                         -- which is in the same real page.
                         if req.valid = '1' then
-                            r1.wb.adr(SET_SIZE_BITS - 1 downto 0) <=
-                                req.real_addr(SET_SIZE_BITS - 1 downto 0);
+                            r1.wb.adr(SET_SIZE_BITS - ROW_OFF_BITS - 1 downto 0) <=
+                                req.real_addr(SET_SIZE_BITS - 1 downto ROW_OFF_BITS);
                             r1.wb.dat <= req.data;
                             r1.wb.sel <= req.byte_sel;
                         end if;
@@ -1598,7 +1598,7 @@ begin
         dcache_log: process(clk)
         begin
             if rising_edge(clk) then
-                log_data <= r1.wb.adr(5 downto 3) &
+                log_data <= r1.wb.adr(2 downto 0) &
                             wishbone_in.stall &
                             wishbone_in.ack &
                             r1.wb.stb & r1.wb.cyc &

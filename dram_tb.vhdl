@@ -250,10 +250,10 @@ begin
         report "Back to back 4 stores 4 reads on hit...";
         clr_acks;
         for i in 0 to 3 loop
-            wb_write(add_off(a, i*8), make_pattern(i), x"ff");
+            wb_write(add_off(a, i), make_pattern(i), x"ff");
         end loop;
         for i in 0 to 3 loop
-            wb_read(add_off(a, i*8));
+            wb_read(add_off(a, i));
         end loop;
         wait_acks(8);
         for i in 0 to 7 loop
@@ -268,10 +268,10 @@ begin
         a(10) := '1';
         clr_acks;
         for i in 0 to 3 loop
-            wb_write(add_off(a, i*8), make_pattern(i), x"ff");
+            wb_write(add_off(a, i), make_pattern(i), x"ff");
         end loop;
         for i in 0 to 3 loop
-            wb_read(add_off(a, i*8));
+            wb_read(add_off(a, i));
         end loop;
         wait_acks(8);
         for i in 0 to 7 loop
@@ -286,8 +286,8 @@ begin
         a(10) := '1';
         clr_acks;
         for i in 0 to 3 loop
-            wb_write(add_off(a, i*8), make_pattern(i), x"ff");
-            wb_read(add_off(a, i*8));
+            wb_write(add_off(a, i), make_pattern(i), x"ff");
+            wb_read(add_off(a, i));
         end loop;
         wait_acks(8);
         for i in 0 to 3 loop
@@ -299,29 +299,29 @@ begin
         a(11) := '1';
         clr_acks;
         wb_write(add_off(a,  0), x"1111111100000000", x"ff");
-        wb_write(add_off(a,  8), x"3333333322222222", x"ff");
-        wb_write(add_off(a, 16), x"5555555544444444", x"ff");
-        wb_write(add_off(a, 24), x"7777777766666666", x"ff");
-        wb_write(add_off(a, 32), x"9999999988888888", x"ff");
-        wb_write(add_off(a, 40), x"bbbbbbbbaaaaaaaa", x"ff");
-        wb_write(add_off(a, 48), x"ddddddddcccccccc", x"ff");
-        wb_write(add_off(a, 56), x"ffffffffeeeeeeee", x"ff");
-        wb_write(add_off(a, 64), x"1111111100000000", x"ff");
-        wb_write(add_off(a, 72), x"3333333322222222", x"ff");
-        wb_write(add_off(a, 80), x"5555555544444444", x"ff");
-        wb_write(add_off(a, 88), x"7777777766666666", x"ff");
-        wb_write(add_off(a, 96), x"9999999988888888", x"ff");
-        wb_write(add_off(a,104), x"bbbbbbbbaaaaaaaa", x"ff");
-        wb_write(add_off(a,112), x"ddddddddcccccccc", x"ff");
-        wb_write(add_off(a,120), x"ffffffffeeeeeeee", x"ff");
+        wb_write(add_off(a,  1), x"3333333322222222", x"ff");
+        wb_write(add_off(a,  2), x"5555555544444444", x"ff");
+        wb_write(add_off(a,  3), x"7777777766666666", x"ff");
+        wb_write(add_off(a,  4), x"9999999988888888", x"ff");
+        wb_write(add_off(a,  5), x"bbbbbbbbaaaaaaaa", x"ff");
+        wb_write(add_off(a,  6), x"ddddddddcccccccc", x"ff");
+        wb_write(add_off(a,  7), x"ffffffffeeeeeeee", x"ff");
+        wb_write(add_off(a,  8), x"1111111100000000", x"ff");
+        wb_write(add_off(a,  9), x"3333333322222222", x"ff");
+        wb_write(add_off(a, 10), x"5555555544444444", x"ff");
+        wb_write(add_off(a, 11), x"7777777766666666", x"ff");
+        wb_write(add_off(a, 12), x"9999999988888888", x"ff");
+        wb_write(add_off(a, 13), x"bbbbbbbbaaaaaaaa", x"ff");
+        wb_write(add_off(a, 14), x"ddddddddcccccccc", x"ff");
+        wb_write(add_off(a, 15), x"ffffffffeeeeeeee", x"ff");
         wait_acks(16);
 
         report "Scattered from middle of line...";
         clr_acks;
-        wb_read(add_off(a,24));
-        wb_read(add_off(a,32));
+        wb_read(add_off(a, 3));
+        wb_read(add_off(a, 4));
         wb_read(add_off(a, 0));
-        wb_read(add_off(a,16));
+        wb_read(add_off(a, 2));
         wait_acks(4);
         read_data(d);
         assert d = x"7777777766666666" report "bad data (24), got " & to_hstring(d) severity failure;

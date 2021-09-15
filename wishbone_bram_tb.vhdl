@@ -19,7 +19,7 @@ architecture behave of wishbone_bram_tb is
 
     impure function to_adr(a: integer) return std_ulogic_vector is
     begin
-        return std_ulogic_vector(to_unsigned(a, w_out.adr'length));
+        return std_ulogic_vector(to_unsigned(a / 8, w_out.adr'length));
     end;
 begin
     simple_ram_0: entity work.wishbone_bram_wrapper

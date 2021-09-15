@@ -3,11 +3,13 @@ use ieee.std_logic_1164.all;
 
 package wishbone_types is
     --
-    -- Main CPU bus. 32-bit address, 64-bit data
+    -- Main CPU bus. 32-bit address, 64-bit data,
+    -- so the wishbone address is in units of 8 bytes.
     --
-    constant wishbone_addr_bits : integer := 32;
+    constant wishbone_addr_bits : integer := 29;
     constant wishbone_data_bits : integer := 64;
     constant wishbone_sel_bits : integer := wishbone_data_bits/8;
+    constant wishbone_log2_width : integer := 3;
 
     subtype wishbone_addr_type is std_ulogic_vector(wishbone_addr_bits-1 downto 0);
     subtype wishbone_data_type is std_ulogic_vector(wishbone_data_bits-1 downto 0);
