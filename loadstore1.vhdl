@@ -68,7 +68,6 @@ architecture behave of loadstore1 is
         noop         : std_ulogic;
         mode_32bit   : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
-	addr0        : std_ulogic_vector(63 downto 0);
         byte_sel     : std_ulogic_vector(7 downto 0);
         second_bytes : std_ulogic_vector(7 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
@@ -99,7 +98,7 @@ architecture behave of loadstore1 is
     constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0', tlbie => '0',
                                           dcbz => '0', read_spr => '0', write_spr => '0', mmu_op => '0',
                                           instr_fault => '0', load_zero => '0', do_update => '0', noop => '0',
-                                          mode_32bit => '0', addr => (others => '0'), addr0 => (others => '0'),
+                                          mode_32bit => '0', addr => (others => '0'),
                                           byte_sel => x"00", second_bytes => x"00",
                                           store_data => (others => '0'), instr_tag => instr_tag_init,
                                           write_reg => 7x"00", length => x"0",
@@ -115,6 +114,7 @@ architecture behave of loadstore1 is
     type reg_stage1_t is record
         req : request_t;
         issued : std_ulogic;
+        addr0 : std_ulogic_vector(63 downto 0);
     end record;
 
     type reg_stage2_t is record
@@ -125,6 +125,7 @@ architecture behave of loadstore1 is
         wait_mmu   : std_ulogic;
         one_cycle  : std_ulogic;
         wr_sel     : std_ulogic_vector(1 downto 0);
+        addr0      : std_ulogic_vector(63 downto 0);
     end record;
 
     type reg_stage3_t is record
@@ -361,7 +362,7 @@ begin
 
     -- Translate a load/store instruction into the internal request format
     -- XXX this should only depend on l_in, but actually depends on
-    -- r1.req.addr0 as well (in the l_in.second = 1 case).
+    -- r1.addr0 as well (in the l_in.second = 1 case).
     loadstore1_in: process(all)
         variable v : request_t;
         variable lsu_sum : std_ulogic_vector(63 downto 0);
@@ -402,23 +403,21 @@ begin
         end if;
 
         addr := lsu_sum;
-
         if l_in.second = '1' then
             if l_in.update = '0' then
                 -- for the second half of a 16-byte transfer,
                 -- use the previous address plus 8.
-                addr := std_ulogic_vector(unsigned(r1.req.addr0(63 downto 3)) + 1) & r1.req.addr0(2 downto 0);
+                addr := std_ulogic_vector(unsigned(r1.addr0(63 downto 3)) + 1) & r1.addr0(2 downto 0);
             else
                 -- for an update-form load, use the previous address
                 -- as the value to write back to RA.
-                addr := r1.req.addr0;
+                addr := r1.addr0;
             end if;
         end if;
         if l_in.mode_32bit = '1' then
             addr(63 downto 32) := (others => '0');
         end if;
         v.addr := addr;
-        v.addr0 := addr;
 
         -- XXX Temporary hack. Mark the op as non-cachable if the address
         -- is the form 0xc------- for a real-mode access.
@@ -516,28 +515,31 @@ begin
         variable v     : reg_stage1_t;
         variable req   : request_t;
         variable dcreq : std_ulogic;
-        variable addr  : std_ulogic_vector(63 downto 0);
+        variable issue : std_ulogic;
     begin
         v := r1;
-        dcreq := '0';
-        req := req_in;
-        if flushing = '1' then
-            -- Make this a no-op request rather than simply invalid.
-            -- It will never get to stage 3 since there is a request ahead of
-            -- it with align_intr = 1.
-            req.dc_req := '0';
+        issue := '0';
+
+        if busy = '0' then
+            req := req_in;
+            v.issued := '0';
+            if flushing = '1' then
+                -- Make this a no-op request rather than simply invalid.
+                -- It will never get to stage 3 since there is a request ahead of
+                -- it with align_intr = 1.
+                req.dc_req := '0';
+            end if;
+            issue := l_in.valid and req.dc_req;
+            if l_in.valid = '1' then
+                v.addr0 := req.addr;
+            end if;
+        else
+            req := r1.req;
         end if;
 
-        -- Note that l_in.valid is gated with busy inside execute1
-        if l_in.valid = '1' then
-            dcreq := req.dc_req and stage1_issue_enable and not d_in.error and not dc_stall;
-            v.req := req;
-            v.issued := dcreq;
-        elsif r1.req.valid = '1' then
+        if r1.req.valid = '1' then
             if r1.req.dc_req = '1' and r1.issued = '0' then
-                req := r1.req;
-                dcreq := stage1_issue_enable and not dc_stall and not d_in.error;
-                v.issued := dcreq;
+                issue := '1';
             elsif r1.issued = '1' and d_in.error = '1' then
                 v.issued := '0';
             elsif stage2_busy_next = '0' then
@@ -545,23 +547,25 @@ begin
                 -- in r1 will go into r2
                 if r1.req.dc_req = '1' and r1.req.two_dwords = '1' and r1.req.dword_index = '0' then
                     -- construct the second request for a misaligned access
-                    v.req.dword_index := '1';
-                    v.req.addr := std_ulogic_vector(unsigned(r1.req.addr(63 downto 3)) + 1) & "000";
+                    req.dword_index := '1';
+                    req.addr := std_ulogic_vector(unsigned(r1.req.addr(63 downto 3)) + 1) & "000";
                     if r1.req.mode_32bit = '1' then
-                        v.req.addr(32) := '0';
+                        req.addr(32) := '0';
                     end if;
-                    v.req.byte_sel := r1.req.second_bytes;
-                    v.issued := stage1_issue_enable and not dc_stall;
-                    dcreq := stage1_issue_enable and not dc_stall;
-                    req := v.req;
-                else
-                    v.req.valid := '0';
+                    req.byte_sel := r1.req.second_bytes;
+                    issue := '1';
                 end if;
             end if;
         end if;
         if r3in.interrupt = '1' then
-            v.req.valid := '0';
-            dcreq := '0';
+            req.valid := '0';
+            issue := '0';
+        end if;
+
+        v.req := req;
+        dcreq := issue and stage1_issue_enable and not d_in.error and not dc_stall;
+        if issue = '1' then
+            v.issued := dcreq;
         end if;
 
         stage1_req <= req;
@@ -584,7 +588,7 @@ begin
 
         -- Byte reversing and rotating for stores.
         -- Done in the second cycle (the cycle after l_in.valid = 1).
-        byte_offset := unsigned(r1.req.addr0(2 downto 0));
+        byte_offset := unsigned(r1.addr0(2 downto 0));
         for i in 0 to 7 loop
             k := (to_unsigned(i, 3) - byte_offset) xor r1.req.brev_mask;
             j := to_integer(k) * 8;
@@ -594,6 +598,7 @@ begin
         if stage3_busy_next = '0' and
             (r1.req.valid = '0' or r1.issued = '1' or r1.req.dc_req = '0') then
             v.req := r1.req;
+            v.addr0 := r1.addr0;
             v.req.store_data := store_data;
             v.wait_dc := r1.req.valid and r1.req.dc_req and not r1.req.load_sp and
                          not (r1.req.two_dwords and not r1.req.dword_index);
@@ -881,7 +886,7 @@ begin
             write_data := sprval;
         when "01" =>
             -- update reg
-            write_data := r2.req.addr0;
+            write_data := r2.addr0;
         when "10" =>
             -- lfs result
             write_data := load_dp_data;
