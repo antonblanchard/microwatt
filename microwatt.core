@@ -138,6 +138,7 @@ targets:
       - uart_is_16550
       - has_fpu
       - has_btc
+      - has_short_mult
     tools:
       vivado: {part : xc7a100tcsg324-1}
     toplevel : toplevel
@@ -243,6 +244,7 @@ targets:
       - uart_is_16550
       - has_fpu
       - has_btc
+      - has_short_mult
     generate: [litedram_nexys_video, liteeth_nexys_video, litesdcard_nexys_video]
     tools:
       vivado: {part : xc7a200tsbg484-1}
@@ -263,6 +265,7 @@ targets:
       - has_uart1
       - has_fpu=false
       - has_btc=false
+      - has_short_mult
       - use_litesdcard
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -285,6 +288,7 @@ targets:
       - has_uart1
       - has_fpu=false
       - has_btc=false
+      - has_short_mult
     generate: [litedram_arty, liteeth_arty, litesdcard_arty]
     tools:
       vivado: {part : xc7a35ticsg324-1L}
@@ -305,6 +309,7 @@ targets:
       - has_uart1
       - has_fpu
       - has_btc
+      - has_short_mult
       - use_litesdcard
     tools:
       vivado: {part : xc7a100ticsg324-1L}
@@ -327,6 +332,7 @@ targets:
       - has_uart1
       - has_fpu
       - has_btc
+      - has_short_mult
     generate: [litedram_arty, liteeth_arty, litesdcard_arty]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
@@ -429,6 +435,12 @@ parameters:
     description : Include a branch target cache in the core
     paramtype   : generic
     default     : true
+
+  has_short_mult:
+    datatype    : bool
+    description : Include a 16 bit x 16 bit single-cycle multiplier in the core
+    paramtype   : generic
+    default     : false
 
   disable_flatten_core:
     datatype    : bool

@@ -14,6 +14,7 @@ entity execute1 is
     generic (
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        HAS_SHORT_MULT : boolean := false;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -95,6 +96,7 @@ architecture behaviour of execute1 is
     signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
     signal cr_in : std_ulogic_vector(31 downto 0);
     signal xerc_in : xer_common_t;
+    signal mshort_p : std_ulogic_vector(31 downto 0) := (others => '0');
 
     signal valid_in : std_ulogic;
     signal ctrl: ctrl_t := (others => (others => '0'));
@@ -230,6 +232,24 @@ architecture behaviour of execute1 is
 	return msr_out;
     end;
 
+    -- Work out whether a signed value fits into n bits,
+    -- that is, see if it is in the range -2^(n-1) .. 2^(n-1) - 1
+    function fits_in_n_bits(val: std_ulogic_vector; n: integer) return boolean is
+        variable x, xp1: std_ulogic_vector(val'left downto val'right);
+    begin
+        x := val;
+        if val(val'left) = '0' then
+            x := not val;
+        end if;
+        xp1 := bit_reverse(std_ulogic_vector(unsigned(bit_reverse(x)) + 1));
+        x := x and not xp1;
+        -- For positive inputs, x has ones at the positions
+        -- to the left of the leftmost 1 bit in val.
+        -- For negative inputs, x has ones to the left of
+        -- the leftmost 0 bit in val.
+        return x(n - 1) = '1';
+    end;
+
     -- Tell vivado to keep the hierarchy for the random module so that the
     -- net names in the xdc file match.
     attribute keep_hierarchy : string;
@@ -303,6 +323,17 @@ begin
             p_in => x_to_pmu,
             p_out => pmu_to_x
             );
+
+    short_mult_0: if HAS_SHORT_MULT generate
+    begin
+        short_mult: entity work.short_multiply
+        port map (
+            clk => clk,
+            a_in => a_in(15 downto 0),
+            b_in => b_in(15 downto 0),
+            m_out => mshort_p
+            );
+    end generate;
 
     dbg_msr_out <= ctrl.msr;
     log_rd_addr <= r.log_addr_spr;
@@ -509,7 +540,11 @@ begin
 
         case current.sub_select(1 downto 0) is
             when "00" =>
-                muldiv_result <= multiply_to_x.result(63 downto 0);
+                if HAS_SHORT_MULT and r.mul_in_progress = '0' then
+                    muldiv_result <= std_ulogic_vector(resize(signed(mshort_p), 64));
+                else
+                    muldiv_result <= multiply_to_x.result(63 downto 0);
+                end if;
             when "01" =>
                 muldiv_result <= multiply_to_x.result(127 downto 64);
             when "10" =>
@@ -1121,10 +1156,20 @@ begin
 		icache_inval <= '1';
 
 	    when OP_MUL_L64 | OP_MUL_H64 | OP_MUL_H32 =>
-		v.e.valid := '0';
-		v.mul_in_progress := '1';
-		v.busy := '1';
-		x_to_multiply.valid <= '1';
+                if HAS_SHORT_MULT and e_in.insn_type = OP_MUL_L64 and e_in.insn(26) = '1' and
+                    fits_in_n_bits(a_in, 16) and fits_in_n_bits(b_in, 16) then
+                    -- Operands fit into 16 bits, so use short multiplier
+                    if e_in.oe = '1' then
+                        -- Note 16x16 multiply can't overflow, even for mullwo
+                        set_ov(v.e, '0', '0');
+                    end if;
+                else
+                    -- Use standard multiplier
+                    v.e.valid := '0';
+                    v.mul_in_progress := '1';
+                    v.busy := '1';
+                    x_to_multiply.valid <= '1';
+                end if;
 
 	    when OP_DIV | OP_DIVE | OP_MOD =>
 		v.e.valid := '0';

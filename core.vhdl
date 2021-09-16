@@ -13,6 +13,7 @@ entity core is
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
         HAS_BTC : boolean := true;
+        HAS_SHORT_MULT : boolean := false;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512;
         ICACHE_NUM_LINES : natural := 64;
@@ -340,6 +341,7 @@ begin
         generic map (
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
+            HAS_SHORT_MULT => HAS_SHORT_MULT,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (

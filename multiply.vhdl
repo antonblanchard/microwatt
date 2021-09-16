@@ -86,3 +86,22 @@ begin
         rin <= v;
     end process;
 end architecture behaviour;
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+entity short_multiply is
+    port (
+        clk   : in std_ulogic;
+
+        a_in  : in std_ulogic_vector(15 downto 0);
+        b_in  : in std_ulogic_vector(15 downto 0);
+        m_out : out std_ulogic_vector(31 downto 0)
+        );
+end entity short_multiply;
+
+architecture behaviour of short_multiply is
+begin
+    m_out <= std_ulogic_vector(signed(a_in) * signed(b_in));
+end architecture behaviour;
