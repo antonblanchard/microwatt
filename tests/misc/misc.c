@@ -16,6 +16,7 @@ extern long test_mfpvr(void);
 extern long test_mtpvr(void);
 extern long test_bdnzl(void);
 extern long test_loadhitstore(void);
+extern long test_icbi(void);
 
 // i < 100
 void print_test_number(int i)
@@ -69,6 +70,13 @@ int main(void)
 
 	print_test_number(6);
 	if (test_loadhitstore() != 0) {
+		fail = 1;
+		puts(FAIL);
+	} else
+		puts(PASS);
+
+	print_test_number(7);
+	if (test_icbi() != 1) {
 		fail = 1;
 		puts(FAIL);
 	} else

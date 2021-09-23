@@ -185,3 +185,33 @@ test_loadhitstore:
 	or	%r7,%r6,%r7
 	subf	%r3,%r0,%r7
 	blr
+
+/* Test for double execution of addi */
+.balign 64
+	.global test_icbi
+test_icbi:
+1:	li	%r3,0
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	icbi	0,%r0
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	addi	%r3,%r3,1
+	blr
