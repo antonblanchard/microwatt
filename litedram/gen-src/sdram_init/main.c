@@ -125,7 +125,7 @@ static bool check_flash(void)
 
 	/* Supported flash types for quad mode */
 	if (id[0] == 0x01 &&
-	    (id[1] == 0x02 || id[1] == 0x20) &&
+	    (id[1] == 0x02 || id[1] == 0x20 || id[1] == 0x60) &&
 	    (id[2] == 0x18 || id[2] == 0x19)) {
 		check_spansion_quad_mode();
 		quad = true;
