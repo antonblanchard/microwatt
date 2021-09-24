@@ -220,7 +220,7 @@ static int jtag_init(const char *target)
 	int rc, part;
 
 	if (!target)
-		target = "DigilentHS1";
+		target = "probe";
 	sep = strchr(target, ':');
 	cable = strndup(target, sep - target);
 	if (sep && *sep) {
@@ -237,6 +237,15 @@ static int jtag_init(const char *target)
 	}
 	jc->main_part = 0;
 
+	if (strcmp(cable, "probe") == 0) {
+		char *cparams[] = { NULL, NULL,};
+		rc = urj_tap_cable_usb_probe(cparams);
+		if (rc != URJ_STATUS_OK) {
+			fprintf(stderr, "JTAG cable probe failed\n");
+			return -1;
+		}
+		cable = strdup(cparams[1]);
+	}
 	rc = urj_tap_chain_connect(jc, cable, params);
 	if (rc != URJ_STATUS_OK) {
 		fprintf(stderr, "JTAG cable detect failed\n");
