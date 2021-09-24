@@ -7,7 +7,7 @@ import sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
-def flash(config, flash_proxy, address, data, filetype="", set_qe=False):
+def flash(cable, config, flash_proxy, address, data, filetype="", set_qe=False):
     script = "; ".join([
         "init",
         "jtagspi_init 0 {{{}}}".format(flash_proxy),
@@ -17,7 +17,7 @@ def flash(config, flash_proxy, address, data, filetype="", set_qe=False):
         "exit"
     ])
     print(script)
-    subprocess.call(["openocd", "-f", config, "-c", script])
+    subprocess.call(["openocd", "-f", cable, "-f", config, "-c", script])
 
 def get_version():
     a = subprocess.run(["openocd", "-v"], capture_output=True)
@@ -33,6 +33,7 @@ parser.add_argument("file", help="file to write to flash")
 parser.add_argument("-a", "--address", help="offset in flash", type=lambda x: int(x,0), default=0)
 parser.add_argument("-f", "--fpga", help="a35, a100 or a200", default="a35")
 parser.add_argument("-t", "--filetype", help="file type such as 'bin'", default="")
+parser.add_argument("-c", "--cable", help="cable type such as 'arty'", default="arty")
 args = parser.parse_args()
 
 version = get_version()
@@ -49,5 +50,6 @@ else:
 
 proxy = os.path.join(BASE, proxy)
 config = os.path.join(BASE, "xilinx-xc7{}.cfg".format(version))
+cable = os.path.join(BASE, "{}.cfg".format(args.cable))
 
-flash(config, proxy, args.address, args.file, args.filetype.lower())
+flash(cable, config, proxy, args.address, args.file, args.filetype.lower())
