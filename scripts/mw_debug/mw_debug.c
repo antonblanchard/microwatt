@@ -744,10 +744,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (b == NULL) {
-		fprintf(stderr, "No backend selected\n");
-		exit(1);
-	}
+	if (b == NULL)
+		b = &jtag_backend;
 
 	rc = b->init(target);
 	if (rc < 0)
