@@ -13,4 +13,5 @@ tests/*/*.hex
 tests/*/*.elf
 TAGS
 litedram/build/*
+liteeth/build/*
 obj_dir/*
