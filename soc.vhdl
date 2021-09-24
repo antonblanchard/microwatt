@@ -249,10 +249,10 @@ architecture behaviour of soc is
     function wishbone_widen_data(wb : wb_io_master_out) return wishbone_master_out is
         variable wwb : wishbone_master_out;
     begin
-        wwb.adr := wb.adr & "00";       -- XXX note wrong adr usage in wishbone_master_out
+        wwb.adr := wb.adr(wb.adr'left downto 1);
         wwb.dat := wb.dat & wb.dat;
         wwb.sel := x"00";
-        if wwb.adr(2) = '0' then
+        if wb.adr(0) = '0' then
             wwb.sel(3 downto 0) := wb.sel;
         else
             wwb.sel(7 downto 4) := wb.sel;
@@ -407,7 +407,7 @@ begin
         variable top_decode : std_ulogic_vector(3 downto 0);
     begin
 	-- Top-level address decoder
-        top_decode := wb_master_out.adr(31 downto 29) & dram_at_0;
+        top_decode := wb_master_out.adr(28 downto 26) & dram_at_0;
         slave_top := SLAVE_TOP_BRAM;
 	if    std_match(top_decode, "0000") then
 	    slave_top := SLAVE_TOP_BRAM;
@@ -493,7 +493,7 @@ begin
 
                         -- Copy write enable to IO out, copy address as well
                         wb_sio_out.we <= wb_io_in.we;
-                        wb_sio_out.adr <= wb_io_in.adr(wb_sio_out.adr'left downto 3) & "000";
+                        wb_sio_out.adr <= wb_io_in.adr(wb_sio_out.adr'left - 1 downto 0) & '0';
 
                         -- Do we have a top word and/or a bottom word ?
                         has_top := wb_io_in.sel(7 downto 4) /= "0000";
@@ -517,7 +517,7 @@ begin
                             wb_sio_out.sel <= wb_io_in.sel(7 downto 4);
 
                             -- Bump address
-                            wb_sio_out.adr(2) <= '1';
+                            wb_sio_out.adr(0) <= '1';
 
                             -- Wait for ack
                             state := WAIT_ACK_TOP;
@@ -545,7 +545,7 @@ begin
                             wb_sio_out.sel <= wb_io_in.sel(7 downto 4);
 
                             -- Bump address and set STB
-                            wb_sio_out.adr(2) <= '1';
+                            wb_sio_out.adr(0) <= '1';
                             wb_sio_out.stb <= '1';
 
                             -- Wait for new ack
@@ -603,7 +603,7 @@ begin
 
 	-- Simple address decoder.
 	slave_io := SLAVE_IO_NONE;
-        match := "11" & wb_sio_out.adr(29 downto 12);
+        match := "11" & wb_sio_out.adr(27 downto 10);
         if    std_match(match, x"FF---") and HAS_DRAM then
 	    slave_io := SLAVE_IO_EXTERNAL;
         elsif std_match(match, x"F----") then
@@ -640,11 +640,11 @@ begin
 	 -- Only give xics 8 bits of wb addr (for now...)
 	wb_xics_icp_in <= wb_sio_out;
 	wb_xics_icp_in.adr <= (others => '0');
-	wb_xics_icp_in.adr(7 downto 0) <= wb_sio_out.adr(7 downto 0);
+	wb_xics_icp_in.adr(5 downto 0) <= wb_sio_out.adr(5 downto 0);
 	wb_xics_icp_in.cyc  <= '0';
 	wb_xics_ics_in <= wb_sio_out;
 	wb_xics_ics_in.adr <= (others => '0');
-	wb_xics_ics_in.adr(11 downto 0) <= wb_sio_out.adr(11 downto 0);
+	wb_xics_ics_in.adr(9 downto 0) <= wb_sio_out.adr(9 downto 0);
 	wb_xics_ics_in.cyc  <= '0';
 
 	wb_ext_io_in <= wb_sio_out;
@@ -669,22 +669,22 @@ begin
             --
             -- DRAM init is special at 0xFF* so we just test the top
             -- bit. Everything else is at 0xC8* so we test only bits
-            -- 23 downto 16.
+            -- 23 downto 16 (21 downto 14 in the wishbone addr).
             --
             ext_valid := false;
-            if wb_sio_out.adr(29) = '1' and HAS_DRAM then  -- DRAM init is special
+            if wb_sio_out.adr(27) = '1' and HAS_DRAM then  -- DRAM init is special
                 wb_ext_is_dram_init <= '1';
                 ext_valid := true;
-            elsif wb_sio_out.adr(23 downto 16) = x"00" and HAS_DRAM then
+            elsif wb_sio_out.adr(21 downto 14) = x"00" and HAS_DRAM then
                 wb_ext_is_dram_csr  <= '1';
                 ext_valid := true;
-            elsif wb_sio_out.adr(23 downto 16) = x"02" and HAS_LITEETH then
+            elsif wb_sio_out.adr(21 downto 14) = x"02" and HAS_LITEETH then
                 wb_ext_is_eth       <= '1';
                 ext_valid := true;
-            elsif wb_sio_out.adr(23 downto 16) = x"03" and HAS_LITEETH then
+            elsif wb_sio_out.adr(21 downto 14) = x"03" and HAS_LITEETH then
                 wb_ext_is_eth       <= '1';
                 ext_valid := true;
-            elsif wb_sio_out.adr(23 downto 16) = x"04" and HAS_SD_CARD then
+            elsif wb_sio_out.adr(21 downto 14) = x"04" and HAS_SD_CARD then
                 wb_ext_is_sdcard    <= '1';
                 ext_valid := true;
             end if;
@@ -711,7 +711,7 @@ begin
 	when SLAVE_IO_SPI_FLASH_MAP =>
             -- Clear top bits so they don't make their way to the
             -- fash chip.
-            wb_spiflash_in.adr(29 downto 28) <= "00";
+            wb_spiflash_in.adr(27 downto 26) <= "00";
 	    wb_spiflash_in.cyc <= wb_sio_out.cyc;
 	    wb_sio_in <= wb_spiflash_out;
             wb_spiflash_is_map <= '1';
@@ -769,7 +769,7 @@ begin
 		txd => uart0_txd,
 		rxd => uart0_rxd,
 		irq => uart0_irq,
-		wb_adr_in => wb_uart0_in.adr(11 downto 0),
+		wb_adr_in => wb_uart0_in.adr(9 downto 0) & "00",
 		wb_dat_in => wb_uart0_in.dat(7 downto 0),
 		wb_dat_out => uart0_dat8,
 		wb_cyc_in => wb_uart0_in.cyc,
@@ -786,7 +786,7 @@ begin
 	    port map (
 		wb_clk_i   => system_clk,
 		wb_rst_i   => rst_uart,
-		wb_adr_i   => wb_uart0_in.adr(4 downto 2),
+		wb_adr_i   => wb_uart0_in.adr(2 downto 0),
 		wb_dat_i   => wb_uart0_in.dat(7 downto 0),
 		wb_dat_o   => uart0_dat8,
 		wb_we_i    => wb_uart0_in.we,
@@ -828,7 +828,7 @@ begin
 	    port map (
 		wb_clk_i   => system_clk,
 		wb_rst_i   => rst_uart,
-		wb_adr_i   => wb_uart1_in.adr(4 downto 2),
+		wb_adr_i   => wb_uart1_in.adr(2 downto 0),
 		wb_dat_i   => wb_uart1_in.dat(7 downto 0),
 		wb_dat_o   => uart1_dat8,
 		wb_we_i    => wb_uart1_in.we,

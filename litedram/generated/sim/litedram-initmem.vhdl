@@ -100,7 +100,7 @@ begin
         if rising_edge(clk) then
             oack <= '0';
             if (wb_in.cyc and wb_in.stb) = '1' then
-                adr := to_integer((unsigned(wb_in.adr(INIT_RAM_ABITS-1 downto 2))));
+                adr := to_integer((unsigned(wb_in.adr(INIT_RAM_ABITS - 3 downto 0))));
                 if wb_in.we = '0' then
                    obuf <= init_ram(adr);
                 else

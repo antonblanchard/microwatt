@@ -54,7 +54,7 @@ begin
 	    );
 
     -- Wishbone interface
-    ram_addr <= wishbone_in.adr(ram_addr_bits + 2 downto 3);
+    ram_addr <= wishbone_in.adr(ram_addr_bits - 1 downto 0);
     ram_we <= wishbone_in.stb and wishbone_in.cyc and wishbone_in.we;
     ram_re <= wishbone_in.stb and wishbone_in.cyc and not wishbone_in.we;
     wishbone_out.stall <= '0';

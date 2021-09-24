@@ -552,7 +552,7 @@ begin
         wb_eth_cyc <= wb_ext_io_in.cyc and wb_ext_is_eth;
 
         -- Remove top address bits as liteeth decoder doesn't know about them
-        wb_eth_adr <= x"000" & "000" & wb_ext_io_in.adr(16 downto 2);
+        wb_eth_adr <= x"000" & "000" & wb_ext_io_in.adr(14 downto 0);
 
         -- LiteETH isn't pipelined
         wb_eth_out.stall <= not wb_eth_out.ack;
@@ -642,7 +642,7 @@ begin
         -- Gate cyc with chip select from SoC
         wb_sdcard_cyc <= wb_ext_io_in.cyc and wb_ext_is_sdcard;
 
-        wb_sdcard_adr <= x"0000" & wb_ext_io_in.adr(15 downto 2);
+        wb_sdcard_adr <= x"0000" & wb_ext_io_in.adr(13 downto 0);
 
         wb_sdcard_out.stall <= not wb_sdcard_out.ack;
 

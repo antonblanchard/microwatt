@@ -163,7 +163,6 @@ architecture behaviour of litedram_wrapper is
     -- Select a WB word inside DRAM port width
     constant WB_WORD_COUNT              : positive := DRAM_DBITS/WBL;
     constant WB_WSEL_BITS               : positive := log2(WB_WORD_COUNT);
-    constant WB_WSEL_RIGHT              : positive := log2(WBL/8);
 
     -- BRAM organisation: We never access more than wishbone_data_bits at
     -- a time so to save resources we make the array only that wide, and
@@ -312,10 +311,20 @@ architecture behaviour of litedram_wrapper is
     -- Helper functions to decode incoming requests
     --
 
+    -- Return the DRAM real address from a wishbone address
+    function get_real_addr(addr: wishbone_addr_type) return std_ulogic_vector is
+        variable ra: std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0) := (others => '0');
+    begin
+        ra(REAL_ADDR_BITS - 1 downto wishbone_log2_width) :=
+            addr(REAL_ADDR_BITS - wishbone_log2_width - 1 downto 0);
+        return ra;
+    end;
+
     -- Return the cache line index (tag index) for an address
     function get_index(addr: wishbone_addr_type) return index_t is
     begin
-        return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto LINE_OFF_BITS)));
+        return to_integer(unsigned(addr(SET_SIZE_BITS - wishbone_log2_width - 1 downto
+                                        LINE_OFF_BITS - wishbone_log2_width)));
     end;
 
     -- Return the cache row index (data memory) for an address
@@ -378,7 +387,8 @@ architecture behaviour of litedram_wrapper is
     -- Get the tag value from the address
     function get_tag(addr: wishbone_addr_type) return cache_tag_t is
     begin
-        return addr(REAL_ADDR_BITS - 1 downto SET_SIZE_BITS);
+        return addr(REAL_ADDR_BITS - wishbone_log2_width - 1 downto
+                    SET_SIZE_BITS - wishbone_log2_width);
     end;
 
     -- Read a tag from a tag memory row
@@ -447,7 +457,7 @@ begin
                 wb_ctrl_stb <= '0';
             else
                 -- XXX Maybe only update addr when cyc = '1' to save power ?
-                wb_ctrl_adr   <= x"0000" & wb_ctrl_in.adr(15 downto 2);
+                wb_ctrl_adr   <= x"0000" & wb_ctrl_in.adr(13 downto 0);
                 wb_ctrl_dat_w <= wb_ctrl_in.dat;
                 wb_ctrl_sel   <= wb_ctrl_in.sel;
                 wb_ctrl_we    <= wb_ctrl_in.we;
@@ -608,7 +618,7 @@ begin
             if stall = '1' and wb_out.stall = '0' and wb_in.cyc = '1' and wb_in.stb = '1' then
                  wb_stash <= wb_in;
                  if TRACE then
-                     report "stashed wb req ! addr:" & to_hstring(wb_in.adr) &
+                     report "stashed wb req ! addr:" & to_hstring(wb_in.adr & "000") &
                          " we:" & std_ulogic'image(wb_in.we) &
                          " sel:" & to_hstring(wb_in.sel);
                  end if;
@@ -621,7 +631,7 @@ begin
                     wb_req <= wb_stash;
                     wb_stash.cyc <= '0';
                     if TRACE then
-                        report "unstashed wb req ! addr:" & to_hstring(wb_stash.adr) &
+                        report "unstashed wb req ! addr:" & to_hstring(wb_stash.adr & "000") &
                             " we:" & std_ulogic'image(wb_stash.we) &
                             " sel:" & to_hstring(wb_stash.sel);
                     end if;
@@ -636,7 +646,7 @@ begin
 
                     if TRACE then
                         if wb_in.cyc = '1' and wb_in.stb = '1' then
-                            report "latch new wb req ! addr:" & to_hstring(wb_in.adr) &
+                            report "latch new wb req ! addr:" & to_hstring(wb_in.adr & "000") &
                                 " we:" & std_ulogic'image(wb_in.we) &
                                 " sel:" & to_hstring(wb_in.sel);
                         end if;
@@ -665,12 +675,12 @@ begin
 
             if TRACE then
                 if req_op = OP_LOAD_HIT then
-                    report "Load hit addr:" & to_hstring(wb_req.adr) &
+                    report "Load hit addr:" & to_hstring(wb_req.adr & "000") &
                         " idx:" & integer'image(req_index) &
                         " tag:" & to_hstring(req_tag) &
                         " way:" & integer'image(req_hit_way);
                 elsif req_op = OP_LOAD_MISS then
-                    report "Load miss addr:" & to_hstring(wb_req.adr);
+                    report "Load miss addr:" & to_hstring(wb_req.adr & "000");
                 end if;
                 if read_ack_0 = '1' then
                     report "read data:" & to_hstring(cache_out(read_way_0));
@@ -771,20 +781,19 @@ begin
     begin
         -- Extract line, row and tag from request
         req_index <= get_index(wb_req.adr);
-        req_row <= get_row(wb_req.adr(REAL_ADDR_BITS-1 downto 0));
+        req_row <= get_row(get_real_addr(wb_req.adr));
         req_tag <= get_tag(wb_req.adr);
 
         -- Calculate address of beginning of cache row, will be
         -- used for cache miss processing if needed
-        req_laddr <= wb_req.adr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
-                     (ROW_OFF_BITS-1 downto 0 => '0');
+        req_laddr <= get_real_addr(wb_req.adr);
 
 
         -- Do we have a valid request in the WB latch ?
         valid := wb_req.cyc = '1' and wb_req.stb = '1';
 
         -- Store signals (hard wired for 64-bit wishbone at the moment)
-        req_wsl <= wb_req.adr(WB_WSEL_RIGHT+WB_WSEL_BITS-1 downto WB_WSEL_RIGHT);
+        req_wsl <= wb_req.adr(WB_WSEL_BITS-1 downto 0);
         for i in 0 to WB_WORD_COUNT-1 loop
             if to_integer(unsigned(req_wsl)) = i then
                 req_we(WBSL*(i+1)-1 downto WBSL*i) <= wb_req.sel;
@@ -892,7 +901,7 @@ begin
         variable stq_wsl  : std_ulogic_vector(WB_WSEL_BITS-1 downto 0);
     begin
         storeq_wr_data <= wb_req.dat & wb_req.sel &
-                          wb_req.adr(WB_WSEL_RIGHT+WB_WSEL_BITS-1 downto WB_WSEL_RIGHT);
+                          wb_req.adr(WB_WSEL_BITS-1 downto 0);
 
         -- Only queue stores if we can also send a command
         if req_op = OP_STORE_HIT or req_op = OP_STORE_MISS then
@@ -927,13 +936,13 @@ begin
             if rising_edge(system_clk) then
                 if req_op = OP_STORE_HIT then
                     report "Store hit to:" &
-                        to_hstring(wb_req.adr(DRAM_ABITS+3 downto 0)) &
+                        to_hstring(wb_req.adr(DRAM_ABITS downto 0) & "000") &
                         " data:" & to_hstring(req_wdata) &
                         " we:" & to_hstring(req_we) &
                         " V:" & std_ulogic'image(user_port0_cmd_ready);
                 else
                     report "Store miss to:" &
-                        to_hstring(wb_req.adr(DRAM_ABITS+3 downto 0)) &
+                        to_hstring(wb_req.adr(DRAM_ABITS downto 0) & "000") &
                         " data:" & to_hstring(req_wdata) &
                         " we:" & to_hstring(req_we) &
                         " V:" & std_ulogic'image(user_port0_cmd_ready);
@@ -954,7 +963,8 @@ begin
         if req_op = OP_STORE_HIT or req_op = OP_STORE_MISS then
             -- For stores, forward signals directly. Only send command if
             -- the FIFO can accept a store.
-            user_port0_cmd_addr  <= wb_req.adr(DRAM_ABITS+ROW_OFF_BITS-1 downto ROW_OFF_BITS);
+            user_port0_cmd_addr  <= wb_req.adr(DRAM_ABITS + ROW_OFF_BITS - wishbone_log2_width - 1 downto
+                                               ROW_OFF_BITS - wishbone_log2_width);
             user_port0_cmd_we    <= '1';
             user_port0_cmd_valid <= storeq_wr_ready;
         else

@@ -58,7 +58,7 @@ begin
 
     -- Wishbone response
     wb_rsp.ack <= wb_in.cyc and wb_in.stb;
-    with wb_in.adr(GPIO_REG_BITS + 1 downto 2) select reg_out <=
+    with wb_in.adr(GPIO_REG_BITS - 1 downto 0) select reg_out <=
         reg_data when GPIO_REG_DATA_OUT,
         reg_in2  when GPIO_REG_DATA_IN,
         reg_dirn when GPIO_REG_DIR,
@@ -79,7 +79,7 @@ begin
                 wb_out.ack <= '0';
             else
                 if wb_in.cyc = '1' and wb_in.stb = '1' and wb_in.we = '1' then
-                    case wb_in.adr(GPIO_REG_BITS + 1 downto 2) is
+                    case wb_in.adr(GPIO_REG_BITS - 1 downto 0) is
                         when GPIO_REG_DATA_OUT =>
                             reg_data <= wb_in.dat(NGPIO - 1 downto 0);
                         when GPIO_REG_DIR =>
