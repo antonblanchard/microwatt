@@ -171,7 +171,7 @@ architecture rtl of icache is
     signal eaa_priv  : std_ulogic;
 
     -- Cache reload state machine
-    type state_t is (IDLE, CLR_TAG, WAIT_ACK);
+    type state_t is (IDLE, STOP_RELOAD, CLR_TAG, WAIT_ACK);
 
     type reg_internal_t is record
 	-- Cache hit state (Latches for 1 cycle BRAM access)
@@ -546,7 +546,7 @@ begin
 	end loop;
 
 	-- Generate the "hit" and "miss" signals for the synchronous blocks
-        if i_in.req = '1' and access_ok = '1' and flush_in = '0' and rst = '0' then
+        if i_in.req = '1' and access_ok = '1' and flush_in = '0' and rst = '0' and use_previous = '0' then
             req_is_hit  <= is_hit;
             req_is_miss <= not is_hit;
         else
@@ -580,7 +580,7 @@ begin
         i_out.next_pred_ntaken <= i_in.pred_ntaken;
 
 	-- Stall fetch1 if we have a miss on cache or TLB or a protection fault
-	stall_out <= not (is_hit and access_ok);
+	stall_out <= not (is_hit and access_ok) and not use_previous;
 
 	-- Wishbone requests output (from the cache miss reload machine)
 	wishbone_out <= r.wb;
@@ -757,9 +757,15 @@ begin
 			r.wb.adr <= next_row_addr(r.wb.adr);
 		    end if;
 
+                    -- Abort reload if we get an invalidation
+                    if inval_in = '1' then
+                        r.wb.stb <= '0';
+                        r.state <= STOP_RELOAD;
+                    end if;
+
 		    -- Incoming acks processing
 		    if wishbone_in.ack = '1' then
-                        r.rows_valid(r.store_row mod ROW_PER_LINE) <= '1';
+                        r.rows_valid(r.store_row mod ROW_PER_LINE) <= not inval_in;
 			-- Check for completion
 			if is_last_row(r.store_row, r.end_row_ix) then
 			    -- Complete wishbone cycle
@@ -772,6 +778,18 @@ begin
 			    r.state <= IDLE;
 			end if;
 
+			-- Increment store row counter
+			r.store_row <= next_row(r.store_row);
+		    end if;
+
+                when STOP_RELOAD =>
+                    -- Wait for all outstanding requests to be satisfied, then
+                    -- go to IDLE state.
+                    if get_row_of_line(r.store_row) = get_row_of_line(get_row(r.wb.adr)) then
+                        r.wb.cyc <= '0';
+                        r.state <= IDLE;
+                    end if;
+                    if wishbone_in.ack = '1' then
 			-- Increment store row counter
 			r.store_row <= next_row(r.store_row);
 		    end if;
