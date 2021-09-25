@@ -1537,7 +1537,7 @@ begin
                             r1.wb.dat <= req.data;
                             r1.wb.sel <= req.byte_sel;
                         end if;
-                        if acks < 7 and req.same_tag = '1' and
+                        if acks < 7 and req.same_tag = '1' and req.dcbz = '0' and
                             (req.op = OP_STORE_MISS or req.op = OP_STORE_HIT) then
                             r1.wb.stb <= '1';
                             stbs_done := false;
