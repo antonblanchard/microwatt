@@ -106,6 +106,12 @@ filesets:
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
       - fpga/top-arty.vhdl : {file_type : vhdlSource-2008}
 
+  wukong-v2:
+    files:
+      - fpga/wukong-v2.xdc : {file_type : xdc}
+      - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
+      - fpga/top-wukong-v2.vhdl : {file_type : vhdlSource-2008}
+
   cmod_a7-35:
     files:
       - fpga/cmod_a7-35.xdc : {file_type : xdc}
@@ -338,6 +344,50 @@ targets:
       vivado: {part : xc7a100ticsg324-1L}
     toplevel : toplevel
 
+  wukong-v2-a100t-nodram:
+    default_tool: vivado
+    filesets: [core, wukong-v2, soc, fpga, debug_xilinx, uart16550, xilinx_specific, litesdcard]
+    parameters:
+      - memory_size
+      - ram_init_file
+      - use_litedram=false
+      - use_liteeth=false
+      - use_litesdcard=true
+      - disable_flatten_core
+      - spi_flash_offset=4194304
+      - clk_frequency=100000000
+      - log_length=2048
+      - uart_is_16550
+      - has_fpu
+      - has_btc
+      - has_short_mult
+    generate: [litesdcard_wukong-v2]
+    tools:
+      vivado: {part : xc7a100tfgg676-1}
+    toplevel : toplevel
+
+  wukong-v2-a100t:
+    default_tool: vivado
+    filesets: [core, wukong-v2, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific, litesdcard]
+    parameters:
+      - memory_size=0
+      - ram_init_file
+      - use_litedram=true
+      - use_liteeth=true
+      - use_litesdcard=true
+      - disable_flatten_core
+      - no_bram=true
+      - spi_flash_offset=4194304
+      - log_length=0
+      - uart_is_16550
+      - has_fpu
+      - has_btc
+      - has_short_mult
+    generate: [litedram_wukong-v2, liteeth_wukong-v2, litesdcard_wukong-v2]
+    tools:
+      vivado: {part : xc7a100tfgg676-1}
+    toplevel : toplevel
+
   cmod_a7-35:
     default_tool: vivado
     filesets: [core, cmod_a7-35, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
@@ -394,6 +444,18 @@ generate:
   litedram_genesys2:
     generator: litedram_gen
     parameters: {board : genesys2}
+
+  litedram_wukong-v2:
+    generator: litedram_gen
+    parameters: {board : wukong-v2}
+
+  liteeth_wukong-v2:
+    generator: liteeth_gen
+    parameters: {board : wukong-v2}
+
+  litesdcard_wukong-v2:
+    generator: litesdcard_gen
+    parameters: {vendor : xilinx}
 
 parameters:
   memory_size:
