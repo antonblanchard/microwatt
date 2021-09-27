@@ -67,8 +67,6 @@ architecture rtl of dcache is
 
     -- Bit fields counts in the address
 
-    -- REAL_ADDR_BITS is the number of real address bits that we store
-    constant REAL_ADDR_BITS : positive := 56;
     -- ROW_BITS is the number of bits to select a row 
     constant ROW_BITS      : natural := log2(BRAM_ROWS);
     -- ROW_LINEBITS is the number of bits to select a row within a line
@@ -289,7 +287,7 @@ architecture rtl of dcache is
         op        : op_t;
         valid     : std_ulogic;
         dcbz      : std_ulogic;
-        real_addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+        real_addr : real_addr_t;
         data      : std_ulogic_vector(63 downto 0);
         byte_sel  : std_ulogic_vector(7 downto 0);
         hit_way   : way_t;
@@ -412,7 +410,7 @@ architecture rtl of dcache is
     signal tlb_hit : std_ulogic;
     signal tlb_hit_way : tlb_way_t;
     signal pte : tlb_pte_t;
-    signal ra : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+    signal ra : real_addr_t;
     signal valid_ra : std_ulogic;
     signal perm_attr : perm_attr_t;
     signal rc_ok : std_ulogic;
@@ -803,7 +801,7 @@ begin
 
     -- Cache tag RAM second read port, for snooping
     cache_tag_read_2 : process(clk)
-        variable addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+        variable addr : real_addr_t;
     begin
         if rising_edge(clk) then
             addr := (others => '0');
@@ -830,7 +828,7 @@ begin
         variable s_hit       : std_ulogic;
         variable s_tag       : cache_tag_t;
         variable s_pte       : tlb_pte_t;
-        variable s_ra        : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+        variable s_ra        : real_addr_t;
         variable hit_set     : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
         variable hit_way_set : hit_way_set_t;
         variable rel_matches : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);

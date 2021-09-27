@@ -46,8 +46,6 @@ entity icache is
         TLB_SIZE : positive := 64;
         -- L1 ITLB log_2(page_size)
         TLB_LG_PGSZ : positive := 12;
-        -- Number of real address bits that we store
-        REAL_ADDR_BITS : positive := 56;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -210,7 +208,7 @@ architecture rtl of icache is
     signal req_laddr   : std_ulogic_vector(63 downto 0);
 
     signal tlb_req_index : tlb_index_t;
-    signal real_addr     : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+    signal real_addr     : real_addr_t;
     signal ra_valid      : std_ulogic;
     signal priv_fault    : std_ulogic;
     signal access_ok     : std_ulogic;
@@ -468,7 +466,7 @@ begin
             end if;
             eaa_priv <= pte(3);
         else
-            real_addr <= i_in.nia(REAL_ADDR_BITS - 1 downto 0);
+            real_addr <= addr_to_real(i_in.nia);
             ra_valid <= '1';
             eaa_priv <= '1';
         end if;
@@ -627,7 +625,7 @@ begin
     icache_miss : process(clk)
 	variable tagset    : cache_tags_set_t;
         variable tag       : cache_tag_t;
-        variable snoop_addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+        variable snoop_addr : real_addr_t;
         variable snoop_tag : cache_tag_t;
         variable snoop_cache_tags : cache_tags_set_t;
     begin

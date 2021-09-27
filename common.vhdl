@@ -156,6 +156,12 @@ package common is
     constant FPSCR_NI     : integer := 63 - 61;
     constant FPSCR_RN     : integer := 63 - 63;
 
+    -- Real addresses
+    -- REAL_ADDR_BITS is the number of real address bits that we store
+    constant REAL_ADDR_BITS : positive := 56;
+    subtype real_addr_t is std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+    function addr_to_real(addr: std_ulogic_vector(63 downto 0)) return real_addr_t;
+
     -- Used for tracking instruction completion and pending register writes
     constant TAG_COUNT : positive := 4;
     constant TAG_NUMBER_BITS : natural := log2(TAG_COUNT);
@@ -778,5 +784,10 @@ package body common is
     function tag_match(tag1 : instr_tag_t; tag2 : instr_tag_t) return boolean is
     begin
         return tag1.valid = '1' and tag2.valid = '1' and tag1.tag = tag2.tag;
+    end;
+
+    function addr_to_real(addr: std_ulogic_vector(63 downto 0)) return real_addr_t is
+    begin
+        return addr(real_addr_t'range);
     end;
 end common;
