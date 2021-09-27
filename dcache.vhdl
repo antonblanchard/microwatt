@@ -67,8 +67,6 @@ architecture rtl of dcache is
 
     -- Bit fields counts in the address
 
-    -- REAL_ADDR_BITS is the number of real address bits that we store
-    constant REAL_ADDR_BITS : positive := 56;
     -- ROW_BITS is the number of bits to select a row 
     constant ROW_BITS      : natural := log2(BRAM_ROWS);
     -- ROW_LINEBITS is the number of bits to select a row within a line
@@ -289,7 +287,7 @@ architecture rtl of dcache is
         op        : op_t;
         valid     : std_ulogic;
         dcbz      : std_ulogic;
-        real_addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+        real_addr : real_addr_t;
         data      : std_ulogic_vector(63 downto 0);
         byte_sel  : std_ulogic_vector(7 downto 0);
         hit_way   : way_t;
@@ -412,7 +410,7 @@ architecture rtl of dcache is
     signal tlb_hit : std_ulogic;
     signal tlb_hit_way : tlb_way_t;
     signal pte : tlb_pte_t;
-    signal ra : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+    signal ra : real_addr_t;
     signal valid_ra : std_ulogic;
     signal perm_attr : perm_attr_t;
     signal rc_ok : std_ulogic;
@@ -454,7 +452,7 @@ architecture rtl of dcache is
     end;
 
     -- Returns whether this is the last row of a line
-    function is_last_row_addr(addr: wishbone_addr_type; last: row_in_line_t) return boolean is
+    function is_last_row_wb_addr(addr: wishbone_addr_type; last: row_in_line_t) return boolean is
     begin
 	return unsigned(addr(LINE_OFF_BITS - ROW_OFF_BITS - 1 downto 0)) = last;
     end;
@@ -466,7 +464,7 @@ architecture rtl of dcache is
     end;
 
     -- Return the address of the next row in the current cache line
-    function next_row_addr(addr: wishbone_addr_type) return std_ulogic_vector is
+    function next_row_wb_addr(addr: wishbone_addr_type) return std_ulogic_vector is
 	variable row_idx : std_ulogic_vector(ROW_LINEBITS-1 downto 0);
 	variable result  : wishbone_addr_type;
     begin
@@ -803,11 +801,10 @@ begin
 
     -- Cache tag RAM second read port, for snooping
     cache_tag_read_2 : process(clk)
-        variable addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+        variable addr : real_addr_t;
     begin
         if rising_edge(clk) then
-            addr := (others => '0');
-            addr(snoop_in.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS) := snoop_in.adr;
+            addr := addr_to_real(wb_to_addr(snoop_in.adr));
             snoop_tag_set <= cache_tags(get_index(addr));
             snoop_wrtag <= get_tag(addr);
             snoop_index <= get_index(addr);
@@ -830,7 +827,7 @@ begin
         variable s_hit       : std_ulogic;
         variable s_tag       : cache_tag_t;
         variable s_pte       : tlb_pte_t;
-        variable s_ra        : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+        variable s_ra        : real_addr_t;
         variable hit_set     : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
         variable hit_way_set : hit_way_set_t;
         variable rel_matches : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
@@ -1383,7 +1380,7 @@ begin
 		-- Main state machine
 		case r1.state is
                 when IDLE =>
-                    r1.wb.adr <= req.real_addr(r1.wb.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS);
+                    r1.wb.adr <= addr_to_wb(req.real_addr);
                     r1.wb.sel <= req.byte_sel;
                     r1.wb.dat <= req.data;
                     r1.dcbz <= req.dcbz;
@@ -1471,12 +1468,12 @@ begin
 		    -- If we are still sending requests, was one accepted ?
                     if wishbone_in.stall = '0' and r1.wb.stb = '1' then
 			-- That was the last word ? We are done sending. Clear stb.
-			if is_last_row_addr(r1.wb.adr, r1.end_row_ix) then
+			if is_last_row_wb_addr(r1.wb.adr, r1.end_row_ix) then
 			    r1.wb.stb <= '0';
 			end if;
 
 			-- Calculate the next row address
-			r1.wb.adr <= next_row_addr(r1.wb.adr);
+			r1.wb.adr <= next_row_wb_addr(r1.wb.adr);
 		    end if;
 
 		    -- Incoming acks processing

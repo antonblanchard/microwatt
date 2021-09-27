@@ -46,8 +46,6 @@ entity icache is
         TLB_SIZE : positive := 64;
         -- L1 ITLB log_2(page_size)
         TLB_LG_PGSZ : positive := 12;
-        -- Number of real address bits that we store
-        REAL_ADDR_BITS : positive := 56;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -207,10 +205,10 @@ architecture rtl of icache is
     signal req_tag     : cache_tag_t;
     signal req_is_hit  : std_ulogic;
     signal req_is_miss : std_ulogic;
-    signal req_laddr   : std_ulogic_vector(63 downto 0);
+    signal req_raddr   : real_addr_t;
 
     signal tlb_req_index : tlb_index_t;
-    signal real_addr     : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+    signal real_addr     : real_addr_t;
     signal ra_valid      : std_ulogic;
     signal priv_fault    : std_ulogic;
     signal access_ok     : std_ulogic;
@@ -251,9 +249,9 @@ architecture rtl of icache is
     end;
 
     -- Returns whether this is the last row of a line
-    function is_last_row_addr(addr: wishbone_addr_type; last: row_in_line_t) return boolean is
+    function is_last_row_wb_addr(wb_addr: wishbone_addr_type; last: row_in_line_t) return boolean is
     begin
-	return unsigned(addr(LINE_OFF_BITS - ROW_OFF_BITS - 1 downto 0)) = last;
+	return unsigned(wb_addr(LINE_OFF_BITS - ROW_OFF_BITS - 1 downto 0)) = last;
     end;
 
     -- Returns whether this is the last row of a line
@@ -263,15 +261,15 @@ architecture rtl of icache is
     end;
 
     -- Return the address of the next row in the current cache line
-    function next_row_addr(addr: wishbone_addr_type)
+    function next_row_wb_addr(wb_addr: wishbone_addr_type)
 	return std_ulogic_vector is
 	variable row_idx : std_ulogic_vector(ROW_LINEBITS-1 downto 0);
 	variable result  : wishbone_addr_type;
     begin
 	-- Is there no simpler way in VHDL to generate that 3 bits adder ?
-	row_idx := addr(ROW_LINEBITS - 1 downto 0);
+	row_idx := wb_addr(ROW_LINEBITS - 1 downto 0);
 	row_idx := std_ulogic_vector(unsigned(row_idx) + 1);
-	result := addr;
+	result := wb_addr;
 	result(ROW_LINEBITS - 1 downto 0) := row_idx;
 	return result;
     end;
@@ -301,10 +299,9 @@ architecture rtl of icache is
     end;
 
     -- Get the tag value from the address
-    function get_tag(addr: std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
-                     endian: std_ulogic) return cache_tag_t is
+    function get_tag(addr: real_addr_t; endian: std_ulogic) return cache_tag_t is
     begin
-        return endian & addr(REAL_ADDR_BITS - 1 downto SET_SIZE_BITS);
+        return endian & addr(addr'left downto SET_SIZE_BITS);
     end;
 
     -- Read a tag from a tag memory row
@@ -468,7 +465,7 @@ begin
             end if;
             eaa_priv <= pte(3);
         else
-            real_addr <= i_in.nia(REAL_ADDR_BITS - 1 downto 0);
+            real_addr <= addr_to_real(i_in.nia);
             ra_valid <= '1';
             eaa_priv <= '1';
         end if;
@@ -524,8 +521,7 @@ begin
 	-- Calculate address of beginning of cache row, will be
 	-- used for cache miss processing if needed
 	--
-	req_laddr <= (63 downto REAL_ADDR_BITS => '0') &
-                     real_addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS)&
+	req_raddr <= real_addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
 		     (ROW_OFF_BITS-1 downto 0 => '0');
 
 	-- Test if pending request is a hit on any way
@@ -627,7 +623,7 @@ begin
     icache_miss : process(clk)
 	variable tagset    : cache_tags_set_t;
         variable tag       : cache_tag_t;
-        variable snoop_addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+        variable snoop_addr : real_addr_t;
         variable snoop_tag : cache_tag_t;
         variable snoop_cache_tags : cache_tags_set_t;
     begin
@@ -657,8 +653,7 @@ begin
                 -- Detect snooped writes and decode address into index and tag
                 -- Since we never write, any write should be snooped
                 snoop_valid <= wb_snoop_in.cyc and wb_snoop_in.stb and wb_snoop_in.we;
-                snoop_addr := (others => '0');
-                snoop_addr(wb_snoop_in.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS) := wb_snoop_in.adr;
+                snoop_addr := addr_to_real(wb_to_addr(wb_snoop_in.adr));
                 snoop_index <= get_index(snoop_addr);
                 snoop_cache_tags := cache_tags(get_index(snoop_addr));
                 snoop_tag := get_tag(snoop_addr, '0');
@@ -709,15 +704,15 @@ begin
 
 			-- Keep track of our index and way for subsequent stores
 			r.store_index <= req_index;
-			r.store_row <= get_row(req_laddr);
+			r.store_row <= get_row(req_raddr);
                         r.store_tag <= req_tag;
                         r.store_valid <= '1';
-                        r.end_row_ix <= get_row_of_line(get_row(req_laddr)) - 1;
+                        r.end_row_ix <= get_row_of_line(get_row(req_raddr)) - 1;
 
 			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line and start the WB cycle.
 			--
-			r.wb.adr <= req_laddr(r.wb.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS);
+			r.wb.adr <= addr_to_wb(req_raddr);
 			r.wb.cyc <= '1';
 			r.wb.stb <= '1';
 
@@ -749,12 +744,12 @@ begin
 		    if wishbone_in.stall = '0' and r.wb.stb = '1' then
 			-- That was the last word ? We are done sending. Clear stb.
 			--
-			if is_last_row_addr(r.wb.adr, r.end_row_ix) then
+			if is_last_row_wb_addr(r.wb.adr, r.end_row_ix) then
 			    r.wb.stb <= '0';
 			end if;
 
 			-- Calculate the next row address
-			r.wb.adr <= next_row_addr(r.wb.adr);
+			r.wb.adr <= next_row_wb_addr(r.wb.adr);
 		    end if;
 
                     -- Abort reload if we get an invalidation
@@ -785,7 +780,7 @@ begin
                 when STOP_RELOAD =>
                     -- Wait for all outstanding requests to be satisfied, then
                     -- go to IDLE state.
-                    if get_row_of_line(r.store_row) = get_row_of_line(get_row(r.wb.adr)) then
+                    if get_row_of_line(r.store_row) = get_row_of_line(get_row(wb_to_addr(r.wb.adr))) then
                         r.wb.cyc <= '0';
                         r.state <= IDLE;
                     end if;
