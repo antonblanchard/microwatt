@@ -15,6 +15,9 @@ package wishbone_types is
     subtype wishbone_data_type is std_ulogic_vector(wishbone_data_bits-1 downto 0);
     subtype wishbone_sel_type  is std_ulogic_vector(wishbone_sel_bits-1  downto 0);
 
+    function addr_to_wb(addr: std_ulogic_vector) return wishbone_addr_type;
+    function wb_to_addr(wb_addr: wishbone_addr_type) return std_ulogic_vector;
+
     type wishbone_master_out is record
         adr : wishbone_addr_type;
         dat : wishbone_data_type;
@@ -38,6 +41,7 @@ package wishbone_types is
     --
     -- IO Bus to a device, 30-bit address, 32-bits data
     --
+
     type wb_io_master_out is record
         adr : std_ulogic_vector(29 downto 0);
         dat : std_ulogic_vector(31 downto 0);
@@ -56,3 +60,19 @@ package wishbone_types is
     end record;
     constant wb_io_slave_out_init : wb_io_slave_out := (ack => '0', stall => '0', others => (others => '0'));
 end package wishbone_types;
+
+package body wishbone_types is
+    function addr_to_wb(addr: std_ulogic_vector) return wishbone_addr_type is
+    begin
+        assert addr'length >= (wishbone_addr_type'length + wishbone_log2_width);
+        assert addr'right = 0;
+        return addr(wishbone_addr_type'left + wishbone_log2_width downto wishbone_log2_width);
+    end;
+    function wb_to_addr(wb_addr: wishbone_addr_type) return std_ulogic_vector is
+        variable ret  : std_ulogic_vector(63 downto 0);
+    begin
+        ret := (others => '0');
+        ret(wishbone_addr_type'left + wishbone_log2_width downto wishbone_log2_width) := wb_addr;
+        return ret;
+    end;
+end wishbone_types;

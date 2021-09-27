@@ -235,7 +235,7 @@ architecture rtl of icache is
     end;
 
     -- Return the cache row index (data memory) for an address
-    function get_row(addr: std_ulogic_vector) return row_t is
+    function get_row(addr: std_ulogic_vector(63 downto 0)) return row_t is
     begin
         return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto ROW_OFF_BITS)));
     end;
@@ -249,9 +249,9 @@ architecture rtl of icache is
     end;
 
     -- Returns whether this is the last row of a line
-    function is_last_row_addr(addr: wishbone_addr_type; last: row_in_line_t) return boolean is
+    function is_last_row_wb_addr(wb_addr: wishbone_addr_type; last: row_in_line_t) return boolean is
     begin
-	return unsigned(addr(LINE_OFF_BITS - ROW_OFF_BITS - 1 downto 0)) = last;
+	return unsigned(wb_addr(LINE_OFF_BITS - ROW_OFF_BITS - 1 downto 0)) = last;
     end;
 
     -- Returns whether this is the last row of a line
@@ -261,15 +261,15 @@ architecture rtl of icache is
     end;
 
     -- Return the address of the next row in the current cache line
-    function next_row_addr(addr: wishbone_addr_type)
+    function next_row_wb_addr(wb_addr: wishbone_addr_type)
 	return std_ulogic_vector is
 	variable row_idx : std_ulogic_vector(ROW_LINEBITS-1 downto 0);
 	variable result  : wishbone_addr_type;
     begin
 	-- Is there no simpler way in VHDL to generate that 3 bits adder ?
-	row_idx := addr(ROW_LINEBITS - 1 downto 0);
+	row_idx := wb_addr(ROW_LINEBITS - 1 downto 0);
 	row_idx := std_ulogic_vector(unsigned(row_idx) + 1);
-	result := addr;
+	result := wb_addr;
 	result(ROW_LINEBITS - 1 downto 0) := row_idx;
 	return result;
     end;
@@ -299,10 +299,9 @@ architecture rtl of icache is
     end;
 
     -- Get the tag value from the address
-    function get_tag(addr: std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
-                     endian: std_ulogic) return cache_tag_t is
+    function get_tag(addr: real_addr_t; endian: std_ulogic) return cache_tag_t is
     begin
-        return endian & addr(REAL_ADDR_BITS - 1 downto SET_SIZE_BITS);
+        return endian & addr(addr'left downto SET_SIZE_BITS);
     end;
 
     -- Read a tag from a tag memory row
@@ -523,7 +522,7 @@ begin
 	-- used for cache miss processing if needed
 	--
 	req_laddr <= (63 downto REAL_ADDR_BITS => '0') &
-                     real_addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS)&
+                     real_addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
 		     (ROW_OFF_BITS-1 downto 0 => '0');
 
 	-- Test if pending request is a hit on any way
@@ -655,8 +654,7 @@ begin
                 -- Detect snooped writes and decode address into index and tag
                 -- Since we never write, any write should be snooped
                 snoop_valid <= wb_snoop_in.cyc and wb_snoop_in.stb and wb_snoop_in.we;
-                snoop_addr := (others => '0');
-                snoop_addr(wb_snoop_in.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS) := wb_snoop_in.adr;
+                snoop_addr := addr_to_real(wb_to_addr(wb_snoop_in.adr));
                 snoop_index <= get_index(snoop_addr);
                 snoop_cache_tags := cache_tags(get_index(snoop_addr));
                 snoop_tag := get_tag(snoop_addr, '0');
@@ -715,7 +713,7 @@ begin
 			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line and start the WB cycle.
 			--
-			r.wb.adr <= req_laddr(r.wb.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS);
+			r.wb.adr <= addr_to_wb(req_laddr);
 			r.wb.cyc <= '1';
 			r.wb.stb <= '1';
 
@@ -747,12 +745,12 @@ begin
 		    if wishbone_in.stall = '0' and r.wb.stb = '1' then
 			-- That was the last word ? We are done sending. Clear stb.
 			--
-			if is_last_row_addr(r.wb.adr, r.end_row_ix) then
+			if is_last_row_wb_addr(r.wb.adr, r.end_row_ix) then
 			    r.wb.stb <= '0';
 			end if;
 
 			-- Calculate the next row address
-			r.wb.adr <= next_row_addr(r.wb.adr);
+			r.wb.adr <= next_row_wb_addr(r.wb.adr);
 		    end if;
 
                     -- Abort reload if we get an invalidation
@@ -783,7 +781,7 @@ begin
                 when STOP_RELOAD =>
                     -- Wait for all outstanding requests to be satisfied, then
                     -- go to IDLE state.
-                    if get_row_of_line(r.store_row) = get_row_of_line(get_row(r.wb.adr)) then
+                    if get_row_of_line(r.store_row) = get_row_of_line(get_row(wb_to_addr(r.wb.adr))) then
                         r.wb.cyc <= '0';
                         r.state <= IDLE;
                     end if;

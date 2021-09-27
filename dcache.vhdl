@@ -452,7 +452,7 @@ architecture rtl of dcache is
     end;
 
     -- Returns whether this is the last row of a line
-    function is_last_row_addr(addr: wishbone_addr_type; last: row_in_line_t) return boolean is
+    function is_last_row_wb_addr(addr: wishbone_addr_type; last: row_in_line_t) return boolean is
     begin
 	return unsigned(addr(LINE_OFF_BITS - ROW_OFF_BITS - 1 downto 0)) = last;
     end;
@@ -464,7 +464,7 @@ architecture rtl of dcache is
     end;
 
     -- Return the address of the next row in the current cache line
-    function next_row_addr(addr: wishbone_addr_type) return std_ulogic_vector is
+    function next_row_wb_addr(addr: wishbone_addr_type) return std_ulogic_vector is
 	variable row_idx : std_ulogic_vector(ROW_LINEBITS-1 downto 0);
 	variable result  : wishbone_addr_type;
     begin
@@ -804,8 +804,7 @@ begin
         variable addr : real_addr_t;
     begin
         if rising_edge(clk) then
-            addr := (others => '0');
-            addr(snoop_in.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS) := snoop_in.adr;
+            addr := addr_to_real(wb_to_addr(snoop_in.adr));
             snoop_tag_set <= cache_tags(get_index(addr));
             snoop_wrtag <= get_tag(addr);
             snoop_index <= get_index(addr);
@@ -1381,7 +1380,7 @@ begin
 		-- Main state machine
 		case r1.state is
                 when IDLE =>
-                    r1.wb.adr <= req.real_addr(r1.wb.adr'left + ROW_OFF_BITS downto ROW_OFF_BITS);
+                    r1.wb.adr <= addr_to_wb(req.real_addr);
                     r1.wb.sel <= req.byte_sel;
                     r1.wb.dat <= req.data;
                     r1.dcbz <= req.dcbz;
@@ -1469,12 +1468,12 @@ begin
 		    -- If we are still sending requests, was one accepted ?
                     if wishbone_in.stall = '0' and r1.wb.stb = '1' then
 			-- That was the last word ? We are done sending. Clear stb.
-			if is_last_row_addr(r1.wb.adr, r1.end_row_ix) then
+			if is_last_row_wb_addr(r1.wb.adr, r1.end_row_ix) then
 			    r1.wb.stb <= '0';
 			end if;
 
 			-- Calculate the next row address
-			r1.wb.adr <= next_row_addr(r1.wb.adr);
+			r1.wb.adr <= next_row_wb_addr(r1.wb.adr);
 		    end if;
 
 		    -- Incoming acks processing
