@@ -205,7 +205,7 @@ architecture rtl of icache is
     signal req_tag     : cache_tag_t;
     signal req_is_hit  : std_ulogic;
     signal req_is_miss : std_ulogic;
-    signal req_laddr   : std_ulogic_vector(63 downto 0);
+    signal req_raddr   : real_addr_t;
 
     signal tlb_req_index : tlb_index_t;
     signal real_addr     : real_addr_t;
@@ -235,7 +235,7 @@ architecture rtl of icache is
     end;
 
     -- Return the cache row index (data memory) for an address
-    function get_row(addr: std_ulogic_vector(63 downto 0)) return row_t is
+    function get_row(addr: std_ulogic_vector) return row_t is
     begin
         return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto ROW_OFF_BITS)));
     end;
@@ -521,8 +521,7 @@ begin
 	-- Calculate address of beginning of cache row, will be
 	-- used for cache miss processing if needed
 	--
-	req_laddr <= (63 downto REAL_ADDR_BITS => '0') &
-                     real_addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
+	req_raddr <= real_addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
 		     (ROW_OFF_BITS-1 downto 0 => '0');
 
 	-- Test if pending request is a hit on any way
@@ -705,15 +704,15 @@ begin
 
 			-- Keep track of our index and way for subsequent stores
 			r.store_index <= req_index;
-			r.store_row <= get_row(req_laddr);
+			r.store_row <= get_row(req_raddr);
                         r.store_tag <= req_tag;
                         r.store_valid <= '1';
-                        r.end_row_ix <= get_row_of_line(get_row(req_laddr)) - 1;
+                        r.end_row_ix <= get_row_of_line(get_row(req_raddr)) - 1;
 
 			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line and start the WB cycle.
 			--
-			r.wb.adr <= addr_to_wb(req_laddr);
+			r.wb.adr <= addr_to_wb(req_raddr);
 			r.wb.cyc <= '1';
 			r.wb.stb <= '1';
 
