@@ -17,7 +17,8 @@ entity toplevel is
         ICACHE_NUM_LINES : natural := 64;
         LOG_LENGTH    : natural := 512;
 	DISABLE_FLATTEN_CORE : boolean := false;
-        UART_IS_16550 : boolean  := true
+        UART_IS_16550 : boolean  := true;
+        HAS_LPC       : boolean  := true
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -25,7 +26,19 @@ entity toplevel is
 
 	-- UART0 signals:
 	uart0_txd : out std_ulogic;
-	uart0_rxd : in  std_ulogic
+	uart0_rxd : in  std_ulogic;
+
+	-- LPC
+	lpc_clock      : in std_ulogic;
+
+        lpc_frame_n    : in std_ulogic;
+        lpc_reset_n    : in std_ulogic;
+        lpc_data_i     : in std_ulogic_vector(3 downto 0);
+        lpc_irq_i      : in std_ulogic;
+
+        lpc_data_oe    : out std_ulogic;
+        lpc_data_o_reg : out std_ulogic_vector(3 downto 0);
+        lpc_irq_o2     : out std_ulogic
 	);
 end entity toplevel;
 
@@ -39,6 +52,11 @@ architecture behaviour of toplevel is
     signal system_clk : std_ulogic;
     signal system_clk_locked : std_ulogic;
 
+    -- LPC
+    signal lpc_data_i_reg    : std_ulogic_vector(3 downto 0);
+    signal lpc_data_o        : std_ulogic_vector(3 downto 0);
+    signal lpc_irq_o         : std_ulogic;
+    signal lpc_irq_oe        : std_ulogic;
 begin
 
     reset_controller: entity work.soc_reset
@@ -79,13 +97,35 @@ begin
 	    ICACHE_NUM_LINES => ICACHE_NUM_LINES,
             LOG_LENGTH    => LOG_LENGTH,
 	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
-            UART0_IS_16550     => UART_IS_16550
+            UART0_IS_16550     => UART_IS_16550,
+	    HAS_LPC       => HAS_LPC
 	    )
 	port map (
 	    system_clk        => system_clk,
 	    rst               => soc_rst,
 	    uart0_txd         => uart0_txd,
-	    uart0_rxd         => uart0_rxd
+	    uart0_rxd         => uart0_rxd,
+
+	    -- LPC
+	    lpc_data_o        => lpc_data_o,
+	    lpc_data_oe       => lpc_data_oe,
+	    lpc_data_i        => lpc_data_i,
+	    lpc_frame_n       => lpc_frame_n,
+	    lpc_reset_n       => lpc_reset_n,
+	    lpc_clock         => lpc_clock,
+	    lpc_irq_o         => lpc_irq_o,
+	    lpc_irq_oe        => lpc_irq_oe,
+	    lpc_irq_i         => lpc_irq_i
 	    );
+
+    process(lpc_clock)
+    begin
+        if rising_edge(lpc_clock) then
+            lpc_data_i_reg <= lpc_data_i;
+            lpc_data_o_reg <= lpc_data_o when lpc_data_oe = '1' and ext_rst = '1' else "ZZZZ";
+        end if;
+    end process;
+
+    lpc_irq_o2 <= lpc_irq_o  when lpc_irq_oe  = '1' and ext_rst = '1' else 'Z';
 
 end architecture behaviour;

@@ -205,7 +205,7 @@ microwatt.v: $(synth_files) $(RAM_INIT_FILE)
 	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
 
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
-	$(VERILATOR) $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" -Iuart16550 --assert --cc --exe --build $^ -o $@ -top-module toplevel
+	$(VERILATOR) $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" -Iuart16550 --assert --cc --exe --build $^ -o $@ -top-module toplevel lpc/lpc.v -Ilpc
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
 
 microwatt_out.config: microwatt.json $(LPF)
