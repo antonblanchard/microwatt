@@ -154,7 +154,7 @@ FPGA_TARGET ?= ORANGE-CRAB
 # with yosys, so make it smaller for now as a workaround.
 ICACHE_NUM_LINES=4
 
-# OrangeCrab with ECP85
+# OrangeCrab with ECP85 (original v0.0 with UM5G-85 chip)
 ifeq ($(FPGA_TARGET), ORANGE-CRAB)
 RESET_LOW=true
 CLK_INPUT=48000000
@@ -164,6 +164,18 @@ PACKAGE=CSFBGA285
 NEXTPNR_FLAGS=--um5g-85k --freq 48
 OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+endif
+
+# OrangeCrab with ECP85 (v0.21)
+ifeq ($(FPGA_TARGET), ORANGE-CRAB-0.21)
+RESET_LOW=true
+CLK_INPUT=48000000
+CLK_FREQUENCY=40000000
+LPF=constraints/orange-crab.lpf
+PACKAGE=CSFBGA285
+NEXTPNR_FLAGS=--85k --speed 8 --freq 40
+OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
+OPENOCD_DEVICE_CONFIG=openocd/LFE5U-85F.cfg
 endif
 
 # ECP5-EVN
@@ -213,7 +225,7 @@ microwatt_out.config: microwatt.json $(LPF)
 	mv -f $@.tmp $@
 
 microwatt.bit: microwatt_out.config
-	$(ECPPACK) --svf microwatt.svf $< $@
+	$(ECPPACK) --compress --freq 38.8 --svf microwatt.svf $< $@
 
 microwatt.svf: microwatt.bit
 
