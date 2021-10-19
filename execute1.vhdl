@@ -106,7 +106,8 @@ architecture behaviour of execute1 is
     signal rotator_result: std_ulogic_vector(63 downto 0);
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
-    signal countzero_result: std_ulogic_vector(63 downto 0);
+    signal do_popcnt: std_ulogic;
+    signal countbits_result: std_ulogic_vector(63 downto 0);
     signal alu_result: std_ulogic_vector(63 downto 0);
     signal adder_result: std_ulogic_vector(63 downto 0);
     signal misc_result: std_ulogic_vector(63 downto 0);
@@ -284,13 +285,15 @@ begin
             datalen => e_in.data_len
 	    );
 
-    countzero_0: entity work.zero_counter
+    countbits_0: entity work.bit_counter
 	port map (
             clk => clk,
 	    rs => c_in,
 	    count_right => e_in.insn(10),
 	    is_32bit => e_in.is_32bit,
-	    result => countzero_result
+            do_popcnt => do_popcnt,
+            datalen => e_in.data_len,
+	    result => countbits_result
 	    );
 
     multiply_0: entity work.multiply
@@ -391,7 +394,7 @@ begin
         logical_result     when "001",
         rotator_result     when "010",
         muldiv_result      when "011",
-        countzero_result   when "100",
+        countbits_result   when "100",
         spr_result         when "101",
         next_nia           when "110",
         misc_result        when others;
@@ -813,6 +816,8 @@ begin
 	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
         rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
 
+        do_popcnt <= '1' when e_in.insn_type = OP_POPCNT else '0';
+
         illegal := '0';
         if r.intr_pending = '1' then
             v.e.srr1 := r.e.srr1;
@@ -963,7 +968,7 @@ begin
             when OP_ADDG6S =>
             when OP_CMPRB =>
             when OP_CMPEQB =>
-            when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS |
+            when OP_AND | OP_OR | OP_XOR | OP_PRTY | OP_CMPB | OP_EXTS |
                     OP_BPERM | OP_BCD =>
 
 	    when OP_B =>
@@ -1025,7 +1030,7 @@ begin
                 end if;
                 do_trace := '0';
 
-            when OP_CNTZ =>
+            when OP_CNTZ | OP_POPCNT =>
                 v.e.valid := '0';
                 v.cntz_in_progress := '1';
                 v.busy := '1';
@@ -1220,7 +1225,7 @@ begin
         -- valid_in = 0.  Hence they don't happen in the same cycle as any of
         -- the cases above which depend on valid_in = 1.
         if r.cntz_in_progress = '1' then
-            -- cnt[lt]z always takes two cycles
+            -- cnt[lt]z and popcnt* always take two cycles
             v.e.valid := '1';
 	elsif r.mul_in_progress = '1' or r.div_in_progress = '1' then
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
