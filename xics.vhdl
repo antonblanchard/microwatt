@@ -54,9 +54,6 @@ architecture behaviour of xics_icp is
 
     signal r, r_next : reg_internal_t;
 
-    -- hardwire the hardware IRQ priority
-    constant HW_PRIORITY : std_ulogic_vector(7 downto 0) := x"80";
-
     -- 8 bit offsets for each presentation
     constant XIRR_POLL : std_ulogic_vector(7 downto 0) := x"00";
     constant XIRR      : std_ulogic_vector(7 downto 0) := x"04";
@@ -207,12 +204,14 @@ use ieee.numeric_std.all;
 
 library work;
 use work.common.all;
+use work.utils.all;
 use work.wishbone_types.all;
+use work.helpers.all;
 
 entity xics_ics is
     generic (
         SRC_NUM    : integer range 1 to 256  := 16;
-        PRIO_BITS  : integer range 1 to 8    := 8
+        PRIO_BITS  : integer range 1 to 8    := 3
         );
     port (
         clk          : in std_logic;
@@ -228,11 +227,15 @@ end xics_ics;
 
 architecture rtl of xics_ics is
 
+    constant SRC_NUM_BITS : natural := log2(SRC_NUM);
+
     subtype pri_t is std_ulogic_vector(PRIO_BITS-1 downto 0);
     type xive_t is record
         pri : pri_t;
     end record;
     constant pri_masked : pri_t := (others => '1');
+
+    subtype pri_vector_t is std_ulogic_vector(2**PRIO_BITS - 1 downto 0);
 
     type xive_array_t is array(0 to SRC_NUM-1) of xive_t;
     signal xives : xive_array_t;
@@ -262,8 +265,15 @@ architecture rtl of xics_ics is
     end function;
 
     function prio_pack(pri8: std_ulogic_vector(7 downto 0)) return pri_t is
+        variable masked : std_ulogic_vector(7 downto 0);
     begin
-        return pri8(PRIO_BITS-1 downto 0);
+        masked := x"00";
+        masked(PRIO_BITS - 1 downto 0) := (others => '1');
+        if pri8 >= masked then
+            return pri_masked;
+        else
+            return pri8(PRIO_BITS-1 downto 0);
+        end if;
     end function;
 
     function prio_unpack(pri: pri_t) return std_ulogic_vector is
@@ -276,8 +286,27 @@ architecture rtl of xics_ics is
             r(PRIO_BITS-1 downto 0) := pri;
         end if;
         return r;
-   end function;
+    end function;
 
+    function prio_decode(pri: pri_t) return pri_vector_t is
+        variable v: pri_vector_t;
+    begin
+        v := (others => '0');
+        v(to_integer(unsigned(pri))) := '1';
+        return v;
+    end function;
+
+    -- Assumes nbits <= 6; v is 2^nbits wide
+    function priority_encoder(v: std_ulogic_vector; nbits: natural) return std_ulogic_vector is
+        variable h: std_ulogic_vector(2**nbits - 1 downto 0);
+        variable p: std_ulogic_vector(5 downto 0);
+    begin
+        -- Set the lowest-priority (highest-numbered) bit
+        h := v;
+        h(2**nbits - 1) := '1';
+        p := count_right_zeroes(h);
+        return p(nbits - 1 downto 0);
+    end function;
 
 -- Register map
     --     0  : Config
@@ -391,35 +420,33 @@ begin
     end process;
 
     irq_gen: process(all)
-        variable max_idx : integer range 0 to SRC_NUM-1;
+        variable max_idx : std_ulogic_vector(SRC_NUM_BITS - 1 downto 0);
         variable max_pri : pri_t;
-
-        -- A more favored than b ?
-        function a_mf_b(a: pri_t; b: pri_t) return boolean is
-            variable a_i : unsigned(PRIO_BITS-1 downto 0);
-            variable b_i : unsigned(PRIO_BITS-1 downto 0);
-        begin
-            a_i := unsigned(a);
-            b_i := unsigned(b);
-            report "a_mf_b a=" & to_hstring(a) &
-                " b=" & to_hstring(b) &
-                " r=" & boolean'image(a < b);
-            return a_i < b_i;
-        end function;
+        variable pending_pri : pri_vector_t;
+        variable pending_at_pri : std_ulogic_vector(SRC_NUM - 1 downto 0);
     begin
-        -- XXX FIXME: Use a tree
-        max_pri := pri_masked;
-        max_idx := 0;
+        -- Work out the most-favoured (lowest) priority of the pending interrupts
+        pending_pri := (others => '0');
         for i in 0 to SRC_NUM - 1 loop
-            if int_level_l(i) = '1' and a_mf_b(xives(i).pri, max_pri) then
-                max_pri := xives(i).pri;
-                max_idx := i;
+            if int_level_l(i) = '1' then
+                pending_pri := pending_pri or prio_decode(xives(i).pri);
             end if;
         end loop;
+        max_pri := priority_encoder(pending_pri, PRIO_BITS);
+
+        -- Work out which interrupts are pending at that priority
+        pending_at_pri := (others => '0');
+        for i in 0 to SRC_NUM - 1 loop
+            if int_level_l(i) = '1' and xives(i).pri = max_pri then
+                pending_at_pri(i) := '1';
+            end if;
+        end loop;
+        max_idx := priority_encoder(pending_at_pri, SRC_NUM_BITS);
+
         if max_pri /= pri_masked then
-            report "MFI: " & integer'image(max_idx) & " pri=" & to_hstring(prio_unpack(max_pri));
+            report "MFI: " & integer'image(to_integer(unsigned(max_idx))) & " pri=" & to_hstring(prio_unpack(max_pri));
         end if;
-        icp_out_next.src <= std_ulogic_vector(to_unsigned(max_idx, 4));
+        icp_out_next.src <= max_idx;
         icp_out_next.pri <= prio_unpack(max_pri);
     end process;
 

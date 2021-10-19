@@ -30,6 +30,7 @@ package helpers is
     function bit_number(a: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
     function edgelocation(v: std_ulogic_vector; nbits: natural) return std_ulogic_vector;
     function count_left_zeroes(val: std_ulogic_vector) return std_ulogic_vector;
+    function count_right_zeroes(val: std_ulogic_vector) return std_ulogic_vector;
 end package helpers;
 
 package body helpers is
@@ -270,22 +271,28 @@ package body helpers is
         return p;
     end function;
 
-    -- Count leading zeroes operation
+    -- Count leading zeroes operations
     -- Assumes the value passed in is not zero (if it is, zero is returned)
-    function count_left_zeroes(val: std_ulogic_vector) return std_ulogic_vector is
-        variable rev: std_ulogic_vector(val'left downto val'right);
+    function count_right_zeroes(val: std_ulogic_vector) return std_ulogic_vector is
         variable sum: std_ulogic_vector(val'left downto val'right);
         variable onehot: std_ulogic_vector(val'left downto val'right);
         variable edge: std_ulogic_vector(val'left downto val'right);
         variable bn, bn_e, bn_o: std_ulogic_vector(5 downto 0);
     begin
-        rev := bit_reverse(val);
-        sum := std_ulogic_vector(- signed(rev));
-        onehot := sum and rev;
-        edge := sum or rev;
+        sum := std_ulogic_vector(- signed(val));
+        onehot := sum and val;
+        edge := sum or val;
         bn_e := edgelocation(std_ulogic_vector(resize(signed(edge), 64)), 6);
         bn_o := bit_number(std_ulogic_vector(resize(unsigned(onehot), 64)));
         bn := bn_e(5 downto 2) & bn_o(1 downto 0);
         return bn;
     end;
+
+    function count_left_zeroes(val: std_ulogic_vector) return std_ulogic_vector is
+        variable rev: std_ulogic_vector(val'left downto val'right);
+    begin
+        rev := bit_reverse(val);
+        return count_right_zeroes(rev);
+    end;
+
 end package body helpers;
