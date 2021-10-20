@@ -109,6 +109,12 @@ filesets:
       - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
       - fpga/top-arty.vhdl : {file_type : vhdlSource-2008}
 
+  antmicro-artix-dc-scm:
+    files:
+      - fpga/antmicro_artix_dc_scm.xdc: {file_type : xdc}
+      - fpga/clk_gen_plle2.vhd : {file_type : vhdlSource-2008}
+      - fpga/top-antmicro-artix-dc-scm.vhdl : {file_type : vhdlSource-2008}
+
   wukong-v2:
     files:
       - fpga/wukong-v2.xdc : {file_type : xdc}
@@ -345,6 +351,25 @@ targets:
     generate: [litedram_arty, liteeth_arty, litesdcard_arty, git_hash]
     tools:
       vivado: {part : xc7a100ticsg324-1L}
+    toplevel : toplevel
+
+  antmicro-artix-dc-scm:
+    default_tool: vivado
+    filesets: [core, antmicro-artix-dc-scm, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - clk_input
+      - clk_frequency
+      - disable_flatten_core
+      - log_length=2048
+      - uart_is_16550
+      - has_uart1
+      - has_fpu
+      - has_btc
+    generate: [git_hash]
+    tools:
+      vivado: {part : xc7a100tfgg484-1}
     toplevel : toplevel
 
   wukong-v2-a100t-nodram:
