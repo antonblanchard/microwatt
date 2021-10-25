@@ -82,33 +82,42 @@ architecture bypass of clock_generator is
             CLKINTFB :   out  std_logic  );
     end component;
 
+    signal clkos : std_ulogic;
     signal clkop : std_logic;
     signal lock : std_logic;
 
-    -- PLL constants based on prjtrellis example
-    constant PLL_IN : natural :=    2000000;
-    constant PLL_OUT : natural := 600000000;
+    -- PLL constants
+    -- According to the datasheet, PLL_IN needs to be between 10 and 400 MHz
+    -- PLL_OUT needs to be between 400 and 800 MHz
+    -- PLL_IN is chosen based on 12 and 48 MHz being common values
+    -- for the reference clock.
+    constant PLL_IN : natural :=   12000000;
+    constant PLL_OUT : natural := 480000000;
 
     -- Configration for ECP5 PLL
     constant PLL_CLKOP_DIV : natural := PLL_OUT/CLK_OUTPUT_HZ;
-    constant PLL_CLKFB_DIV : natural := CLK_OUTPUT_HZ/PLL_IN;
+    constant PLL_CLKOS_DIV : natural := 2;
+    constant PLL_CLKFB_DIV : natural := PLL_OUT/PLL_CLKOS_DIV/PLL_IN;
     constant PLL_CLKI_DIV  : natural := CLK_INPUT_HZ/PLL_IN;
 
 begin
     pll_clk_out <= clkop;
-    pll_locked_out <= not lock; -- FIXME: EHXPLLL lock signal active low?!?
+    pll_locked_out <= lock;
 
     clkgen: EHXPLLL
         generic map(
-            CLKOP_CPHASE => 11, -- FIXME: Copied from prjtrells.
             CLKOP_DIV => PLL_CLKOP_DIV,
+            CLKOS_ENABLE => "ENABLED",
+            CLKOS_DIV => PLL_CLKOS_DIV,
             CLKFB_DIV => PLL_CLKFB_DIV,
-            CLKI_DIV  => PLL_CLKI_DIV
+            CLKI_DIV  => PLL_CLKI_DIV,
+            FEEDBK_PATH => "CLKOS"
         )
         port map (
             CLKI => ext_clk,
             CLKOP => clkop,
-            CLKFB => clkop,
+            CLKOS => clkos,
+            CLKFB => clkos,
             LOCK => lock,
             RST => pll_rst_in,
             PHASESEL1 => '0',
@@ -118,8 +127,8 @@ begin
             PHASELOADREG => '0',
             STDBY => '0',
             PLLWAKESYNC => '0',
-            ENCLKOP => '0',
-            ENCLKOS => '0',
+            ENCLKOP => '1',
+            ENCLKOS => '1',
             ENCLKOS2 => '0',
             ENCLKOS3 => '0'
     );
