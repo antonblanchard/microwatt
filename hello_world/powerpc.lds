@@ -5,9 +5,9 @@ SECTIONS
 	.head : {
 		KEEP(*(.head))
 	}
-	. = 0x1000;
+	. = 0x400;
 	.text : { *(.text) *(.text.*) *(.rodata) *(.rodata.*) }
-	. = 0x1800;
+	. = 0xA00;
 	.data : { *(.data) *(.data.*) *(.got) *(.toc) }
 	. = ALIGN(0x80);
 	__bss_start = .;
