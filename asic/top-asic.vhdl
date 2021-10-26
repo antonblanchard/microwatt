@@ -23,6 +23,7 @@ entity toplevel is
         LOG_LENGTH         : natural := 0;
         UART_IS_16550      : boolean := true;
         HAS_UART1          : boolean := false;
+        HAS_JTAG           : boolean := true;
         ICACHE_NUM_LINES   : natural := 4;
         ICACHE_NUM_WAYS    : natural := 2;
         ICACHE_TLB_SIZE    : natural := 4;
@@ -48,7 +49,14 @@ entity toplevel is
         spi_flash_clk     : out std_ulogic;
         spi_flash_sdat_i  : in std_ulogic_vector(3 downto 0);
         spi_flash_sdat_o  : out std_ulogic_vector(3 downto 0);
-        spi_flash_sdat_oe : out std_ulogic_vector(3 downto 0)
+        spi_flash_sdat_oe : out std_ulogic_vector(3 downto 0);
+
+        -- JTAG signals:
+        jtag_tck  : in std_ulogic;
+        jtag_tdi  : in std_ulogic;
+        jtag_tms  : in std_ulogic;
+        jtag_trst : in std_ulogic;
+        jtag_tdo  : out std_ulogic
         );
 end entity toplevel;
 
@@ -81,6 +89,7 @@ begin
             LOG_LENGTH         => LOG_LENGTH,
             UART0_IS_16550     => UART_IS_16550,
             HAS_UART1          => HAS_UART1,
+            HAS_JTAG           => HAS_JTAG,
             ICACHE_NUM_LINES   => ICACHE_NUM_LINES,
             ICACHE_NUM_WAYS    => ICACHE_NUM_WAYS,
             ICACHE_TLB_SIZE    => ICACHE_TLB_SIZE,
@@ -107,7 +116,14 @@ begin
             spi_flash_cs_n    => spi_flash_cs_n,
             spi_flash_sdat_o  => spi_flash_sdat_o,
             spi_flash_sdat_oe => spi_flash_sdat_oe,
-            spi_flash_sdat_i  => spi_flash_sdat_i
+            spi_flash_sdat_i  => spi_flash_sdat_i,
+
+            -- JTAG signals
+            jtag_tck          => jtag_tck,
+            jtag_tdi          => jtag_tdi,
+            jtag_tms          => jtag_tms,
+            jtag_trst         => jtag_trst,
+            jtag_tdo          => jtag_tdo
             );
 
 end architecture behaviour;
