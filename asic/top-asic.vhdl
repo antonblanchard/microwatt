@@ -24,6 +24,7 @@ entity toplevel is
         LOG_LENGTH         : natural := 0;
         UART_IS_16550      : boolean := true;
         HAS_UART1          : boolean := false;
+        HAS_JTAG           : boolean := true;
         ICACHE_NUM_LINES   : natural := 4;
         ICACHE_NUM_WAYS    : natural := 1;
         ICACHE_TLB_SIZE    : natural := 4;
@@ -53,6 +54,13 @@ entity toplevel is
         gpio_in  : in std_ulogic_vector(NGPIO - 1 downto 0);
         gpio_out : out std_ulogic_vector(NGPIO - 1 downto 0);
         gpio_dir : out std_ulogic_vector(NGPIO - 1 downto 0);
+
+        -- JTAG signals:
+        jtag_tck  : in std_ulogic;
+        jtag_tdi  : in std_ulogic;
+        jtag_tms  : in std_ulogic;
+        jtag_trst : in std_ulogic;
+        jtag_tdo  : out std_ulogic;
 
         -- Add an I/O pin to select fetching from flash on reset
         alt_reset      : in std_ulogic
@@ -91,6 +99,7 @@ begin
             HAS_UART1          => HAS_UART1,
             HAS_GPIO           => HAS_GPIO,
             NGPIO              => NGPIO,
+            HAS_JTAG           => HAS_JTAG,
             ICACHE_NUM_LINES   => ICACHE_NUM_LINES,
             ICACHE_NUM_WAYS    => ICACHE_NUM_WAYS,
             ICACHE_TLB_SIZE    => ICACHE_TLB_SIZE,
@@ -119,6 +128,13 @@ begin
             gpio_in           => gpio_in,
             gpio_out          => gpio_out,
             gpio_dir          => gpio_dir,
+
+            -- JTAG signals
+            jtag_tck          => jtag_tck,
+            jtag_tdi          => jtag_tdi,
+            jtag_tms          => jtag_tms,
+            jtag_trst         => jtag_trst,
+            jtag_tdo          => jtag_tdo,
 
             -- Reset PC to flash offset 0 (ie 0xf000000)
             alt_reset         => alt_reset
