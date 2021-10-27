@@ -232,7 +232,7 @@ fpga_files = fpga/soc_reset.vhdl \
 
 synth_files = $(core_files) $(soc_files) $(soc_extra_synth) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
 
-microwatt.json: $(synth_files) $(RAM_INIT_FILE)
+microwatt.json: $(synth_files) $(RAM_INIT_FILE) $(soc_extra_v)
 	$(YOSYS) $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; read_verilog $(uart_files) $(soc_extra_v); synth_ecp5 -abc9 -nowidelut -json $@  $(SYNTH_ECP5_FLAGS)"
 
 microwatt.v: $(synth_files) $(RAM_INIT_FILE)
