@@ -40,8 +40,23 @@ entity toplevel is
 
         -- UART0 signals:
         uart_main_tx : out std_ulogic;
-        uart_main_rx : in  std_ulogic
+        uart_main_rx : in  std_ulogic;
 	
+        -- DRAM wires
+	ddram_a       : out std_logic_vector(14 downto 0);
+	ddram_ba      : out std_logic_vector(2 downto 0);
+	ddram_ras_n   : out std_logic;
+	ddram_cas_n   : out std_logic;
+	ddram_we_n    : out std_logic;
+	ddram_dm      : out std_logic_vector(1 downto 0);
+	ddram_dq      : inout std_logic_vector(15 downto 0);
+	ddram_dqs_p   : inout std_logic_vector(1 downto 0);
+	ddram_dqs_n   : inout std_logic_vector(1 downto 0);
+	ddram_clk_p   : out std_logic;
+	ddram_clk_n   : out std_logic;
+	ddram_cke     : out std_logic;
+	ddram_odt     : out std_logic;
+	ddram_reset_n : out std_logic
         );
 end entity toplevel;
 
@@ -60,6 +75,8 @@ architecture behaviour of toplevel is
     -- External IOs from the SoC
     signal wb_ext_io_in        : wb_io_master_out;
     signal wb_ext_io_out       : wb_io_slave_out;
+    signal wb_ext_is_dram_csr  : std_ulogic;
+    signal wb_ext_is_dram_init : std_ulogic;
 
     -- DRAM main data wishbone connection
     signal wb_dram_in          : wishbone_master_out;
@@ -99,6 +116,10 @@ architecture behaviour of toplevel is
     signal spi_sdat_o  : std_ulogic_vector(3 downto 0);
     signal spi_sdat_oe : std_ulogic_vector(3 downto 0);
     signal spi_sdat_i  : std_ulogic_vector(3 downto 0);
+
+    -- ddram clock signals as vectors
+    signal ddram_clk_p_vec : std_logic_vector(0 downto 0);
+    signal ddram_clk_n_vec : std_logic_vector(0 downto 0);
 
     -- GPIO
     signal gpio_in     : std_ulogic_vector(NGPIO - 1 downto 0);
@@ -189,8 +210,8 @@ begin
             -- IO wishbone
             wb_ext_io_in         => wb_ext_io_in,
             wb_ext_io_out        => wb_ext_io_out,
---            wb_ext_is_dram_csr   => ,
---            wb_ext_is_dram_init  => ,
+            wb_ext_is_dram_csr   => wb_ext_is_dram_csr,
+            wb_ext_is_dram_init  => wb_ext_is_dram_init,
 --            wb_ext_is_eth        => ,
 --            wb_ext_is_sdcard     => ,
 
@@ -201,34 +222,143 @@ begin
             alt_reset            => core_alt_reset
             );
 
-    reset_controller: entity work.soc_reset
-	generic map(
-	    RESET_LOW => RESET_LOW
-	    )
-	port map(
-	    ext_clk => ext_clk,
-	    pll_clk => system_clk,
-	    pll_locked_in => system_clk_locked,
-	    ext_rst_in => ext_rst_n,
-	    pll_rst_out => pll_rst,
-	    rst_out => soc_rst
-	    );
+    nodram: if not USE_LITEDRAM generate
+        signal ddram_clk_dummy : std_ulogic;
+    begin
+        reset_controller: entity work.soc_reset
+            generic map(
+                RESET_LOW => RESET_LOW
+                )
+            port map(
+                ext_clk => ext_clk,
+                pll_clk => system_clk,
+                pll_locked_in => system_clk_locked,
+                ext_rst_in => ext_rst_n,
+                pll_rst_out => pll_rst,
+                rst_out => soc_rst
+                );
 
-    clkgen: entity work.clock_generator
-	generic map(
-	    CLK_INPUT_HZ => 100000000,
-	    CLK_OUTPUT_HZ => CLK_FREQUENCY
-	    )
-	port map(
-	    ext_clk => ext_clk,
-	    pll_rst_in => pll_rst,
-	    pll_clk_out => system_clk,
-	    pll_locked_out => system_clk_locked
-	    );
+        clkgen: entity work.clock_generator
+            generic map(
+                CLK_INPUT_HZ => 100000000,
+                CLK_OUTPUT_HZ => CLK_FREQUENCY
+                )
+            port map(
+                ext_clk => ext_clk,
+                pll_rst_in => pll_rst,
+                pll_clk_out => system_clk,
+                pll_locked_out => system_clk_locked
+                );
 
-    wb_ext_io_out.dat <= (others => '0');
-    wb_ext_io_out.ack <= '0';
-    wb_ext_io_out.stall <= '0';
+	core_alt_reset <= '0';
+
+        d11_led <= '0';
+        d12_led <= soc_rst;
+        d13_led <= system_clk;
+
+        -- Vivado barfs on those differential signals if left
+        -- unconnected. So instanciate a diff. buffer and feed
+        -- it a constant '0'.
+        dummy_dram_clk: OBUFDS
+            port map (
+                O => ddram_clk_p,
+                OB => ddram_clk_n,
+                I => ddram_clk_dummy
+                );
+        ddram_clk_dummy <= '0';
+
+    end generate;
+
+    has_dram: if USE_LITEDRAM generate
+	signal dram_init_done  : std_ulogic;
+	signal dram_init_error : std_ulogic;
+	signal dram_sys_rst    : std_ulogic;
+    begin
+
+	-- Eventually dig out the frequency from the generator
+	-- but for now, assert it's 100Mhz
+	assert CLK_FREQUENCY = 100000000;
+
+	reset_controller: entity work.soc_reset
+	    generic map(
+		RESET_LOW => RESET_LOW,
+                PLL_RESET_BITS => 18,
+                SOC_RESET_BITS => 1
+		)
+	    port map(
+		ext_clk => ext_clk,
+		pll_clk => system_clk,
+                pll_locked_in => '1',
+                ext_rst_in => ext_rst_n,
+		pll_rst_out => pll_rst,
+                rst_out => open
+		);
+
+        -- Generate SoC reset
+        soc_rst_gen: process(system_clk)
+        begin
+            if ext_rst_n = '0' then
+                soc_rst <= '1';
+            elsif rising_edge(system_clk) then
+                soc_rst <= dram_sys_rst or not system_clk_locked;
+            end if;
+        end process;
+
+	ddram_clk_p_vec <= (others => ddram_clk_p);
+	ddram_clk_n_vec <= (others => ddram_clk_n);
+
+	dram: entity work.litedram_wrapper
+	    generic map(
+		DRAM_ABITS => 25,
+		DRAM_ALINES => 15,
+                DRAM_DLINES => 16,
+                DRAM_CKLINES => 1,
+                DRAM_PORT_WIDTH => 128,
+                PAYLOAD_FILE => RAM_INIT_FILE,
+                PAYLOAD_SIZE => PAYLOAD_SIZE
+		)
+	    port map(
+		clk_in		=> ext_clk,
+		rst             => pll_rst,
+		system_clk	=> system_clk,
+                system_reset	=> dram_sys_rst,
+                core_alt_reset  => core_alt_reset,
+		pll_locked	=> system_clk_locked,
+
+		wb_in		=> wb_dram_in,
+		wb_out		=> wb_dram_out,
+		wb_ctrl_in	=> wb_ext_io_in,
+                wb_ctrl_out	=> wb_dram_ctrl_out,
+		wb_ctrl_is_csr  => wb_ext_is_dram_csr,
+		wb_ctrl_is_init => wb_ext_is_dram_init,
+
+		init_done 	=> dram_init_done,
+		init_error	=> dram_init_error,
+
+		ddram_a		=> ddram_a,
+		ddram_ba	=> ddram_ba,
+		ddram_ras_n	=> ddram_ras_n,
+		ddram_cas_n	=> ddram_cas_n,
+		ddram_we_n	=> ddram_we_n,
+		ddram_cs_n	=> open,
+		ddram_dm	=> ddram_dm,
+		ddram_dq	=> ddram_dq,
+		ddram_dqs_p	=> ddram_dqs_p,
+		ddram_dqs_n	=> ddram_dqs_n,
+		ddram_clk_p	=> ddram_clk_p_vec,
+		ddram_clk_n	=> ddram_clk_n_vec,
+		ddram_cke	=> ddram_cke,
+		ddram_odt	=> ddram_odt,
+		ddram_reset_n	=> ddram_reset_n
+		);
+
+        d11_led <= not dram_init_done;
+        d12_led <= soc_rst;
+        d13_led <= dram_init_error;
+
+    end generate;
+
+    wb_ext_io_out <= wb_dram_ctrl_out;
 
     wb_sdcard_out.ack <= '0';
     wb_sdcard_out.stall <= '0';
@@ -237,9 +367,5 @@ begin
     ext_irq_sdcard <= '0';
 
     ext_rst_n <= '1';
-
-    d11_led <= '0';
-    d12_led <= soc_rst;
-    d13_led <= system_clk;
 
 end architecture behaviour;
