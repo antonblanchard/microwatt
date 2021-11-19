@@ -463,7 +463,7 @@ begin
         -- Gate cyc with chip select from SoC
         wb_sdcard_cyc <= wb_ext_io_in.cyc and wb_ext_is_sdcard;
 
-        wb_sdcard_adr <= x"0000" & wb_ext_io_in.adr(15 downto 2);
+        wb_sdcard_adr <= x"0000" & wb_ext_io_in.adr(13 downto 0);
 
         wb_sdcard_out.stall <= not wb_sdcard_out.ack;
 
