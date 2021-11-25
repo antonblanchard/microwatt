@@ -214,18 +214,32 @@ static int jtag_init(const char *target)
 {
 	const char *sep;
 	const char *cable;
-	char *params[] = { NULL, };
+	const int max_params = 20;
+	char *params[max_params+1];
 	urj_part_t *p;
 	uint32_t id;
 	int rc, part;
 
+
 	if (!target)
 		target = "probe";
-	sep = strchr(target, ':');
+	memset(params, 0x0, sizeof(params));
+	sep = strchr(target, ' ');
 	cable = strndup(target, sep - target);
 	if (sep && *sep) {
-		fprintf(stderr, "jtag cable params not supported yet\n");
-		return -1;
+		char *param_str = strdup(sep);
+		char *s = param_str;
+		for (int i = 0; *s; s++) {
+			if (*s == ' ') {
+				if (i >= max_params) {
+					fprintf(stderr, "Too many jtag cable params\n");
+					return -1;
+				}
+				*s = '\0';
+				params[i] = s+1;
+				i++;
+			}
+		}
 	}
 	if (debug)
 		printf("Opening jtag backend cable '%s'\n", cable);
@@ -241,25 +255,25 @@ static int jtag_init(const char *target)
 		char *cparams[] = { NULL, NULL,};
 		rc = urj_tap_cable_usb_probe(cparams);
 		if (rc != URJ_STATUS_OK) {
-			fprintf(stderr, "JTAG cable probe failed\n");
+			fprintf(stderr, "JTAG cable probe failed: %s\n", urj_error_describe());
 			return -1;
 		}
 		cable = strdup(cparams[1]);
 	}
 	rc = urj_tap_chain_connect(jc, cable, params);
 	if (rc != URJ_STATUS_OK) {
-		fprintf(stderr, "JTAG cable detect failed\n");
+		fprintf(stderr, "JTAG cable detect failed: %s\n", urj_error_describe());
 		return -1;
 	}
 
 	/* XXX Hard wire part 0, that might need to change (use params and detect !) */
 	rc = urj_tap_manual_add(jc, 6);
 	if (rc < 0) {
-		fprintf(stderr, "JTAG failed to add part !\n");
+		fprintf(stderr, "JTAG failed to add part! : %s\n", urj_error_describe());
 		return -1;
 	}
 	if (jc->parts == NULL || jc->parts->len == 0) {
-		fprintf(stderr, "JTAG Something's wrong after adding part !\n");
+		fprintf(stderr, "JTAG Something's wrong after adding part! : %s\n", urj_error_describe());
 		return -1;
 	}
 	urj_part_parts_set_instruction(jc->parts, "BYPASS");
