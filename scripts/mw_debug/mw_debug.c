@@ -49,7 +49,7 @@
 static bool debug;
 
 struct backend {
-	int (*init)(const char *target);
+	int (*init)(const char *target, int freq);
 	int (*reset)(void);
 	int (*command)(uint8_t op, uint8_t addr, uint64_t *data);
 };
@@ -67,12 +67,14 @@ static void check(int r, const char *failstr)
 
 static int sim_fd = -1;
 
-static int sim_init(const char *target)
+static int sim_init(const char *target, int freq)
 {
 	struct sockaddr_in saddr;
 	struct hostent *hp;
 	const char *p, *host;
 	int port, rc;
+
+	(void)freq;
 
 	if (!target)
 		target = "localhost:13245";
@@ -210,7 +212,7 @@ static struct backend sim_backend = {
 
 static urj_chain_t *jc;
 
-static int jtag_init(const char *target)
+static int jtag_init(const char *target, int freq)
 {
 	const char *sep;
 	const char *cable;
@@ -264,6 +266,10 @@ static int jtag_init(const char *target)
 	if (rc != URJ_STATUS_OK) {
 		fprintf(stderr, "JTAG cable detect failed: %s\n", urj_error_describe());
 		return -1;
+	}
+
+	if (freq) {
+		urj_tap_cable_set_frequency(jc->cable, freq);
 	}
 
 	/* XXX Hard wire part 0, that might need to change (use params and detect !) */
@@ -720,7 +726,7 @@ int main(int argc, char *argv[])
 {
 	const char *progname = argv[0];
 	const char *target = NULL;
-	int rc, i = 1;
+	int rc, i = 1, freq = 0;
 
 	b = NULL;
 
@@ -731,9 +737,10 @@ int main(int argc, char *argv[])
 			{ "backend",	required_argument, 0, 'b' },
 			{ "target",	required_argument, 0, 't' },
 			{ "debug",	no_argument,       0, 'd' },
+			{ "frequency",	no_argument,       0, 's' },
 			{ 0, 0, 0, 0 }
 		};
-		c = getopt_long(argc, argv, "dhb:t:", lopts, &oindex);
+		c = getopt_long(argc, argv, "dhb:t:s:", lopts, &oindex);
 		if (c < 0)
 			break;
 		switch(c) {
@@ -753,6 +760,13 @@ int main(int argc, char *argv[])
 		case 't':
 			target = optarg;
 			break;
+		case 's':
+			freq = atoi(optarg);
+			if (freq == 0) {
+				fprintf(stderr, "Bad frequency %s\n", optarg);
+				exit(1);
+			}
+			break;
 		case 'd':
 			debug = true;
 		}
@@ -761,7 +775,7 @@ int main(int argc, char *argv[])
 	if (b == NULL)
 		b = &jtag_backend;
 
-	rc = b->init(target);
+	rc = b->init(target, freq);
 	if (rc < 0)
 		exit(1);
 	for (i = optind; i < argc; i++) {
