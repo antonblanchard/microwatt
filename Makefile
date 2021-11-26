@@ -10,6 +10,7 @@ GHDLSYNTH ?= ghdl.so
 YOSYS     ?= yosys
 NEXTPNR   ?= nextpnr-ecp5
 ECPPACK   ?= ecppack
+ECPPROG   ?= ecpprog
 OPENOCD   ?= openocd
 VUNITRUN  ?= python3 ./run.py
 VERILATOR ?= verilator
@@ -166,6 +167,7 @@ PACKAGE=CSFBGA285
 NEXTPNR_FLAGS=--um5g-85k --freq 48
 OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+ECP_FLASH_OFFSET=0x80000
 endif
 
 # OrangeCrab with ECP85 (v0.21)
@@ -180,6 +182,7 @@ OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5U-85F.cfg
 DFU_VENDOR=1209
 DFU_PRODUCT=5af0
+ECP_FLASH_OFFSET=0x80000
 endif
 
 # ECP5-EVN
@@ -243,6 +246,13 @@ microwatt.dfu: microwatt.bit
 
 dfuprog: microwatt.dfu
 	$(DFUUTIL) -a 0 -D $<
+
+ecpprog: microwatt.bit
+	$(ECPPROG) -S $<
+
+ecpflash: microwatt.bit
+	test -n "$(ECP_FLASH_OFFSET)" || (echo Error: No ECP_FLASH_OFFSET defined for target; exit 1)
+	$(ECPPROG) -o $(ECP_FLASH_OFFSET) $<
 
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 tests_console = $(sort $(patsubst tests/%.console_out,%,$(wildcard tests/*.console_out)))
