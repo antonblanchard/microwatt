@@ -30,6 +30,7 @@ entity toplevel is
         HAS_UART1          : boolean  := true;
         USE_LITESDCARD     : boolean := false;
         HAS_GPIO           : boolean := true;
+        USE_LCD            : boolean := true;
         NGPIO              : natural := 32
         );
     port(
@@ -140,6 +141,14 @@ entity toplevel is
         i2c_rtc_d : inout std_ulogic;
         i2c_rtc_c : inout std_ulogic;
 
+        -- LCD display interface
+        lcd_d   : inout std_ulogic_vector(7 downto 0);
+        lcd_rs  : out   std_ulogic;
+        lcd_cs  : out   std_ulogic;
+        lcd_rd  : out   std_ulogic;
+        lcd_wr  : out   std_ulogic;
+        lcd_rst : out   std_ulogic;
+
         -- DRAM wires
         ddram_a       : out std_ulogic_vector(13 downto 0);
         ddram_ba      : out std_ulogic_vector(2 downto 0);
@@ -185,6 +194,7 @@ architecture behaviour of toplevel is
     signal wb_ext_is_dram_init : std_ulogic;
     signal wb_ext_is_eth       : std_ulogic;
     signal wb_ext_is_sdcard    : std_ulogic;
+    signal wb_ext_is_lcd       : std_ulogic;
 
     -- DRAM main data wishbone connection
     signal wb_dram_in          : wishbone_master_out;
@@ -212,6 +222,9 @@ architecture behaviour of toplevel is
     signal wb_sddma2_ack       : std_ulogic;
     -- for conversion from non-pipelined wishbone to pipelined
     signal wb_sddma_stb_sent   : std_ulogic;
+
+    -- LCD touchscreen connection
+    signal wb_lcd_out          : wb_io_slave_out := wb_io_slave_out_init;
 
     -- Status LED
     signal led_b_pwm : std_ulogic_vector(3 downto 0) := (others => '0');
@@ -289,6 +302,7 @@ begin
             HAS_UART1          => HAS_UART1,
             HAS_SD_CARD        => USE_LITESDCARD,
             HAS_SD_CARD2       => USE_LITESDCARD,
+            HAS_LCD            => USE_LCD,
             HAS_GPIO           => HAS_GPIO,
             NGPIO              => NGPIO
             )
@@ -336,6 +350,7 @@ begin
             wb_ext_is_dram_init  => wb_ext_is_dram_init,
             wb_ext_is_eth        => wb_ext_is_eth,
             wb_ext_is_sdcard     => wb_ext_is_sdcard,
+            wb_ext_is_lcd        => wb_ext_is_lcd,
 
             -- DMA wishbone
             wishbone_dma_in      => wb_sddma_in,
@@ -828,10 +843,54 @@ begin
         disk_activity <= sdc0_activity or sdc1_activity;
     end generate;
 
+    -- LCD touchscreen on arduino-compatible pins
+    has_lcd : if USE_LCD generate
+        signal lcd_dout : std_ulogic_vector(7 downto 0);
+        signal lcd_doe  : std_ulogic;
+        signal lcd_doe0 : std_ulogic;
+        signal lcd_doe1 : std_ulogic;
+        signal lcd_rso  : std_ulogic;
+        signal lcd_rsoe : std_ulogic;
+        signal lcd_cso  : std_ulogic;
+        signal lcd_csoe : std_ulogic;
+        signal tp       : std_ulogic;
+    begin
+        lcd0 : entity work.lcd_touchscreen
+            port map (
+                clk    => system_clk,
+                rst    => soc_rst,
+                wb_in  => wb_ext_io_in,
+                wb_out => wb_lcd_out,
+                wb_sel => wb_ext_is_lcd,
+                tp     => tp,
+
+                lcd_din  => lcd_d,
+                lcd_dout => lcd_dout,
+                lcd_doe  => lcd_doe,
+                lcd_doe0 => lcd_doe0,
+                lcd_doe1 => lcd_doe1,
+                lcd_rd   => lcd_rd,
+                lcd_wr   => lcd_wr,
+                lcd_rs   => lcd_rso,
+                lcd_rsoe => lcd_rsoe,
+                lcd_cs   => lcd_cso,
+                lcd_csoe => lcd_csoe,
+                lcd_rst  => lcd_rst
+                );
+        -- lcd_d(0), lcd_d(1), lcd_rs, lcd_cs are used for the touchscreen
+        -- interface and hence have individual output enables.
+        lcd_d(0) <= lcd_dout(0) when lcd_doe0 = '1' else 'Z';
+        lcd_d(1) <= lcd_dout(1) when lcd_doe1 = '1' else 'Z';
+        lcd_d(7 downto 2) <= lcd_dout(7 downto 2) when lcd_doe = '1' else (others => 'Z');
+        lcd_rs <= lcd_rso when lcd_rsoe = '1' else 'Z';
+        lcd_cs <= lcd_cso when lcd_csoe = '1' else 'Z';
+    end generate;
+
     -- Mux WB response on the IO bus
     wb_ext_io_out <= wb_eth_out when wb_ext_is_eth = '1' else
                      wb_sdcard_out when wb_ext_is_sdcard = '1' and wb_ext_io_in.adr(13) = '0' else
                      wb_sdcard2_out when wb_ext_is_sdcard = '1' and wb_ext_io_in.adr(13) = '1' else
+                     wb_lcd_out when wb_ext_is_lcd = '1' else
                      wb_dram_ctrl_out;
 
     status_led_colour : process(all)

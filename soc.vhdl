@@ -34,6 +34,7 @@ use work.wishbone_types.all;
 -- 0xc8020000: LiteEth CSRs (*)
 -- 0xc8030000: LiteEth MMIO (*)
 -- 0xc8040000: LiteSDCard CSRs
+-- 0xc8050000: LCD touchscreen interface
 
 -- (*) LiteEth must be a single aligned 32KB block as the CSRs and MMIOs
 --     are actually decoded as a single wishbone which LiteEth will
@@ -95,6 +96,7 @@ entity soc is
         DCACHE_TLB_NUM_WAYS : natural := 2;
         HAS_SD_CARD        : boolean := false;
         HAS_SD_CARD2       : boolean := false;
+        HAS_LCD            : boolean := false;
         HAS_GPIO           : boolean := false;
         NGPIO              : natural := 32
 	);
@@ -116,6 +118,7 @@ entity soc is
 	wb_ext_is_dram_init  : out std_ulogic;
 	wb_ext_is_eth        : out std_ulogic;
 	wb_ext_is_sdcard     : out std_ulogic;
+        wb_ext_is_lcd        : out std_ulogic;
 
         -- external DMA wishbone with 32-bit data/address
         wishbone_dma_in      : out wb_io_slave_out := wb_io_slave_out_init;
@@ -686,6 +689,7 @@ begin
                 wb_ext_is_dram_csr <= '0';
                 wb_ext_is_eth      <= '0';
                 wb_ext_is_sdcard   <= '0';
+                wb_ext_is_lcd      <= '0';
             end if;
             if do_cyc = '1' then
                 -- Decode I/O address
@@ -715,6 +719,10 @@ begin
                         slave_io := SLAVE_IO_EXTERNAL;
                         io_cycle_external <= '1';
                         wb_ext_is_sdcard <= '1';
+                    elsif std_match(match, x"--05-") and HAS_LCD then
+                        slave_io := SLAVE_IO_EXTERNAL;
+                        io_cycle_external <= '1';
+                        wb_ext_is_lcd <= '1';
                     else
                         io_cycle_none <= '1';
                     end if;

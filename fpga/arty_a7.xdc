@@ -167,6 +167,26 @@ set_property -dict { PACKAGE_PIN D2 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports
 set_property -dict { PACKAGE_PIN H2 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { i2c_rtc_c }];
 
 ################################################################################
+# TFT LCD shield (arduino-compatible)
+# hacked to swap the LCD_RST and LCD_D0 lines, and put LCD_D1 on A5
+################################################################################
+
+set_property -dict { PACKAGE_PIN N15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { lcd_rst }];
+#set_property -dict { PACKAGE_PIN M16 IOSTANDARD LVCMOS33 } [get_ports { lcd_tp }];
+set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[2] }];
+set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[3] }];
+set_property -dict { PACKAGE_PIN R12 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[4] }];
+set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[5] }];
+set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[6] }];
+set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[7] }];
+set_property -dict { PACKAGE_PIN F5  IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { lcd_rd }]; # A0
+set_property -dict { PACKAGE_PIN D8  IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { lcd_wr }]; # A1
+set_property -dict { PACKAGE_PIN C7  IOSTANDARD LVCMOS33 } [get_ports { lcd_rs }]; # A2
+set_property -dict { PACKAGE_PIN E7  IOSTANDARD LVCMOS33 } [get_ports { lcd_cs }]; # A3
+set_property -dict { PACKAGE_PIN D7  IOSTANDARD LVCMOS33 } [get_ports { lcd_d[0] }]; # A4
+set_property -dict { PACKAGE_PIN D5  IOSTANDARD LVCMOS33 } [get_ports { lcd_d[1] }]; # A5
+
+################################################################################
 # Arduino/chipKIT shield connector
 ################################################################################
 

@@ -139,6 +139,10 @@ filesets:
   uart16550:
       depend : [":microwatt:uart16550"]
 
+  lcdts:
+    files:
+      - fpga/arty-lcd-ts.vhdl : {file_type : vhdlSource-2008}
+
 targets:
   nexys_a7:
     default_tool: vivado
@@ -315,7 +319,7 @@ targets:
 
   arty_a7-100-nodram:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific, litesdcard]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific, litesdcard, lcdts]
     parameters :
       - memory_size
       - ram_init_file
@@ -336,7 +340,7 @@ targets:
 
   arty_a7-100:
     default_tool: vivado
-    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific, litesdcard]
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific, litesdcard, lcdts]
     parameters:
       - cpus
       - memory_size
@@ -344,6 +348,7 @@ targets:
       - use_litedram=true
       - use_liteeth=true
       - use_litesdcard
+      - use_lcd
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=4194304
@@ -567,6 +572,12 @@ parameters:
   use_litesdcard:
     datatype    : bool
     description : Use LiteSDCard
+    paramtype   : generic
+    default     : false
+
+  use_lcd:
+    datatype    : bool
+    description : Use LCD touchscreen interface
     paramtype   : generic
     default     : false
 
