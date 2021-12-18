@@ -187,6 +187,18 @@ set_property -dict { PACKAGE_PIN D7  IOSTANDARD LVCMOS33 } [get_ports { lcd_d[0]
 set_property -dict { PACKAGE_PIN D5  IOSTANDARD LVCMOS33 } [get_ports { lcd_d[1] }]; # A5
 
 ################################################################################
+# Analog inputs (connected to touchscreen)
+################################################################################
+set_property -dict { PACKAGE_PIN C4 IOSTANDARD LVCMOS33 } [get_ports { a2_p }];
+set_property -dict { PACKAGE_PIN B4 IOSTANDARD LVCMOS33 } [get_ports { a2_n }];
+set_property -dict { PACKAGE_PIN B1 IOSTANDARD LVCMOS33 } [get_ports { a3_p }];
+set_property -dict { PACKAGE_PIN A1 IOSTANDARD LVCMOS33 } [get_ports { a3_n }];
+set_property -dict { PACKAGE_PIN B3 IOSTANDARD LVCMOS33 } [get_ports { a4_p }];
+set_property -dict { PACKAGE_PIN B2 IOSTANDARD LVCMOS33 } [get_ports { a4_n }];
+set_property -dict { PACKAGE_PIN D14 IOSTANDARD LVCMOS33 } [get_ports { a5_p }];
+set_property -dict { PACKAGE_PIN C14 IOSTANDARD LVCMOS33 } [get_ports { a5_n }];
+
+################################################################################
 # Arduino/chipKIT shield connector
 ################################################################################
 

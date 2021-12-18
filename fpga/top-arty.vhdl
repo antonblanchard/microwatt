@@ -149,6 +149,16 @@ entity toplevel is
         lcd_wr  : out   std_ulogic;
         lcd_rst : out   std_ulogic;
 
+        -- Differential analog inputs from touchscreen
+        a2_p : in std_ulogic;
+        a2_n : in std_ulogic;
+        a3_p : in std_ulogic;
+        a3_n : in std_ulogic;
+        a4_p : in std_ulogic;
+        a4_n : in std_ulogic;
+        a5_p : in std_ulogic;
+        a5_n : in std_ulogic;
+
         -- DRAM wires
         ddram_a       : out std_ulogic_vector(13 downto 0);
         ddram_ba      : out std_ulogic_vector(2 downto 0);
@@ -875,7 +885,16 @@ begin
                 lcd_rsoe => lcd_rsoe,
                 lcd_cs   => lcd_cso,
                 lcd_csoe => lcd_csoe,
-                lcd_rst  => lcd_rst
+                lcd_rst  => lcd_rst,
+
+                a2_p => a2_p,
+                a2_n => a2_n,
+                a3_p => a3_p,
+                a3_n => a3_n,
+                a4_p => a4_p,
+                a4_n => a4_n,
+                a5_p => a5_p,
+                a5_n => a5_n
                 );
         -- lcd_d(0), lcd_d(1), lcd_rs, lcd_cs are used for the touchscreen
         -- interface and hence have individual output enables.

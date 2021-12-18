@@ -2,6 +2,9 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
+library unisim;
+use unisim.vcomponents.all;
+
 library work;
 use work.wishbone_types.all;
 
@@ -26,13 +29,24 @@ entity lcd_touchscreen is
         lcd_rsoe : out std_ulogic;
         lcd_cs   : out std_ulogic;      -- note active low
         lcd_csoe : out std_ulogic;
-        lcd_rst  : out std_ulogic       -- note active low
+        lcd_rst  : out std_ulogic;      -- note active low
+
+        -- Differential analog inputs from touchscreen
+        a2_p : in std_ulogic;
+        a2_n : in std_ulogic;
+        a3_p : in std_ulogic;
+        a3_n : in std_ulogic;
+        a4_p : in std_ulogic;
+        a4_n : in std_ulogic;
+        a5_p : in std_ulogic;
+        a5_n : in std_ulogic
         );
 end entity lcd_touchscreen;
 
 architecture rtl of lcd_touchscreen is
 
-    type state_t is (idle, prep1, prep2, writing, wr_pause, reading, rd_recovery);
+    type state_t is (idle, prep1, prep2, writing, wr_pause, reading, rd_recovery,
+                     drp_lo, drp_hi);
 
     signal state : state_t;
     signal delay : unsigned(5 downto 0);
@@ -51,18 +65,62 @@ architecture rtl of lcd_touchscreen is
     signal tsctrl : std_ulogic;
 
     signal wr_data : std_ulogic_vector(31 downto 0);
-    signal rd_data : std_ulogic_vector(7 downto 0);
+    signal rd_data : std_ulogic_vector(31 downto 0);
     signal wr_sel  : std_ulogic_vector(3 downto 0);
     signal req_wr  : std_ulogic;
 
-    -- Assume touchscreen is connected as follows:
-    -- X+ -> A5 (D1), X- -> A3 (CS), Y+ -> A2 (RS), Y- -> A4 (D0)
+    signal xadc_di   : std_ulogic_vector(15 downto 0);
+    signal xadc_do   : std_ulogic_vector(15 downto 0);
+    signal xadc_addr : std_ulogic_vector(6 downto 0);
+    signal xadc_en   : std_ulogic;
+    signal xadc_we   : std_ulogic;
+    signal xadc_rdy  : std_ulogic;
+    signal xadc_eoc  : std_ulogic;
+    signal xadc_eos  : std_ulogic;
+    signal xadc_busy : std_ulogic;
+    signal eoc_stat  : std_ulogic;
+    signal eos_stat  : std_ulogic;
+
+    -- Assume touchscreen is connected to the A2 - A5 analog inputs
 
 begin
+
+    -- The connection of the analog A0 - A5 pins on the Arty
+    -- to FPGA pins is as follows:
+    -- A0 connects to AD4P/AD4N
+    -- A1 connects to AD5P/AD5N
+    -- A2 connects to AD6P/AD6N
+    -- A3 connects to AD7P/AD7N
+    -- A4 connects to AD15P/AD15N
+    -- A5 connects to AD0P/AD0N
+    xadc_0 : XADC
+        generic map (
+            init_42 => x"0400"  -- adcclk = dclk / 4, i.e. 25MHz
+            )
+        port map (
+            di => xadc_di,
+            do => xadc_do,
+            daddr => xadc_addr,
+            den => xadc_en,
+            dwe => xadc_we,
+            dclk => clk,
+            drdy => xadc_rdy,
+            reset => rst,
+            convst => '0',
+            convstclk => '0',
+            vp => '0',
+            vn => '0',
+            vauxp => a4_p & "0000000" & a3_p & a2_p & "00000" & a5_p,
+            vauxn => a4_n & "0000000" & a3_n & a2_n & "00000" & a5_n,
+            eoc => xadc_eoc,
+            eos => xadc_eos,
+            busy => xadc_busy
+            );
+
     -- for now; should make sure it is at least 10us wide
     lcd_rst <= not rst;
 
-    wb_out.dat <= rd_data & rd_data & rd_data & rd_data;
+    wb_out.dat <= rd_data;
     wb_out.ack <= ack;
     wb_out.stall <= '0' when state = idle else '1';
 
@@ -76,10 +134,18 @@ begin
     tp <= tsctrl;
 
     process (clk)
+        variable rdat : std_ulogic_vector(7 downto 0);
     begin
         if rising_edge(clk) then
             ack <= '0';
+            xadc_en <= '0';
             idle2 <= idle1;
+            if xadc_eoc = '1' then
+                eoc_stat <= '1';
+            end if;
+            if xadc_eos = '1' then
+                eos_stat <= '1';
+            end if;
             if rst = '1' then
                 state <= idle;
                 delay <= to_unsigned(0, 6);
@@ -98,6 +164,9 @@ begin
                 idle1 <= '0';
                 idle2 <= '0';
                 tsctrl <= '0';
+                xadc_en <= '0';
+                eoc_stat <= '0';
+                eos_stat <= '0';
             elsif delay /= "000000" then
                 delay <= delay - 1;
             else
@@ -116,11 +185,12 @@ begin
                         if wb_in.cyc = '1' and wb_in.stb = '1' and wb_sel = '1' then
                             if wb_in.sel = "0000" then
                                 ack <= '1';
-                            else
+                            elsif wb_in.adr(6) = '0' then
                                 if wb_in.we = '1' or wb_in.adr(2) = '1' then
                                     ack <= '1';
                                 end if;
                                 if wb_in.adr(2) = '0' then
+                                    -- c8050000 or 8, access LCD controller chip
                                     tsctrl <= '0';
                                     csoe <= '1';
                                     cs <= '0';  -- active low
@@ -129,10 +199,12 @@ begin
                                     doe0 <= '0';
                                     doe1 <= '0';
                                     state <= prep1;
-                                else
+                                elsif wb_in.adr(1) = '0' then
+                                    -- c8050010, touchscreen drive register
                                     tsctrl <= '1';
                                     idle2 <= '0';
-                                    rd_data <= rsoe & rs & doe0 & d0 & doe1 & d1 & csoe & cs;
+                                    rdat := rsoe & rs & doe0 & d0 & doe1 & d1 & csoe & cs;
+                                    rd_data <= rdat & rdat & rdat & rdat;
                                     if wb_in.we = '1' and wb_in.sel(0) = '1' then
                                         rsoe <= wb_in.dat(7);
                                         rs <= wb_in.dat(6);
@@ -145,6 +217,33 @@ begin
                                         csoe <= wb_in.dat(1);
                                         cs <= wb_in.dat(0);
                                     end if;
+                                else
+                                    -- c8050018, touchscreen status register
+                                    rdat := 4x"0" & xadc_busy & eoc_stat & eos_stat & tsctrl;
+                                    rd_data <= rdat & rdat & rdat & rdat;
+                                    if wb_in.we = '1' and wb_in.sel(0) = '1' then
+                                        -- for eoc_stat and eos_state, write 0 to clear
+                                        if wb_in.dat(2) = '0' then
+                                            eoc_stat <= '0';
+                                        end if;
+                                        if wb_in.dat(1) = '0' then
+                                            eos_stat <= '0';
+                                        end if;
+                                    end if;
+                                end if;
+                            else
+                                -- c80501xx, access to the XADC DRP port
+                                xadc_en <= '1';
+                                xadc_we <= wb_in.we;
+                                xadc_addr(6 downto 1) <= wb_in.adr(5 downto 0);
+                                if wb_in.sel(1 downto 0) = "00" then
+                                    xadc_di <= wb_in.dat(31 downto 16);
+                                    xadc_addr(0) <= '1';
+                                    state <= drp_hi;
+                                else
+                                    xadc_di <= wb_in.dat(15 downto 0);
+                                    xadc_addr(0) <= '0';
+                                    state <= drp_lo;
                                 end if;
                             end if;
                         else
@@ -200,12 +299,30 @@ begin
                     when reading =>
                         -- last cycle of reading state
                         lcd_rd <= '1';
-                        rd_data <= lcd_din;
+                        rd_data <= lcd_din & lcd_din & lcd_din & lcd_din;
                         ack <= '1';
                         state <= rd_recovery;
                         delay <= to_unsigned(6, 6);
                     when rd_recovery =>
                         state <= idle;
+                    when drp_lo =>
+                        if xadc_rdy = '1' then
+                            rd_data(15 downto 0) <= xadc_do;
+                            if wr_sel(3 downto 2) = "00" then
+                                ack <= '1';
+                                state <= idle;
+                            else
+                                xadc_di <= wr_data(31 downto 16);
+                                xadc_addr(0) <= '1';
+                                state <= drp_hi;
+                            end if;
+                        end if;
+                    when drp_hi =>
+                        if xadc_rdy = '1' then
+                            rd_data(31 downto 16) <= xadc_do;
+                            ack <= '1';
+                            state <= idle;
+                        end if;
                 end case;
             end if;
         end if;
