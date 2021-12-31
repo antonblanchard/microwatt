@@ -82,14 +82,14 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/input_
 #set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_10 }];
 
 # connection to Digilent PmodSD on JA
-set_property -dict { PACKAGE_PIN G13 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[3] }];
-set_property -dict { PACKAGE_PIN B11 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_cmd }];
-set_property -dict { PACKAGE_PIN A11 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[0] }];
-set_property -dict { PACKAGE_PIN D12 IOSTANDARD LVCMOS33 SLEW FAST } [get_ports { sdcard_clk }];
-set_property -dict { PACKAGE_PIN D13 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[1] }];
-set_property -dict { PACKAGE_PIN B18 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[2] }];
-set_property -dict { PACKAGE_PIN A18 IOSTANDARD LVCMOS33 } [get_ports { sdcard_cd }];
-#set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { sdcard_wp }];
+set_property -dict { PACKAGE_PIN G13 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ja_sdcard_data[3] }];
+set_property -dict { PACKAGE_PIN B11 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ja_sdcard_cmd }];
+set_property -dict { PACKAGE_PIN A11 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ja_sdcard_data[0] }];
+set_property -dict { PACKAGE_PIN D12 IOSTANDARD LVCMOS33 SLEW FAST } [get_ports { ja_sdcard_clk }];
+set_property -dict { PACKAGE_PIN D13 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ja_sdcard_data[1] }];
+set_property -dict { PACKAGE_PIN B18 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ja_sdcard_data[2] }];
+set_property -dict { PACKAGE_PIN A18 IOSTANDARD LVCMOS33 } [get_ports { ja_sdcard_cd }];
+#set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { ja_sdcard_wp }];
 
 # Put registers into IOBs to improve timing
 set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdpads_data_i_reg*}]
@@ -197,6 +197,18 @@ set_property -dict { PACKAGE_PIN B3 IOSTANDARD LVCMOS33 } [get_ports { a4_p }];
 set_property -dict { PACKAGE_PIN B2 IOSTANDARD LVCMOS33 } [get_ports { a4_n }];
 set_property -dict { PACKAGE_PIN D14 IOSTANDARD LVCMOS33 } [get_ports { a5_p }];
 set_property -dict { PACKAGE_PIN C14 IOSTANDARD LVCMOS33 } [get_ports { a5_n }];
+
+################################################################################
+# connection to micro SD card socket on touchscreen board
+################################################################################
+set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ts_sdcard_data[3] }];
+set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ts_sdcard_cmd }];
+set_property -dict { PACKAGE_PIN R17 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ts_sdcard_data[0] }];
+set_property -dict { PACKAGE_PIN P17 IOSTANDARD LVCMOS33 SLEW FAST } [get_ports { ts_sdcard_clk }];
+set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ts_sdcard_data[1] }];
+set_property -dict { PACKAGE_PIN V15 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ts_sdcard_data[2] }];
+set_property -dict { PACKAGE_PIN M17 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { ts_sdcard_cd }];
+#set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { ts_sdcard_wp }];
 
 ################################################################################
 # Arduino/chipKIT shield connector

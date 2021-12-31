@@ -125,11 +125,17 @@ entity toplevel is
         eth_col          : in std_ulogic;
         eth_crs          : in std_ulogic;
 
-        -- SD card
-        sdcard_data   : inout std_ulogic_vector(3 downto 0);
-        sdcard_cmd    : inout std_ulogic;
-        sdcard_clk    : out   std_ulogic;
-        sdcard_cd     : in    std_ulogic;
+        -- SD card pmod on JA
+        ja_sdcard_data   : inout std_ulogic_vector(3 downto 0);
+        ja_sdcard_cmd    : inout std_ulogic;
+        ja_sdcard_clk    : out   std_ulogic;
+        ja_sdcard_cd     : in    std_ulogic;
+
+        -- SD card slot on touchscreen/LCD board
+        ts_sdcard_data   : inout std_ulogic_vector(3 downto 0);
+        ts_sdcard_cmd    : inout std_ulogic;
+        ts_sdcard_clk    : out   std_ulogic;
+        ts_sdcard_cd     : in    std_ulogic;
 
         -- Second SD card
         sdcard2_data  : inout std_ulogic_vector(3 downto 0);
@@ -722,38 +728,75 @@ begin
         signal sdc1_activity : std_ulogic := '0';
 
     begin
-        litesdcard : litesdcard_core
-            port map (
-                clk           => system_clk,
-                rst           => periph_rst,
-                wb_ctrl_adr   => wb_sdcard_adr,
-                wb_ctrl_dat_w => wb_ext_io_in.dat,
-                wb_ctrl_dat_r => wb_sdcard_out.dat,
-                wb_ctrl_sel   => wb_ext_io_in.sel,
-                wb_ctrl_cyc   => wb_sdcard_cyc,
-                wb_ctrl_stb   => wb_ext_io_in.stb,
-                wb_ctrl_ack   => wb_sdcard_out.ack,
-                wb_ctrl_we    => wb_ext_io_in.we,
-                wb_ctrl_cti   => "000",
-                wb_ctrl_bte   => "00",
-                wb_ctrl_err   => open,
-                wb_dma_adr    => wb_sddma1_nr.adr,
-                wb_dma_dat_w  => wb_sddma1_nr.dat,
-                wb_dma_dat_r  => wb_sddma_ir.dat,
-                wb_dma_sel    => wb_sddma1_nr.sel,
-                wb_dma_cyc    => wb_sddma1_nr.cyc,
-                wb_dma_stb    => wb_sddma1_nr.stb,
-                wb_dma_ack    => wb_sddma1_ack,
-                wb_dma_we     => wb_sddma1_nr.we,
-                wb_dma_cti    => open,
-                wb_dma_bte    => open,
-                wb_dma_err    => '0',
-                sdcard_data   => sdcard_data,
-                sdcard_cmd    => sdcard_cmd,
-                sdcard_clk    => sdcard_clk,
-                sdcard_cd     => sdcard_cd,
-                irq           => ext_irq_sdcard
-                );
+        sdcard_ja: if not USE_LCD generate
+            litesdcard : litesdcard_core
+                port map (
+                    clk           => system_clk,
+                    rst           => periph_rst,
+                    wb_ctrl_adr   => wb_sdcard_adr,
+                    wb_ctrl_dat_w => wb_ext_io_in.dat,
+                    wb_ctrl_dat_r => wb_sdcard_out.dat,
+                    wb_ctrl_sel   => wb_ext_io_in.sel,
+                    wb_ctrl_cyc   => wb_sdcard_cyc,
+                    wb_ctrl_stb   => wb_ext_io_in.stb,
+                    wb_ctrl_ack   => wb_sdcard_out.ack,
+                    wb_ctrl_we    => wb_ext_io_in.we,
+                    wb_ctrl_cti   => "000",
+                    wb_ctrl_bte   => "00",
+                    wb_ctrl_err   => open,
+                    wb_dma_adr    => wb_sddma1_nr.adr,
+                    wb_dma_dat_w  => wb_sddma1_nr.dat,
+                    wb_dma_dat_r  => wb_sddma_ir.dat,
+                    wb_dma_sel    => wb_sddma1_nr.sel,
+                    wb_dma_cyc    => wb_sddma1_nr.cyc,
+                    wb_dma_stb    => wb_sddma1_nr.stb,
+                    wb_dma_ack    => wb_sddma1_ack,
+                    wb_dma_we     => wb_sddma1_nr.we,
+                    wb_dma_cti    => open,
+                    wb_dma_bte    => open,
+                    wb_dma_err    => '0',
+                    sdcard_data   => ja_sdcard_data,
+                    sdcard_cmd    => ja_sdcard_cmd,
+                    sdcard_clk    => ja_sdcard_clk,
+                    sdcard_cd     => ja_sdcard_cd,
+                    irq           => ext_irq_sdcard
+                    );
+        end generate;
+
+        sdcard_ts: if USE_LCD generate
+            litesdcard : litesdcard_core
+                port map (
+                    clk           => system_clk,
+                    rst           => periph_rst,
+                    wb_ctrl_adr   => wb_sdcard_adr,
+                    wb_ctrl_dat_w => wb_ext_io_in.dat,
+                    wb_ctrl_dat_r => wb_sdcard_out.dat,
+                    wb_ctrl_sel   => wb_ext_io_in.sel,
+                    wb_ctrl_cyc   => wb_sdcard_cyc,
+                    wb_ctrl_stb   => wb_ext_io_in.stb,
+                    wb_ctrl_ack   => wb_sdcard_out.ack,
+                    wb_ctrl_we    => wb_ext_io_in.we,
+                    wb_ctrl_cti   => "000",
+                    wb_ctrl_bte   => "00",
+                    wb_ctrl_err   => open,
+                    wb_dma_adr    => wb_sddma1_nr.adr,
+                    wb_dma_dat_w  => wb_sddma1_nr.dat,
+                    wb_dma_dat_r  => wb_sddma_ir.dat,
+                    wb_dma_sel    => wb_sddma1_nr.sel,
+                    wb_dma_cyc    => wb_sddma1_nr.cyc,
+                    wb_dma_stb    => wb_sddma1_nr.stb,
+                    wb_dma_ack    => wb_sddma1_ack,
+                    wb_dma_we     => wb_sddma1_nr.we,
+                    wb_dma_cti    => open,
+                    wb_dma_bte    => open,
+                    wb_dma_err    => '0',
+                    sdcard_data   => ts_sdcard_data,
+                    sdcard_cmd    => ts_sdcard_cmd,
+                    sdcard_clk    => ts_sdcard_clk,
+                    sdcard_cd     => ts_sdcard_cd,
+                    irq           => ext_irq_sdcard
+                    );
+        end generate;
 
         litesdcard2 : litesdcard_core
             port map (
