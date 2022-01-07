@@ -26,10 +26,10 @@ entity toplevel is
         HAS_UART1          : boolean := false;
         HAS_JTAG           : boolean := true;
         ICACHE_NUM_LINES   : natural := 4;
-        ICACHE_NUM_WAYS    : natural := 2;
+        ICACHE_NUM_WAYS    : natural := 1;
         ICACHE_TLB_SIZE    : natural := 4;
         DCACHE_NUM_LINES   : natural := 4;
-        DCACHE_NUM_WAYS    : natural := 2;
+        DCACHE_NUM_WAYS    : natural := 1;
         DCACHE_TLB_SET_SIZE : natural := 2;
         DCACHE_TLB_NUM_WAYS : natural := 2;
         HAS_GPIO           : boolean := true;
