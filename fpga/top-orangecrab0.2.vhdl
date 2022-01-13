@@ -14,8 +14,8 @@ entity toplevel is
         CLK_FREQUENCY      : positive := 100000000;
         HAS_FPU            : boolean  := true;
         HAS_BTC            : boolean  := true;
-        USE_LITEDRAM       : boolean  := false;
-        NO_BRAM            : boolean  := false;
+        USE_LITEDRAM       : boolean  := true;
+        NO_BRAM            : boolean  := true;
         SCLK_STARTUPE2     : boolean := false;
         SPI_FLASH_OFFSET   : integer := 4194304;
         SPI_FLASH_DEF_CKDV : natural := 1;
