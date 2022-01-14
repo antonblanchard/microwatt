@@ -1,6 +1,7 @@
 #!/bin/bash
 
-VENDORS="xilinx"
+# vendor:sysclk
+VENDORS="xilinx:100 lattice:48"
 
 ME=$(realpath $0)
 echo ME=$ME
@@ -13,8 +14,10 @@ mkdir -p $BUILD_PATH
 GEN_PATH=$PARENT_PATH/generated
 mkdir -p $GEN_PATH
 
-for i in $VENDORS
+for i_clk in $VENDORS
 do
+    i=$(echo $i_clk | cut -d : -f 1)
+    clk=$(echo $i_clk | cut -d : -f 2)
     TARGET_BUILD_PATH=$BUILD_PATH/$i
     TARGET_GEN_PATH=$GEN_PATH/$i
     rm -rf $TARGET_BUILD_PATH
@@ -22,8 +25,8 @@ do
     mkdir -p $TARGET_BUILD_PATH
     mkdir -p $TARGET_GEN_PATH
 
-    echo "Generating $i in $TARGET_BUILD_PATH"    
-    (cd $TARGET_BUILD_PATH && litesdcard_gen --vendor $i)
+    echo "Generating $i in $TARGET_BUILD_PATH"
+    (cd $TARGET_BUILD_PATH && litesdcard_gen --vendor $i --clk-freq $clk)
 
     cp $TARGET_BUILD_PATH/build/gateware/litesdcard_core.v $TARGET_GEN_PATH/
 done
