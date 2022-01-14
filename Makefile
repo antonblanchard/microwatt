@@ -183,6 +183,7 @@ OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5U-85F.cfg
 toplevel=fpga/top-orangecrab0.2.vhdl
 litedram_target=orangecrab-85-0.2
+soc_extra_v += litesdcard/generated/lattice/litesdcard_core.v
 endif
 
 # ECP5-EVN

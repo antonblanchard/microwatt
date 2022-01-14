@@ -22,8 +22,8 @@ entity toplevel is
         SPI_FLASH_DEF_QUAD : boolean := true;
         LOG_LENGTH         : natural := 0;
         UART_IS_16550      : boolean  := true;
-        HAS_UART1          : boolean  := true;
-        USE_LITESDCARD     : boolean := false;
+        HAS_UART1          : boolean  := false;
+        USE_LITESDCARD     : boolean := true;
         ICACHE_NUM_LINES   : natural := 64;
         NGPIO              : natural := 0
         );
@@ -47,7 +47,7 @@ entity toplevel is
         spi_flash_wp_n   : inout std_ulogic;
         spi_flash_hold_n : inout std_ulogic;
 
-        -- SD card
+        -- SD card wires
         sdcard_data   : inout std_ulogic_vector(3 downto 0);
         sdcard_cmd    : inout std_ulogic;
         sdcard_clk    : out   std_ulogic;
