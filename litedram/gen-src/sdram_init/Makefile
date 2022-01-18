@@ -32,6 +32,7 @@ CPPFLAGS += -I$(LXSRC_DIR) -I$(LXINC_DIR) -I$(LXINC_DIR)/base -I$(LXSRC_DIR)/lib
 
 CPPFLAGS += -isystem $(shell $(CC) -print-file-name=include)
 CFLAGS = -Os -g -Wall -std=c99 -m64 -mabi=elfv2 -msoft-float -mno-string -mno-multiple -mno-vsx -mno-altivec -mlittle-endian -fno-stack-protector -mstrict-align -ffreestanding -fdata-sections -ffunction-sections -fno-delete-null-pointer-checks 
+CFLAGS += -Werror
 ASFLAGS = $(CPPFLAGS) $(CFLAGS)
 LDFLAGS = -static -nostdlib -T $(OBJ)/$(PROGRAM).lds --gc-sections
 

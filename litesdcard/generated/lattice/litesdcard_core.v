@@ -9,7 +9,7 @@
 // Filename   : litesdcard_core.v
 // Device     : 
 // LiteX sha1 : --------
-// Date       : 2022-01-14 07:30:19
+// Date       : 2022-01-14 07:30:20
 //------------------------------------------------------------------------------
 
 
@@ -44,7 +44,7 @@ module litesdcard_core (
 	input  wire wb_dma_err,
 	inout  wire [3:0] sdcard_data,
 	inout  wire sdcard_cmd,
-	output reg  sdcard_clk,
+	output wire sdcard_clk,
 	input  wire sdcard_cd,
 	output wire irq
 );
@@ -163,7 +163,7 @@ reg  cmdr_source_ready = 1'd0;
 reg  cmdr_source_last = 1'd0;
 reg  [7:0] cmdr_source_payload_data = 8'd0;
 reg  [2:0] cmdr_source_payload_status = 3'd0;
-reg  [31:0] cmdr_timeout = 32'd100;
+reg  [31:0] cmdr_timeout = 32'd48;
 reg  [7:0] cmdr_count = 8'd0;
 reg  cmdr_busy = 1'd0;
 wire cmdr_cmdr_pads_in_valid;
@@ -327,7 +327,7 @@ reg  datar_source_last = 1'd0;
 reg  [7:0] datar_source_payload_data = 8'd0;
 reg  [2:0] datar_source_payload_status = 3'd0;
 reg  datar_stop = 1'd0;
-reg  [31:0] datar_timeout = 32'd100;
+reg  [31:0] datar_timeout = 32'd48;
 reg  [9:0] datar_count = 10'd0;
 wire datar_datar_pads_in_valid;
 reg  datar_datar_pads_in_ready = 1'd0;
@@ -379,10 +379,10 @@ reg  datar_datar_buf_source_last = 1'd0;
 reg  [7:0] datar_datar_buf_source_payload_data = 8'd0;
 reg  datar_datar_reset = 1'd0;
 wire sdpads_clk;
-reg  sdpads_cmd_i = 1'd0;
+wire sdpads_cmd_i;
 wire sdpads_cmd_o;
 wire sdpads_cmd_oe;
-reg  [3:0] sdpads_data_i = 4'd0;
+wire [3:0] sdpads_data_i;
 wire [3:0] sdpads_data_o;
 wire sdpads_data_oe;
 reg  sdpads_data_i_ce = 1'd0;
@@ -1099,37 +1099,26 @@ reg  array_muxed4 = 1'd0;
 reg  array_muxed5 = 1'd0;
 reg  [2:0] array_muxed6 = 3'd0;
 reg  [1:0] array_muxed7 = 2'd0;
+wire inferedsdrtristate0__o;
+reg  inferedsdrtristate0_oe = 1'd0;
+wire inferedsdrtristate0__i;
 wire sdrio_clk;
-reg  xilinxsdrtristateimpl0__o = 1'd0;
-reg  xilinxsdrtristateimpl0_oe_n = 1'd0;
-wire xilinxsdrtristateimpl0__i;
-reg  xilinxsdrtristateimpl1__o = 1'd0;
-reg  xilinxsdrtristateimpl1_oe_n = 1'd0;
-wire xilinxsdrtristateimpl1__i;
-reg  xilinxsdrtristateimpl2__o = 1'd0;
-reg  xilinxsdrtristateimpl2_oe_n = 1'd0;
-wire xilinxsdrtristateimpl2__i;
-reg  xilinxsdrtristateimpl3__o = 1'd0;
-reg  xilinxsdrtristateimpl3_oe_n = 1'd0;
-wire xilinxsdrtristateimpl3__i;
-reg  xilinxsdrtristateimpl4__o = 1'd0;
-reg  xilinxsdrtristateimpl4_oe_n = 1'd0;
-wire xilinxsdrtristateimpl4__i;
+wire inferedsdrtristate1__o;
+reg  inferedsdrtristate1_oe = 1'd0;
+wire inferedsdrtristate1__i;
 wire sdrio_clk_1;
+wire inferedsdrtristate2__o;
+reg  inferedsdrtristate2_oe = 1'd0;
+wire inferedsdrtristate2__i;
 wire sdrio_clk_2;
+wire inferedsdrtristate3__o;
+reg  inferedsdrtristate3_oe = 1'd0;
+wire inferedsdrtristate3__i;
 wire sdrio_clk_3;
+wire inferedsdrtristate4__o;
+reg  inferedsdrtristate4_oe = 1'd0;
+wire inferedsdrtristate4__i;
 wire sdrio_clk_4;
-wire sdrio_clk_5;
-wire sdrio_clk_6;
-wire sdrio_clk_7;
-wire sdrio_clk_8;
-wire sdrio_clk_9;
-wire sdrio_clk_10;
-wire sdrio_clk_11;
-wire sdrio_clk_12;
-wire sdrio_clk_13;
-wire sdrio_clk_14;
-wire sdrio_clk_15;
 
 //------------------------------------------------------------------------------
 // Combinatorial Logic
@@ -1436,7 +1425,7 @@ always @(*) begin
 					cmdr_sink_ready <= 1'd1;
 					if ((cmdr_sink_payload_cmd_type == 2'd3)) begin
 						cmdr_source_valid <= 1'd0;
-						cmdr_timeout_sdphycmdr_next_value0 <= 7'd100;
+						cmdr_timeout_sdphycmdr_next_value0 <= 6'd48;
 						cmdr_timeout_sdphycmdr_next_value_ce0 <= 1'd1;
 						subfragments_sdphycmdr_next_state <= 2'd3;
 					end else begin
@@ -1500,7 +1489,7 @@ always @(*) begin
 			end
 		end
 		default: begin
-			cmdr_timeout_sdphycmdr_next_value0 <= 7'd100;
+			cmdr_timeout_sdphycmdr_next_value0 <= 6'd48;
 			cmdr_timeout_sdphycmdr_next_value_ce0 <= 1'd1;
 			cmdr_count_sdphycmdr_next_value1 <= 1'd0;
 			cmdr_count_sdphycmdr_next_value_ce1 <= 1'd1;
@@ -1787,7 +1776,7 @@ always @(*) begin
 			datar_count_sdphydatar_next_value_ce0 <= 1'd1;
 			if ((datar_sink_valid & datar_pads_out_ready)) begin
 				datar_pads_out_payload_clk <= 1'd1;
-				datar_timeout_sdphydatar_next_value1 <= 32'd100;
+				datar_timeout_sdphydatar_next_value1 <= 32'd48;
 				datar_timeout_sdphydatar_next_value_ce1 <= 1'd1;
 				datar_count_sdphydatar_next_value0 <= 1'd0;
 				datar_count_sdphydatar_next_value_ce0 <= 1'd1;
@@ -3205,17 +3194,6 @@ assign sdrio_clk_1 = sys_clk;
 assign sdrio_clk_2 = sys_clk;
 assign sdrio_clk_3 = sys_clk;
 assign sdrio_clk_4 = sys_clk;
-assign sdrio_clk_5 = sys_clk;
-assign sdrio_clk_6 = sys_clk;
-assign sdrio_clk_7 = sys_clk;
-assign sdrio_clk_8 = sys_clk;
-assign sdrio_clk_9 = sys_clk;
-assign sdrio_clk_10 = sys_clk;
-assign sdrio_clk_11 = sys_clk;
-assign sdrio_clk_12 = sys_clk;
-assign sdrio_clk_13 = sys_clk;
-assign sdrio_clk_14 = sys_clk;
-assign sdrio_clk_15 = sys_clk;
 
 
 //------------------------------------------------------------------------------
@@ -3227,22 +3205,11 @@ always @(posedge por_clk) begin
 end
 
 always @(posedge sdrio_clk) begin
-	sdcard_clk <= clocker_clk0;
-	xilinxsdrtristateimpl0__o <= sdpads_cmd_o;
-	xilinxsdrtristateimpl0_oe_n <= (~sdpads_cmd_oe);
-	sdpads_cmd_i <= xilinxsdrtristateimpl0__i;
-	xilinxsdrtristateimpl1__o <= sdpads_data_o[0];
-	xilinxsdrtristateimpl1_oe_n <= (~sdpads_data_oe);
-	sdpads_data_i[0] <= xilinxsdrtristateimpl1__i;
-	xilinxsdrtristateimpl2__o <= sdpads_data_o[1];
-	xilinxsdrtristateimpl2_oe_n <= (~sdpads_data_oe);
-	sdpads_data_i[1] <= xilinxsdrtristateimpl2__i;
-	xilinxsdrtristateimpl3__o <= sdpads_data_o[2];
-	xilinxsdrtristateimpl3_oe_n <= (~sdpads_data_oe);
-	sdpads_data_i[2] <= xilinxsdrtristateimpl3__i;
-	xilinxsdrtristateimpl4__o <= sdpads_data_o[3];
-	xilinxsdrtristateimpl4_oe_n <= (~sdpads_data_oe);
-	sdpads_data_i[3] <= xilinxsdrtristateimpl4__i;
+	inferedsdrtristate0_oe <= sdpads_cmd_oe;
+	inferedsdrtristate1_oe <= sdpads_data_oe;
+	inferedsdrtristate2_oe <= sdpads_data_oe;
+	inferedsdrtristate3_oe <= sdpads_data_oe;
+	inferedsdrtristate4_oe <= sdpads_data_oe;
 end
 
 always @(posedge sys_clk) begin
@@ -4011,7 +3978,7 @@ always @(posedge sys_clk) begin
 		clocker_ce_delayed <= 1'd0;
 		init_count <= 8'd0;
 		cmdw_count <= 8'd0;
-		cmdr_timeout <= 32'd100;
+		cmdr_timeout <= 32'd48;
 		cmdr_count <= 8'd0;
 		cmdr_busy <= 1'd0;
 		cmdr_cmdr_run <= 1'd0;
@@ -4034,7 +4001,7 @@ always @(posedge sys_clk) begin
 		dataw_crc_converter_strobe_all <= 1'd0;
 		dataw_crc_buf_source_valid <= 1'd0;
 		dataw_crc_buf_source_payload_data <= 8'd0;
-		datar_timeout <= 32'd100;
+		datar_timeout <= 32'd48;
 		datar_count <= 10'd0;
 		datar_datar_run <= 1'd0;
 		datar_datar_converter_source_payload_data <= 8'd0;
@@ -4211,39 +4178,107 @@ assign sdmem2block_fifo_wrport_dat_r = storage_2_dat0;
 assign sdmem2block_fifo_rdport_dat_r = storage_2_dat1;
 
 
-IOBUF IOBUF(
-	.I(xilinxsdrtristateimpl0__o),
-	.T(xilinxsdrtristateimpl0_oe_n),
-	.IO(sdcard_cmd),
-	.O(xilinxsdrtristateimpl0__i)
+OFS1P3BX OFS1P3BX(
+	.D(clocker_clk0),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(sdcard_clk)
 );
 
-IOBUF IOBUF_1(
-	.I(xilinxsdrtristateimpl1__o),
-	.T(xilinxsdrtristateimpl1_oe_n),
-	.IO(sdcard_data[0]),
-	.O(xilinxsdrtristateimpl1__i)
+assign sdcard_cmd = inferedsdrtristate0_oe ? inferedsdrtristate0__o : 1'bz;
+assign inferedsdrtristate0__i = sdcard_cmd;
+
+assign sdcard_data[0] = inferedsdrtristate1_oe ? inferedsdrtristate1__o : 1'bz;
+assign inferedsdrtristate1__i = sdcard_data[0];
+
+assign sdcard_data[1] = inferedsdrtristate2_oe ? inferedsdrtristate2__o : 1'bz;
+assign inferedsdrtristate2__i = sdcard_data[1];
+
+assign sdcard_data[2] = inferedsdrtristate3_oe ? inferedsdrtristate3__o : 1'bz;
+assign inferedsdrtristate3__i = sdcard_data[2];
+
+assign sdcard_data[3] = inferedsdrtristate4_oe ? inferedsdrtristate4__o : 1'bz;
+assign inferedsdrtristate4__i = sdcard_data[3];
+
+OFS1P3BX OFS1P3BX_1(
+	.D(sdpads_cmd_o),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(inferedsdrtristate0__o)
 );
 
-IOBUF IOBUF_2(
-	.I(xilinxsdrtristateimpl2__o),
-	.T(xilinxsdrtristateimpl2_oe_n),
-	.IO(sdcard_data[1]),
-	.O(xilinxsdrtristateimpl2__i)
+IFS1P3BX IFS1P3BX(
+	.D(inferedsdrtristate0__i),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(sdpads_cmd_i)
 );
 
-IOBUF IOBUF_3(
-	.I(xilinxsdrtristateimpl3__o),
-	.T(xilinxsdrtristateimpl3_oe_n),
-	.IO(sdcard_data[2]),
-	.O(xilinxsdrtristateimpl3__i)
+OFS1P3BX OFS1P3BX_2(
+	.D(sdpads_data_o[0]),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(inferedsdrtristate1__o)
 );
 
-IOBUF IOBUF_4(
-	.I(xilinxsdrtristateimpl4__o),
-	.T(xilinxsdrtristateimpl4_oe_n),
-	.IO(sdcard_data[3]),
-	.O(xilinxsdrtristateimpl4__i)
+IFS1P3BX IFS1P3BX_1(
+	.D(inferedsdrtristate1__i),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(sdpads_data_i[0])
+);
+
+OFS1P3BX OFS1P3BX_3(
+	.D(sdpads_data_o[1]),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(inferedsdrtristate2__o)
+);
+
+IFS1P3BX IFS1P3BX_2(
+	.D(inferedsdrtristate2__i),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(sdpads_data_i[1])
+);
+
+OFS1P3BX OFS1P3BX_4(
+	.D(sdpads_data_o[2]),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(inferedsdrtristate3__o)
+);
+
+IFS1P3BX IFS1P3BX_3(
+	.D(inferedsdrtristate3__i),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(sdpads_data_i[2])
+);
+
+OFS1P3BX OFS1P3BX_5(
+	.D(sdpads_data_o[3]),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(inferedsdrtristate4__o)
+);
+
+IFS1P3BX IFS1P3BX_4(
+	.D(inferedsdrtristate4__i),
+	.PD(1'd0),
+	.SCLK(sys_clk),
+	.SP(1'd1),
+	.Q(sdpads_data_i[3])
 );
 
 endmodule

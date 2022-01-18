@@ -152,11 +152,16 @@ RAM_INIT_FILE ?=hello_world/hello_world.hex
 #MEMORY_SIZE=393216
 #RAM_INIT_FILE=micropython/firmware.hex
 
-FPGA_TARGET ?= ORANGE-CRAB
+FPGA_TARGET ?= ORANGE-CRAB-0.21
 
 # FIXME: icache RAMs aren't being inferrenced as block RAMs on ECP5
 # with yosys, so make it smaller for now as a workaround.
 ICACHE_NUM_LINES=4
+
+clkgen=fpga/clk_gen_ecp5.vhd
+toplevel=fpga/top-generic.vhdl
+dmi_dtm=dmi_dtm_dummy.vhdl
+LITEDRAM_GHDL_ARG=
 
 # OrangeCrab with ECP85 (original v0.0 with UM5G-85 chip)
 ifeq ($(FPGA_TARGET), ORANGE-CRAB)
@@ -175,15 +180,18 @@ endif
 ifeq ($(FPGA_TARGET), ORANGE-CRAB-0.21)
 RESET_LOW=true
 CLK_INPUT=48000000
-CLK_FREQUENCY=40000000
-LPF=constraints/orange-crab.lpf
+CLK_FREQUENCY=48000000
+LPF=constraints/orange-crab-0.2.lpf
 PACKAGE=CSFBGA285
-NEXTPNR_FLAGS=--85k --speed 8 --freq 40
+NEXTPNR_FLAGS=--85k --speed 8 --freq 48 --timing-allow-fail --ignore-loops
 OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5U-85F.cfg
 DFU_VENDOR=1209
 DFU_PRODUCT=5af0
 ECP_FLASH_OFFSET=0x80000
+toplevel=fpga/top-orangecrab0.2.vhdl
+litedram_target=orangecrab-85-0.2
+soc_extra_v += litesdcard/generated/lattice/litesdcard_core.v
 endif
 
 # ECP5-EVN
@@ -198,12 +206,17 @@ OPENOCD_JTAG_CONFIG=openocd/ecp5-evn.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
 endif
 
-GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=$(MEMORY_SIZE) -gRAM_INIT_FILE=$(RAM_INIT_FILE) \
-	-gRESET_LOW=$(RESET_LOW) -gCLK_INPUT=$(CLK_INPUT) -gCLK_FREQUENCY=$(CLK_FREQUENCY) -gICACHE_NUM_LINES=$(ICACHE_NUM_LINES)
+ifneq ($(litedram_target),)
+soc_extra_synth += litedram/extras/litedram-wrapper-l2.vhdl \
+	litedram/generated/$(litedram_target)/litedram-initmem.vhdl
+soc_extra_v += litedram/generated/$(litedram_target)/litedram_core.v
+LITEDRAM_GHDL_ARG=-gUSE_LITEDRAM=true
+endif
 
-clkgen=fpga/clk_gen_ecp5.vhd
-toplevel=fpga/top-generic.vhdl
-dmi_dtm=dmi_dtm_dummy.vhdl
+GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=$(MEMORY_SIZE) -gRAM_INIT_FILE=$(RAM_INIT_FILE) \
+	-gRESET_LOW=$(RESET_LOW) -gCLK_INPUT=$(CLK_INPUT) -gCLK_FREQUENCY=$(CLK_FREQUENCY) -gICACHE_NUM_LINES=$(ICACHE_NUM_LINES) \
+	$(LITEDRAM_GHDL_ARG)
+
 
 ifeq ($(FPGA_TARGET), verilator)
 RESET_LOW=true
@@ -216,10 +229,10 @@ fpga_files = fpga/soc_reset.vhdl \
 	fpga/pp_fifo.vhd fpga/pp_soc_uart.vhd fpga/main_bram.vhdl \
 	nonrandom.vhdl
 
-synth_files = $(core_files) $(soc_files) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
+synth_files = $(core_files) $(soc_files) $(soc_extra_synth) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
 
 microwatt.json: $(synth_files) $(RAM_INIT_FILE)
-	$(YOSYS) $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; read_verilog $(uart_files); synth_ecp5 -abc9 -nowidelut -json $@  $(SYNTH_ECP5_FLAGS)"
+	$(YOSYS) $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; read_verilog $(uart_files) $(soc_extra_v); synth_ecp5 -abc9 -nowidelut -json $@  $(SYNTH_ECP5_FLAGS)"
 
 microwatt.v: $(synth_files) $(RAM_INIT_FILE)
 	$(YOSYS) $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
