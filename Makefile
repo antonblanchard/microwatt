@@ -6,13 +6,17 @@ VERILATOR_FLAGS=-O3 -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
 # It takes forever to build with optimisation, so disable by default
 #VERILATOR_CFLAGS=-O3
 
-GHDLSYNTH ?= ghdl.so
+# some yosys builds have ghdl plugin built in, otherwise need "-m ghdl"
+GHDLSYNTH ?= $(shell ($(YOSYS) -H | grep -q ghdl) || echo -m ghdl)
 YOSYS     ?= yosys
 NEXTPNR   ?= nextpnr-ecp5
 ECPPACK   ?= ecppack
+ECPPROG   ?= ecpprog
 OPENOCD   ?= openocd
 VUNITRUN  ?= python3 ./run.py
 VERILATOR ?= verilator
+DFUUTIL   ?= dfu-util
+DFUSUFFIX ?= dfu-suffix
 
 # We need a version of GHDL built with either the LLVM or gcc backend.
 # Fedora provides this, but other distros may not. Another option is to use
@@ -35,7 +39,7 @@ PWD = $(shell pwd)
 DOCKERARGS = run --rm -v $(PWD):/src:z -w /src
 GHDL      = $(DOCKERBIN) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 ghdl
 CC        = $(DOCKERBIN) $(DOCKERARGS) ghdl/ghdl:buster-llvm-7 gcc
-GHDLSYNTH = ghdl
+GHDLSYNTH = -m ghdl
 YOSYS     = $(DOCKERBIN) $(DOCKERARGS) hdlc/ghdl:yosys yosys
 NEXTPNR   = $(DOCKERBIN) $(DOCKERARGS) hdlc/nextpnr:ecp5 nextpnr-ecp5
 ECPPACK   = $(DOCKERBIN) $(DOCKERARGS) hdlc/prjtrellis ecppack
@@ -169,6 +173,7 @@ PACKAGE=CSFBGA285
 NEXTPNR_FLAGS=--um5g-85k --freq 48
 OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+ECP_FLASH_OFFSET=0x80000
 endif
 
 # OrangeCrab with ECP85 (v0.21)
@@ -181,6 +186,9 @@ PACKAGE=CSFBGA285
 NEXTPNR_FLAGS=--85k --speed 8 --freq 48 --timing-allow-fail --ignore-loops
 OPENOCD_JTAG_CONFIG=openocd/olimex-arm-usb-tiny-h.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5U-85F.cfg
+DFU_VENDOR=1209
+DFU_PRODUCT=5af0
+ECP_FLASH_OFFSET=0x80000
 toplevel=fpga/top-orangecrab0.2.vhdl
 litedram_target=orangecrab-85-0.2
 soc_extra_v += litesdcard/generated/lattice/litesdcard_core.v
@@ -224,10 +232,10 @@ fpga_files = fpga/soc_reset.vhdl \
 synth_files = $(core_files) $(soc_files) $(soc_extra_synth) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
 
 microwatt.json: $(synth_files) $(RAM_INIT_FILE)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; read_verilog $(uart_files) $(soc_extra_v); synth_ecp5 -abc9 -nowidelut -json $@  $(SYNTH_ECP5_FLAGS)"
+	$(YOSYS) $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; read_verilog $(uart_files) $(soc_extra_v); synth_ecp5 -abc9 -nowidelut -json $@  $(SYNTH_ECP5_FLAGS)"
 
 microwatt.v: $(synth_files) $(RAM_INIT_FILE)
-	$(YOSYS) -m $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
+	$(YOSYS) $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; write_verilog $@"
 
 microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uart-verilator.c
 	$(VERILATOR) $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" -Iuart16550 --assert --cc --exe --build $^ -o $@ -top-module toplevel
@@ -244,6 +252,21 @@ microwatt.svf: microwatt.bit
 
 prog: microwatt.svf
 	$(OPENOCD) -f $(OPENOCD_JTAG_CONFIG) -f $(OPENOCD_DEVICE_CONFIG) -c "transport select jtag; init; svf $<; exit"
+
+microwatt.dfu: microwatt.bit
+	cp $< $@.tmp
+	$(DFUSUFFIX) -v $(DFU_VENDOR) -p $(DFU_PRODUCT) -a $@.tmp
+	mv $@.tmp $@
+
+dfuprog: microwatt.dfu
+	$(DFUUTIL) -a 0 -D $<
+
+ecpprog: microwatt.bit
+	$(ECPPROG) -S $<
+
+ecpflash: microwatt.bit
+	test -n "$(ECP_FLASH_OFFSET)" || (echo Error: No ECP_FLASH_OFFSET defined for target; exit 1)
+	$(ECPPROG) -o $(ECP_FLASH_OFFSET) $<
 
 tests = $(sort $(patsubst tests/%.out,%,$(wildcard tests/*.out)))
 tests_console = $(sort $(patsubst tests/%.console_out,%,$(wildcard tests/*.console_out)))
