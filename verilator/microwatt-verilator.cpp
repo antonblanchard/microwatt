@@ -46,6 +46,14 @@ void tick(Vtoplevel *top)
 void uart_tx(unsigned char tx);
 unsigned char uart_rx(void);
 
+struct jtag_in {
+	unsigned char tck;
+	unsigned char tms;
+	unsigned char tdi;
+	unsigned char trst;
+};
+struct jtag_in jtag_one_cycle(uint8_t tdo);
+
 int main(int argc, char **argv)
 {
 	Verilated::commandArgs(argc, argv);
@@ -68,10 +76,19 @@ int main(int argc, char **argv)
 	top->ext_rst = 1;
 
 	while(!Verilated::gotFinish()) {
+		struct jtag_in p;
+
 		tick(top);
 
 		uart_tx(top->uart0_txd);
 		top->uart0_rxd = uart_rx();
+
+		p = jtag_one_cycle(top->jtag_tdo);
+
+		top->jtag_tck = p.tck;
+		top->jtag_tms = p.tms;
+		top->jtag_tdi = p.tdi;
+		top->jtag_trst = p.trst;
 	}
 
 #if VM_TRACE

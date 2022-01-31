@@ -163,7 +163,7 @@ ICACHE_NUM_LINES=4
 
 clkgen=fpga/clk_gen_ecp5.vhd
 toplevel=fpga/top-generic.vhdl
-dmi_dtm=dmi_dtm_dummy.vhdl
+dmi_dtm=dmi_dtm_jtag.vhdl dmi_dtm_dummy.vhdl
 LITEDRAM_GHDL_ARG=
 
 # OrangeCrab with ECP85 (original v0.0 with UM5G-85 chip)
@@ -259,8 +259,8 @@ microwatt-verilator: microwatt.v verilator/microwatt-verilator.cpp verilator/uar
 	$(VERILATOR) $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" -Iuart16550 --assert --cc --exe --build $^ -o $@ -top-module toplevel
 	@cp -f obj_dir/microwatt-verilator microwatt-verilator
 
-microwatt_asic-verilator: microwatt_asic.v asic/microwatt_asic-verilator.cpp verilator/uart-verilator.c
-	$(VERILATOR) $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" -Iuart16550 -Iasic/behavioural --assert --cc --exe --build $^ -o $@ -top-module toplevel
+microwatt_asic-verilator: microwatt_asic.v asic/microwatt_asic-verilator.cpp verilator/uart-verilator.c verilator/jtag-verilator.c
+	$(VERILATOR) $(VERILATOR_FLAGS) -CFLAGS "$(VERILATOR_CFLAGS) -DCLK_FREQUENCY=$(CLK_FREQUENCY)" -Iuart16550 -Iasic/behavioural -Ijtag_tap --assert --cc --exe --build $^ -o $@ -top-module toplevel
 	@cp -f obj_dir/microwatt_asic-verilator microwatt_asic-verilator
 
 microwatt_out.config: microwatt.json $(LPF)
