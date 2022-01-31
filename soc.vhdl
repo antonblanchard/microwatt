@@ -84,7 +84,8 @@ entity soc is
         DCACHE_TLB_NUM_WAYS : natural := 2;
         HAS_SD_CARD        : boolean := false;
         HAS_GPIO           : boolean := false;
-        NGPIO              : natural := 32
+        NGPIO              : natural := 32;
+	HAS_JTAG           : boolean := false
 	);
     port(
 	rst          : in  std_ulogic;
@@ -129,6 +130,13 @@ entity soc is
         gpio_out : out std_ulogic_vector(NGPIO - 1 downto 0);
         gpio_dir : out std_ulogic_vector(NGPIO - 1 downto 0);
         gpio_in  : in  std_ulogic_vector(NGPIO - 1 downto 0) := (others => '0');
+
+        -- JTAG signals
+        jtag_tck  : in std_ulogic := '0';
+        jtag_tdi  : in std_ulogic := '0';
+        jtag_tms  : in std_ulogic := '0';
+	jtag_trst : in std_ulogic := '0';
+        jtag_tdo  : out std_ulogic;
 
 	-- DRAM controller signals
 	alt_reset    : in std_ulogic := '0'
@@ -986,21 +994,46 @@ begin
     end generate;
 
     -- DMI(debug bus) <-> JTAG bridge
-    dtm: entity work.dmi_dtm
-	generic map(
-	    ABITS => 8,
-	    DBITS => 64
-	    )
-	port map(
-	    sys_clk	=> system_clk,
-	    sys_reset	=> rst_dtm,
-	    dmi_addr	=> dmi_addr,
-	    dmi_din	=> dmi_din,
-	    dmi_dout	=> dmi_dout,
-	    dmi_req	=> dmi_req,
-	    dmi_wr	=> dmi_wr,
-	    dmi_ack	=> dmi_ack
-	    );
+    dmi_jtag: if HAS_JTAG generate
+        dtm: entity work.dmi_dtm_jtag
+	    generic map(
+	        ABITS => 8,
+	        DBITS => 64
+	        )
+	    port map(
+	        sys_clk	=> system_clk,
+	        sys_reset	=> rst_dtm,
+	        dmi_addr	=> dmi_addr,
+	        dmi_din	=> dmi_din,
+	        dmi_dout	=> dmi_dout,
+	        dmi_req	=> dmi_req,
+	        dmi_wr	=> dmi_wr,
+	        dmi_ack	=> dmi_ack,
+                jtag_tck  => jtag_tck,
+                jtag_tdi  => jtag_tdi,
+                jtag_tms  => jtag_tms,
+                jtag_trst => jtag_trst,
+                jtag_tdo  => jtag_tdo
+	        );
+    end generate;
+
+    dmi_xilinx: if not HAS_JTAG generate
+        dtm: entity work.dmi_dtm
+	    generic map(
+	        ABITS => 8,
+	        DBITS => 64
+	        )
+	    port map(
+	        sys_clk	=> system_clk,
+	        sys_reset	=> rst_dtm,
+	        dmi_addr	=> dmi_addr,
+	        dmi_din	=> dmi_din,
+	        dmi_dout	=> dmi_dout,
+	        dmi_req	=> dmi_req,
+	        dmi_wr	=> dmi_wr,
+	        dmi_ack	=> dmi_ack
+	        );
+    end generate;
 
     -- DMI interconnect
     dmi_intercon: process(dmi_addr, dmi_req,
