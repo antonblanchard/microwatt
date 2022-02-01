@@ -61,6 +61,7 @@ entity soc is
         HAS_BTC            : boolean := true;
         HAS_SHORT_MULT     : boolean := false;
 	DISABLE_FLATTEN_CORE : boolean := false;
+        ALT_RESET_ADDRESS  : std_logic_vector(63 downto 0) := (23 downto 0 => '0', others => '1');
 	HAS_DRAM           : boolean  := false;
 	DRAM_SIZE          : integer := 0;
         DRAM_INIT_SIZE     : integer := 0;
@@ -328,7 +329,7 @@ begin
             HAS_BTC => HAS_BTC,
             HAS_SHORT_MULT => HAS_SHORT_MULT,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
-	    ALT_RESET_ADDRESS => (23 downto 0 => '0', others => '1'),
+	    ALT_RESET_ADDRESS => ALT_RESET_ADDRESS,
             LOG_LENGTH => LOG_LENGTH,
             ICACHE_NUM_LINES => ICACHE_NUM_LINES,
             ICACHE_NUM_WAYS => ICACHE_NUM_WAYS,
