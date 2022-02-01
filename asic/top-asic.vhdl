@@ -16,6 +16,7 @@ entity toplevel is
         HAS_BTC            : boolean  := false;
         NO_BRAM            : boolean  := false;
         DISABLE_FLATTEN_CORE : boolean := false;
+        ALT_RESET_ADDRESS  : std_logic_vector(63 downto 0) := (27 downto 0 => '0', others => '1');
         SPI_FLASH_OFFSET   : integer := 0;
         SPI_FLASH_DEF_CKDV : natural := 4;
         SPI_FLASH_DEF_QUAD : boolean := false;
@@ -56,7 +57,10 @@ entity toplevel is
         jtag_tdi  : in std_ulogic;
         jtag_tms  : in std_ulogic;
         jtag_trst : in std_ulogic;
-        jtag_tdo  : out std_ulogic
+        jtag_tdo  : out std_ulogic;
+
+        -- Add an I/O pin to select fetching from flash on reset
+        alt_reset      : in std_ulogic
         );
 end entity toplevel;
 
@@ -80,6 +84,7 @@ begin
             DRAM_SIZE          => 0,
             DRAM_INIT_SIZE     => 0,
             DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
+            ALT_RESET_ADDRESS  => ALT_RESET_ADDRESS,
             HAS_SPI_FLASH      => true,
             SPI_FLASH_DLINES   => 4,
             SPI_FLASH_OFFSET   => SPI_FLASH_OFFSET,
@@ -123,7 +128,10 @@ begin
             jtag_tdi          => jtag_tdi,
             jtag_tms          => jtag_tms,
             jtag_trst         => jtag_trst,
-            jtag_tdo          => jtag_tdo
+            jtag_tdo          => jtag_tdo,
+
+            -- Reset PC to flash offset 0 (ie 0xf000000)
+            alt_reset         => alt_reset
             );
 
 end architecture behaviour;
