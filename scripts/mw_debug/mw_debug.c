@@ -212,16 +212,13 @@ static struct backend sim_backend = {
 
 static urj_chain_t *jc;
 
-static int jtag_init(const char *target, int freq)
+static int common_jtag_init(const char *target, int freq)
 {
 	const char *sep;
 	const char *cable;
 	const int max_params = 20;
 	char *params[max_params+1];
-	urj_part_t *p;
-	uint32_t id;
-	int rc, part;
-
+	int rc;
 
 	if (!target)
 		target = "probe";
@@ -272,19 +269,33 @@ static int jtag_init(const char *target, int freq)
 		urj_tap_cable_set_frequency(jc->cable, freq);
 	}
 
+	return 0;
+}
+
+static int bscane2_init(const char *target, int freq)
+{
+	urj_part_t *p;
+	uint32_t id;
+	int rc;
+
+	rc = common_jtag_init(target, freq);
+	if (rc < 0) {
+	    return rc;
+	}
+
 	/* XXX Hard wire part 0, that might need to change (use params and detect !) */
 	rc = urj_tap_manual_add(jc, 6);
 	if (rc < 0) {
-		fprintf(stderr, "JTAG failed to add part! : %s\n", urj_error_describe());
+		fprintf(stderr, "JTAG failed to add part !\n");
 		return -1;
 	}
 	if (jc->parts == NULL || jc->parts->len == 0) {
-		fprintf(stderr, "JTAG Something's wrong after adding part! : %s\n", urj_error_describe());
+		fprintf(stderr, "JTAG Something's wrong after adding part !\n");
 		return -1;
 	}
 	urj_part_parts_set_instruction(jc->parts, "BYPASS");
 
-	jc->active_part = part = 0;
+	jc->active_part = 0;
 
 	p = urj_tap_chain_active_part(jc);
 	if (!p) {
@@ -313,6 +324,69 @@ static int jtag_init(const char *target, int freq)
 	urj_tap_chain_shift_instructions(jc);
 	urj_tap_chain_shift_data_registers(jc, 1);
         id = urj_tap_register_get_value(p->active_instruction->data_register->out);
+	printf("Found device ID: 0x%08x\n", id);
+	urj_part_set_instruction(p, "USER2");
+	urj_tap_chain_shift_instructions(jc);
+
+	return 0;
+}
+
+static int ecp5_init(const char *target, int freq)
+{
+	urj_part_t *p;
+	uint32_t id;
+	int rc;
+
+	rc = common_jtag_init(target, freq);
+	if (rc < 0) {
+	    return rc;
+	}
+
+	/* XXX Hard wire part 0, that might need to change (use params and detect !) */
+	rc = urj_tap_manual_add(jc, 8);
+	if (rc < 0) {
+		fprintf(stderr, "JTAG failed to add part! : %s\n", urj_error_describe());
+		return -1;
+	}
+	if (jc->parts == NULL || jc->parts->len == 0) {
+		fprintf(stderr, "JTAG Something's wrong after adding part! : %s\n", urj_error_describe());
+		return -1;
+	}
+	urj_part_parts_set_instruction(jc->parts, "BYPASS");
+
+	jc->active_part = 0;
+
+	p = urj_tap_chain_active_part(jc);
+	if (!p) {
+		fprintf(stderr, "Failed to get active JTAG part\n");
+		return -1;
+	}
+	rc = urj_part_data_register_define(p, "IDCODE_REG", 32);
+	if (rc != URJ_STATUS_OK) {
+		fprintf(stderr, "JTAG failed to add IDCODE_REG register! : %s\n",
+			urj_error_describe());
+		return -1;
+	}
+	// READ_ID = 0xE0 = 11100000, from Lattice TN1260 sysconfig guide
+	if (urj_part_instruction_define(p, "IDCODE", "11100000", "IDCODE_REG") == NULL) {
+		fprintf(stderr, "JTAG failed to add IDCODE instruction! : %s\n",
+			urj_error_describe());
+		return -1;
+	}
+	rc = urj_part_data_register_define(p, "USER2_REG", 74);
+	if (rc != URJ_STATUS_OK) {
+		fprintf(stderr, "JTAG failed to add USER2_REG register !\n");
+		return -1;
+	}
+	// ER1 = 0x32 = 00110010b
+	if (urj_part_instruction_define(p, "USER2", "00110010", "USER2_REG") == NULL) {
+		fprintf(stderr, "JTAG failed to add USER2 instruction !\n");
+		return -1;
+	}
+	urj_part_set_instruction(p, "IDCODE");
+	urj_tap_chain_shift_instructions(jc);
+	urj_tap_chain_shift_data_registers(jc, 1);
+	id = urj_tap_register_get_value(p->active_instruction->data_register->out);
 	printf("Found device ID: 0x%08x\n", id);
 	urj_part_set_instruction(p, "USER2");
 	urj_tap_chain_shift_instructions(jc);
@@ -359,8 +433,14 @@ static int jtag_command(uint8_t op, uint8_t addr, uint64_t *data)
 	return rc;
 }
 
-static struct backend jtag_backend = {
-	.init	= jtag_init,
+static struct backend bscane2_backend = {
+	.init	= bscane2_init,
+	.reset = jtag_reset,
+	.command = jtag_command,
+};
+
+static struct backend ecp5_backend = {
+	.init	= ecp5_init,
 	.reset = jtag_reset,
 	.command = jtag_command,
 };
@@ -682,7 +762,7 @@ static void ltrig_set(uint64_t addr)
 
 static void usage(const char *cmd)
 {
-	fprintf(stderr, "Usage: %s -b <jtag|sim> <command> <args>\n", cmd);
+	fprintf(stderr, "Usage: %s -b <jtag|ecp5|sim> <command> <args>\n", cmd);
 
 	fprintf(stderr, "\n");
 	fprintf(stderr, " CPU core:\n");
@@ -750,8 +830,10 @@ int main(int argc, char *argv[])
 		case 'b':
 			if (strcmp(optarg, "sim") == 0)
 				b = &sim_backend;
-			else if (strcmp(optarg, "jtag") == 0)
-				b = &jtag_backend;
+			else if (strcmp(optarg, "jtag") == 0 || strcmp(optarg, "bscane2") == 0)
+				b = &bscane2_backend;
+			else if (strcmp(optarg, "ecp5") == 0)
+				b = &ecp5_backend;
 			else {
 				fprintf(stderr, "Unknown backend %s\n", optarg);
 				exit(1);
@@ -773,7 +855,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (b == NULL)
-		b = &jtag_backend;
+		b = &bscane2_backend;
 
 	rc = b->init(target, freq);
 	if (rc < 0)
