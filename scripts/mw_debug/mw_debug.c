@@ -817,7 +817,7 @@ int main(int argc, char *argv[])
 			if ((i+1) >= argc)
 				usage(argv[0]);
 			addr = strtoul(argv[++i], NULL, 16);
-			if (((i+1) < argc) && isdigit(argv[i+1][0]))
+			if (((i+1) < argc) && isxdigit(argv[i+1][0]))
 				count = strtoul(argv[++i], NULL, 16);
 			mem_read(addr, count);
 		} else if (strcmp(argv[i], "mw") == 0) {
@@ -835,7 +835,7 @@ int main(int argc, char *argv[])
 			if ((i+1) >= argc)
 				usage(argv[0]);
 			filename = argv[++i];
-			if (((i+1) < argc) && isdigit(argv[i+1][0]))
+			if (((i+1) < argc) && isxdigit(argv[i+1][0]))
 				addr = strtoul(argv[++i], NULL, 16);
 			load(filename, addr);
 		} else if (strcmp(argv[i], "save") == 0) {
