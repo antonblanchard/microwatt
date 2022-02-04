@@ -11,11 +11,11 @@ use work.common.all;
 library osvvm;
 use osvvm.RandomPkg.all;
 
-entity countzero_tb is
+entity countbits_tb is
     generic (runner_cfg : string := runner_cfg_default);
-end countzero_tb;
+end countbits_tb;
 
-architecture behave of countzero_tb is
+architecture behave of countbits_tb is
     constant clk_period: time := 10 ns;
     signal rs: std_ulogic_vector(63 downto 0);
     signal is_32bit, count_right: std_ulogic := '0';
@@ -23,13 +23,15 @@ architecture behave of countzero_tb is
     signal clk: std_ulogic;
 
 begin
-    zerocounter_0: entity work.zero_counter
+    bitcounter_0: entity work.bit_counter
         port map (
             clk => clk,
             rs => rs,
             result => res,
             count_right => count_right,
-            is_32bit => is_32bit
+            is_32bit => is_32bit,
+            do_popcnt => '0',
+            datalen => "0000"
         );
 
     clk_process: process

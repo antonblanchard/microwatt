@@ -215,7 +215,6 @@ architecture behaviour of decode2 is
         OP_AND      => "001",           -- logical_result
         OP_OR       => "001",
         OP_XOR      => "001",
-        OP_POPCNT   => "001",
         OP_PRTY     => "001",
         OP_CMPB     => "001",
         OP_EXTS     => "001",
@@ -234,7 +233,8 @@ architecture behaviour of decode2 is
         OP_DIV      => "011",
         OP_DIVE     => "011",
         OP_MOD      => "011",
-        OP_CNTZ     => "100",           -- countzero_result
+        OP_CNTZ     => "100",           -- countbits_result
+        OP_POPCNT   => "100",
         OP_MFSPR    => "101",           -- spr_result
         OP_B        => "110",           -- next_nia
         OP_BC       => "110",

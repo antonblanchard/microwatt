@@ -18,7 +18,7 @@ filesets:
       - ppc_fx_insns.vhdl
       - sim_console.vhdl
       - logical.vhdl
-      - countzero.vhdl
+      - countbits.vhdl
       - control.vhdl
       - execute1.vhdl
       - fpu.vhdl
