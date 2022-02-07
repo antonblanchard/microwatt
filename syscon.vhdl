@@ -20,7 +20,8 @@ entity syscon is
 	HAS_LITEETH      : boolean;
         HAS_SD_CARD      : boolean;
         UART0_IS_16550   : boolean;
-        HAS_UART1        : boolean
+        HAS_UART1        : boolean;
+        HAS_UARTUSB      : boolean := false
 	);
     port (
 	clk : in std_ulogic;
@@ -67,6 +68,7 @@ architecture behaviour of syscon is
     constant SYS_REG_INFO_HAS_URT1    : integer := 6;  -- Has second UART
     constant SYS_REG_INFO_HAS_ARTB    : integer := 7;  -- Has architected TB frequency
     constant SYS_REG_INFO_HAS_SDCARD  : integer := 8;  -- Has LiteSDCard SD-card interface
+    constant SYS_REG_INFO_HAS_URTU    : integer := 9;  -- Has USB UART
 
     -- BRAMINFO contains the BRAM size in the bottom 52 bits
     -- DRAMINFO contains the DRAM size if any in the bottom 52 bits
@@ -111,6 +113,7 @@ architecture behaviour of syscon is
     signal info_has_leth : std_ulogic;
     signal info_has_lsdc : std_ulogic;
     signal info_has_urt1 : std_ulogic;
+    signal info_has_urtu : std_ulogic;
     signal info_clk      : std_ulogic_vector(39 downto 0);
     signal info_fl_off   : std_ulogic_vector(31 downto 0);
     signal uinfo_16550   : std_ulogic;
@@ -133,6 +136,7 @@ begin
     info_has_leth <= '1' when HAS_LITEETH    else '0';
     info_has_lsdc <= '1' when HAS_SD_CARD    else '0';
     info_has_urt1 <= '1' when HAS_UART1      else '0';
+    info_has_urtu <= '1' when HAS_UARTUSB    else '0';
     info_clk <= std_ulogic_vector(to_unsigned(CLK_FREQ, 40));
     reg_info <= (SYS_REG_INFO_HAS_UART   => info_has_uart,
 		 SYS_REG_INFO_HAS_DRAM   => info_has_dram,
@@ -142,6 +146,7 @@ begin
                  SYS_REG_INFO_HAS_SDCARD => info_has_lsdc,
                  SYS_REG_INFO_HAS_LSYS   => '1',
                  SYS_REG_INFO_HAS_URT1   => info_has_urt1,
+                 SYS_REG_INFO_HAS_URTU   => info_has_urtu,
 		 others => '0');
 
     reg_braminfo <= x"000" & std_ulogic_vector(to_unsigned(BRAM_SIZE, 52));
