@@ -192,6 +192,7 @@ ECP_FLASH_OFFSET=0x80000
 toplevel=fpga/top-orangecrab0.2.vhdl
 litedram_target=orangecrab-85-0.2
 soc_extra_v += litesdcard/generated/lattice/litesdcard_core.v
+dmi_dtm=dmi_dtm_ecp5.vhdl
 endif
 
 # ECP5-EVN
