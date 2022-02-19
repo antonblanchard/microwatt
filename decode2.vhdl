@@ -82,21 +82,11 @@ architecture behaviour of decode2 is
     constant decode_output_reg_init : decode_output_reg_t := ('0', (others => '0'));
 
     function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
-                                 ispr : gspr_index_t;
                                  instr_addr : std_ulogic_vector(63 downto 0))
         return decode_input_reg_t is
     begin
         if t = RA or (t = RA_OR_ZERO and insn_ra(insn_in) /= "00000") then
             return ('1', gpr_to_gspr(insn_ra(insn_in)), (others => '0'));
-        elsif t = SPR then
-            -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
-            -- If it's all 0, we don't treat it as a dependency as slow SPRs
-            -- operations are single issue.
-            --
-            assert is_fast_spr(ispr) =  '1' or ispr = "0000000"
-                report "Decode A says SPR but ISPR is invalid:" &
-                to_hstring(ispr) severity failure;
-            return (is_fast_spr(ispr), ispr, (others => '0'));
         elsif t = CIA then
             return ('0', (others => '0'), instr_addr);
         elsif HAS_FPU and t = FRA then
@@ -106,8 +96,8 @@ architecture behaviour of decode2 is
         end if;
     end;
 
-    function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0);
-                                 ispr : gspr_index_t) return decode_input_reg_t is
+    function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0))
+        return decode_input_reg_t is
         variable ret : decode_input_reg_t;
     begin
         case t is
@@ -143,14 +133,6 @@ architecture behaviour of decode2 is
                 ret := ('0', (others => '0'), x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11));
             when CONST_SH32 =>
                 ret := ('0', (others => '0'), x"00000000000000" & "000" & insn_in(15 downto 11));
-            when SPR =>
-                -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
-                -- If it's all 0, we don't treat it as a dependency as slow SPRs
-                -- operations are single issue.
-                assert is_fast_spr(ispr) = '1' or ispr = "0000000"
-                    report "Decode B says SPR but ISPR is invalid:" &
-                    to_hstring(ispr) severity failure;
-                ret := (is_fast_spr(ispr), ispr, (others => '0'));
             when NONE =>
                 ret := ('0', (others => '0'), (others => '0'));
         end case;
@@ -183,8 +165,8 @@ architecture behaviour of decode2 is
         end case;
     end;
 
-    function decode_output_reg (t : output_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
-                                ispr : gspr_index_t) return decode_output_reg_t is
+    function decode_output_reg (t : output_reg_a_t; insn_in : std_ulogic_vector(31 downto 0))
+        return decode_output_reg_t is
     begin
         case t is
             when RT =>
@@ -195,18 +177,10 @@ architecture behaviour of decode2 is
                 if HAS_FPU then
                     return ('1', fpr_to_gspr(insn_frt(insn_in)));
                 else
-                    return ('0', "0000000");
+                    return ('0', "000000");
                 end if;
-            when SPR =>
-                -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
-                -- If it's all 0, we don't treat it as a dependency as slow SPRs
-                -- operations are single issue.
-                assert is_fast_spr(ispr) = '1' or ispr = "0000000"
-                    report "Decode B says SPR but ISPR is invalid:" &
-                    to_hstring(ispr) severity failure;
-                return (is_fast_spr(ispr), ispr);
             when NONE =>
-                return ('0', "0000000");
+                return ('0', "000000");
         end case;
     end;
 
@@ -386,10 +360,10 @@ begin
         decoded_reg_c <= decode_input_reg_init;
         decoded_reg_o <= decode_output_reg_init;
         if d_in.valid = '1' then
-            decoded_reg_a <= decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.ispr1, d_in.nia);
-            decoded_reg_b <= decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, d_in.ispr2);
+            decoded_reg_a <= decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.nia);
+            decoded_reg_b <= decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn);
             decoded_reg_c <= decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn);
-            decoded_reg_o <= decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.ispro);
+            decoded_reg_o <= decode_output_reg (d_in.decode.output_reg_a, d_in.insn);
         end if;
 
         r_out.read1_enable <= decoded_reg_a.reg_valid;
@@ -565,9 +539,7 @@ begin
             v.e.result_sel := result_select(op);
             v.e.sub_select := subresult_select(op);
             if op = OP_MFSPR then
-                if is_fast_spr(d_in.ispr1) = '1' then
-                    v.e.result_sel := "000";        -- adder_result, effectively a_in
-                elsif d_in.ram_spr.valid = '1' then
+                if d_in.ram_spr.valid = '1' then
                     v.e.result_sel := "101";        -- ramspr_result
                 elsif d_in.spr_info.valid = '0' then
                     -- Privileged mfspr to invalid/unimplemented SPR numbers

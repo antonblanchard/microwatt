@@ -22,11 +22,11 @@ package decode_types is
                          OP_BCD, OP_ADDG6S,
                          OP_FETCH_FAILED
 			 );
-    type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA, FRA);
+    type input_reg_a_t is (NONE, RA, RA_OR_ZERO, CIA, FRA);
     type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
-                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, SPR, FRB);
+                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, FRB);
     type input_reg_c_t is (NONE, RS, RCR, FRC, FRS);
-    type output_reg_a_t is (NONE, RT, RA, SPR, FRT);
+    type output_reg_a_t is (NONE, RT, RA, FRT);
     type rc_t is (NONE, ONE, RC);
     type carry_in_t is (ZERO, CA, OV, ONE);
 

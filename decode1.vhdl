@@ -177,7 +177,7 @@ architecture behaviour of decode1 is
         -- addpcis
         2#001#    =>       (ALU, NONE, OP_ADD,       CIA,        CONST_DXHI4, NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         -- bclr, bcctr, bctar
-        2#100#    =>       (ALU, NONE, OP_BCREG,     NONE,       NONE,        NONE, SPR,  '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
+        2#100#    =>       (ALU, NONE, OP_BCREG,     NONE,       NONE,        NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
         -- isync
         2#111#    =>       (ALU, NONE, OP_ISYNC,     NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         -- rfid
@@ -329,7 +329,7 @@ architecture behaviour of decode1 is
         2#1001000000#  =>       (ALU,  NONE, OP_MCRXRX,    NONE,       NONE,        NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- mcrxrx
         2#0000010011#  =>       (ALU,  NONE, OP_MFCR,      NONE,       NONE,        NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- mfcr/mfocrf
         2#0001010011#  =>       (ALU,  NONE, OP_MFMSR,     NONE,       NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE), -- mfmsr
-        2#0101010011#  =>       (ALU,  NONE, OP_MFSPR,     SPR,        NONE,        RS,   RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- mfspr
+        2#0101010011#  =>       (ALU,  NONE, OP_MFSPR,     NONE,       NONE,        RS,   RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- mfspr
         2#0100001001#  =>       (DVU,  NONE, OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- modud
         2#0100001011#  =>       (DVU,  NONE, OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- moduw
         2#1100001001#  =>       (DVU,  NONE, OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', NONE), -- modsd
@@ -337,7 +337,7 @@ architecture behaviour of decode1 is
         2#0010010000#  =>       (ALU,  NONE, OP_MTCRF,     NONE,       NONE,        RS,   NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- mtcrf/mtocrf
         2#0010010010#  =>       (ALU,  NONE, OP_MTMSRD,    NONE,       NONE,        RS,   NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- mtmsr
         2#0010110010#  =>       (ALU,  NONE, OP_MTMSRD,    NONE,       NONE,        RS,   NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- mtmsrd # ignore top bits and d
-        2#0111010011#  =>       (ALU,  NONE, OP_MTSPR,     NONE,       NONE,        RS,   SPR,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- mtspr
+        2#0111010011#  =>       (ALU,  NONE, OP_MTSPR,     NONE,       NONE,        RS,   NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- mtspr
         2#0001001001#  =>       (ALU,  NONE, OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- mulhd
         2#0000001001#  =>       (ALU,  NONE, OP_MUL_H64,   RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- mulhdu
         2#0001001011#  =>       (ALU,  NONE, OP_MUL_H32,   RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0', NONE), -- mulhw
@@ -669,10 +669,6 @@ begin
         when 31 =>
             -- major opcode 31, lots of things
             v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
-
-            -- Work out ispr1/ispro independent of v.decode since they seem to be critical path
-            v.ispr1 := fast_spr_num(sprn);
-            v.ispro := fast_spr_num(sprn);
 
             if std_match(f_in.insn(10 downto 1), "01-1010011") then
                 -- mfspr or mtspr

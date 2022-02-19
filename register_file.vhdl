@@ -34,7 +34,7 @@ entity register_file is
 end entity register_file;
 
 architecture behaviour of register_file is
-    type regfile is array(0 to 127) of std_ulogic_vector(63 downto 0);
+    type regfile is array(0 to 63) of std_ulogic_vector(63 downto 0);
     signal registers : regfile := (others => (others => '0'));
     signal rd_port_b : std_ulogic_vector(63 downto 0);
     signal dbg_data : std_ulogic_vector(63 downto 0);
@@ -47,15 +47,11 @@ begin
         if rising_edge(clk) then
             if w_in.write_enable = '1' then
                 w_addr := w_in.write_reg;
-                if HAS_FPU and w_addr(6) = '1' then
+                if HAS_FPU and w_addr(5) = '1' then
                     report "Writing FPR " & to_hstring(w_addr(4 downto 0)) & " " & to_hstring(w_in.write_data);
                 else
-                    w_addr(6) := '0';
-                    if w_addr(5) = '0' then
-                        report "Writing GPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
-                    else
-                        report "Writing GSPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
-                    end if;
+                    w_addr(5) := '0';
+                    report "Writing GPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
                 end if;
                 assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
                 registers(to_integer(unsigned(w_addr))) <= w_in.write_data;
@@ -73,11 +69,11 @@ begin
         c_addr := d_in.read3_reg;
         w_addr := w_in.write_reg;
         if not HAS_FPU then
-            -- Make it obvious that we only want 64 GSPRs for a no-FPU implementation
-            a_addr(6) := '0';
-            b_addr(6) := '0';
-            c_addr(6) := '0';
-            w_addr(6) := '0';
+            -- Make it obvious that we only want 32 GSPRs for a no-FPU implementation
+            a_addr(5) := '0';
+            b_addr(5) := '0';
+            c_addr(5) := '0';
+            w_addr(5) := '0';
         end if;
         if d_in.read1_enable = '1' then
             report "Reading GPR " & to_hstring(a_addr) & " " & to_hstring(registers(to_integer(unsigned(a_addr))));
@@ -93,7 +89,7 @@ begin
         if d_in.read2_enable = '0' and dbg_gpr_req = '1' and dbg_ack = '0' then
             b_addr := dbg_gpr_addr;
             if not HAS_FPU then
-                b_addr(6) := '0';
+                b_addr(5) := '0';
             end if;
         end if;
         rd_port_b <= registers(to_integer(unsigned(b_addr)));
@@ -150,7 +146,7 @@ begin
             if rising_edge(clk) then
                 log_data <= w_in.write_data &
                             w_in.write_enable &
-                            w_in.write_reg;
+                            '0' & w_in.write_reg;
             end if;
         end process;
         log_out <= log_data;

@@ -1135,7 +1135,7 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
-		if is_fast_spr(e_in.read_reg1) = '1' or e_in.spr_is_ram = '1' then
+		if e_in.spr_is_ram = '1' then
                     if e_in.valid = '1' then
                         report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
                             "=" & to_hstring(alu_result);
@@ -1216,8 +1216,7 @@ begin
                         when others =>
                     end case;
                 end if;
-		if e_in.spr_select.valid = '0' and is_fast_spr(e_in.write_reg) = '0' and
-                    e_in.spr_is_ram = '0' then
+		if e_in.spr_select.valid = '0' and e_in.spr_is_ram = '0' then
                     -- mtspr to unimplemented SPRs should be a nop in
                     -- supervisor mode and a program interrupt for user mode
                     if ex1.msr(MSR_PR) = '1' then

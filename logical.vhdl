@@ -167,7 +167,7 @@ begin
 		end if;
 		tmp(7 downto 0) := rs(7 downto 0);
             when others =>
-                -- e.g. OP_MTSPR
+                -- e.g. OP_MFSPR
                 tmp := rs;
         end case;
 
