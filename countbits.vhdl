@@ -20,10 +20,11 @@ end entity bit_counter;
 architecture behaviour of bit_counter is
     -- signals for count-leading/trailing-zeroes
     signal inp : std_ulogic_vector(63 downto 0);
+    signal inp_r : std_ulogic_vector(63 downto 0);
     signal sum : std_ulogic_vector(64 downto 0);
-    signal msb_r : std_ulogic;
+    signal sum_r : std_ulogic_vector(64 downto 0);
     signal onehot : std_ulogic_vector(63 downto 0);
-    signal onehot_r : std_ulogic_vector(63 downto 0);
+    signal edge : std_ulogic_vector(63 downto 0);
     signal bitnum : std_ulogic_vector(5 downto 0);
     signal cntz : std_ulogic_vector(63 downto 0);
 
@@ -45,16 +46,36 @@ architecture behaviour of bit_counter is
     signal pc32     : sixbit2;
     signal popcnt   : std_ulogic_vector(63 downto 0);
 
+    function edgelocation(v: std_ulogic_vector; nbits: natural) return std_ulogic_vector is
+        variable p: std_ulogic_vector(nbits - 1 downto 0);
+        variable stride: natural;
+        variable b: std_ulogic;
+        variable k: natural;
+    begin
+        stride := 2;
+        for i in 0 to nbits - 1 loop
+            b := '0';
+            for j in 0 to (2**nbits / stride) - 1 loop
+                k := j * stride;
+                b := b or (v(k + stride - 1) and not v(k + (stride/2) - 1));
+            end loop;
+            p(i) := b;
+            stride := stride * 2;
+        end loop;
+        return p;
+    end function;
+
 begin
     countzero_r: process(clk)
     begin
         if rising_edge(clk) then
-            msb_r <= sum(64);
-            onehot_r <= onehot;
+            inp_r <= inp;
+            sum_r <= sum;
         end if;
     end process;
 
     countzero: process(all)
+        variable bitnum_e, bitnum_o : std_ulogic_vector(5 downto 0);
     begin
         if is_32bit = '0' then
             if count_right = '0' then
@@ -72,12 +93,16 @@ begin
         end if;
 
         sum <= std_ulogic_vector(unsigned('0' & not inp) + 1);
-        onehot <= sum(63 downto 0) and inp;
 
         -- The following occurs after a clock edge
-        bitnum <= bit_number(onehot_r);
+        edge <= sum_r(63 downto 0) or inp_r;
+        bitnum_e := edgelocation(edge, 6);
+        onehot <= sum_r(63 downto 0) and inp_r;
+        bitnum_o := bit_number(onehot);
+        bitnum(5 downto 2) <= bitnum_e(5 downto 2);
+        bitnum(1 downto 0) <= bitnum_o(1 downto 0);
 
-        cntz <= 57x"0" & msb_r & bitnum;
+        cntz <= 57x"0" & sum_r(64) & bitnum;
     end process;
 
     popcnt_r: process(clk)
