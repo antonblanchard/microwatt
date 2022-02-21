@@ -5,6 +5,7 @@ use ieee.numeric_std.all;
 library work;
 use work.common.all;
 use work.decode_types.all;
+use work.insn_helpers.all;
 
 entity decode1 is
     generic (
@@ -24,6 +25,7 @@ entity decode1 is
         f_in      : in IcacheToDecode1Type;
         f_out     : out Decode1ToFetch1Type;
         d_out     : out Decode1ToDecode2Type;
+        r_out     : out Decode1ToRegisterFileType;
         log_out   : out std_ulogic_vector(12 downto 0)
 	);
 end entity decode1;
@@ -628,6 +630,7 @@ begin
 
     decode1_1: process(all)
         variable v : Decode1ToDecode2Type;
+        variable vr : Decode1ToRegisterFileType;
         variable vi : reg_internal_t;
         variable majorop : major_opcode_t;
         variable minor4op : std_ulogic_vector(10 downto 0);
@@ -636,6 +639,8 @@ begin
         variable br_target : std_ulogic_vector(61 downto 0);
         variable br_offset : signed(23 downto 0);
         variable bv : br_predictor_t;
+        variable fprs, fprabc : std_ulogic;
+        variable in3rc : std_ulogic;
     begin
         v := Decode1ToDecode2Init;
         vi := reg_internal_t_init;
@@ -645,6 +650,10 @@ begin
         v.insn := f_in.insn;
         v.stop_mark := f_in.stop_mark;
         v.big_endian := f_in.big_endian;
+
+        fprs := '0';
+        fprabc := '0';
+        in3rc := '0';
 
         if f_in.valid = '1' then
             report "Decode insn " & to_hstring(f_in.insn) & " at " & to_hstring(f_in.nia);
@@ -665,6 +674,7 @@ begin
             minor4op := f_in.insn(5 downto 0) & f_in.insn(10 downto 6);
             vi.override := not decode_op_4_valid(to_integer(unsigned(minor4op)));
             v.decode := decode_op_4_array(to_integer(unsigned(f_in.insn(5 downto 0))));
+            in3rc := '1';
 
         when 31 =>
             -- major opcode 31, lots of things
@@ -687,6 +697,10 @@ begin
                         end if;
                     when others =>
                 end case;
+            end if;
+            if HAS_FPU and std_match(f_in.insn(10 downto 1), "1----10111") then
+                -- lower half of column 23 has FP loads and stores
+                fprs := '1';
             end if;
 
         when 16 =>
@@ -715,6 +729,12 @@ begin
         when 30 =>
             v.decode := decode_op_30_array(to_integer(unsigned(f_in.insn(4 downto 1))));
 
+        when 52 | 53 | 54 | 55 =>
+            -- stfd[u] and stfs[u]
+            if HAS_FPU then
+                fprs := '1';
+            end if;
+
         when 58 =>
             v.decode := decode_op_58_array(to_integer(unsigned(f_in.insn(1 downto 0))));
 
@@ -725,6 +745,9 @@ begin
                 if f_in.insn(5) = '0' and not std_match(f_in.insn(10 downto 1), "11-1001110") then
                     vi.override := '1';
                 end if;
+                in3rc := '1';
+                fprabc := '1';
+                fprs := '1';
             end if;
 
         when 62 =>
@@ -738,10 +761,22 @@ begin
                 else
                     v.decode := decode_op_63h_array(to_integer(unsigned(f_in.insn(4 downto 1))));
                 end if;
+                in3rc := '1';
+                fprabc := '1';
+                fprs := '1';
             end if;
 
         when others =>
         end case;
+
+        -- Work out GPR/FPR read addresses
+        vr.reg_1_addr := fprabc & insn_ra(f_in.insn);
+        vr.reg_2_addr := fprabc & insn_rb(f_in.insn);
+        if in3rc = '1' then
+            vr.reg_3_addr := fprabc & insn_rcreg(f_in.insn);
+        else
+            vr.reg_3_addr := fprs & insn_rs(f_in.insn);
+        end if;
 
         if f_in.fetch_failed = '1' then
             v.valid := '1';
@@ -788,6 +823,8 @@ begin
         f_out.redirect <= br.predict;
         f_out.redirect_nia <= br_target & "00";
         flush_out <= bv.predict or br.predict;
+
+        r_out <= vr;
     end process;
 
     d1_log: if LOG_LENGTH > 0 generate

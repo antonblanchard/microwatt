@@ -276,6 +276,12 @@ package common is
         redirect_nia : std_ulogic_vector(63 downto 0);
     end record;
 
+    type Decode1ToRegisterFileType is record
+        reg_1_addr : gspr_index_t;
+        reg_2_addr : gspr_index_t;
+        reg_3_addr : gspr_index_t;
+    end record;
+
     type bypass_data_t is record
         tag  : instr_tag_t;
         data : std_ulogic_vector(63 downto 0);

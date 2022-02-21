@@ -14,7 +14,9 @@ entity register_file is
         );
     port(
         clk           : in std_logic;
+        stall         : in std_ulogic;
 
+        d1_in         : in Decode1ToRegisterFileType;
         d_in          : in Decode2ToRegisterFileType;
         d_out         : out RegisterFileToDecode2Type;
 
@@ -39,9 +41,13 @@ architecture behaviour of register_file is
     signal rd_port_b : std_ulogic_vector(63 downto 0);
     signal dbg_data : std_ulogic_vector(63 downto 0);
     signal dbg_ack : std_ulogic;
+    signal addr_1_reg : gspr_index_t;
+    signal addr_2_reg : gspr_index_t;
+    signal addr_3_reg : gspr_index_t;
 begin
     -- synchronous writes
     register_write_0: process(clk)
+        variable a_addr, b_addr, c_addr : gspr_index_t;
         variable w_addr : gspr_index_t;
     begin
         if rising_edge(clk) then
@@ -56,6 +62,19 @@ begin
                 assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
                 registers(to_integer(unsigned(w_addr))) <= w_in.write_data;
             end if;
+
+            a_addr := d1_in.reg_1_addr;
+            b_addr := d1_in.reg_2_addr;
+            c_addr := d1_in.reg_3_addr;
+
+            if stall = '0' then
+                addr_1_reg <= a_addr;
+                addr_2_reg <= b_addr;
+                addr_3_reg <= c_addr;
+            end if;
+            assert (d_in.read1_enable = '0') or (d_in.read1_reg = addr_1_reg) severity failure;
+            assert (d_in.read2_enable = '0') or (d_in.read2_reg = addr_2_reg) severity failure;
+            assert (d_in.read3_enable = '0') or (d_in.read3_reg = addr_3_reg) severity failure;
         end if;
     end process register_write_0;
 

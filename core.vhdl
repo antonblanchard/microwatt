@@ -63,6 +63,7 @@ architecture behave of core is
     -- decode signals
     signal decode1_to_decode2: Decode1ToDecode2Type;
     signal decode1_to_fetch1: Decode1ToFetch1Type;
+    signal decode1_to_register_file: Decode1ToRegisterFileType;
     signal decode2_to_execute1: Decode2ToExecute1Type;
 
     -- register file signals
@@ -285,6 +286,7 @@ begin
             f_in => icache_to_decode1,
             d_out => decode1_to_decode2,
             f_out => decode1_to_fetch1,
+            r_out => decode1_to_register_file,
             log_out => log_data(109 downto 97)
             );
 
@@ -329,6 +331,8 @@ begin
             )
         port map (
             clk => clk,
+            stall => decode2_stall_out,
+            d1_in => decode1_to_register_file,
             d_in => decode2_to_register_file,
             d_out => register_file_to_decode2,
             w_in => writeback_to_register_file,
