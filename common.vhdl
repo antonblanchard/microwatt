@@ -280,6 +280,9 @@ package common is
         reg_1_addr : gspr_index_t;
         reg_2_addr : gspr_index_t;
         reg_3_addr : gspr_index_t;
+        read_1_enable : std_ulogic;
+        read_2_enable : std_ulogic;
+        read_3_enable : std_ulogic;
     end record;
 
     type bypass_data_t is record

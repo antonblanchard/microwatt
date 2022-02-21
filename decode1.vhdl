@@ -641,6 +641,7 @@ begin
         variable bv : br_predictor_t;
         variable fprs, fprabc : std_ulogic;
         variable in3rc : std_ulogic;
+        variable may_read_rb : std_ulogic;
     begin
         v := Decode1ToDecode2Init;
         vi := reg_internal_t_init;
@@ -654,6 +655,7 @@ begin
         fprs := '0';
         fprabc := '0';
         in3rc := '0';
+        may_read_rb := '0';
 
         if f_in.valid = '1' then
             report "Decode insn " & to_hstring(f_in.insn) & " at " & to_hstring(f_in.nia);
@@ -675,10 +677,16 @@ begin
             vi.override := not decode_op_4_valid(to_integer(unsigned(minor4op)));
             v.decode := decode_op_4_array(to_integer(unsigned(f_in.insn(5 downto 0))));
             in3rc := '1';
+            may_read_rb := '1';
+
+        when 23 =>
+            -- rlwnm[.]
+            may_read_rb := '1';
 
         when 31 =>
             -- major opcode 31, lots of things
             v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
+            may_read_rb := '1';
 
             if std_match(f_in.insn(10 downto 1), "01-1010011") then
                 -- mfspr or mtspr
@@ -728,6 +736,7 @@ begin
 
         when 30 =>
             v.decode := decode_op_30_array(to_integer(unsigned(f_in.insn(4 downto 1))));
+            may_read_rb := f_in.insn(4);
 
         when 52 | 53 | 54 | 55 =>
             -- stfd[u] and stfs[u]
@@ -748,6 +757,7 @@ begin
                 in3rc := '1';
                 fprabc := '1';
                 fprs := '1';
+                may_read_rb := '1';
             end if;
 
         when 62 =>
@@ -764,6 +774,7 @@ begin
                 in3rc := '1';
                 fprabc := '1';
                 fprs := '1';
+                may_read_rb := '1';
             end if;
 
         when others =>
@@ -777,6 +788,9 @@ begin
         else
             vr.reg_3_addr := fprs & insn_rs(f_in.insn);
         end if;
+        vr.read_1_enable := f_in.valid and not f_in.fetch_failed;
+        vr.read_2_enable := f_in.valid and not f_in.fetch_failed and may_read_rb;
+        vr.read_3_enable := f_in.valid and not f_in.fetch_failed;
 
         if f_in.fetch_failed = '1' then
             v.valid := '1';
