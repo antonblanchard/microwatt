@@ -46,25 +46,6 @@ architecture behaviour of bit_counter is
     signal pc32     : sixbit2;
     signal popcnt   : std_ulogic_vector(63 downto 0);
 
-    function edgelocation(v: std_ulogic_vector; nbits: natural) return std_ulogic_vector is
-        variable p: std_ulogic_vector(nbits - 1 downto 0);
-        variable stride: natural;
-        variable b: std_ulogic;
-        variable k: natural;
-    begin
-        stride := 2;
-        for i in 0 to nbits - 1 loop
-            b := '0';
-            for j in 0 to (2**nbits / stride) - 1 loop
-                k := j * stride;
-                b := b or (v(k + stride - 1) and not v(k + (stride/2) - 1));
-            end loop;
-            p(i) := b;
-            stride := stride * 2;
-        end loop;
-        return p;
-    end function;
-
 begin
     countzero_r: process(clk)
     begin
