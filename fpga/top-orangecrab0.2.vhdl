@@ -63,10 +63,10 @@ entity toplevel is
         ddram_dm      : out std_ulogic_vector(1 downto 0);
         ddram_dq      : inout std_ulogic_vector(15 downto 0);
         ddram_dqs_p   : inout std_ulogic_vector(1 downto 0);
-        ddram_clk_p   : out std_ulogic;
+        ddram_clk_p   : out std_ulogic_vector(0 downto 0);
         -- only the positive differential pin is instantiated
         --ddram_dqs_n   : inout std_ulogic_vector(1 downto 0);
-        --ddram_clk_n   : out std_ulogic;
+        --ddram_clk_n   : out std_ulogic_vector(0 downto 0);
         ddram_cke     : out std_ulogic;
         ddram_odt     : out std_ulogic;
         ddram_reset_n : out std_ulogic;
@@ -331,6 +331,7 @@ begin
                 DRAM_ABITS => 24,
                 DRAM_ALINES => 14,
                 DRAM_DLINES => 16,
+                DRAM_CKLINES => 1,
                 DRAM_PORT_WIDTH => 128,
                 NUM_LINES => 8, -- reduce from default of 64 to make smaller/timing
                 PAYLOAD_FILE => RAM_INIT_FILE,

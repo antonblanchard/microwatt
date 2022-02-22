@@ -102,8 +102,8 @@ entity litedram_core is
 	ddram_dq                       : inout std_ulogic_vector(15 downto 0);
 	ddram_dqs_p                    : inout std_ulogic_vector(1 downto 0);
 	ddram_dqs_n                    : inout std_ulogic_vector(1 downto 0);
-	ddram_clk_p                    : out std_ulogic;
-	ddram_clk_n                    : out std_ulogic;
+	ddram_clk_p                    : out std_ulogic_vector(0 downto 0);
+	ddram_clk_n                    : out std_ulogic_vector(0 downto 0);
 	ddram_cke                      : out std_ulogic;
 	ddram_odt                      : out std_ulogic;
 	ddram_reset_n                  : out std_ulogic;
