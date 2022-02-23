@@ -212,7 +212,6 @@ architecture rtl of icache is
     signal ra_valid      : std_ulogic;
     signal priv_fault    : std_ulogic;
     signal access_ok     : std_ulogic;
-    signal use_previous  : std_ulogic;
 
     -- Cache RAM interface
     type cache_ram_out_t is array(way_t) of cache_row_t;
@@ -397,7 +396,7 @@ begin
                     wr_dat(ii * 8 + 7 downto ii * 8) <= wishbone_in.dat(j * 8 + 7 downto j * 8);
                 end loop;
             end if;
-	    do_read <= not (stall_in or use_previous);
+	    do_read <= not stall_in;
 	    do_write <= '0';
 	    if wishbone_in.ack = '1' and replace_way = i then
 		do_write <= '1';
@@ -503,16 +502,6 @@ begin
 	variable is_hit  : std_ulogic;
 	variable hit_way : way_t;
     begin
-        -- i_in.sequential means that i_in.nia this cycle is 4 more than
-        -- last cycle.  If we read more than 32 bits at a time, had a cache hit
-        -- last cycle, and we don't want the first 32-bit chunk, then we can
-        -- keep the data we read last cycle and just use that.
-        if unsigned(i_in.nia(INSN_BITS+2-1 downto 2)) /= 0 then
-            use_previous <= i_in.req and i_in.sequential and r.hit_valid;
-        else
-            use_previous <= '0';
-        end if;
-
 	-- Extract line, row and tag from request
         req_index <= get_index(i_in.nia);
         req_row <= get_row(i_in.nia);
@@ -542,7 +531,7 @@ begin
 	end loop;
 
 	-- Generate the "hit" and "miss" signals for the synchronous blocks
-        if i_in.req = '1' and access_ok = '1' and flush_in = '0' and rst = '0' and use_previous = '0' then
+        if i_in.req = '1' and access_ok = '1' and flush_in = '0' and rst = '0' then
             req_is_hit  <= is_hit;
             req_is_miss <= not is_hit;
         else
@@ -576,7 +565,7 @@ begin
         i_out.next_pred_ntaken <= i_in.pred_ntaken;
 
 	-- Stall fetch1 if we have a miss on cache or TLB or a protection fault
-	stall_out <= not (is_hit and access_ok) and not use_previous;
+	stall_out <= not (is_hit and access_ok);
 
 	-- Wishbone requests output (from the cache miss reload machine)
 	wishbone_out <= r.wb;
@@ -588,8 +577,7 @@ begin
         if rising_edge(clk) then
             -- keep outputs to fetch2 unchanged on a stall
             -- except that flush or reset sets valid to 0
-            -- If use_previous, keep the same data as last cycle and use the second half
-            if stall_in = '1' or use_previous = '1' then
+            if stall_in = '1' then
                 if rst = '1' or flush_in = '1' then
                     r.hit_valid <= '0';
                 end if;

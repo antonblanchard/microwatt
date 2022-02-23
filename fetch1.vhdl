@@ -89,9 +89,8 @@ begin
                 r_int.predicted_taken <= r_next_int.predicted_taken;
                 r_int.pred_not_taken <= r_next_int.pred_not_taken;
                 r_int.predicted_nia <= r_next_int.predicted_nia;
-                r_int.rd_is_niap4 <= r_next.sequential;
+                r_int.rd_is_niap4 <= r_next_int.rd_is_niap4;
             end if;
-            r.sequential <= r_next.sequential and advance_nia;
             -- always send the up-to-date stop mark and req
             r.stop_mark <= stop_in;
             r.req <= not rst;
@@ -145,11 +144,11 @@ begin
     begin
 	v := r;
 	v_int := r_int;
-        v.sequential := '0';
         v.predicted := '0';
         v.pred_ntaken := '0';
         v_int.predicted_taken := '0';
         v_int.pred_not_taken := '0';
+        v_int.rd_is_niap4 := '0';
 
 	if rst = '1' then
 	    if alt_reset_in = '1' then
@@ -180,7 +179,7 @@ begin
             v.nia := r_int.predicted_nia;
             v.predicted := '1';
         else
-            v.sequential := '1';
+            v_int.rd_is_niap4 := '1';
             v.pred_ntaken := r_int.pred_not_taken;
             v.nia := std_ulogic_vector(unsigned(r.nia) + 4);
             if r_int.mode_32bit = '1' then
