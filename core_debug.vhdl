@@ -39,11 +39,17 @@ entity core_debug is
         dbg_gpr_addr    : out gspr_index_t;
         dbg_gpr_data    : in std_ulogic_vector(63 downto 0);
 
-        -- SPR register read port
+        -- SPR register read port for SPRs in execute1
         dbg_spr_req     : out std_ulogic;
         dbg_spr_ack     : in std_ulogic;
         dbg_spr_addr    : out std_ulogic_vector(7 downto 0);
         dbg_spr_data    : in std_ulogic_vector(63 downto 0);
+
+        -- SPR register read port for SPRs in loadstore1 and mmu
+        dbg_ls_spr_req  : out std_ulogic;
+        dbg_ls_spr_ack  : in std_ulogic;
+        dbg_ls_spr_addr : out std_ulogic_vector(1 downto 0);
+        dbg_ls_spr_data : in std_ulogic_vector(63 downto 0);
 
         -- Core logging data
         log_data        : in std_ulogic_vector(255 downto 0);
@@ -128,7 +134,7 @@ architecture behave of core_debug is
 begin
        -- Single cycle register accesses on DMI except for GSPR data
     dmi_ack <= dmi_req when dmi_addr /= DBG_CORE_GSPR_DATA
-               else dbg_gpr_ack or dbg_spr_ack;
+               else dbg_gpr_ack or dbg_spr_ack or dbg_ls_spr_ack;
 
     -- Status register read composition
     stat_reg <= (2 => terminated,
@@ -137,6 +143,7 @@ begin
                  others => '0');
 
     gspr_data <= dbg_gpr_data when gspr_index(5) = '0' else
+                 dbg_ls_spr_data when dbg_ls_spr_req = '1' else
                  dbg_spr_data when spr_index_valid = '1' else
                  (others => '0');
 
@@ -245,16 +252,22 @@ begin
         variable odd : std_ulogic;
     begin
         if rising_edge(clk) then
-            if rst = '1' or dmi_req = '0' or dmi_addr /= DBG_CORE_GSPR_DATA then
-                dbg_gpr_req <= '0';
-                dbg_spr_req <= '0';
-            else
-                dbg_gpr_req <= not gspr_index(5);
-                dbg_spr_req <= gspr_index(5);
+            dbg_gpr_req <= '0';
+            dbg_spr_req <= '0';
+            dbg_ls_spr_req <= '0';
+            if rst = '0' and dmi_req = '1' and dmi_addr = DBG_CORE_GSPR_DATA then
+                if gspr_index(5) = '0' then
+                    dbg_gpr_req <= '1';
+                elsif gspr_index(4 downto 2) = "111" then
+                    dbg_ls_spr_req <= '1';
+                else
+                    dbg_spr_req <= '1';
+                end if;
             end if;
 
             -- Map 0 - 0x1f to GPRs, 0x20 - 0x3f to SPRs, and 0x40 - 0x5f to FPRs
             dbg_gpr_addr <= gspr_index(6) & gspr_index(4 downto 0);
+            dbg_ls_spr_addr <= gspr_index(1 downto 0);
 
             -- For SPRs, use the same mapping as when the fast SPRs were in the GPR file
             valid := '1';

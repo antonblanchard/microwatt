@@ -35,6 +35,12 @@ entity loadstore1 is
 
         events  : out Loadstore1EventType;
 
+        -- Access to SPRs from core_debug module
+        dbg_spr_req   : in std_ulogic;
+        dbg_spr_ack   : out std_ulogic;
+        dbg_spr_addr  : in std_ulogic_vector(1 downto 0);
+        dbg_spr_data  : out std_ulogic_vector(63 downto 0);
+
         log_out : out std_ulogic_vector(9 downto 0)
         );
 end loadstore1;
@@ -123,6 +129,8 @@ architecture behave of loadstore1 is
         one_cycle  : std_ulogic;
         wr_sel     : std_ulogic_vector(1 downto 0);
         addr0      : std_ulogic_vector(63 downto 0);
+        sprsel     : std_ulogic_vector(1 downto 0);
+        dbg_spr_rd : std_ulogic;
     end record;
 
     type reg_stage3_t is record
@@ -146,6 +154,8 @@ architecture behave of loadstore1 is
         intr_vec     : integer range 0 to 16#fff#;
         srr1         : std_ulogic_vector(15 downto 0);
         events       : Loadstore1EventType;
+        dbg_spr      : std_ulogic_vector(63 downto 0);
+        dbg_spr_ack  : std_ulogic;
     end record;
 
     signal req_in   : request_t;
@@ -664,6 +674,20 @@ begin
             v.busy := '1';
         end if;
 
+        v.dbg_spr_rd := dbg_spr_req and not (v.req.valid and v.req.read_spr);
+        if v.dbg_spr_rd = '0' then
+            v.sprsel(1) := v.req.sprn(1);
+            if v.req.sprn(1) = '1' then
+                -- DSISR and DAR
+                v.sprsel(0) := v.req.sprn(0);
+            else
+                -- PID and PTCR
+                v.sprsel(0) := v.req.sprn(8);
+            end if;
+        else
+            v.sprsel := dbg_spr_addr;
+        end if;
+
         r2in <= v;
     end process;
 
@@ -763,21 +787,26 @@ begin
             v.load_data := data_permuted;
         end if;
 
+        -- SPR mux
+        if r2.sprsel(1) = '1' then
+            if r2.sprsel(0) = '0' then
+                sprval := x"00000000" & r3.dsisr;
+            else
+                sprval := r3.dar;
+            end if;
+        else
+            sprval := m_in.sprval;
+        end if;
+        if dbg_spr_req = '0' then
+            v.dbg_spr_ack := '0';
+        elsif r2.dbg_spr_rd = '1' and r3.dbg_spr_ack = '0' then
+            v.dbg_spr := sprval;
+            v.dbg_spr_ack := '1';
+        end if;
+
         if r2.req.valid = '1' then
             if r2.req.read_spr = '1' then
                 write_enable := '1';
-                -- partial decode on SPR number should be adequate given
-                -- the restricted set that get sent down this path
-                if r2.req.sprn(8) = '0' and r2.req.sprn(5) = '0' then
-                    if r2.req.sprn(0) = '0' then
-                        sprval := x"00000000" & r3.dsisr;
-                    else
-                        sprval := r3.dar;
-                    end if;
-                else
-                    -- reading one of the SPRs in the MMU
-                    sprval := m_in.sprval;
-                end if;
             end if;
             if r2.req.align_intr = '1' then
                 -- generate alignment interrupt
@@ -940,8 +969,10 @@ begin
         m_out.load <= r2.req.load;
         m_out.priv <= r2.req.priv_mode;
         m_out.tlbie <= r2.req.tlbie;
+        m_out.ric <= r2.req.sprn(3 downto 2);
         m_out.mtspr <= mmu_mtspr;
-        m_out.sprn <= r2.req.sprn;
+        m_out.sprnf <= r2.sprsel(0);
+        m_out.sprnt <= r2.req.sprn(8);
         m_out.addr <= r2.req.addr;
         m_out.slbia <= r2.req.is_slbia;
         m_out.rs <= r2.req.store_data;
@@ -966,6 +997,10 @@ begin
         events <= r3.events;
 
         flush <= exception;
+
+        -- SPR values for core_debug
+        dbg_spr_data <= r3.dbg_spr;
+        dbg_spr_ack <= r3.dbg_spr_ack;
 
         -- Update registers
         r3in <= v;

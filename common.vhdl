@@ -547,7 +547,9 @@ package common is
         iside : std_ulogic;
         load  : std_ulogic;
         priv  : std_ulogic;
-        sprn  : std_ulogic_vector(9 downto 0);
+        ric   : std_ulogic_vector(1 downto 0);
+        sprnf : std_ulogic;
+        sprnt : std_ulogic;
         addr  : std_ulogic_vector(63 downto 0);
         rs    : std_ulogic_vector(63 downto 0);
     end record;
