@@ -97,6 +97,10 @@ architecture behaviour of toplevel is
     signal spi_sdat_oe : std_ulogic_vector(3 downto 0);
     signal spi_sdat_i  : std_ulogic_vector(3 downto 0);
 
+    -- ddram clock signals as vectors
+    signal ddram_clk_p_vec : std_logic_vector(0 downto 0);
+    signal ddram_clk_n_vec : std_logic_vector(0 downto 0);
+
     -- Fixup various memory sizes based on generics
     function get_bram_size return natural is
     begin
@@ -270,11 +274,15 @@ begin
 		rst_out => open
 		);
 
+	ddram_clk_p_vec <= (others => ddram_clk_p);
+	ddram_clk_n_vec <= (others => ddram_clk_n);
+
 	dram: entity work.litedram_wrapper
 	    generic map(
 		DRAM_ABITS => 25,
 		DRAM_ALINES => 15,
                 DRAM_DLINES => 32,
+                DRAM_CKLINES => 1,
                 DRAM_PORT_WIDTH => 256,
                 PAYLOAD_FILE => RAM_INIT_FILE,
                 PAYLOAD_SIZE => PAYLOAD_SIZE
@@ -307,8 +315,8 @@ begin
 		ddram_dq	=> ddram_dq,
 		ddram_dqs_p	=> ddram_dqs_p,
 		ddram_dqs_n	=> ddram_dqs_n,
-		ddram_clk_p	=> ddram_clk_p,
-		ddram_clk_n	=> ddram_clk_n,
+		ddram_clk_p	=> ddram_clk_p_vec,
+		ddram_clk_n	=> ddram_clk_n_vec,
 		ddram_cke	=> ddram_cke,
 		ddram_odt	=> ddram_odt,
 		ddram_reset_n	=> ddram_reset_n

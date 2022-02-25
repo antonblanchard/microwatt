@@ -13,6 +13,7 @@ entity litedram_wrapper is
 	DRAM_ABITS      : positive;
 	DRAM_ALINES     : natural;
 	DRAM_DLINES     : natural;
+	DRAM_CKLINES    : natural;
 	DRAM_PORT_WIDTH : positive;
 
         -- Pseudo-ROM payload
@@ -69,8 +70,8 @@ entity litedram_wrapper is
         ddram_dq      : inout std_ulogic_vector(DRAM_DLINES-1 downto 0);
         ddram_dqs_p   : inout std_ulogic_vector(DRAM_DLINES/8-1 downto 0);
         ddram_dqs_n   : inout std_ulogic_vector(DRAM_DLINES/8-1 downto 0);
-        ddram_clk_p   : out std_ulogic;
-        ddram_clk_n   : out std_ulogic;
+        ddram_clk_p   : out std_ulogic_vector(DRAM_CKLINES-1 downto 0);
+        ddram_clk_n   : out std_ulogic_vector(DRAM_CKLINES-1 downto 0);
         ddram_cke     : out std_ulogic;
         ddram_odt     : out std_ulogic;
         ddram_reset_n : out std_ulogic
@@ -93,8 +94,8 @@ architecture behaviour of litedram_wrapper is
         ddram_dq                       : inout std_ulogic_vector(DRAM_DLINES-1 downto 0);
         ddram_dqs_p                    : inout std_ulogic_vector(DRAM_DLINES/8-1 downto 0);
         ddram_dqs_n                    : inout std_ulogic_vector(DRAM_DLINES/8-1 downto 0);
-        ddram_clk_p                    : out std_ulogic;
-        ddram_clk_n                    : out std_ulogic;
+        ddram_clk_p                    : out std_ulogic_vector(DRAM_CKLINES-1 downto 0);
+        ddram_clk_n                    : out std_ulogic_vector(DRAM_CKLINES-1 downto 0);
         ddram_cke                      : out std_ulogic;
         ddram_odt                      : out std_ulogic;
         ddram_reset_n                  : out std_ulogic;
