@@ -139,8 +139,5 @@ make -j$(nproc) check
 
 ## Issues
 
-This is functional, but very simple. We still have quite a lot to do:
-
-- There are a few instructions still to be implemented
-- Need to add caches and bypassing (in progress)
-- Need to add supervisor state (in progress)
+- There are a few instructions still to be implemented:
+  - Vector/VMX/VSX
