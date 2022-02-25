@@ -55,6 +55,12 @@ entity execute1 is
         dc_events    : in DcacheEventType;
         ic_events    : in IcacheEventType;
 
+        -- Access to SPRs from core_debug module
+        dbg_spr_req   : in std_ulogic;
+        dbg_spr_ack   : out std_ulogic;
+        dbg_spr_addr  : in std_ulogic_vector(7 downto 0);
+        dbg_spr_data  : out std_ulogic_vector(63 downto 0);
+
         -- debug
         sim_dump      : in std_ulogic;
         sim_dump_done : out std_ulogic;
@@ -602,6 +608,24 @@ begin
                 end if;
             end if;
 	end if;
+    end process;
+
+    ex_dbg_spr: process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '0' and dbg_spr_req = '1' then
+                if e_in.dbg_spr_access = '1' and dbg_spr_ack = '0' then
+                    if dbg_spr_addr(7) = '1' then
+                        dbg_spr_data <= ramspr_result;
+                    else
+                        dbg_spr_data <= assemble_xer(xerc_in, ctrl.xer_low);
+                    end if;
+                    dbg_spr_ack <= '1';
+                end if;
+            else
+                dbg_spr_ack <= '0';
+            end if;
+        end if;
     end process;
 
     -- Data path for integer instructions (first execute stage)

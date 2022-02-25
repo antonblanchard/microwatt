@@ -43,6 +43,10 @@ entity decode2 is
         execute2_cr_bypass : in cr_bypass_data_t;
         writeback_bypass  : in bypass_data_t;
 
+        -- Access to SPRs from core_debug module
+        dbg_spr_req  : in std_ulogic;
+        dbg_spr_addr : in std_ulogic_vector(7 downto 0);
+
         log_out : out std_ulogic_vector(9 downto 0)
 	);
 end entity decode2;
@@ -60,6 +64,7 @@ architecture behaviour of decode2 is
         reg_o_valid : std_ulogic;
         input_ov  : std_ulogic;
         output_ov : std_ulogic;
+        read_rspr : std_ulogic;
     end record;
     constant reg_type_init : reg_type :=
         (e => Decode2ToExecute1Init, repeat => NONE, others => '0');
@@ -347,6 +352,13 @@ begin
                         " tag=" & integer'image(dc2in.e.instr_tag.tag) & std_ulogic'image(dc2in.e.instr_tag.valid);
                 end if;
                 dc2 <= dc2in;
+            elsif dc2.read_rspr = '0' then
+                -- Update debug SPR access signals even when stalled
+                -- if the instruction in dc2.e doesn't read any SPRs.
+                dc2.e.dbg_spr_access <= dc2in.e.dbg_spr_access;
+                dc2.e.ramspr_even_rdaddr <= dc2in.e.ramspr_even_rdaddr;
+                dc2.e.ramspr_odd_rdaddr <= dc2in.e.ramspr_odd_rdaddr;
+                dc2.e.ramspr_rd_odd <= dc2in.e.ramspr_rd_odd;
             end if;
         end if;
     end process;
@@ -381,6 +393,7 @@ begin
         variable op : insn_type_t;
         variable valid_in : std_ulogic;
         variable decctr : std_ulogic;
+        variable sprs_busy : std_ulogic;
     begin
         v := dc2;
 
@@ -388,6 +401,8 @@ begin
 
         if dc2.busy = '0' then
             v.e := Decode2ToExecute1Init;
+
+            sprs_busy := '0';
 
             if d_in.valid = '1' then
                 v.prev_sgl := dc2.sgl_pipe;
@@ -467,6 +482,7 @@ begin
                 v.e.ramspr_odd_rdaddr := RAMSPR_CTR;
                 v.e.ramspr_wraddr := RAMSPR_CTR;
                 v.e.ramspr_write_odd := '1';
+                sprs_busy := '1';
             end if;
             if v.e.lr = '1' then
                 -- write LR
@@ -484,11 +500,13 @@ begin
                     else
                         v.e.ramspr_even_rdaddr := RAMSPR_TAR;
                     end if;
+                    sprs_busy := '1';
                 when OP_MFSPR =>
                     v.e.ramspr_even_rdaddr := d_in.ram_spr.index;
                     v.e.ramspr_odd_rdaddr := d_in.ram_spr.index;
                     v.e.ramspr_rd_odd := d_in.ram_spr.isodd;
                     v.e.spr_is_ram := d_in.ram_spr.valid;
+                    sprs_busy := d_in.ram_spr.valid;
                 when OP_MTSPR =>
                     v.e.ramspr_wraddr := d_in.ram_spr.index;
                     v.e.ramspr_write_even := d_in.ram_spr.valid and not d_in.ram_spr.isodd;
@@ -497,8 +515,10 @@ begin
                 when OP_RFID =>
                     v.e.ramspr_even_rdaddr := RAMSPR_SRR0;
                     v.e.ramspr_odd_rdaddr := RAMSPR_SRR1;
+                    sprs_busy := '1';
                 when others =>
             end case;
+            v.read_rspr := sprs_busy and d_in.valid;
 
             case d_in.decode.length is
                 when is1B =>
@@ -545,8 +565,6 @@ begin
                     -- Privileged mfspr to invalid/unimplemented SPR numbers
                     -- writes the contents of RT back to RT (i.e. it's a no-op)
                     v.e.result_sel := "001";        -- logical_result
-                elsif d_in.spr_info.ispmu = '1' then
-                    v.e.result_sel := "100";        -- pmuspr_result
                 end if;
             end if;
 
@@ -648,6 +666,13 @@ begin
         v.busy := valid_in and (not control_valid_out or (v.e.repeat and not v.e.second));
 
         stall_out <= dc2.busy or deferred;
+
+        v.e.dbg_spr_access := dbg_spr_req and not v.read_rspr;
+        if v.e.dbg_spr_access = '1' then
+            v.e.ramspr_even_rdaddr := to_integer(unsigned(dbg_spr_addr(3 downto 1)));
+            v.e.ramspr_odd_rdaddr := to_integer(unsigned(dbg_spr_addr(3 downto 1)));
+            v.e.ramspr_rd_odd := dbg_spr_addr(0);
+        end if;
 
         -- Update registers
         dc2in <= v;

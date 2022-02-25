@@ -548,7 +548,7 @@ static const char *fast_spr_names[] =
 {
 	"lr", "ctr", "srr0", "srr1", "hsrr0", "hsrr1",
 	"sprg0", "sprg1", "sprg2", "sprg3",
-	"hsprg0", "hsprg1", "xer"
+	"hsprg0", "hsprg1", "xer", "tar",
 };
 
 static void gpr_read(uint64_t reg, uint64_t count)

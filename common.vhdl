@@ -337,6 +337,7 @@ package common is
         ramspr_wraddr      : ramspr_index;
         ramspr_write_even  : std_ulogic;
         ramspr_write_odd   : std_ulogic;
+        dbg_spr_access : std_ulogic;
         dec_ctr : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
@@ -354,6 +355,7 @@ package common is
          spr_is_ram => '0',
          ramspr_even_rdaddr => 0, ramspr_odd_rdaddr => 0, ramspr_rd_odd => '0',
          ramspr_wraddr => 0, ramspr_write_even => '0', ramspr_write_odd => '0',
+         dbg_spr_access => '0',
          dec_ctr => '0',
          others => (others => '0'));
 

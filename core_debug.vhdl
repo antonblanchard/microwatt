@@ -33,11 +33,17 @@ entity core_debug is
         nia             : in std_ulogic_vector(63 downto 0);
         msr             : in std_ulogic_vector(63 downto 0);
 
-        -- GSPR register read port
+        -- GPR/FPR register read port
         dbg_gpr_req     : out std_ulogic;
         dbg_gpr_ack     : in std_ulogic;
         dbg_gpr_addr    : out gspr_index_t;
         dbg_gpr_data    : in std_ulogic_vector(63 downto 0);
+
+        -- SPR register read port
+        dbg_spr_req     : out std_ulogic;
+        dbg_spr_ack     : in std_ulogic;
+        dbg_spr_addr    : out std_ulogic_vector(7 downto 0);
+        dbg_spr_data    : in std_ulogic_vector(63 downto 0);
 
         -- Core logging data
         log_data        : in std_ulogic_vector(255 downto 0);
@@ -105,7 +111,10 @@ architecture behave of core_debug is
     signal do_icreset   : std_ulogic;
     signal terminated   : std_ulogic;
     signal do_gspr_rd   : std_ulogic;
-    signal gspr_index   : gspr_index_t;
+    signal gspr_index   : std_ulogic_vector(7 downto 0);
+    signal gspr_data    : std_ulogic_vector(63 downto 0);
+
+    signal spr_index_valid : std_ulogic;
 
     signal log_dmi_addr        : std_ulogic_vector(31 downto 0) := (others => '0');
     signal log_dmi_data        : std_ulogic_vector(63 downto 0) := (others => '0');
@@ -119,9 +128,7 @@ architecture behave of core_debug is
 begin
        -- Single cycle register accesses on DMI except for GSPR data
     dmi_ack <= dmi_req when dmi_addr /= DBG_CORE_GSPR_DATA
-               else dbg_gpr_ack;
-    dbg_gpr_req <= dmi_req when dmi_addr = DBG_CORE_GSPR_DATA
-                   else '0';
+               else dbg_gpr_ack or dbg_spr_ack;
 
     -- Status register read composition
     stat_reg <= (2 => terminated,
@@ -129,12 +136,16 @@ begin
                  0 => stopping,
                  others => '0');
 
+    gspr_data <= dbg_gpr_data when gspr_index(5) = '0' else
+                 dbg_spr_data when spr_index_valid = '1' else
+                 (others => '0');
+
     -- DMI read data mux
     with dmi_addr select dmi_dout <=
         stat_reg        when DBG_CORE_STAT,
         nia             when DBG_CORE_NIA,
         msr             when DBG_CORE_MSR,
-        dbg_gpr_data    when DBG_CORE_GSPR_DATA,
+        gspr_data       when DBG_CORE_GSPR_DATA,
         log_write_addr & log_dmi_addr when DBG_CORE_LOG_ADDR,
         log_dmi_data    when DBG_CORE_LOG_DATA,
         log_dmi_trigger when DBG_CORE_LOG_TRIGGER,
@@ -191,7 +202,7 @@ begin
                                 terminated <= '0';
                             end if;
                         elsif dmi_addr = DBG_CORE_GSPR_INDEX then
-                            gspr_index <= dmi_din(gspr_index_t'left downto 0);
+                            gspr_index <= dmi_din(7 downto 0);
                         elsif dmi_addr = DBG_CORE_LOG_ADDR then
                             log_dmi_addr <= dmi_din(31 downto 0);
                             do_dmi_log_rd <= '1';
@@ -226,7 +237,64 @@ begin
         end if;
     end process;
 
-    dbg_gpr_addr <= gspr_index;
+    gspr_access: process(clk)
+        variable valid : std_ulogic;
+        variable sel : spr_selector;
+        variable isram : std_ulogic;
+        variable raddr : ramspr_index;
+        variable odd : std_ulogic;
+    begin
+        if rising_edge(clk) then
+            if rst = '1' or dmi_req = '0' or dmi_addr /= DBG_CORE_GSPR_DATA then
+                dbg_gpr_req <= '0';
+                dbg_spr_req <= '0';
+            else
+                dbg_gpr_req <= not gspr_index(5);
+                dbg_spr_req <= gspr_index(5);
+            end if;
+
+            -- Map 0 - 0x1f to GPRs, 0x20 - 0x3f to SPRs, and 0x40 - 0x5f to FPRs
+            dbg_gpr_addr <= gspr_index(6) & gspr_index(4 downto 0);
+
+            -- For SPRs, use the same mapping as when the fast SPRs were in the GPR file
+            valid := '1';
+            sel := "000";
+            isram := '1';
+            raddr := 0;
+            odd := '0';
+            case gspr_index(4 downto 0) is
+                when 5x"00" =>
+                    raddr := RAMSPR_LR;
+                when 5x"01" =>
+                    odd := '1';
+                    raddr := RAMSPR_CTR;
+                when 5x"02" | 5x"03" =>
+                    odd := gspr_index(0);
+                    raddr := RAMSPR_SRR0;
+                when 5x"04" | 5x"05" =>
+                    odd := gspr_index(0);
+                    raddr := RAMSPR_HSRR0;
+                when 5x"06" | 5x"07" =>
+                    odd := gspr_index(0);
+                    raddr := RAMSPR_SPRG0;
+                when 5x"08" | 5x"09" =>
+                    odd := gspr_index(0);
+                    raddr := RAMSPR_SPRG2;
+                when 5x"0a" | 5x"0b" =>
+                    odd := gspr_index(0);
+                    raddr := RAMSPR_HSPRG0;
+                when 5x"0c" =>
+                    isram := '0';
+                    sel := SPRSEL_XER;
+                when 5x"0d" =>
+                    raddr := RAMSPR_TAR;
+                when others =>
+                    valid := '0';
+            end case;
+            dbg_spr_addr <= isram & sel & std_ulogic_vector(to_unsigned(raddr, 3)) & odd;
+            spr_index_valid <= valid;
+        end if;
+    end process;
 
     -- Core control signals generated by the debug module
     core_stop <= stopping and not do_step;
