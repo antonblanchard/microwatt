@@ -74,6 +74,9 @@ begin
         i_out.req <= '0';
         i_out.nia <= (others => '0');
         i_out.stop_mark <= '0';
+        i_out.priv_mode <= '1';
+        i_out.virt_mode <= '0';
+        i_out.big_endian <= '0';
 
         m_out.tlbld <= '0';
         m_out.tlbie <= '0';
