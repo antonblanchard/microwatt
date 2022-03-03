@@ -212,7 +212,6 @@ ifneq ($(litedram_target),)
 soc_extra_synth += litedram/extras/litedram-wrapper-l2.vhdl \
 	litedram/generated/$(litedram_target)/litedram-initmem.vhdl
 soc_extra_v += litedram/generated/$(litedram_target)/litedram_core.v
-LITEDRAM_GHDL_ARG=-gUSE_LITEDRAM=true
 endif
 
 GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=$(MEMORY_SIZE) -gRAM_INIT_FILE=$(RAM_INIT_FILE) \
