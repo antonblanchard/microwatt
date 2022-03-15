@@ -197,7 +197,7 @@ architecture behaviour of fpu is
     -- Each output value is the inverse of the center of the input
     -- range for the value, i.e. entry 0 is 1 / (1 + 1/512),
     -- entry 1 is 1 / (1 + 3/512), etc.
-    signal inverse_table : lookup_table := (
+    constant inverse_table : lookup_table := (
         -- 1/x lookup table
         -- Unit bit is assumed to be 1, so input range is [1, 2)
         18x"3fc01", 18x"3f411", 18x"3ec31", 18x"3e460", 18x"3dc9f", 18x"3d4ec", 18x"3cd49", 18x"3c5b5",
