@@ -269,7 +269,7 @@ architecture rtl of xics_ics is
     begin
         masked := x"00";
         masked(PRIO_BITS - 1 downto 0) := (others => '1');
-        if pri8 >= masked then
+        if unsigned(pri8) >= unsigned(masked) then
             return pri_masked;
         else
             return pri8(PRIO_BITS-1 downto 0);
