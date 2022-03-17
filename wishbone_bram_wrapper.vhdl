@@ -24,7 +24,7 @@ entity wishbone_bram_wrapper is
 end entity wishbone_bram_wrapper;
 
 architecture behaviour of wishbone_bram_wrapper is
-    constant ram_addr_bits : integer := log2ceil(MEMORY_SIZE) - 3;
+    constant ram_addr_bits : integer := log2ceil(MEMORY_SIZE-1) - 3;
 
     -- RAM interface
     signal ram_addr : std_logic_vector(ram_addr_bits - 1 downto 0);
