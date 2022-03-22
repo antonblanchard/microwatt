@@ -1,0 +1,6 @@
+verilog_defaults -push
+verilog_defaults -add -defer
+read_verilog /home/matt/3rd/fpga/microwatt/valentyusb/generated/orangecrab-85-0.2/gateware/valentyusb.v
+verilog_defaults -pop
+attrmap -tocase keep -imap keep="true" keep=1 -imap keep="false" keep=0 -remove keep=0
+synth_ecp5   -json valentyusb.json -top valentyusb

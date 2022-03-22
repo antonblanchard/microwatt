@@ -192,6 +192,7 @@ ECP_FLASH_OFFSET=0x80000
 toplevel=fpga/top-orangecrab0.2.vhdl
 litedram_target=orangecrab-85-0.2
 soc_extra_v += litesdcard/generated/lattice/litesdcard_core.v
+soc_extra_v += valentyusb/generated/orangecrab-85-0.2/gateware/valentyusb.v
 dmi_dtm=dmi_dtm_ecp5.vhdl
 endif
 
@@ -211,7 +212,6 @@ ifneq ($(litedram_target),)
 soc_extra_synth += litedram/extras/litedram-wrapper-l2.vhdl \
 	litedram/generated/$(litedram_target)/litedram-initmem.vhdl
 soc_extra_v += litedram/generated/$(litedram_target)/litedram_core.v
-LITEDRAM_GHDL_ARG=-gUSE_LITEDRAM=true
 endif
 
 GHDL_IMAGE_GENERICS=-gMEMORY_SIZE=$(MEMORY_SIZE) -gRAM_INIT_FILE=$(RAM_INIT_FILE) \
@@ -232,7 +232,7 @@ fpga_files = fpga/soc_reset.vhdl \
 
 synth_files = $(core_files) $(soc_files) $(soc_extra_synth) $(fpga_files) $(clkgen) $(toplevel) $(dmi_dtm)
 
-microwatt.json: $(synth_files) $(RAM_INIT_FILE)
+microwatt.json: $(synth_files) $(RAM_INIT_FILE) $(soc_extra_v)
 	$(YOSYS) $(GHDLSYNTH) -p "ghdl --std=08 --no-formal $(GHDL_IMAGE_GENERICS) $(synth_files) -e toplevel; read_verilog $(uart_files) $(soc_extra_v); synth_ecp5 -abc9 -nowidelut -json $@  $(SYNTH_ECP5_FLAGS)"
 
 microwatt.v: $(synth_files) $(RAM_INIT_FILE)

@@ -1,0 +1,7 @@
+{
+    "device": "LFE5U-85F-8MG285C",
+    "toolchain": "trellis",
+    "usb_variant": "cdc_eptri",
+    "sys_freq": 48000000,
+    "product": "Microwatt on OrangeCrab",
+}
