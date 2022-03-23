@@ -681,6 +681,10 @@ begin
                     when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
                         vi.override_decode.unit := LDST;
                         vi.override_unit := '1';
+                        -- make mtspr to loadstore SPRs single-issue
+                        if f_in.insn(8) = '1' then
+                            vi.force_single := '1';
+                        end if;
                     when others =>
                 end case;
             end if;

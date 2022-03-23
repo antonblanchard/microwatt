@@ -90,7 +90,8 @@ architecture behave of loadstore1 is
         virt_mode    : std_ulogic;
         priv_mode    : std_ulogic;
         load_sp      : std_ulogic;
-        sprn         : std_ulogic_vector(9 downto 0);
+        sprsel       : std_ulogic_vector(1 downto 0);
+        ric          : std_ulogic_vector(1 downto 0);
         is_slbia     : std_ulogic;
         align_intr   : std_ulogic;
         dword_index  : std_ulogic;
@@ -109,7 +110,7 @@ architecture behave of loadstore1 is
                                           xerc => xerc_init, reserve => '0',
                                           atomic => '0', atomic_last => '0', rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
-                                          sprn => 10x"0", is_slbia => '0', align_intr => '0',
+                                          sprsel => "00", ric => "00", is_slbia => '0', align_intr => '0',
                                           dword_index => '0', two_dwords => '0', incomplete => '0');
 
     type reg_stage1_t is record
@@ -130,7 +131,8 @@ architecture behave of loadstore1 is
         wr_sel     : std_ulogic_vector(1 downto 0);
         addr0      : std_ulogic_vector(63 downto 0);
         sprsel     : std_ulogic_vector(1 downto 0);
-        dbg_spr_rd : std_ulogic;
+        dbg_spr    : std_ulogic_vector(63 downto 0);
+        dbg_spr_ack: std_ulogic;
     end record;
 
     type reg_stage3_t is record
@@ -154,8 +156,6 @@ architecture behave of loadstore1 is
         intr_vec     : integer range 0 to 16#fff#;
         srr1         : std_ulogic_vector(15 downto 0);
         events       : Loadstore1EventType;
-        dbg_spr      : std_ulogic_vector(63 downto 0);
-        dbg_spr_ack  : std_ulogic;
     end record;
 
     signal req_in   : request_t;
@@ -287,7 +287,8 @@ begin
                 r1.req.instr_fault <= '0';
                 r1.req.load <= '0';
                 r1.req.priv_mode <= '0';
-                r1.req.sprn <= (others => '0');
+                r1.req.sprsel <= "00";
+                r1.req.ric <= "00";
                 r1.req.xerc <= xerc_init;
 
                 r2.req.valid <= '0';
@@ -297,7 +298,8 @@ begin
                 r2.req.instr_fault <= '0';
                 r2.req.load <= '0';
                 r2.req.priv_mode <= '0';
-                r2.req.sprn <= (others => '0');
+                r2.req.sprsel <= "00";
+                r2.req.ric <= "00";
                 r2.req.xerc <= xerc_init;
 
                 r2.wait_dc <= '0';
@@ -418,7 +420,14 @@ begin
         v.nc := l_in.ci;
         v.virt_mode := l_in.virt_mode;
         v.priv_mode := l_in.priv_mode;
-        v.sprn := sprn;
+        v.ric := l_in.insn(19 downto 18);
+        if sprn(1) = '1' then
+            -- DSISR and DAR
+            v.sprsel := '1' & sprn(0);
+        else
+            -- PID and PTCR
+            v.sprsel := '0' & sprn(8);
+        end if;
 
         lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
 
@@ -494,7 +503,7 @@ begin
                 v.read_spr := '1';
             when OP_MTSPR =>
                 v.write_spr := '1';
-                v.mmu_op := sprn(8) or sprn(5);
+                v.mmu_op := not sprn(1);
             when OP_FETCH_FAILED =>
                 -- send it to the MMU to do the radix walk
                 v.instr_fault := '1';
@@ -605,6 +614,9 @@ begin
         variable idx : unsigned(2 downto 0);
         variable byte_offset : unsigned(2 downto 0);
         variable interrupt : std_ulogic;
+        variable dbg_spr_rd : std_ulogic;
+        variable sprsel : std_ulogic_vector(1 downto 0);
+        variable sprval : std_ulogic_vector(63 downto 0);
     begin
         v := r2;
 
@@ -617,6 +629,28 @@ begin
             store_data(i * 8 + 7 downto i * 8) <= r1.req.store_data(j + 7 downto j);
         end loop;
 
+        dbg_spr_rd := dbg_spr_req and not (r1.req.valid and r1.req.read_spr);
+        if dbg_spr_rd = '0' then
+            sprsel := r1.req.sprsel;
+        else
+            sprsel := dbg_spr_addr;
+        end if;
+        if sprsel(1) = '1' then
+            if sprsel(0) = '0' then
+                sprval := x"00000000" & r3.dsisr;
+            else
+                sprval := r3.dar;
+            end if;
+        else
+            sprval := m_in.sprval;
+        end if;
+        if dbg_spr_req = '0' then
+            v.dbg_spr_ack := '0';
+        elsif dbg_spr_rd = '1' and r2.dbg_spr_ack = '0' then
+            v.dbg_spr := sprval;
+            v.dbg_spr_ack := '1';
+        end if;
+
         if (dc_stall or d_in.error or r2.busy or l_in.e2stall) = '0' then
             if r1.req.valid = '0' or r1.issued = '1' or r1.req.dc_req = '0' then
                 v.req := r1.req;
@@ -627,14 +661,15 @@ begin
                 v.wait_mmu := r1.req.valid and r1.req.mmu_op;
                 v.busy := r1.req.valid and r1.req.mmu_op;
                 v.one_cycle := r1.req.valid and not (r1.req.dc_req or r1.req.mmu_op);
-                if r1.req.read_spr = '1' then
+                if r1.req.do_update = '1' or r1.req.store = '1' or r1.req.read_spr = '1' then
                     v.wr_sel := "00";
-                elsif r1.req.do_update = '1' or r1.req.store = '1' then
-                    v.wr_sel := "01";
                 elsif r1.req.load_sp = '1' then
-                    v.wr_sel := "10";
+                    v.wr_sel := "01";
                 else
-                    v.wr_sel := "11";
+                    v.wr_sel := "10";
+                end if;
+                if r1.req.read_spr = '1' then
+                    v.addr0 := sprval;
                 end if;
 
                 -- Work out load formatter controls for next cycle
@@ -674,21 +709,11 @@ begin
             v.busy := '1';
         end if;
 
-        v.dbg_spr_rd := dbg_spr_req and not (v.req.valid and v.req.read_spr);
-        if v.dbg_spr_rd = '0' then
-            v.sprsel(1) := v.req.sprn(1);
-            if v.req.sprn(1) = '1' then
-                -- DSISR and DAR
-                v.sprsel(0) := v.req.sprn(0);
-            else
-                -- PID and PTCR
-                v.sprsel(0) := v.req.sprn(8);
-            end if;
-        else
-            v.sprsel := dbg_spr_addr;
-        end if;
-
         r2in <= v;
+
+        -- SPR values for core_debug
+        dbg_spr_data <= r2.dbg_spr;
+        dbg_spr_ack <= r2.dbg_spr_ack;
     end process;
 
     -- Processing done in the third cycle of a load/store instruction.
@@ -787,22 +812,6 @@ begin
             v.load_data := data_permuted;
         end if;
 
-        -- SPR mux
-        if r2.sprsel(1) = '1' then
-            if r2.sprsel(0) = '0' then
-                sprval := x"00000000" & r3.dsisr;
-            else
-                sprval := r3.dar;
-            end if;
-        else
-            sprval := m_in.sprval;
-        end if;
-        if dbg_spr_req = '0' then
-            v.dbg_spr_ack := '0';
-        elsif r2.dbg_spr_rd = '1' and r3.dbg_spr_ack = '0' then
-            v.dbg_spr := sprval;
-            v.dbg_spr_ack := '1';
-        end if;
 
         if r2.req.valid = '1' then
             if r2.req.read_spr = '1' then
@@ -819,7 +828,7 @@ begin
                 write_enable := '1';
             end if;
             if r2.req.write_spr = '1' and r2.req.mmu_op = '0' then
-                if r2.req.sprn(0) = '0' then
+                if r2.req.sprsel(0) = '0' then
                     v.dsisr := r2.req.store_data(31 downto 0);
                 else
                     v.dar := r2.req.store_data;
@@ -917,12 +926,9 @@ begin
 
         case r2.wr_sel is
         when "00" =>
-            -- mfspr result
-            write_data := sprval;
-        when "01" =>
             -- update reg
             write_data := r2.addr0;
-        when "10" =>
+        when "01" =>
             -- lfs result
             write_data := load_dp_data;
         when others =>
@@ -969,10 +975,10 @@ begin
         m_out.load <= r2.req.load;
         m_out.priv <= r2.req.priv_mode;
         m_out.tlbie <= r2.req.tlbie;
-        m_out.ric <= r2.req.sprn(3 downto 2);
+        m_out.ric <= r2.req.ric;
         m_out.mtspr <= mmu_mtspr;
-        m_out.sprnf <= r2.sprsel(0);
-        m_out.sprnt <= r2.req.sprn(8);
+        m_out.sprnf <= r1.req.sprsel(0);
+        m_out.sprnt <= r2.req.sprsel(0);
         m_out.addr <= r2.req.addr;
         m_out.slbia <= r2.req.is_slbia;
         m_out.rs <= r2.req.store_data;
@@ -997,10 +1003,6 @@ begin
         events <= r3.events;
 
         flush <= exception;
-
-        -- SPR values for core_debug
-        dbg_spr_data <= r3.dbg_spr;
-        dbg_spr_ack <= r3.dbg_spr_ack;
 
         -- Update registers
         r3in <= v;
