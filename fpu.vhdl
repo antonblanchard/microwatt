@@ -28,12 +28,20 @@ architecture behaviour of fpu is
     type fp_number_class is (ZERO, FINITE, INFINITY, NAN);
 
     constant EXP_BITS : natural := 13;
+    constant UNIT_BIT : natural := 56;
+    constant QNAN_BIT : natural := UNIT_BIT - 1;
+    constant SP_LSB   : natural := UNIT_BIT - 23;
+    constant SP_GBIT  : natural := SP_LSB - 1;
+    constant SP_RBIT  : natural := SP_LSB - 2;
+    constant DP_LSB   : natural := UNIT_BIT - 52;
+    constant DP_GBIT  : natural := DP_LSB - 1;
+    constant DP_RBIT  : natural := DP_LSB - 2;
 
     type fpu_reg_type is record
         class    : fp_number_class;
         negative : std_ulogic;
         exponent : signed(EXP_BITS-1 downto 0);         -- unbiased
-        mantissa : std_ulogic_vector(63 downto 0);      -- 10.54 format
+        mantissa : std_ulogic_vector(63 downto 0);      -- 8.56 format
     end record;
 
     type state_t is (IDLE, DO_ILLEGAL,
@@ -92,7 +100,7 @@ architecture behaviour of fpu is
         a            : fpu_reg_type;
         b            : fpu_reg_type;
         c            : fpu_reg_type;
-        r            : std_ulogic_vector(63 downto 0);  -- 10.54 format
+        r            : std_ulogic_vector(63 downto 0);  -- 8.56 format
         s            : std_ulogic_vector(55 downto 0);  -- extended fraction
         x            : std_ulogic;
         p            : std_ulogic_vector(63 downto 0);  -- 8.56 format
@@ -170,7 +178,7 @@ architecture behaviour of fpu is
     constant BIN_ZERO : std_ulogic_vector(1 downto 0) := "00";
     constant BIN_R    : std_ulogic_vector(1 downto 0) := "01";
     constant BIN_RND  : std_ulogic_vector(1 downto 0) := "10";
-    constant BIN_PS6  : std_ulogic_vector(1 downto 0) := "11";
+    constant BIN_PS8  : std_ulogic_vector(1 downto 0) := "11";
 
     constant RES_SUM   : std_ulogic_vector(1 downto 0) := "00";
     constant RES_SHIFT : std_ulogic_vector(1 downto 0) := "01";
@@ -432,7 +440,8 @@ architecture behaviour of fpu is
             if exp_nz = '0' then
                 r.exponent := to_signed(-1022, EXP_BITS);
             end if;
-            r.mantissa := "000000000" & exp_nz & fpr(51 downto 0) & "00";
+            r.mantissa := std_ulogic_vector(shift_left(resize(unsigned(exp_nz & fpr(51 downto 0)), 64),
+                                                       UNIT_BIT - 52));
             cls := exp_ao & exp_nz & frac_nz;
             case cls is
                 when "000"  => r.class := ZERO;
@@ -465,22 +474,22 @@ architecture behaviour of fpu is
         case class is
             when ZERO =>
             when FINITE =>
-                if mantissa(54) = '1' then
+                if mantissa(UNIT_BIT) = '1' then
                     -- normalized number
                     result(62 downto 52) := std_ulogic_vector(resize(exp, 11) + 1023);
                 end if;
-                result(51 downto 29) := mantissa(53 downto 31);
+                result(51 downto 29) := mantissa(UNIT_BIT - 1 downto SP_LSB);
                 if single_prec = '0' then
-                    result(28 downto 0) := mantissa(30 downto 2);
+                    result(28 downto 0) := mantissa(SP_LSB - 1 downto DP_LSB);
                 end if;
             when INFINITY =>
                 result(62 downto 52) := "11111111111";
             when NAN =>
                 result(62 downto 52) := "11111111111";
-                result(51) := quieten_nan or mantissa(53);
-                result(50 downto 29) := mantissa(52 downto 31);
+                result(51) := quieten_nan or mantissa(QNAN_BIT);
+                result(50 downto 29) := mantissa(QNAN_BIT - 1 downto SP_LSB);
                 if single_prec = '0' then
-                    result(28 downto 0) := mantissa(30 downto 2);
+                    result(28 downto 0) := mantissa(SP_LSB - 1 downto DP_LSB);
                 end if;
         end case;
         return result;
@@ -488,8 +497,8 @@ architecture behaviour of fpu is
 
     -- Determine whether to increment when rounding
     -- Returns rounding_inc & inexact
-    -- Assumes x includes the bottom 29 bits of the mantissa already
-    -- if single_prec = 1 (usually arranged by setting set_x = 1 earlier).
+    -- If single_prec = 1, assumes x includes the bottom 31 (== SP_LSB - 2)
+    -- bits of the mantissa already (usually arranged by setting set_x = 1 earlier).
     function fp_rounding(mantissa: std_ulogic_vector(63 downto 0); x: std_ulogic;
                          single_prec: std_ulogic; rn: std_ulogic_vector(2 downto 0);
                          sign: std_ulogic)
@@ -499,11 +508,11 @@ architecture behaviour of fpu is
         variable lsb : std_ulogic;
     begin
         if single_prec = '0' then
-            grx := mantissa(1 downto 0) & x;
-            lsb := mantissa(2);
+            grx := mantissa(DP_GBIT downto DP_RBIT) & (x or (or mantissa(DP_RBIT - 1 downto 0)));
+            lsb := mantissa(DP_LSB);
         else
-            grx := mantissa(30 downto 29) & x;
-            lsb := mantissa(31);
+            grx := mantissa(SP_GBIT downto SP_RBIT) & x;
+            lsb := mantissa(SP_LSB);
         end if;
         ret(1) := '0';
         ret(0) := or (grx);
@@ -589,11 +598,11 @@ begin
     begin
         if rising_edge(clk) then
             if r.is_sqrt = '1' then
-                addrhi := r.b.mantissa(55 downto 54);
+                addrhi := r.b.mantissa(UNIT_BIT + 1 downto UNIT_BIT);
             else
                 addrhi := "00";
             end if;
-            addr := addrhi & r.b.mantissa(53 downto 46);
+            addr := addrhi & r.b.mantissa(UNIT_BIT - 1 downto UNIT_BIT - 8);
             inverse_est <= '1' & inverse_table(to_integer(unsigned(addr)));
         end if;
     end process;
@@ -670,6 +679,8 @@ begin
         variable maddend     : std_ulogic_vector(127 downto 0);
         variable sum         : std_ulogic_vector(63 downto 0);
         variable round_inc   : std_ulogic_vector(63 downto 0);
+        variable rbit_inc    : std_ulogic;
+        variable mult_mask   : std_ulogic;
         variable int_result  : std_ulogic;
         variable illegal     : std_ulogic;
     begin
@@ -729,8 +740,8 @@ begin
             end if;
         end if;
 
-        r_hi_nz <= or (r.r(55 downto 31));
-        r_lo_nz <= or (r.r(30 downto 2));
+        r_hi_nz <= or (r.r(UNIT_BIT + 1 downto SP_LSB));
+        r_lo_nz <= or (r.r(SP_LSB - 1 downto DP_LSB));
         s_nz <= or (r.s);
 
         if r.single_prec = '0' then
@@ -761,13 +772,13 @@ begin
         end if;
 
         -- Compare P with zero and with B
-        px_nz := or (r.p(57 downto 4));
+        px_nz := or (r.p(UNIT_BIT + 1 downto 4));
         pcmpb_eq := '0';
-        if r.p(59 downto 4) = r.b.mantissa(55 downto 0) then
+        if r.p(59 downto 4) = r.b.mantissa(UNIT_BIT + 1 downto DP_RBIT) then
             pcmpb_eq := '1';
         end if;
         pcmpb_lt := '0';
-        if unsigned(r.p(59 downto 4)) < unsigned(r.b.mantissa(55 downto 0)) then
+        if unsigned(r.p(59 downto 4)) < unsigned(r.b.mantissa(UNIT_BIT + 1 downto DP_RBIT)) then
             pcmpb_lt := '1';
         end if;
 
@@ -805,6 +816,8 @@ begin
         pshift := '0';
         renorm_sqrt := '0';
         shiftin := '0';
+        rbit_inc := '0';
+        mult_mask := '0';
         int_result := '0';
         illegal := '0';
         case r.state is
@@ -870,7 +883,7 @@ begin
                             v.state := DO_FCTI;
                         when "10010" =>
                             v.opsel_a := AIN_A;
-                            if v.b.mantissa(54) = '0' and v.a.mantissa(54) = '1' then
+                            if v.b.mantissa(UNIT_BIT) = '0' and v.a.mantissa(UNIT_BIT) = '1' then
                                 v.opsel_a := AIN_B;
                             end if;
                             v.state := DO_FDIV;
@@ -889,7 +902,7 @@ begin
                         when "11001" =>
                             v.is_multiply := '1';
                             v.opsel_a := AIN_A;
-                            if v.c.mantissa(54) = '0' and v.a.mantissa(54) = '1' then
+                            if v.c.mantissa(UNIT_BIT) = '0' and v.a.mantissa(UNIT_BIT) = '1' then
                                 v.opsel_a := AIN_C;
                             end if;
                             v.state := DO_FMUL;
@@ -898,9 +911,9 @@ begin
                             v.opsel_a := AIN_B;
                             v.state := DO_FRSQRTE;
                         when "11100" | "11101" | "11110" | "11111" =>
-                            if v.a.mantissa(54) = '0' then
+                            if v.a.mantissa(UNIT_BIT) = '0' then
                                 v.opsel_a := AIN_A;
-                            elsif v.c.mantissa(54) = '0' then
+                            elsif v.c.mantissa(UNIT_BIT) = '0' then
                                 v.opsel_a := AIN_C;
                             else
                                 v.opsel_a := AIN_B;
@@ -934,7 +947,7 @@ begin
                 v.instr_done := '1';
                 v.cr_result := "0000";
                 if r.a.class = INFINITY or r.b.class = ZERO or r.b.class = INFINITY or
-                    (r.b.class = FINITE and r.b.mantissa(53) = '0') then
+                    (r.b.class = FINITE and r.b.mantissa(UNIT_BIT) = '0') then
                     v.cr_result(2) := '1';
                 end if;
                 if r.a.class = NAN or r.a.class = INFINITY or
@@ -952,7 +965,7 @@ begin
                 v.instr_done := '1';
                 v.cr_result := "0000";
                 if r.b.class = ZERO or r.b.class = INFINITY or
-                    (r.b.class = FINITE and r.b.mantissa(53) = '0') then
+                    (r.b.class = FINITE and r.b.mantissa(UNIT_BIT) = '0') then
                     v.cr_result(2) := '1';
                 end if;
                 if r.b.class = NAN or r.b.class = INFINITY or r.b.class = ZERO
@@ -966,8 +979,8 @@ begin
                 v.instr_done := '1';
                 update_fx := '1';
                 v.result_exp := r.b.exponent;
-                if (r.a.class = NAN and r.a.mantissa(53) = '0') or
-                    (r.b.class = NAN and r.b.mantissa(53) = '0') then
+                if (r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
+                    (r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0') then
                     -- Signalling NAN
                     v.fpscr(FPSCR_VXSNAN) := '1';
                     if r.insn(6) = '1' and r.fpscr(FPSCR_VE) = '0' then
@@ -1119,7 +1132,7 @@ begin
                 v.result_exp := r.b.exponent;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
-                if r.b.class = NAN and r.b.mantissa(53) = '0' then
+                if r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0' then
                     -- Signalling NAN
                     v.fpscr(FPSCR_VXSNAN) := '1';
                     invalid := '1';
@@ -1190,7 +1203,7 @@ begin
                         elsif r.b.exponent >= to_signed(52, EXP_BITS) then
                             -- integer already, no rounding required,
                             -- shift into final position
-                            v.shift := r.b.exponent - to_signed(54, EXP_BITS);
+                            v.shift := r.b.exponent - to_signed(UNIT_BIT, EXP_BITS);
                             if r.insn(8) = '1' and r.b.negative = '1' then
                                 v.state := INT_OFLOW;
                             else
@@ -1214,7 +1227,7 @@ begin
                     v.result_sign := '1';
                 end if;
                 v.result_class := r.b.class;
-                v.result_exp := to_signed(54, EXP_BITS);
+                v.result_exp := to_signed(UNIT_BIT, EXP_BITS);
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 if r.b.class = ZERO then
@@ -1286,9 +1299,9 @@ begin
                 if r.a.class = FINITE and r.c.class = FINITE then
                     v.result_exp := r.a.exponent + r.c.exponent;
                     -- Renormalize denorm operands
-                    if r.a.mantissa(54) = '0' then
+                    if r.a.mantissa(UNIT_BIT) = '0' then
                         v.state := RENORM_A;
-                    elsif r.c.mantissa(54) = '0' then
+                    elsif r.c.mantissa(UNIT_BIT) = '0' then
                         v.state := RENORM_C;
                     else
                         f_to_multiply.valid <= '1';
@@ -1325,9 +1338,9 @@ begin
                 v.count := "00";
                 if r.a.class = FINITE and r.b.class = FINITE then
                     -- Renormalize denorm operands
-                    if r.a.mantissa(54) = '0' then
+                    if r.a.mantissa(UNIT_BIT) = '0' then
                         v.state := RENORM_A;
-                    elsif r.b.mantissa(54) = '0' then
+                    elsif r.b.mantissa(UNIT_BIT) = '0' then
                         v.state := RENORM_B;
                     else
                         v.first := '1';
@@ -1384,7 +1397,7 @@ begin
                         if r.b.negative = '1' then
                             v.fpscr(FPSCR_VXSQRT) := '1';
                             qnan_result := '1';
-                        elsif r.b.mantissa(54) = '0' then
+                        elsif r.b.mantissa(UNIT_BIT) = '0' then
                             v.state := RENORM_B;
                         elsif r.b.exponent(0) = '0' then
                             v.state := SQRT_1;
@@ -1416,7 +1429,7 @@ begin
                 case r.b.class is
                     when FINITE =>
                         v.result_exp := - r.b.exponent;
-                        if r.b.mantissa(54) = '0' then
+                        if r.b.mantissa(UNIT_BIT) = '0' then
                             v.state := RENORM_B;
                         else
                             v.state := FRE_1;
@@ -1446,7 +1459,7 @@ begin
                         if r.b.negative = '1' then
                             v.fpscr(FPSCR_VXSQRT) := '1';
                             qnan_result := '1';
-                        elsif r.b.mantissa(54) = '0' then
+                        elsif r.b.mantissa(UNIT_BIT) = '0' then
                             v.state := RENORM_B;
                         elsif r.b.exponent(0) = '0' then
                             v.state := RSQRT_1;
@@ -1488,9 +1501,9 @@ begin
                     mulexp := r.a.exponent + r.c.exponent;
                     v.result_exp := mulexp;
                     -- Make sure A and C are normalized
-                    if r.a.mantissa(54) = '0' then
+                    if r.a.mantissa(UNIT_BIT) = '0' then
                         v.state := RENORM_A;
-                    elsif r.c.mantissa(54) = '0' then
+                    elsif r.c.mantissa(UNIT_BIT) = '0' then
                         v.state := RENORM_C;
                     elsif r.b.class = ZERO then
                         -- no addend, degenerates to multiply
@@ -1559,7 +1572,7 @@ begin
                 set_a := '1';
                 v.result_exp := new_exp;
                 if r.insn(4) = '1' then
-                    if r.c.mantissa(54) = '1' then
+                    if r.c.mantissa(UNIT_BIT) = '1' then
                         if r.insn(3) = '0' or r.b.class = ZERO then
                             v.first := '1';
                             v.state := MULT_1;
@@ -1575,7 +1588,7 @@ begin
                         v.state := RENORM_C;
                     end if;
                 else
-                    if r.b.mantissa(54) = '1' then
+                    if r.b.mantissa(UNIT_BIT) = '1' then
                         v.first := '1';
                         v.state := DIV_2;
                     else
@@ -1654,7 +1667,7 @@ begin
                     opsel_ainv <= '1';
                     carry_in <= '1';
                     v.state := FINISH;
-                elsif r.r(55) = '1' then
+                elsif r.r(UNIT_BIT + 1) = '1' then
                     -- sum overflowed, shift right
                     opsel_r <= RES_SHIFT;
                     set_x := '1';
@@ -1663,10 +1676,10 @@ begin
                     else
                         v.state := ROUNDING;
                     end if;
-                elsif r.r(54) = '1' then
+                elsif r.r(UNIT_BIT) = '1' then
                     set_x := '1';
                     v.state := ROUNDING;
-                elsif (r_hi_nz or r_lo_nz or r.r(1) or r.r(0)) = '0' then
+                elsif (r_hi_nz or r_lo_nz or (or (r.r(DP_LSB - 1 downto 0)))) = '0' then
                     -- r.x must be zero at this point
                     v.result_class := ZERO;
                     if r.is_subtract = '1' then
@@ -1753,12 +1766,12 @@ begin
                     opsel_s <= S_NEG;
                     set_s := '1';
                 end if;
-                v.shift := to_signed(56, EXP_BITS);
+                v.shift := to_signed(UNIT_BIT, EXP_BITS);
                 v.state := FMADD_6;
 
             when FMADD_6 =>
-                -- r.shift = 56 (or 0, but only if r is now nonzero)
-                if (r.r(56) or r_hi_nz or r_lo_nz or r.r(1) or r.r(0)) = '0' then
+                -- r.shift = UNIT_BIT (or 0, but only if r is now nonzero)
+                if (r.r(UNIT_BIT + 2) or r_hi_nz or r_lo_nz or (or (r.r(DP_LSB - 1 downto 0)))) = '0' then
                     if s_nz = '0' then
                         -- must be a subtraction, and r.x must be zero
                         v.result_class := ZERO;
@@ -1771,7 +1784,7 @@ begin
                         set_s := '1';
                         -- stay in state FMADD_6
                     end if;
-                elsif r.r(56 downto 54) = "001" then
+                elsif r.r(UNIT_BIT + 2 downto UNIT_BIT) = "001" then
                     v.state := FINISH;
                 else
                     renormalize := '1';
@@ -1835,6 +1848,7 @@ begin
                 set_y := r.first;
                 f_to_multiply.valid <= r.first;
                 pshift := '1';
+                mult_mask := '1';
                 if multiply_to_f.valid = '1' then
                     opsel_r <= RES_MULT;
                     v.first := '1';
@@ -1853,13 +1867,15 @@ begin
                 end if;
 
             when DIV_6 =>
+                -- r.opsel_a = AIN_R
                 -- test if remainder is 0 or >= B
                 if pcmpb_lt = '1' then
                     -- quotient is correct, set X if remainder non-zero
-                    v.x := r.p(58) or px_nz;
+                    v.x := r.p(UNIT_BIT + 2) or px_nz;
                 else
-                    -- quotient needs to be incremented by 1
-                    carry_in <= '1';
+                    -- quotient needs to be incremented by 1 in R-bit position
+                    rbit_inc := '1';
+                    opsel_b <= BIN_RND;
                     v.x := not pcmpb_eq;
                 end if;
                 v.state := FINISH;
@@ -1913,6 +1929,7 @@ begin
                 msel_2 <= MUL2_R;
                 set_y := r.first;
                 pshift := '1';
+                mult_mask := '1';
                 if multiply_to_f.valid = '1' then
                     -- put result into R
                     opsel_r <= RES_MULT;
@@ -1957,6 +1974,7 @@ begin
                 set_y := r.first;
                 -- wait for second multiply (should be here already)
                 pshift := '1';
+                mult_mask := '1';
                 if multiply_to_f.valid = '1' then
                     -- put result into R
                     opsel_r <= RES_MULT;
@@ -2001,11 +2019,8 @@ begin
                 end if;
 
             when SQRT_10 =>
-                -- Add the bottom 8 bits of P, sign-extended,
-                -- divided by 4, onto R.
-                -- The division by 4 is because R is 10.54 format
-                -- whereas P is 8.56 format.
-                opsel_b <= BIN_PS6;
+                -- Add the bottom 8 bits of P, sign-extended, onto R.
+                opsel_b <= BIN_PS8;
                 sqrt_exp := r.b.exponent(EXP_BITS-1) & r.b.exponent(EXP_BITS-1 downto 1);
                 v.result_exp := sqrt_exp;
                 v.shift := to_signed(1, EXP_BITS);
@@ -2030,7 +2045,7 @@ begin
                 -- test if remainder is 0 or >= B = 2*R + 1
                 if pcmpb_lt = '1' then
                     -- square root is correct, set X if remainder non-zero
-                    v.x := r.p(58) or px_nz;
+                    v.x := r.p(UNIT_BIT + 2) or px_nz;
                 else
                     -- square root needs to be incremented by 1
                     carry_in <= '1';
@@ -2043,10 +2058,10 @@ begin
                 opsel_r <= RES_SHIFT;
                 set_x := '1';
                 v.state := INT_ROUND;
-                v.shift := to_signed(-2, EXP_BITS);
+                v.shift := to_signed(52 - UNIT_BIT, EXP_BITS);
 
             when INT_ROUND =>
-                -- r.shift = -2
+                -- r.shift = -4 (== 52 - UNIT_BIT)
                 opsel_r <= RES_SHIFT;
                 round := fp_rounding(r.r, r.x, '0', r.round_mode, r.result_sign);
                 v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
@@ -2059,7 +2074,7 @@ begin
                 end if;
 
             when INT_ISHIFT =>
-                -- r.shift = b.exponent - 54;
+                -- r.shift = b.exponent - UNIT_BIT;
                 opsel_r <= RES_SHIFT;
                 v.state := INT_FINAL;
 
@@ -2129,7 +2144,7 @@ begin
                 if r.is_multiply = '1' and px_nz = '1' then
                     v.x := '1';
                 end if;
-                if r.r(63 downto 54) /= "0000000001" then
+                if r.r(63 downto UNIT_BIT) /= std_ulogic_vector(to_unsigned(1, 64 - UNIT_BIT)) then
                     renormalize := '1';
                     v.state := NORMALIZE;
                 else
@@ -2172,7 +2187,7 @@ begin
                     -- if denormalized, have to normalize before rounding
                     v.fpscr(FPSCR_UX) := '1';
                     v.result_exp := r.result_exp + bias_exp;
-                    if r.r(54) = '0' then
+                    if r.r(UNIT_BIT) = '0' then
                         renormalize := '1';
                         v.state := NORMALIZE;
                     else
@@ -2215,7 +2230,7 @@ begin
                     v.shift := to_signed(-1, EXP_BITS);
                     v.state := ROUNDING_2;
                 else
-                    if r.r(54) = '0' then
+                    if r.r(UNIT_BIT) = '0' then
                         -- result after masking could be zero, or could be a
                         -- denormalized result that needs to be renormalized
                         renormalize := '1';
@@ -2235,14 +2250,14 @@ begin
                 -- Check for overflow during rounding
                 -- r.shift = -1
                 v.x := '0';
-                if r.r(55) = '1' then
+                if r.r(UNIT_BIT + 1) = '1' then
                     opsel_r <= RES_SHIFT;
                     if exp_huge = '1' then
                         v.state := ROUND_OFLOW;
                     else
                         arith_done := '1';
                     end if;
-                elsif r.r(54) = '0' then
+                elsif r.r(UNIT_BIT) = '0' then
                     -- Do CLZ so we can renormalize the result
                     renormalize := '1';
                     v.state := ROUNDING_3;
@@ -2278,9 +2293,9 @@ begin
                 arith_done := '1';
 
             when NAN_RESULT =>
-                if (r.use_a = '1' and r.a.class = NAN and r.a.mantissa(53) = '0') or
-                    (r.use_b = '1' and r.b.class = NAN and r.b.mantissa(53) = '0') or
-                    (r.use_c = '1' and r.c.class = NAN and r.c.mantissa(53) = '0') then
+                if (r.use_a = '1' and r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
+                    (r.use_b = '1' and r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0') or
+                    (r.use_c = '1' and r.c.class = NAN and r.c.mantissa(QNAN_BIT) = '0') then
                     -- Signalling NAN
                     v.fpscr(FPSCR_VXSNAN) := '1';
                     invalid := '1';
@@ -2343,39 +2358,41 @@ begin
         -- Multiplier and divide/square root data path
         case msel_1 is
             when MUL1_A =>
-                f_to_multiply.data1 <= r.a.mantissa(61 downto 0) & "00";
+                f_to_multiply.data1 <= r.a.mantissa;
             when MUL1_B =>
-                f_to_multiply.data1 <= r.b.mantissa(61 downto 0) & "00";
+                f_to_multiply.data1 <= r.b.mantissa;
             when MUL1_Y =>
                 f_to_multiply.data1 <= r.y;
             when others =>
-                f_to_multiply.data1 <= r.r(61 downto 0) & "00";
+                f_to_multiply.data1 <= r.r;
         end case;
         case msel_2 is
             when MUL2_C =>
-                f_to_multiply.data2 <= r.c.mantissa(61 downto 0) & "00";
+                f_to_multiply.data2 <= r.c.mantissa;
             when MUL2_LUT =>
-                f_to_multiply.data2 <= x"00" & inverse_est & '0' & x"000000000";
+                f_to_multiply.data2 <= std_ulogic_vector(shift_left(resize(unsigned(inverse_est), 64),
+                                                                    UNIT_BIT - 19));
             when MUL2_P =>
                 f_to_multiply.data2 <= r.p;
             when others =>
-                f_to_multiply.data2 <= r.r(61 downto 0) & "00";
+                f_to_multiply.data2 <= r.r;
         end case;
         maddend := (others => '0');
         case msel_add is
             when MULADD_CONST =>
                 -- addend is 2.0 or 1.5 in 16.112 format
                 if r.is_sqrt = '0' then
-                    maddend(113) := '1';                -- 2.0
+                    maddend(2*UNIT_BIT + 1) := '1';                       -- 2.0
                 else
-                    maddend(112 downto 111) := "11";    -- 1.5
+                    maddend(2*UNIT_BIT downto 2*UNIT_BIT - 1) := "11";    -- 1.5
                 end if;
             when MULADD_A =>
                 -- addend is A in 16.112 format
-                maddend(121 downto 58) := r.a.mantissa;
+                maddend(UNIT_BIT + 63 downto UNIT_BIT) := r.a.mantissa;
             when MULADD_RS =>
                 -- addend is concatenation of R and S in 16.112 format
-                maddend := "000000" & r.r & r.s & "00";
+                maddend(UNIT_BIT + 63 downto UNIT_BIT) := r.r;
+                maddend(UNIT_BIT - 1 downto 0) := r.s;
             when others =>
         end case;
         if msel_inv = '1' then
@@ -2391,7 +2408,7 @@ begin
             if pshift = '0' then
                 v.p := multiply_to_f.result(63 downto 0);
             else
-                v.p := multiply_to_f.result(119 downto 56);
+                v.p := multiply_to_f.result(UNIT_BIT + 63 downto UNIT_BIT);
             end if;
         end if;
 
@@ -2433,11 +2450,15 @@ begin
             when BIN_R =>
                 in_b0 := r.r;
             when BIN_RND =>
-                round_inc := (31 => r.single_prec, 2 => not r.single_prec, others => '0');
+                if rbit_inc = '0' then
+                    round_inc := (SP_LSB => r.single_prec, DP_LSB => not r.single_prec, others => '0');
+                else
+                    round_inc := (DP_RBIT => '1', others => '0');
+                end if;
                 in_b0 := round_inc;
             when others =>
-                -- BIN_PS6, 6 LSBs of P/4 sign-extended to 64
-                in_b0 := std_ulogic_vector(resize(signed(r.p(7 downto 2)), 64));
+                -- BIN_PS8, 8 LSBs of P sign-extended to 64
+                in_b0 := std_ulogic_vector(resize(signed(r.p(7 downto 0)), 64));
         end case;
         if opsel_binv = '1' then
             in_b0 := not in_b0;
@@ -2451,9 +2472,9 @@ begin
         end if;
         sum := std_ulogic_vector(unsigned(in_a) + unsigned(in_b) + carry_in);
         if opsel_mask = '1' then
-            sum(1 downto 0) := "00";
+            sum(DP_LSB - 1 downto 0) := "0000";
             if r.single_prec = '1' then
-                sum(30 downto 2) := (others => '0');
+                sum(SP_LSB - 1 downto DP_LSB) := (others => '0');
             end if;
         end if;
         case opsel_r is
@@ -2462,20 +2483,25 @@ begin
             when RES_SHIFT =>
                 result <= shift_res;
             when RES_MULT =>
-                result <= multiply_to_f.result(121 downto 58);
+                result <= multiply_to_f.result(UNIT_BIT + 63 downto UNIT_BIT);
+                if mult_mask = '1' then
+                    -- trim to 54 fraction bits if mult_mask = 1, for quotient when dividing
+                    result(UNIT_BIT - 55 downto 0) <= (others => '0');
+                end if;
             when others =>
+                misc := (others => '0');
                 case misc_sel is
                     when "0000" =>
                         misc := x"00000000" & (r.fpscr and fpscr_mask);
                     when "0001" =>
                         -- generated QNaN mantissa
-                        misc := x"0020000000000000";
+                        misc(QNAN_BIT) := '1';
                     when "0010" =>
                         -- mantissa of max representable DP number
-                        misc := x"007ffffffffffffc";
+                        misc(UNIT_BIT downto DP_LSB) := (others => '1');
                     when "0011" =>
                         -- mantissa of max representable SP number
-                        misc := x"007fffff80000000";
+                        misc(UNIT_BIT downto SP_LSB) := (others => '1');
                     when "0100" =>
                         -- fmrgow result
                         misc := r.a.mantissa(31 downto 0) & r.b.mantissa(31 downto 0);
@@ -2483,7 +2509,8 @@ begin
                         -- fmrgew result
                         misc := r.a.mantissa(63 downto 32) & r.b.mantissa(63 downto 32);
                     when "0111" =>
-                        misc := 10x"000" & inverse_est & 35x"000000000";
+                        misc := std_ulogic_vector(shift_left(resize(unsigned(inverse_est), 64),
+                                                             UNIT_BIT - 19));
                     when "1000" =>
                         -- max positive result for fctiw[z]
                         misc := x"000000007fffffff";
@@ -2509,7 +2536,6 @@ begin
                         -- max negative result for fctidu[z]
                         misc := x"0000000000000000";
                     when others =>
-                        misc := x"0000000000000000";
                 end case;
                 result <= misc;
         end case;
@@ -2519,7 +2545,7 @@ begin
                 when S_NEG =>
                     v.s := std_ulogic_vector(unsigned(not r.s) + (not r.x));
                 when S_MULT =>
-                    v.s := multiply_to_f.result(57 downto 2);
+                    v.s := multiply_to_f.result(55 downto 0);
                 when S_SHIFT =>
                     v.s := shift_res(63 downto 8);
                     if shift_res(7 downto 0) /= x"00" then
@@ -2553,12 +2579,12 @@ begin
                 -- make denormalized value end up with even exponent
                 clz(0) := '1';
             end if;
-            v.shift := resize(signed('0' & clz) - 9, EXP_BITS);
+            v.shift := resize(signed('0' & clz) - (63 - UNIT_BIT), EXP_BITS);
         end if;
 
         if r.update_fprf = '1' then
             v.fpscr(FPSCR_C downto FPSCR_FU) := result_flags(r.result_sign, r.result_class,
-                                                             r.r(54) and not r.denorm);
+                                                             r.r(UNIT_BIT) and not r.denorm);
         end if;
 
         v.fpscr(FPSCR_VX) := (or (v.fpscr(FPSCR_VXSNAN downto FPSCR_VXVC))) or
