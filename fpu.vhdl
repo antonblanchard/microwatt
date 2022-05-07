@@ -75,7 +75,19 @@ architecture behaviour of fpu is
                      RENORM_A, RENORM_A2,
                      RENORM_B, RENORM_B2,
                      RENORM_C, RENORM_C2,
-                     NAN_RESULT, EXC_RESULT);
+                     NAN_RESULT, EXC_RESULT,
+                     DO_IDIVMOD,
+                     IDIV_NORMB, IDIV_NORMB2, IDIV_NORMB3,
+                     IDIV_CLZA, IDIV_CLZA2, IDIV_CLZA3,
+                     IDIV_NR0, IDIV_NR1, IDIV_NR2, IDIV_USE0_5,
+                     IDIV_DODIV,
+                     IDIV_DIV, IDIV_DIV2, IDIV_DIV3, IDIV_DIV4, IDIV_DIV5,
+                     IDIV_DIV6, IDIV_DIV7, IDIV_DIV8, IDIV_DIV9,
+                     IDIV_EXT_TBH, IDIV_EXT_TBH2, IDIV_EXT_TBH3,
+                     IDIV_EXT_TBH4, IDIV_EXT_TBH5,
+                     IDIV_EXTDIV, IDIV_EXTDIV1, IDIV_EXTDIV2, IDIV_EXTDIV3,
+                     IDIV_EXTDIV4, IDIV_EXTDIV5, IDIV_EXTDIV6,
+                     IDIV_MODADJ, IDIV_MODSUB, IDIV_DIVADJ, IDIV_OVFCHK, IDIV_DONE, IDIV_ZERO);
 
     type reg_type is record
         state        : state_t;
@@ -139,6 +151,14 @@ architecture behaviour of fpu is
         invalid      : std_ulogic;
         negate       : std_ulogic;
         longmask     : std_ulogic;
+        divext       : std_ulogic;
+        divmod       : std_ulogic;
+        is_signed    : std_ulogic;
+        int_ovf      : std_ulogic;
+        div_close    : std_ulogic;
+        inc_quot     : std_ulogic;
+        a_hi         : std_ulogic_vector(7 downto 0);
+        a_lo         : std_ulogic_vector(55 downto 0);
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -159,6 +179,7 @@ architecture behaviour of fpu is
     signal lost_bits     : std_ulogic;
     signal r_hi_nz       : std_ulogic;
     signal r_lo_nz       : std_ulogic;
+    signal r_gt_1        : std_ulogic;
     signal s_nz          : std_ulogic;
     signal misc_sel      : std_ulogic_vector(3 downto 0);
     signal f_to_multiply : MultiplyInputType;
@@ -663,7 +684,12 @@ begin
         variable msb         : std_ulogic;
         variable is_add      : std_ulogic;
         variable set_a       : std_ulogic;
+        variable set_a_exp   : std_ulogic;
+        variable set_a_mant  : std_ulogic;
+        variable set_a_hi    : std_ulogic;
+        variable set_a_lo    : std_ulogic;
         variable set_b       : std_ulogic;
+        variable set_b_mant  : std_ulogic;
         variable set_c       : std_ulogic;
         variable set_y       : std_ulogic;
         variable set_s       : std_ulogic;
@@ -671,10 +697,13 @@ begin
         variable px_nz       : std_ulogic;
         variable pcmpb_eq    : std_ulogic;
         variable pcmpb_lt    : std_ulogic;
+        variable pcmpc_eq    : std_ulogic;
+        variable pcmpc_lt    : std_ulogic;
         variable pshift      : std_ulogic;
         variable renorm_sqrt : std_ulogic;
         variable sqrt_exp    : signed(EXP_BITS-1 downto 0);
         variable shiftin     : std_ulogic;
+        variable shiftin0    : std_ulogic;
         variable mulexp      : signed(EXP_BITS-1 downto 0);
         variable maddend     : std_ulogic_vector(127 downto 0);
         variable sum         : std_ulogic_vector(63 downto 0);
@@ -722,6 +751,11 @@ begin
             v.is_sqrt := '0';
             v.add_bsmall := '0';
             v.doing_ftdiv := "00";
+            v.divext := e_in.insn(8) and not e_in.insn(7);
+            v.divmod := not e_in.insn(8);
+            v.is_signed := e_in.is_signed;
+            v.int_ovf := '0';
+            v.div_close := '0';
 
             adec := decode_dp(e_in.fra, int_input);
             bdec := decode_dp(e_in.frb, int_input);
@@ -738,10 +772,14 @@ begin
             if (adec.exponent + cdec.exponent + 1) >= bdec.exponent then
                 v.madd_cmp := '1';
             end if;
+
+            v.a_hi := 8x"0";
+            v.a_lo := 56x"0";
         end if;
 
         r_hi_nz <= or (r.r(UNIT_BIT + 1 downto SP_LSB));
         r_lo_nz <= or (r.r(SP_LSB - 1 downto DP_LSB));
+        r_gt_1 <= or (r.r(63 downto 1));
         s_nz <= or (r.s);
 
         if r.single_prec = '0' then
@@ -781,6 +819,14 @@ begin
         if unsigned(r.p(59 downto 4)) < unsigned(r.b.mantissa(UNIT_BIT + 1 downto DP_RBIT)) then
             pcmpb_lt := '1';
         end if;
+        pcmpc_eq := '0';
+        if r.p = r.c.mantissa then
+            pcmpc_eq := '1';
+        end if;
+        pcmpc_lt := '0';
+        if unsigned(r.p) < unsigned(r.c.mantissa) then
+            pcmpc_lt := '1';
+        end if;
 
         v.update_fprf := '0';
         v.shift := to_signed(0, EXP_BITS);
@@ -803,7 +849,12 @@ begin
         set_x := '0';
         qnan_result := '0';
         set_a := '0';
+        set_a_exp := '0';
+        set_a_mant := '0';
+        set_a_hi := '0';
+        set_a_lo := '0';
         set_b := '0';
+        set_b_mant := '0';
         set_c := '0';
         set_s := '0';
         f_to_multiply.is_32bit <= '0';
@@ -816,6 +867,7 @@ begin
         pshift := '0';
         renorm_sqrt := '0';
         shiftin := '0';
+        shiftin0 := '0';
         rbit_inc := '0';
         mult_mask := '0';
         int_result := '0';
@@ -866,6 +918,10 @@ begin
                             else
                                 v.state := DO_FRI;
                             end if;
+                        when "01001" =>
+                            -- integer divides and mods, major opcode 31
+                            v.opsel_a := AIN_B;
+                            v.state := DO_IDIVMOD;
                         when "01100" =>
                             v.opsel_a := AIN_B;
                             v.state := DO_FRSP;
@@ -2327,6 +2383,451 @@ begin
                 end case;
                 arith_done := '1';
 
+            when DO_IDIVMOD =>
+                -- r.opsel_a = AIN_B
+                v.result_sign := r.is_signed and (r.a.negative xor (r.b.negative and not r.divmod));
+                if r.b.class = ZERO then
+                    -- B is zero, signal overflow
+                    v.int_ovf := '1';
+                    v.state := IDIV_ZERO;
+                elsif r.a.class = ZERO then
+                    -- A is zero, result is zero (both for div and for mod)
+                    v.state := IDIV_ZERO;
+                else
+                    -- take absolute value for signed division, and
+                    -- normalize and round up B to 8.56 format, like fcfid[u]
+                    if r.is_signed = '1' and r.b.negative = '1' then
+                        opsel_ainv <= '1';
+                        carry_in <= '1';
+                    end if;
+                    v.result_class := FINITE;
+                    v.result_exp := to_signed(UNIT_BIT, EXP_BITS);
+                    v.state := IDIV_NORMB;
+                end if;
+            when IDIV_NORMB =>
+                -- do count-leading-zeroes on B (now in R)
+                renormalize := '1';
+                -- save the original value of B or |B| in C
+                set_c := '1';
+                v.state := IDIV_NORMB2;
+            when IDIV_NORMB2 =>
+                -- get B into the range [1, 2) in 8.56 format
+                set_x := '1';           -- record if any 1 bits shifted out
+                opsel_r <= RES_SHIFT;
+                v.state := IDIV_NORMB3;
+            when IDIV_NORMB3 =>
+                -- add the X bit onto R to round up B
+                carry_in <= r.x;
+                -- prepare to do count-leading-zeroes on A
+                v.opsel_a := AIN_A;
+                v.state := IDIV_CLZA;
+            when IDIV_CLZA =>
+                set_b := '1';           -- put R back into B
+                -- r.opsel_a = AIN_A
+                if r.is_signed = '1' and r.a.negative = '1' then
+                    opsel_ainv <= '1';
+                    carry_in <= '1';
+                end if;
+                v.result_exp := to_signed(UNIT_BIT, EXP_BITS);
+                v.opsel_a := AIN_C;
+                v.state := IDIV_CLZA2;
+            when IDIV_CLZA2 =>
+                -- r.opsel_a = AIN_C
+                renormalize := '1';
+                -- write the dividend back into A in case we negated it
+                set_a_mant := '1';
+                -- while doing the count-leading-zeroes on A,
+                -- also compute A - B to tell us whether A >= B
+                -- (using the original value of B, which is now in C)
+                opsel_b <= BIN_R;
+                opsel_ainv <= '1';
+                carry_in <= '1';
+                v.state := IDIV_CLZA3;
+            when IDIV_CLZA3 =>
+                -- save the exponent of A (but don't overwrite the mantissa)
+                v.a.exponent := new_exp;
+                v.div_close := '0';
+                if new_exp = r.b.exponent then
+                    v.div_close := '1';
+                end if;
+                v.state := IDIV_NR0;
+                if new_exp > r.b.exponent or (v.div_close = '1' and r.r(63) = '0') then
+                    -- A >= B, overflow if extended division
+                    if r.divext = '1' then
+                        v.int_ovf := '1';
+                        -- return 0 in overflow cases
+                        v.state := IDIV_ZERO;
+                    end if;
+                else
+                    -- A < B, result is zero for normal division
+                    if r.divmod = '0' and r.divext = '0' then
+                        v.state := IDIV_ZERO;
+                    end if;
+                end if;
+            when IDIV_NR0 =>
+                -- reduce number of Newton-Raphson iterations for small A
+                if r.divext = '1' or new_exp >= to_signed(32, EXP_BITS) then
+                    v.count := "00";
+                elsif new_exp >= to_signed(16, EXP_BITS) then
+                    v.count := "01";
+                else
+                    v.count := "10";
+                end if;
+                -- first NR iteration does Y = LUT; P = 2 - B * LUT
+                msel_1 <= MUL1_B;
+                msel_add <= MULADD_CONST;
+                msel_inv <= '1';
+                msel_2 <= MUL2_LUT;
+                set_y := '1';
+                if r.b.mantissa(UNIT_BIT + 1) = '1' then
+                    -- rounding up of the mantissa caused overflow, meaning the
+                    -- normalized B is 2.0.  Since this is outside the range
+                    -- of the LUT, just use 0.5 as the estimated inverse.
+                    v.state := IDIV_USE0_5;
+                else
+                    -- start the first multiply now
+                    f_to_multiply.valid <= '1';
+                    -- note we don't set v.first, thus the following IDIV_NR1
+                    -- state doesn't start a multiply (we already did that)
+                    v.state := IDIV_NR1;
+                end if;
+            when IDIV_NR1 =>
+                -- subsequent NR iterations do Y = P; P = 2 - B * P
+                msel_1 <= MUL1_B;
+                msel_add <= MULADD_CONST;
+                msel_inv <= '1';
+                msel_2 <= MUL2_P;
+                set_y := r.first;
+                pshift := '1';
+                f_to_multiply.valid <= r.first;
+                if multiply_to_f.valid = '1' then
+                    v.first := '1';
+                    v.count := r.count + 1;
+                    v.state := IDIV_NR2;
+                end if;
+            when IDIV_NR2 =>
+                -- compute P = Y * P
+                msel_1 <= MUL1_Y;
+                msel_2 <= MUL2_P;
+                f_to_multiply.valid <= r.first;
+                pshift := '1';
+                v.opsel_a := AIN_A;
+                v.shift := to_signed(64, EXP_BITS);
+                -- Get 0.5 into R in case the inverse estimate turns out to be
+                -- less than 0.5, in which case we want to use 0.5, to avoid
+                -- infinite loops in some cases.
+                opsel_r <= RES_MISC;
+                misc_sel <= "0001";
+                if multiply_to_f.valid = '1' then
+                    v.first := '1';
+                    if r.count = "11" then
+                        v.state := IDIV_DODIV;
+                    else
+                        v.state := IDIV_NR1;
+                    end if;
+                end if;
+            when IDIV_USE0_5 =>
+                -- Get 0.5 into R; it turns out the generated
+                -- QNaN mantissa is actually what we want
+                opsel_r <= RES_MISC;
+                misc_sel <= "0001";
+                v.opsel_a := AIN_A;
+                v.shift := to_signed(64, EXP_BITS);
+                v.state := IDIV_DODIV;
+            when IDIV_DODIV =>
+                -- r.opsel_a = AIN_A
+                -- r.shift = 64
+                -- inverse estimate is in P or in R; copy it to Y
+                if r.b.mantissa(UNIT_BIT + 1) = '1' or
+                    (r.p(UNIT_BIT) = '0' and r.p(UNIT_BIT - 1) = '0') then
+                    msel_2 <= MUL2_R;
+                else
+                    msel_2 <= MUL2_P;
+                end if;
+                set_y := '1';
+                -- shift_res is 0 because r.shift = 64;
+                -- put that into B, which now holds the quotient
+                set_b_mant := '1';
+                if r.divext = '0' then
+                    v.shift := to_signed(-UNIT_BIT, EXP_BITS);
+                    v.first := '1';
+                    v.state := IDIV_DIV;
+                elsif r.div_close = '0' then
+                    v.shift := to_signed(64 - UNIT_BIT, EXP_BITS);
+                    v.state := IDIV_EXTDIV;
+                else
+                    -- handle top bit of quotient specially
+                    -- for this we need the divisor left-justified in B
+                    v.opsel_a := AIN_C;
+                    v.state := IDIV_EXT_TBH;
+                end if;
+            when IDIV_DIV =>
+                -- Dividing A by C, r.shift = -56; A is in R
+                -- Put A into the bottom 64 bits of Ahi/A/Alo
+                set_a_mant := r.first;
+                set_a_lo := r.first;
+                -- compute R = R * Y (quotient estimate)
+                msel_1 <= MUL1_Y;
+                msel_2 <= MUL2_R;
+                f_to_multiply.valid <= r.first;
+                pshift := '1';
+                opsel_r <= RES_MULT;
+                v.shift := - r.b.exponent;
+                if multiply_to_f.valid = '1' then
+                    v.state := IDIV_DIV2;
+                end if;
+            when IDIV_DIV2 =>
+                -- r.shift = - b.exponent
+                -- shift the quotient estimate right by b.exponent bits
+                opsel_r <= RES_SHIFT;
+                v.first := '1';
+                v.state := IDIV_DIV3;
+            when IDIV_DIV3 =>
+                -- quotient (so far) is in R; multiply by C and subtract from A
+                msel_1 <= MUL1_R;
+                msel_2 <= MUL2_C;
+                msel_add <= MULADD_A;
+                msel_inv <= '1';
+                f_to_multiply.valid <= r.first;
+                -- store the current quotient estimate in B
+                set_b_mant := r.first;
+                opsel_r <= RES_MULT;
+                opsel_s <= S_MULT;
+                set_s := '1';
+                if multiply_to_f.valid = '1' then
+                    v.state := IDIV_DIV4;
+                end if;
+            when IDIV_DIV4 =>
+                -- remainder is in R/S and P
+                msel_1 <= MUL1_Y;
+                msel_2 <= MUL2_P;
+                v.inc_quot := not pcmpc_lt and not r.divmod;
+                if r.divmod = '0' then
+                    v.opsel_a := AIN_B;
+                end if;
+                v.shift := to_signed(UNIT_BIT, EXP_BITS);
+                if pcmpc_lt = '1' or pcmpc_eq = '1' then
+                    if r.divmod = '0' then
+                        v.state := IDIV_DIVADJ;
+                    elsif pcmpc_eq = '1' then
+                        v.state := IDIV_ZERO;
+                    else
+                        v.state := IDIV_MODADJ;
+                    end if;
+                else
+                    -- need to do another iteration, compute P * Y
+                    f_to_multiply.valid <= '1';
+                    v.state := IDIV_DIV5;
+                end if;
+            when IDIV_DIV5 =>
+                pshift := '1';
+                opsel_r <= RES_MULT;
+                v.shift := - r.b.exponent;
+                if multiply_to_f.valid = '1' then
+                    v.state := IDIV_DIV6;
+                end if;
+            when IDIV_DIV6 =>
+                -- r.shift = - b.exponent
+                -- shift the quotient estimate right by b.exponent bits
+                opsel_r <= RES_SHIFT;
+                v.opsel_a := AIN_B;
+                v.first := '1';
+                v.state := IDIV_DIV7;
+            when IDIV_DIV7 =>
+                -- r.opsel_a = AIN_B
+                -- add shifted quotient delta onto the total quotient
+                opsel_b <= BIN_R;
+                v.first := '1';
+                v.state := IDIV_DIV8;
+            when IDIV_DIV8 =>
+                -- quotient (so far) is in R; multiply by C and subtract from A
+                msel_1 <= MUL1_R;
+                msel_2 <= MUL2_C;
+                msel_add <= MULADD_A;
+                msel_inv <= '1';
+                f_to_multiply.valid <= r.first;
+                -- store the current quotient estimate in B
+                set_b_mant := r.first;
+                opsel_r <= RES_MULT;
+                opsel_s <= S_MULT;
+                set_s := '1';
+                if multiply_to_f.valid = '1' then
+                    v.state := IDIV_DIV9;
+                end if;
+            when IDIV_DIV9 =>
+                -- remainder is in R/S and P
+                msel_1 <= MUL1_Y;
+                msel_2 <= MUL2_P;
+                v.inc_quot := not pcmpc_lt and not r.divmod;
+                if r.divmod = '0' then
+                    v.opsel_a := AIN_B;
+                end if;
+                v.shift := to_signed(UNIT_BIT, EXP_BITS);
+                if r.divmod = '0' then
+                    v.state := IDIV_DIVADJ;
+                elsif pcmpc_eq = '1' then
+                    v.state := IDIV_ZERO;
+                else
+                    v.state := IDIV_MODADJ;
+                end if;
+            when IDIV_EXT_TBH =>
+                -- r.opsel_a = AIN_C; get divisor into R and prepare to shift left
+                v.shift := to_signed(63, EXP_BITS) - r.b.exponent;
+                v.opsel_a := AIN_A;
+                v.state := IDIV_EXT_TBH2;
+            when IDIV_EXT_TBH2 =>
+                -- r.opsel_a = AIN_A; divisor is in R
+                -- r.shift = 63 - b.exponent; shift and put into B
+                set_b_mant := '1';
+                v.shift := to_signed(64 - UNIT_BIT, EXP_BITS);
+                v.state := IDIV_EXT_TBH3;
+            when IDIV_EXT_TBH3 =>
+                -- Dividing (A << 64) by C
+                -- r.shift = 8
+                -- Put A in the top 64 bits of Ahi/A/Alo
+                set_a_hi := '1';
+                set_a_mant := '1';
+                v.shift := to_signed(64, EXP_BITS) - r.b.exponent;
+                v.state := IDIV_EXT_TBH4;
+            when IDIV_EXT_TBH4 =>
+                -- dividend (A) is in R
+                -- r.shift = 64 - B.exponent, so is at least 1
+                opsel_r <= RES_SHIFT;
+                -- top bit of A gets lost in the shift, so handle it specially
+                v.opsel_a := AIN_B;
+                v.shift := to_signed(63, EXP_BITS);
+                v.state := IDIV_EXT_TBH5;
+            when IDIV_EXT_TBH5 =>
+                -- r.opsel_a = AIN_B, r.shift = 63
+                -- shifted dividend is in R, subtract left-justified divisor
+                opsel_b <= BIN_R;
+                opsel_ainv <= '1';
+                carry_in <= '1';
+                -- and put 1<<63 into B as the divisor (S is still 0)
+                shiftin0 := '1';
+                set_b_mant := '1';
+                v.first := '1';
+                v.state := IDIV_EXTDIV2;
+            when IDIV_EXTDIV =>
+                -- Dividing (A << 64) by C
+                -- r.shift = 8
+                -- Put A in the top 64 bits of Ahi/A/Alo
+                set_a_hi := '1';
+                set_a_mant := '1';
+                v.shift := to_signed(64, EXP_BITS) - r.b.exponent;
+                v.state := IDIV_EXTDIV1;
+            when IDIV_EXTDIV1 =>
+                -- dividend is in R
+                -- r.shift = 64 - B.exponent
+                opsel_r <= RES_SHIFT;
+                v.first := '1';
+                v.state := IDIV_EXTDIV2;
+            when IDIV_EXTDIV2 =>
+                -- shifted remainder is in R; compute R = R * Y (quotient estimate)
+                msel_1 <= MUL1_Y;
+                msel_2 <= MUL2_R;
+                f_to_multiply.valid <= r.first;
+                pshift := '1';
+                v.opsel_a := AIN_B;
+                opsel_r <= RES_MULT;
+                if multiply_to_f.valid = '1' then
+                    v.first := '1';
+                    v.state := IDIV_EXTDIV3;
+                end if;
+            when IDIV_EXTDIV3 =>
+                -- r.opsel_a = AIN_B
+                -- delta quotient is in R; add it to B
+                opsel_b <= BIN_R;
+                v.first := '1';
+                v.state := IDIV_EXTDIV4;
+            when IDIV_EXTDIV4 =>
+                -- quotient is in R; put it in B and compute remainder
+                set_b_mant := r.first;
+                msel_1 <= MUL1_R;
+                msel_2 <= MUL2_C;
+                msel_add <= MULADD_A;
+                msel_inv <= '1';
+                f_to_multiply.valid <= r.first;
+                opsel_r <= RES_MULT;
+                opsel_s <= S_MULT;
+                set_s := '1';
+                v.shift := to_signed(UNIT_BIT, EXP_BITS) - r.b.exponent;
+                if multiply_to_f.valid = '1' then
+                    v.state := IDIV_EXTDIV5;
+                end if;
+            when IDIV_EXTDIV5 =>
+                -- r.shift = r.b.exponent - 56
+                -- remainder is in R/S; shift it right r.b.exponent bits
+                opsel_r <= RES_SHIFT;
+                -- test LS 64b of remainder in P against divisor in C
+                v.inc_quot := not pcmpc_lt;
+                v.opsel_a := AIN_B;
+                v.state := IDIV_EXTDIV6;
+            when IDIV_EXTDIV6 =>
+                -- r.opsel_a = AIN_B
+                -- shifted remainder is in R, see if it is > 1
+                -- and compute R = R * Y if so
+                msel_1 <= MUL1_Y;
+                msel_2 <= MUL2_R;
+                pshift := '1';
+                if r_gt_1 = '1' then
+                    f_to_multiply.valid <= '1';
+                    v.state := IDIV_EXTDIV2;
+                else
+                    v.state := IDIV_DIVADJ;
+                end if;
+            when IDIV_MODADJ =>
+                -- r.shift = 56
+                -- result is in R/S
+                opsel_r <= RES_SHIFT;
+                if pcmpc_lt = '0' then
+                    v.opsel_a := AIN_C;
+                    v.state := IDIV_MODSUB;
+                elsif r.result_sign = '0' then
+                    v.state := IDIV_DONE;
+                else
+                    v.state := IDIV_DIVADJ;
+                end if;
+            when IDIV_MODSUB =>
+                -- r.opsel_a = AIN_C
+                -- Subtract divisor from remainder
+                opsel_ainv <= '1';
+                carry_in <= '1';
+                opsel_b <= BIN_R;
+                if r.result_sign = '0' then
+                    v.state := IDIV_DONE;
+                else
+                    v.state := IDIV_DIVADJ;
+                end if;
+            when IDIV_DIVADJ =>
+                -- result (so far) is on the A input of the adder
+                -- set carry to increment quotient if needed
+                -- and also negate R if the answer is negative
+                opsel_ainv <= r.result_sign;
+                carry_in <= r.inc_quot xor r.result_sign;
+                if r.is_signed = '0' then
+                    v.state := IDIV_DONE;
+                else
+                    v.state := IDIV_OVFCHK;
+                end if;
+            when IDIV_OVFCHK =>
+                v.int_ovf := r.r(63) xor r.result_sign;
+                if v.int_ovf = '1' then
+                    v.state := IDIV_ZERO;
+                else
+                    v.state := IDIV_DONE;
+                end if;
+            when IDIV_DONE =>
+                int_result := '1';
+                v.writing_fpr := '1';
+                v.instr_done := '1';
+            when IDIV_ZERO =>
+                opsel_r <= RES_MISC;
+                misc_sel <= "0101";
+                int_result := '1';
+                v.writing_fpr := '1';
+                v.instr_done := '1';
+
         end case;
 
         if zero_divide = '1' then
@@ -2388,7 +2889,9 @@ begin
                 end if;
             when MULADD_A =>
                 -- addend is A in 16.112 format
+                maddend(127 downto UNIT_BIT + 64) := r.a_hi;
                 maddend(UNIT_BIT + 63 downto UNIT_BIT) := r.a.mantissa;
+                maddend(UNIT_BIT - 1 downto 0) := r.a_lo;
             when MULADD_RS =>
                 -- addend is concatenation of R and S in 16.112 format
                 maddend(UNIT_BIT + 63 downto UNIT_BIT) := r.r;
@@ -2465,7 +2968,8 @@ begin
         end if;
         in_b <= in_b0;
         if r.shift >= to_signed(-64, EXP_BITS) and r.shift <= to_signed(63, EXP_BITS) then
-            shift_res := shifter_64(r.r & (shiftin or r.s(55)) & r.s(54 downto 0),
+            shift_res := shifter_64(r.r(63 downto 1) & (shiftin0 or r.r(0)) &
+                                    (shiftin or r.s(55)) & r.s(54 downto 0),
                                     std_ulogic_vector(r.shift(6 downto 0)));
         else
             shift_res := (others => '0');
@@ -2556,12 +3060,27 @@ begin
             end case;
         end if;
 
-        if set_a = '1' then
+        if set_a = '1' or set_a_exp = '1' then
             v.a.exponent := new_exp;
+        end if;
+        if set_a = '1' or set_a_mant = '1' then
             v.a.mantissa := shift_res;
+        end if;
+        if e_in.valid = '1' then
+            v.a_hi := (others => '0');
+            v.a_lo := (others => '0');
+        else
+            if set_a_hi = '1' then
+                v.a_hi := r.r(63 downto 56);
+            end if;
+            if set_a_lo = '1' then
+                v.a_lo := r.r(55 downto 0);
+            end if;
         end if;
         if set_b = '1' then
             v.b.exponent := new_exp;
+        end if;
+        if set_b = '1' or set_b_mant = '1' then
             v.b.mantissa := shift_res;
         end if;
         if set_c = '1' then

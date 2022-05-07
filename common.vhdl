@@ -627,27 +627,29 @@ package common is
          srr1 => (others => '0'), msr => (others => '0'));
 
     type Execute1ToFPUType is record
-        valid   : std_ulogic;
-        op      : insn_type_t;
-        nia     : std_ulogic_vector(63 downto 0);
-        itag    : instr_tag_t;
-        insn    : std_ulogic_vector(31 downto 0);
-        single  : std_ulogic;
-        fe_mode : std_ulogic_vector(1 downto 0);
-        fra     : std_ulogic_vector(63 downto 0);
-        frb     : std_ulogic_vector(63 downto 0);
-        frc     : std_ulogic_vector(63 downto 0);
-        frt     : gspr_index_t;
-        rc      : std_ulogic;
-        out_cr  : std_ulogic;
-        stall   : std_ulogic;
+        valid     : std_ulogic;
+        op        : insn_type_t;
+        nia       : std_ulogic_vector(63 downto 0);
+        itag      : instr_tag_t;
+        insn      : std_ulogic_vector(31 downto 0);
+        single    : std_ulogic;
+        is_signed : std_ulogic;
+        fe_mode   : std_ulogic_vector(1 downto 0);
+        fra       : std_ulogic_vector(63 downto 0);
+        frb       : std_ulogic_vector(63 downto 0);
+        frc       : std_ulogic_vector(63 downto 0);
+        frt       : gspr_index_t;
+        rc        : std_ulogic;
+        out_cr    : std_ulogic;
+        stall     : std_ulogic;
     end record;
     constant Execute1ToFPUInit : Execute1ToFPUType := (valid => '0', op => OP_ILLEGAL, nia => (others => '0'),
                                                        itag => instr_tag_init,
-                                                       insn  => (others => '0'), fe_mode => "00", rc => '0',
+                                                       insn => (others => '0'), fe_mode => "00", rc => '0',
                                                        fra => (others => '0'), frb => (others => '0'),
                                                        frc => (others => '0'), frt => (others => '0'),
-                                                       single => '0', out_cr => '0', stall => '0');
+                                                       single => '0', is_signed => '0', out_cr => '0',
+                                                       stall => '0');
 
     type FPUToExecute1Type is record
         busy      : std_ulogic;
