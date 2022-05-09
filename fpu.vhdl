@@ -125,6 +125,7 @@ architecture behaviour of fpu is
         write_reg    : gspr_index_t;
         complete_tag : instr_tag_t;
         writing_cr   : std_ulogic;
+        writing_xer  : std_ulogic;
         int_result   : std_ulogic;
         cr_result    : std_ulogic_vector(3 downto 0);
         cr_mask      : std_ulogic_vector(7 downto 0);
@@ -151,6 +152,7 @@ architecture behaviour of fpu is
         invalid      : std_ulogic;
         negate       : std_ulogic;
         longmask     : std_ulogic;
+        integer_op   : std_ulogic;
         divext       : std_ulogic;
         divmod       : std_ulogic;
         is_signed    : std_ulogic;
@@ -159,6 +161,10 @@ architecture behaviour of fpu is
         inc_quot     : std_ulogic;
         a_hi         : std_ulogic_vector(7 downto 0);
         a_lo         : std_ulogic_vector(55 downto 0);
+        m32b         : std_ulogic;
+        oe           : std_ulogic;
+        xerc         : xer_common_t;
+        xerc_result  : xer_common_t;
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -604,6 +610,7 @@ begin
                 r.do_intr <= '0';
                 r.writing_fpr <= '0';
                 r.writing_cr <= '0';
+                r.writing_xer <= '0';
                 r.fpscr <= (others => '0');
                 r.write_reg <= (others =>'0');
                 r.complete_tag.valid <= '0';
@@ -658,6 +665,8 @@ begin
     w_out.write_cr_mask <= r.cr_mask;
     w_out.write_cr_data <= r.cr_result & r.cr_result & r.cr_result & r.cr_result &
                            r.cr_result & r.cr_result & r.cr_result & r.cr_result;
+    w_out.write_xerc <= r.writing_xer and r.complete;
+    w_out.xerc <= r.xerc_result;
     w_out.interrupt <= r.do_intr;
     w_out.intr_vec <= 16#700#;
     w_out.srr0 <= r.nia;
@@ -739,6 +748,7 @@ begin
             v.instr_done := '0';
             v.writing_fpr := '0';
             v.writing_cr := '0';
+            v.writing_xer := '0';
             v.comm_fpscr := r.fpscr;
             v.illegal := '0';
         end if;
@@ -755,7 +765,11 @@ begin
             v.is_signed := e_in.is_signed;
             v.rc := e_in.rc;
             v.is_cmp := e_in.out_cr;
+            v.oe := e_in.oe;
+            v.m32b := e_in.m32b;
+            v.xerc := e_in.xerc;
             v.longmask := '0';
+            v.integer_op := '0';
             v.divext := '0';
             v.divmod := '0';
             if e_in.op = OP_FPOP or e_in.op = OP_FPOP_I then
@@ -764,6 +778,7 @@ begin
                     int_input := '1';
                 end if;
             else -- OP_DIV, OP_DIVE, OP_MOD
+                v.integer_op := '1';
                 int_input := '1';
                 is_32bint := e_in.single;
                 if e_in.op = OP_DIVE then
@@ -2865,12 +2880,44 @@ begin
                     v.state := IDIV_DONE;
                 end if;
             when IDIV_DONE =>
+                v.xerc_result := v.xerc;
+                if r.oe = '1' then
+                    v.xerc_result.ov := '0';
+                    v.xerc_result.ov32 := '0';
+                    v.writing_xer := '1';
+                end if;
+                if r.m32b = '0' then
+                    v.cr_result(3) := r.r(63);
+                    v.cr_result(2 downto 1) := "00";
+                    if r.r = 64x"0" then
+                        v.cr_result(1) := '1';
+                    else
+                        v.cr_result(2) := not r.r(63);
+                    end if;
+                else
+                    v.cr_result(3) := r.r(31);
+                    v.cr_result(2 downto 1) := "00";
+                    if r.r(31 downto 0) = 32x"0" then
+                        v.cr_result(1) := '1';
+                    else
+                        v.cr_result(2) := not r.r(31);
+                    end if;
+                end if;
+                v.cr_result(0) := v.xerc.so;
                 int_result := '1';
                 v.writing_fpr := '1';
                 v.instr_done := '1';
             when IDIV_ZERO =>
                 opsel_r <= RES_MISC;
                 misc_sel <= "0101";
+                v.xerc_result := v.xerc;
+                if r.oe = '1' then
+                    v.xerc_result.ov := r.int_ovf;
+                    v.xerc_result.ov32 := r.int_ovf;
+                    v.xerc_result.so := r.xerc.so or r.int_ovf;
+                    v.writing_xer := '1';
+                end if;
+                v.cr_result := "001" & v.xerc_result.so;
                 int_result := '1';
                 v.writing_fpr := '1';
                 v.instr_done := '1';
@@ -3169,14 +3216,16 @@ begin
                 v.state := IDLE;
                 v.busy := '0';
                 v.f2stall := '0';
-                if r.rc = '1' then
+                if r.rc = '1' and (r.op = OP_FPOP or r.op = OP_FPOP_I) then
                     v.cr_result := v.fpscr(FPSCR_FX downto FPSCR_OX);
                 end if;
                 v.sp_result := r.single_prec;
                 v.int_result := int_result;
                 v.illegal := illegal;
                 v.nsnan_result := v.quieten_nan;
-                if r.is_cmp = '0' then
+                if r.integer_op = '1' then
+                    v.cr_mask := num_to_fxm(0);
+                elsif r.is_cmp = '0' then
                     v.cr_mask := num_to_fxm(1);
                 else
                     v.cr_mask := num_to_fxm(to_integer(unsigned(insn_bf(r.insn))));

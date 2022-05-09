@@ -188,7 +188,7 @@ architecture behaviour of execute1 is
 
     -- divider signals
     signal x_to_divider: Execute1ToDividerType;
-    signal divider_to_x: DividerToExecute1Type;
+    signal divider_to_x: DividerToExecute1Type := DividerToExecute1Init;
 
     -- random number generator signals
     signal random_raw  : std_ulogic_vector(63 downto 0);
@@ -367,13 +367,15 @@ begin
             m_out => multiply_to_x
             );
 
-    divider_0: entity work.divider
-        port map (
-            clk => clk,
-            rst => rst,
-            d_in => x_to_divider,
-            d_out => divider_to_x
-            );
+    divider_0: if not HAS_FPU generate
+        div_0: entity work.divider
+            port map (
+                clk => clk,
+                rst => rst,
+                d_in => x_to_divider,
+                d_out => divider_to_x
+                );
+    end generate;
 
     random_0: entity work.random
         port map (
@@ -1159,9 +1161,11 @@ begin
                 owait := '1';
 
 	    when OP_DIV | OP_DIVE | OP_MOD =>
-                v.start_div := '1';
-                slow_op := '1';
-                owait := '1';
+                if not HAS_FPU then
+                    v.start_div := '1';
+                    slow_op := '1';
+                    owait := '1';
+                end if;
 
             when OP_FETCH_FAILED =>
                 -- Handling an ITLB miss doesn't count as having executed an instruction
@@ -1457,6 +1461,9 @@ begin
         fv.frt := e_in.write_reg;
         fv.rc := e_in.rc;
         fv.out_cr := e_in.output_cr;
+        fv.m32b := not ex1.msr(MSR_SF);
+        fv.oe := e_in.oe;
+        fv.xerc := xerc_in;
         fv.stall := l_in.l2stall;
 
 	-- Update registers

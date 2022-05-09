@@ -73,6 +73,8 @@ begin
             assert (to_integer(unsigned(w)) + to_integer(unsigned(x)) +
                     to_integer(unsigned(y))) <= 1 severity failure;
 
+            assert (e_in.write_xerc_enable and fp_in.write_xerc) /= '1' severity failure;
+
             assert not (e_in.valid = '1' and e_in.instr_tag.valid = '0') severity failure;
             assert not (l_in.valid = '1' and l_in.instr_tag.valid = '0') severity failure;
             assert not (fp_in.valid = '1' and fp_in.instr_tag.valid = '0') severity failure;
@@ -166,6 +168,11 @@ begin
                 c_out.write_cr_enable <= '1';
                 c_out.write_cr_mask <= fp_in.write_cr_mask;
                 c_out.write_cr_data <= fp_in.write_cr_data;
+            end if;
+
+            if fp_in.write_xerc = '1' then
+                c_out.write_xerc_enable <= '1';
+                c_out.write_xerc_data <= fp_in.xerc;
             end if;
 
             if l_in.write_enable = '1' then
