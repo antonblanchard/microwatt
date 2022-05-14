@@ -56,7 +56,7 @@ architecture behaviour of fpu is
                      ADD_1, ADD_SHIFT, ADD_2, ADD_3,
                      CMP_1, CMP_2,
                      MULT_1,
-                     FMADD_1, FMADD_2, FMADD_3,
+                     FMADD_0, FMADD_1, FMADD_2, FMADD_3,
                      FMADD_4, FMADD_5, FMADD_6,
                      LOOKUP,
                      DIV_2, DIV_3, DIV_4, DIV_5, DIV_6,
@@ -1538,9 +1538,9 @@ begin
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 v.use_b := '1';
+                v.result_exp := r.b.exponent;
                 case r.b.class is
                     when FINITE =>
-                        v.result_exp := - r.b.exponent;
                         if r.b.mantissa(UNIT_BIT) = '0' then
                             v.state := RENORM_B;
                         else
@@ -1600,7 +1600,7 @@ begin
                 -- else AIN_B
                 v.result_sign := r.a.negative;
                 v.result_class := r.a.class;
-                v.result_exp := r.a.exponent;
+                v.result_exp := r.a.exponent + r.c.exponent;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 v.use_a := '1';
@@ -1610,8 +1610,6 @@ begin
                 if r.a.class = FINITE and r.c.class = FINITE and
                     (r.b.class = FINITE or r.b.class = ZERO) then
                     v.is_subtract := not is_add;
-                    mulexp := r.a.exponent + r.c.exponent;
-                    v.result_exp := mulexp;
                     -- Make sure A and C are normalized
                     if r.a.mantissa(UNIT_BIT) = '0' then
                         v.state := RENORM_A;
@@ -1627,15 +1625,10 @@ begin
                         -- addend is bigger, do multiply first
                         v.result_sign := not (r.b.negative xor r.insn(1) xor r.insn(2));
                         f_to_multiply.valid <= '1';
-                        v.state := FMADD_1;
+                        v.state := FMADD_0;
                     else
-                        -- product is bigger, shift B right and use it as the
-                        -- addend to the multiplier
-                        v.shift := r.b.exponent - mulexp + to_signed(64, EXP_BITS);
-                        -- for subtract, multiplier does B - A * C
-                        v.result_sign := not (r.a.negative xor r.c.negative xor r.insn(2) xor is_add);
-                        v.result_exp := r.b.exponent;
-                        v.state := FMADD_2;
+                        -- product is bigger, shift B first
+                        v.state := FMADD_1;
                     end if;
                 else
                     if r.a.class = NAN or r.b.class = NAN or r.c.class = NAN then
@@ -1715,11 +1708,7 @@ begin
 
             when RENORM_B2 =>
                 set_b := '1';
-                if r.is_sqrt = '0' then
-                    v.result_exp := r.result_exp + r.shift;
-                else
-                    v.result_exp := new_exp;
-                end if;
+                v.result_exp := new_exp;
                 v.opsel_a := AIN_B;
                 v.state := LOOKUP;
 
@@ -1830,7 +1819,7 @@ begin
                     v.state := FINISH;
                 end if;
 
-            when FMADD_1 =>
+            when FMADD_0 =>
                 -- Addend is bigger here
                 v.result_sign := not (r.b.negative xor r.insn(1) xor r.insn(2));
                 -- note v.shift is at most -2 here
@@ -1843,6 +1832,15 @@ begin
                     v.longmask := '0';
                     v.state := ADD_SHIFT;
                 end if;
+
+            when FMADD_1 =>
+                -- product is bigger here
+                -- shift B right and use it as the addend to the multiplier
+                v.shift := r.b.exponent - r.result_exp + to_signed(64, EXP_BITS);
+                -- for subtract, multiplier does B - A * C
+                v.result_sign := r.a.negative xor r.c.negative xor r.insn(2) xor r.is_subtract;
+                v.result_exp := r.b.exponent;
+                v.state := FMADD_2;
 
             when FMADD_2 =>
                 -- Product is potentially bigger here
@@ -1993,6 +1991,7 @@ begin
                 v.state := FINISH;
 
             when FRE_1 =>
+                v.result_exp := - r.result_exp;
                 opsel_r <= RES_MISC;
                 misc_sel <= "0111";
                 v.shift := to_signed(1, EXP_BITS);
