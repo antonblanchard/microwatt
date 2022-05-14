@@ -232,6 +232,55 @@ architecture behaviour of fpu is
     constant MULADD_A     : std_ulogic_vector(1 downto 0) := "10";
     constant MULADD_RS    : std_ulogic_vector(1 downto 0) := "11";
 
+    -- control signals and values for exponent data path
+    constant REXP1_ZERO  : std_ulogic_vector(1 downto 0) := "00";
+    constant REXP1_R     : std_ulogic_vector(1 downto 0) := "01";
+    constant REXP1_A     : std_ulogic_vector(1 downto 0) := "10";
+    constant REXP1_BHALF : std_ulogic_vector(1 downto 0) := "11";
+
+    constant REXP2_CON   : std_ulogic_vector(1 downto 0) := "00";
+    constant REXP2_NE    : std_ulogic_vector(1 downto 0) := "01";
+    constant REXP2_C     : std_ulogic_vector(1 downto 0) := "10";
+    constant REXP2_B     : std_ulogic_vector(1 downto 0) := "11";
+
+    constant RECON2_ZERO : std_ulogic_vector(1 downto 0) := "00";
+    constant RECON2_UNIT : std_ulogic_vector(1 downto 0) := "01";
+    constant RECON2_BIAS : std_ulogic_vector(1 downto 0) := "10";
+    constant RECON2_MAX  : std_ulogic_vector(1 downto 0) := "11";
+
+    signal re_sel1       : std_ulogic_vector(1 downto 0);
+    signal re_sel2       : std_ulogic_vector(1 downto 0);
+    signal re_con2       : std_ulogic_vector(1 downto 0);
+    signal re_neg1       : std_ulogic;
+    signal re_neg2       : std_ulogic;
+    signal re_set_result : std_ulogic;
+
+    constant RSH1_ZERO   : std_ulogic_vector(1 downto 0) := "00";
+    constant RSH1_B      : std_ulogic_vector(1 downto 0) := "01";
+    constant RSH1_NE     : std_ulogic_vector(1 downto 0) := "10";
+    constant RSH1_S      : std_ulogic_vector(1 downto 0) := "11";
+
+    constant RSH2_CON    : std_ulogic := '0';
+    constant RSH2_A      : std_ulogic := '1';
+
+    constant RSCON2_ZERO    : std_ulogic_vector(3 downto 0) := "0000";
+    constant RSCON2_1       : std_ulogic_vector(3 downto 0) := "0001";
+    constant RSCON2_UNIT_52 : std_ulogic_vector(3 downto 0) := "0010";
+    constant RSCON2_64_UNIT : std_ulogic_vector(3 downto 0) := "0011";
+    constant RSCON2_32      : std_ulogic_vector(3 downto 0) := "0100";
+    constant RSCON2_52      : std_ulogic_vector(3 downto 0) := "0101";
+    constant RSCON2_UNIT    : std_ulogic_vector(3 downto 0) := "0110";
+    constant RSCON2_63      : std_ulogic_vector(3 downto 0) := "0111";
+    constant RSCON2_64      : std_ulogic_vector(3 downto 0) := "1000";
+    constant RSCON2_MINEXP  : std_ulogic_vector(3 downto 0) := "1001";
+
+    signal rs_sel1       : std_ulogic_vector(1 downto 0);
+    signal rs_sel2       : std_ulogic;
+    signal rs_con2       : std_ulogic_vector(3 downto 0);
+    signal rs_neg1       : std_ulogic;
+    signal rs_neg2       : std_ulogic;
+    signal rs_norm       : std_ulogic;
+
     -- Inverse lookup table, indexed by the top 8 fraction bits
     -- The first 256 entries are the reciprocal (1/x) lookup table,
     -- and the remaining 768 entries are the reciprocal square root table.
@@ -705,7 +754,6 @@ begin
         variable new_exp     : signed(EXP_BITS-1 downto 0);
         variable exp_tiny    : std_ulogic;
         variable exp_huge    : std_ulogic;
-        variable renormalize : std_ulogic;
         variable clz         : std_ulogic_vector(5 downto 0);
         variable set_x       : std_ulogic;
         variable mshift      : signed(EXP_BITS-1 downto 0);
@@ -741,6 +789,12 @@ begin
         variable mult_mask   : std_ulogic;
         variable sign_bit    : std_ulogic;
         variable rnd_b32     : std_ulogic;
+        variable rexp_in1    : signed(EXP_BITS-1 downto 0);
+        variable rexp_in2    : signed(EXP_BITS-1 downto 0);
+        variable rexp_cin    : std_ulogic;
+        variable rexp_sum    : signed(EXP_BITS-1 downto 0);
+        variable rsh_in1     : signed(EXP_BITS-1 downto 0);
+        variable rsh_in2     : signed(EXP_BITS-1 downto 0);
         variable int_result  : std_ulogic;
         variable illegal     : std_ulogic;
     begin
@@ -884,7 +938,6 @@ begin
         end if;
 
         v.update_fprf := '0';
-        v.shift := to_signed(0, EXP_BITS);
         v.first := '0';
         v.opsel_a := AIN_R;
         opsel_ainv <= '0';
@@ -900,7 +953,6 @@ begin
         arith_done := '0';
         invalid := '0';
         zero_divide := '0';
-        renormalize := '0';
         set_x := '0';
         qnan_result := '0';
         set_a := '0';
@@ -928,6 +980,20 @@ begin
         rnd_b32 := '0';
         int_result := '0';
         illegal := '0';
+
+        re_sel1 <= REXP1_ZERO;
+        re_sel2 <= REXP2_CON;
+        re_con2 <= RECON2_ZERO;
+        re_neg1 <= '0';
+        re_neg2 <= '0';
+        re_set_result <= '0';
+        rs_sel1 <= RSH1_ZERO;
+        rs_sel2 <= RSH2_CON;
+        rs_con2 <= RSCON2_ZERO;
+        rs_neg1 <= '0';
+        rs_neg2 <= '0';
+        rs_norm <= '0';
+
         case r.state is
             when IDLE =>
                 v.use_a := '0';
@@ -1090,7 +1156,8 @@ begin
                 -- r.opsel_a = AIN_B
                 v.instr_done := '1';
                 update_fx := '1';
-                v.result_exp := r.b.exponent;
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
                 if (r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
                     (r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0') then
                     -- Signalling NAN
@@ -1221,7 +1288,8 @@ begin
             when DO_FMR =>
                 -- r.opsel_a = AIN_B
                 v.result_class := r.b.class;
-                v.result_exp := r.b.exponent;
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
                 v.quieten_nan := '0';
                 if r.insn(9) = '1' then
                     v.result_sign := '0';              -- fabs
@@ -1241,7 +1309,12 @@ begin
                 -- r.opsel_a = AIN_B
                 v.result_class := r.b.class;
                 v.result_sign := r.b.negative;
-                v.result_exp := r.b.exponent;
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
+                -- set shift to exponent - 52
+                rs_sel1 <= RSH1_B;
+                rs_con2 <= RSCON2_52;
+                rs_neg2 <= '1';
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 if r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0' then
@@ -1254,7 +1327,6 @@ begin
                         -- integer already, no rounding required
                         arith_done := '1';
                     else
-                        v.shift := r.b.exponent - to_signed(52, EXP_BITS);
                         v.state := FRI_1;
                         v.round_mode := '1' & r.insn(7 downto 6);
                     end if;
@@ -1266,7 +1338,12 @@ begin
                 -- r.opsel_a = AIN_B, r.shift = 0
                 v.result_class := r.b.class;
                 v.result_sign := r.b.negative;
-                v.result_exp := r.b.exponent;
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
+                -- set shift to exponent - -126
+                rs_sel1 <= RSH1_B;
+                rs_con2 <= RSCON2_MINEXP;
+                rs_neg2 <= '1';
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 if r.b.class = NAN and r.b.mantissa(53) = '0' then
@@ -1277,7 +1354,6 @@ begin
                 set_x := '1';
                 if r.b.class = FINITE then
                     if r.b.exponent < to_signed(-126, EXP_BITS) then
-                        v.shift := r.b.exponent - to_signed(-126, EXP_BITS);
                         v.state := ROUND_UFLOW;
                     elsif r.b.exponent > to_signed(127, EXP_BITS) then
                         v.state := ROUND_OFLOW;
@@ -1295,7 +1371,10 @@ begin
                 -- r.opsel_a = AIN_B
                 v.result_class := r.b.class;
                 v.result_sign := r.b.negative;
-                v.result_exp := r.b.exponent;
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
+                rs_sel1 <= RSH1_B;
+                rs_neg2 <= '1';
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 if r.b.class = NAN and r.b.mantissa(53) = '0' then
@@ -1305,6 +1384,7 @@ begin
                 end if;
 
                 int_result := '1';
+
                 case r.b.class is
                     when ZERO =>
                         arith_done := '1';
@@ -1315,14 +1395,16 @@ begin
                         elsif r.b.exponent >= to_signed(52, EXP_BITS) then
                             -- integer already, no rounding required,
                             -- shift into final position
-                            v.shift := r.b.exponent - to_signed(UNIT_BIT, EXP_BITS);
+                            -- set shift to exponent - 56
+                            rs_con2 <= RSCON2_UNIT;
                             if r.insn(8) = '1' and r.b.negative = '1' then
                                 v.state := INT_OFLOW;
                             else
                                 v.state := INT_ISHIFT;
                             end if;
                         else
-                            v.shift := r.b.exponent - to_signed(52, EXP_BITS);
+                            -- set shift to exponent - 52
+                            rs_con2 <= RSCON2_52;
                             v.state := INT_SHIFT;
                         end if;
                     when INFINITY | NAN =>
@@ -1339,7 +1421,8 @@ begin
                     v.result_sign := '1';
                 end if;
                 v.result_class := r.b.class;
-                v.result_exp := to_signed(UNIT_BIT, EXP_BITS);
+                re_con2 <= RECON2_UNIT;
+                re_set_result <= '1';
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 if r.b.class = ZERO then
@@ -1353,7 +1436,12 @@ begin
                 -- r.opsel_a = AIN_A
                 v.result_sign := r.a.negative;
                 v.result_class := r.a.class;
-                v.result_exp := r.a.exponent;
+                re_sel1 <= REXP1_A;
+                re_set_result <= '1';
+                -- set shift to a.exp - b.exp
+                rs_sel1 <= RSH1_B;
+                rs_neg1 <= '1';
+                rs_sel2 <= RSH2_A;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 v.use_a := '1';
@@ -1364,7 +1452,6 @@ begin
                     v.add_bsmall := r.exp_cmp;
                     v.opsel_a := AIN_B;
                     if r.exp_cmp = '0' then
-                        v.shift := r.a.exponent - r.b.exponent;
                         v.result_sign := r.b.negative xnor r.insn(1);
                         if r.a.exponent = r.b.exponent then
                             v.state := ADD_2;
@@ -1408,8 +1495,10 @@ begin
                 v.fpscr(FPSCR_FI) := '0';
                 v.use_a := '1';
                 v.use_c := '1';
+                re_sel1 <= REXP1_A;
+                re_sel2 <= REXP2_C;
+                re_set_result <= '1';
                 if r.a.class = FINITE and r.c.class = FINITE then
-                    v.result_exp := r.a.exponent + r.c.exponent;
                     -- Renormalize denorm operands
                     if r.a.mantissa(UNIT_BIT) = '0' then
                         v.state := RENORM_A;
@@ -1446,7 +1535,10 @@ begin
                 v.use_a := '1';
                 v.use_b := '1';
                 v.result_sign := r.a.negative xor r.b.negative;
-                v.result_exp := r.a.exponent - r.b.exponent;
+                re_sel1 <= REXP1_A;
+                re_sel2 <= REXP2_B;
+                re_neg2 <= '1';
+                re_set_result <= '1';
                 v.count := "00";
                 if r.a.class = FINITE and r.b.class = FINITE then
                     -- Renormalize denorm operands
@@ -1503,9 +1595,10 @@ begin
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 v.use_b := '1';
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
                 case r.b.class is
                     when FINITE =>
-                        v.result_exp := r.b.exponent;
                         if r.b.negative = '1' then
                             v.fpscr(FPSCR_VXSQRT) := '1';
                             qnan_result := '1';
@@ -1514,7 +1607,8 @@ begin
                         elsif r.b.exponent(0) = '0' then
                             v.state := SQRT_1;
                         else
-                            v.shift := to_signed(1, EXP_BITS);
+                            -- set shift to 1
+                            rs_con2 <= RSCON2_1;
                             v.state := RENORM_B2;
                         end if;
                     when NAN =>
@@ -1538,7 +1632,8 @@ begin
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 v.use_b := '1';
-                v.result_exp := r.b.exponent;
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
                 case r.b.class is
                     when FINITE =>
                         if r.b.mantissa(UNIT_BIT) = '0' then
@@ -1564,10 +1659,12 @@ begin
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 v.use_b := '1';
-                v.shift := to_signed(1, EXP_BITS);
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
+                -- set shift to 1
+                rs_con2 <= RSCON2_1;
                 case r.b.class is
                     when FINITE =>
-                        v.result_exp := r.b.exponent;
                         if r.b.negative = '1' then
                             v.fpscr(FPSCR_VXSQRT) := '1';
                             qnan_result := '1';
@@ -1600,7 +1697,12 @@ begin
                 -- else AIN_B
                 v.result_sign := r.a.negative;
                 v.result_class := r.a.class;
-                v.result_exp := r.a.exponent + r.c.exponent;
+                -- put a.exp + c.exp into result_exp
+                re_sel1 <= REXP1_A;
+                re_sel2 <= REXP2_C;
+                re_set_result <= '1';
+                -- put b.exp into shift
+                rs_sel1 <= RSH1_B;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 v.use_a := '1';
@@ -1625,6 +1727,7 @@ begin
                         -- addend is bigger, do multiply first
                         v.result_sign := not (r.b.negative xor r.insn(1) xor r.insn(2));
                         f_to_multiply.valid <= '1';
+                        v.first := '1';
                         v.state := FMADD_0;
                     else
                         -- product is bigger, shift B first
@@ -1664,7 +1767,7 @@ begin
                 end if;
 
             when RENORM_A =>
-                renormalize := '1';
+                rs_norm <= '1';
                 v.state := RENORM_A2;
                 if r.insn(4) = '1' then
                     v.opsel_a := AIN_C;
@@ -1675,7 +1778,8 @@ begin
             when RENORM_A2 =>
                 -- r.opsel_a = AIN_C for fmul/fmadd, AIN_B for fdiv
                 set_a := '1';
-                v.result_exp := new_exp;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 if r.insn(4) = '1' then
                     if r.c.mantissa(UNIT_BIT) = '1' then
                         if r.insn(3) = '0' or r.b.class = ZERO then
@@ -1702,23 +1806,25 @@ begin
                 end if;
 
             when RENORM_B =>
-                renormalize := '1';
+                rs_norm <= '1';
                 renorm_sqrt := r.is_sqrt;
                 v.state := RENORM_B2;
 
             when RENORM_B2 =>
                 set_b := '1';
-                v.result_exp := new_exp;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 v.opsel_a := AIN_B;
                 v.state := LOOKUP;
 
             when RENORM_C =>
-                renormalize := '1';
+                rs_norm <= '1';
                 v.state := RENORM_C2;
 
             when RENORM_C2 =>
                 set_c := '1';
-                v.result_exp := new_exp;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 if r.insn(3) = '0' or r.b.class = ZERO then
                     v.first := '1';
                     v.state := MULT_1;
@@ -1733,14 +1839,20 @@ begin
 
             when ADD_1 =>
                 -- transferring B to R
-                v.shift := r.b.exponent - r.a.exponent;
-                v.result_exp := r.b.exponent;
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
+                -- set shift to b.exp - a.exp
+                rs_sel1 <= RSH1_B;
+                rs_sel2 <= RSH2_A;
+                rs_neg2 <= '1';
                 v.longmask := '0';
                 v.state := ADD_SHIFT;
 
             when ADD_SHIFT =>
                 -- r.shift = - exponent difference, r.longmask = 0
                 opsel_r <= RES_SHIFT;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 v.x := s_nz;
                 set_x := '1';
                 v.longmask := r.single_prec;
@@ -1756,12 +1868,15 @@ begin
                 opsel_b <= BIN_R;
                 opsel_binv <= r.is_subtract;
                 carry_in <= r.is_subtract and not r.x;
-                v.shift := to_signed(-1, EXP_BITS);
+                -- set shift to -1
+                rs_con2 <= RSCON2_1;
+                rs_neg2 <= '1';
                 v.state := ADD_3;
 
             when ADD_3 =>
                 -- check for overflow or negative result (can't get both)
                 -- r.shift = -1
+                re_sel2 <= REXP2_NE;
                 if r.r(63) = '1' then
                     -- result is opposite sign to expected
                     v.result_sign := not r.result_sign;
@@ -1771,6 +1886,7 @@ begin
                 elsif r.r(UNIT_BIT + 1) = '1' then
                     -- sum overflowed, shift right
                     opsel_r <= RES_SHIFT;
+                    re_set_result <= '1';
                     set_x := '1';
                     if exp_huge = '1' then
                         v.state := ROUND_OFLOW;
@@ -1789,7 +1905,7 @@ begin
                     end if;
                     arith_done := '1';
                 else
-                    renormalize := '1';
+                    rs_norm <= '1';
                     v.state := NORMALIZE;
                 end if;
 
@@ -1820,26 +1936,36 @@ begin
                 end if;
 
             when FMADD_0 =>
+                -- r.shift is b.exp, so new_exp is a.exp + c.exp - b.exp
+                -- (first time through; subsequent times we preserve v.shift)
                 -- Addend is bigger here
-                v.result_sign := not (r.b.negative xor r.insn(1) xor r.insn(2));
+                -- set shift to a.exp + c.exp - b.exp
                 -- note v.shift is at most -2 here
-                v.shift := r.result_exp - r.b.exponent;
+                if r.first = '1' then
+                    rs_sel1 <= RSH1_NE;
+                else
+                    rs_sel1 <= RSH1_S;
+                end if;
                 opsel_r <= RES_MULT;
                 opsel_s <= S_MULT;
                 set_s := '1';
-                f_to_multiply.valid <= r.first;
                 if multiply_to_f.valid = '1' then
                     v.longmask := '0';
                     v.state := ADD_SHIFT;
                 end if;
 
             when FMADD_1 =>
+                -- shift is b.exp, so new_exp is a.exp + c.exp - b.exp
                 -- product is bigger here
                 -- shift B right and use it as the addend to the multiplier
-                v.shift := r.b.exponent - r.result_exp + to_signed(64, EXP_BITS);
                 -- for subtract, multiplier does B - A * C
                 v.result_sign := r.a.negative xor r.c.negative xor r.insn(2) xor r.is_subtract;
-                v.result_exp := r.b.exponent;
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
+                -- set shift to b.exp - result_exp + 64
+                rs_sel1 <= RSH1_NE;
+                rs_neg1 <= '1';
+                rs_con2 <= RSCON2_64;
                 v.state := FMADD_2;
 
             when FMADD_2 =>
@@ -1847,12 +1973,17 @@ begin
                 -- r.shift = addend exp - product exp + 64, r.r = r.b.mantissa
                 set_s := '1';
                 opsel_s <= S_SHIFT;
-                v.shift := r.shift - to_signed(64, EXP_BITS);
+                -- set shift to r.shift - 64
+                rs_sel1 <= RSH1_S;
+                rs_con2 <= RSCON2_64;
+                rs_neg2 <= '1';
                 v.state := FMADD_3;
 
             when FMADD_3 =>
                 -- r.shift = addend exp - product exp
                 opsel_r <= RES_SHIFT;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 v.first := '1';
                 v.state := FMADD_4;
 
@@ -1876,11 +2007,14 @@ begin
                     opsel_s <= S_NEG;
                     set_s := '1';
                 end if;
-                v.shift := to_signed(UNIT_BIT, EXP_BITS);
+                -- set shift to UNIT_BIT
+                rs_con2 <= RSCON2_UNIT;
                 v.state := FMADD_6;
 
             when FMADD_6 =>
                 -- r.shift = UNIT_BIT (or 0, but only if r is now nonzero)
+                re_sel2 <= REXP2_NE;
+                rs_norm <= '1';
                 if (r.r(UNIT_BIT + 2) or r_hi_nz or r_lo_nz or (or (r.r(DP_LSB - 1 downto 0)))) = '0' then
                     if s_nz = '0' then
                         -- must be a subtraction, and r.x must be zero
@@ -1891,13 +2025,13 @@ begin
                         -- R is all zeroes but there are non-zero bits in S
                         -- so shift them into R and set S to 0
                         opsel_r <= RES_SHIFT;
+                        re_set_result <= '1';
                         set_s := '1';
-                        -- stay in state FMADD_6
+                        v.state := FINISH;
                     end if;
                 elsif r.r(UNIT_BIT + 2 downto UNIT_BIT) = "001" then
                     v.state := FINISH;
                 else
-                    renormalize := '1';
                     v.state := NORMALIZE;
                 end if;
 
@@ -1991,27 +2125,33 @@ begin
                 v.state := FINISH;
 
             when FRE_1 =>
-                v.result_exp := - r.result_exp;
+                re_sel1 <= REXP1_R;
+                re_neg1 <= '1';
+                re_set_result <= '1';
                 opsel_r <= RES_MISC;
                 misc_sel <= "0111";
-                v.shift := to_signed(1, EXP_BITS);
+                -- set shift to 1
+                rs_con2 <= RSCON2_1;
                 v.state := NORMALIZE;
 
             when FTDIV_1 =>
                 v.cr_result(1) := exp_tiny or exp_huge;
+                -- set shift to a.exp
+                rs_sel2 <= RSH2_A;
                 if exp_tiny = '1' or exp_huge = '1' or r.a.class = ZERO or r.first = '0' then
                     v.instr_done := '1';
                 else
-                    v.shift := r.a.exponent;
                     v.doing_ftdiv := "10";
                 end if;
 
             when RSQRT_1 =>
                 opsel_r <= RES_MISC;
                 misc_sel <= "0111";
-                sqrt_exp := r.b.exponent(EXP_BITS-1) & r.b.exponent(EXP_BITS-1 downto 1);
-                v.result_exp := - sqrt_exp;
-                v.shift := to_signed(1, EXP_BITS);
+                re_sel1 <= REXP1_BHALF;
+                re_neg1 <= '1';
+                re_set_result <= '1';
+                -- set shift to 1
+                rs_con2 <= RSCON2_1;
                 v.state := NORMALIZE;
 
             when SQRT_1 =>
@@ -2023,7 +2163,9 @@ begin
                 msel_1 <= MUL1_B;
                 msel_2 <= MUL2_LUT;
                 f_to_multiply.valid <= '1';
-                v.shift := to_signed(-1, EXP_BITS);
+                -- set shift to -1
+                rs_con2 <= RSCON2_1;
+                rs_neg2 <= '1';
                 v.count := "00";
                 v.state := SQRT_2;
 
@@ -2032,6 +2174,8 @@ begin
                 -- not expecting multiplier result yet
                 -- r.shift = -1
                 opsel_r <= RES_SHIFT;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 v.first := '1';
                 v.state := SQRT_3;
 
@@ -2132,9 +2276,10 @@ begin
             when SQRT_10 =>
                 -- Add the bottom 8 bits of P, sign-extended, onto R.
                 opsel_b <= BIN_PS8;
-                sqrt_exp := r.b.exponent(EXP_BITS-1) & r.b.exponent(EXP_BITS-1 downto 1);
-                v.result_exp := sqrt_exp;
-                v.shift := to_signed(1, EXP_BITS);
+                re_sel1 <= REXP1_BHALF;
+                re_set_result <= '1';
+                -- set shift to 1
+                rs_con2 <= RSCON2_1;
                 v.first := '1';
                 v.state := SQRT_11;
 
@@ -2167,13 +2312,19 @@ begin
             when INT_SHIFT =>
                 -- r.shift = b.exponent - 52
                 opsel_r <= RES_SHIFT;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 set_x := '1';
                 v.state := INT_ROUND;
-                v.shift := to_signed(52 - UNIT_BIT, EXP_BITS);
+                -- set shift to -4 (== 52 - UNIT_BIT)
+                rs_con2 <= RSCON2_UNIT_52;
+                rs_neg2 <= '1';
 
             when INT_ROUND =>
                 -- r.shift = -4 (== 52 - UNIT_BIT)
                 opsel_r <= RES_SHIFT;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 round := fp_rounding(r.r, r.x, '0', r.round_mode, r.result_sign);
                 v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
                 -- Check for negative values that don't round to 0 for fcti*u*
@@ -2187,6 +2338,8 @@ begin
             when INT_ISHIFT =>
                 -- r.shift = b.exponent - UNIT_BIT;
                 opsel_r <= RES_SHIFT;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 v.state := INT_FINAL;
 
             when INT_FINAL =>
@@ -2248,6 +2401,8 @@ begin
             when FRI_1 =>
                 -- r.shift = b.exponent - 52
                 opsel_r <= RES_SHIFT;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 set_x := '1';
                 v.state := ROUNDING;
 
@@ -2255,13 +2410,16 @@ begin
                 if r.is_multiply = '1' and px_nz = '1' then
                     v.x := '1';
                 end if;
+                -- set shift to new_exp - min_exp (N.B. rs_norm overrides this)
+                rs_sel1 <= RSH1_NE;
+                rs_con2 <= RSCON2_MINEXP;
+                rs_neg2 <= '1';
                 if r.r(63 downto UNIT_BIT) /= std_ulogic_vector(to_unsigned(1, 64 - UNIT_BIT)) then
-                    renormalize := '1';
+                    rs_norm <= '1';
                     v.state := NORMALIZE;
                 else
                     set_x := '1';
                     if exp_tiny = '1' then
-                        v.shift := new_exp - min_exp;
                         v.state := ROUND_UFLOW;
                     elsif exp_huge = '1' then
                         v.state := ROUND_OFLOW;
@@ -2272,11 +2430,16 @@ begin
 
             when NORMALIZE =>
                 -- Shift so we have 9 leading zeroes (we know R is non-zero)
-                -- r.shift = clz(r.r) - 9
+                -- r.shift = clz(r.r) - 7
                 opsel_r <= RES_SHIFT;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
+                -- set shift to new_exp - min_exp
+                rs_sel1 <= RSH1_NE;
+                rs_con2 <= RSCON2_MINEXP;
+                rs_neg2 <= '1';
                 set_x := '1';
                 if exp_tiny = '1' then
-                    v.shift := new_exp - min_exp;
                     v.state := ROUND_UFLOW;
                 elsif exp_huge = '1' then
                     v.state := ROUND_OFLOW;
@@ -2291,15 +2454,19 @@ begin
                     -- disabled underflow exception case
                     -- have to denormalize before rounding
                     opsel_r <= RES_SHIFT;
+                    re_sel2 <= REXP2_NE;
+                    re_set_result <= '1';
                     set_x := '1';
                     v.state := ROUNDING;
                 else
                     -- enabled underflow exception case
                     -- if denormalized, have to normalize before rounding
                     v.fpscr(FPSCR_UX) := '1';
-                    v.result_exp := r.result_exp + bias_exp;
+                    re_sel1 <= REXP1_R;
+                    re_con2 <= RECON2_BIAS;
+                    re_set_result <= '1';
                     if r.r(UNIT_BIT) = '0' then
-                        renormalize := '1';
+                        rs_norm <= '1';
                         v.state := NORMALIZE;
                     else
                         v.state := ROUNDING;
@@ -2321,13 +2488,17 @@ begin
                         v.fpscr(FPSCR_FR) := '0';
                     end if;
                     -- construct largest representable number
-                    v.result_exp := max_exp;
+                    re_con2 <= RECON2_MAX;
+                    re_set_result <= '1';
                     opsel_r <= RES_MISC;
                     misc_sel <= "001" & r.single_prec;
                     arith_done := '1';
                 else
                     -- enabled overflow exception
-                    v.result_exp := r.result_exp - bias_exp;
+                    re_sel1 <= REXP1_R;
+                    re_con2 <= RECON2_BIAS;
+                    re_neg2 <= '1';
+                    re_set_result <= '1';
                     v.state := ROUNDING;
                 end if;
 
@@ -2338,13 +2509,15 @@ begin
                 if round(1) = '1' then
                     -- increment the LSB for the precision
                     opsel_b <= BIN_RND;
-                    v.shift := to_signed(-1, EXP_BITS);
+                    -- set shift to -1
+                    rs_con2 <= RSCON2_1;
+                    rs_neg2 <= '1';
                     v.state := ROUNDING_2;
                 else
                     if r.r(UNIT_BIT) = '0' then
                         -- result after masking could be zero, or could be a
                         -- denormalized result that needs to be renormalized
-                        renormalize := '1';
+                        rs_norm <= '1';
                         v.state := ROUNDING_3;
                     else
                         arith_done := '1';
@@ -2361,8 +2534,10 @@ begin
                 -- Check for overflow during rounding
                 -- r.shift = -1
                 v.x := '0';
+                re_sel2 <= REXP2_NE;
                 if r.r(UNIT_BIT + 1) = '1' then
                     opsel_r <= RES_SHIFT;
+                    re_set_result <= '1';
                     if exp_huge = '1' then
                         v.state := ROUND_OFLOW;
                     else
@@ -2370,7 +2545,7 @@ begin
                     end if;
                 elsif r.r(UNIT_BIT) = '0' then
                     -- Do CLZ so we can renormalize the result
-                    renormalize := '1';
+                    rs_norm <= '1';
                     v.state := ROUNDING_3;
                 else
                     arith_done := '1';
@@ -2379,6 +2554,11 @@ begin
             when ROUNDING_3 =>
                 -- r.shift = clz(r.r) - 9
                 mant_nz := r_hi_nz or (r_lo_nz and not r.single_prec);
+                re_sel2 <= REXP2_NE;
+                -- set shift to new_exp - min_exp (== -1022)
+                rs_sel1 <= RSH1_NE;
+                rs_con2 <= RSCON2_MINEXP;
+                rs_neg2 <= '1';
                 if mant_nz = '0' then
                     v.result_class := ZERO;
                     if r.is_subtract = '1' then
@@ -2389,8 +2569,8 @@ begin
                 else
                     -- Renormalize result after rounding
                     opsel_r <= RES_SHIFT;
+                    re_set_result <= '1';
                     v.denorm := exp_tiny;
-                    v.shift := new_exp - to_signed(-1022, EXP_BITS);
                     if new_exp < to_signed(-1022, EXP_BITS) then
                         v.state := DENORM;
                     else
@@ -2401,6 +2581,8 @@ begin
             when DENORM =>
                 -- r.shift = result_exp - -1022
                 opsel_r <= RES_SHIFT;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 arith_done := '1';
 
             when NAN_RESULT =>
@@ -2425,17 +2607,18 @@ begin
                 case r.opsel_a is
                     when AIN_B =>
                         v.result_sign := r.b.negative xor r.negate;
-                        v.result_exp := r.b.exponent;
+                        re_sel2 <= REXP2_B;
                         v.result_class := r.b.class;
                     when AIN_C =>
                         v.result_sign := r.c.negative xor r.negate;
-                        v.result_exp := r.c.exponent;
+                        re_sel2 <= REXP2_C;
                         v.result_class := r.c.class;
                     when others =>
                         v.result_sign := r.a.negative xor r.negate;
-                        v.result_exp := r.a.exponent;
+                        re_sel1 <= REXP1_A;
                         v.result_class := r.a.class;
                 end case;
+                re_set_result <= '1';
                 arith_done := '1';
 
             when DO_IDIVMOD =>
@@ -2456,12 +2639,13 @@ begin
                         carry_in <= '1';
                     end if;
                     v.result_class := FINITE;
-                    v.result_exp := to_signed(UNIT_BIT, EXP_BITS);
+                    re_con2 <= RECON2_UNIT;
+                    re_set_result <= '1';
                     v.state := IDIV_NORMB;
                 end if;
             when IDIV_NORMB =>
                 -- do count-leading-zeroes on B (now in R)
-                renormalize := '1';
+                rs_norm <= '1';
                 -- save the original value of B or |B| in C
                 set_c := '1';
                 v.state := IDIV_NORMB2;
@@ -2469,6 +2653,8 @@ begin
                 -- get B into the range [1, 2) in 8.56 format
                 set_x := '1';           -- record if any 1 bits shifted out
                 opsel_r <= RES_SHIFT;
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 v.state := IDIV_NORMB3;
             when IDIV_NORMB3 =>
                 -- add the X bit onto R to round up B
@@ -2483,12 +2669,13 @@ begin
                     opsel_ainv <= '1';
                     carry_in <= '1';
                 end if;
-                v.result_exp := to_signed(UNIT_BIT, EXP_BITS);
+                re_con2 <= RECON2_UNIT;
+                re_set_result <= '1';
                 v.opsel_a := AIN_C;
                 v.state := IDIV_CLZA2;
             when IDIV_CLZA2 =>
                 -- r.opsel_a = AIN_C
-                renormalize := '1';
+                rs_norm <= '1';
                 -- write the dividend back into A in case we negated it
                 set_a_mant := '1';
                 -- while doing the count-leading-zeroes on A,
@@ -2500,7 +2687,9 @@ begin
                 v.state := IDIV_CLZA3;
             when IDIV_CLZA3 =>
                 -- save the exponent of A (but don't overwrite the mantissa)
-                v.a.exponent := new_exp;
+                set_a_exp := '1';
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
                 v.div_close := '0';
                 if new_exp = r.b.exponent then
                     v.div_close := '1';
@@ -2521,9 +2710,9 @@ begin
                 end if;
             when IDIV_NR0 =>
                 -- reduce number of Newton-Raphson iterations for small A
-                if r.divext = '1' or new_exp >= to_signed(32, EXP_BITS) then
+                if r.divext = '1' or r.result_exp >= to_signed(32, EXP_BITS) then
                     v.count := "00";
-                elsif new_exp >= to_signed(16, EXP_BITS) then
+                elsif r.result_exp >= to_signed(16, EXP_BITS) then
                     v.count := "01";
                 else
                     v.count := "10";
@@ -2567,7 +2756,8 @@ begin
                 f_to_multiply.valid <= r.first;
                 pshift := '1';
                 v.opsel_a := AIN_A;
-                v.shift := to_signed(64, EXP_BITS);
+                -- set shift to 64
+                rs_con2 <= RSCON2_64;
                 -- Get 0.5 into R in case the inverse estimate turns out to be
                 -- less than 0.5, in which case we want to use 0.5, to avoid
                 -- infinite loops in some cases.
@@ -2587,7 +2777,8 @@ begin
                 opsel_r <= RES_MISC;
                 misc_sel <= "0001";
                 v.opsel_a := AIN_A;
-                v.shift := to_signed(64, EXP_BITS);
+                -- set shift to 64
+                rs_con2 <= RSCON2_64;
                 v.state := IDIV_DODIV;
             when IDIV_DODIV =>
                 -- r.opsel_a = AIN_A
@@ -2604,15 +2795,19 @@ begin
                 -- put that into B, which now holds the quotient
                 set_b_mant := '1';
                 if r.divext = '0' then
-                    v.shift := to_signed(-UNIT_BIT, EXP_BITS);
+                    -- set shift to -56
+                    rs_con2 <= RSCON2_UNIT;
+                    rs_neg2 <= '1';
                     v.first := '1';
                     v.state := IDIV_DIV;
                 elsif r.single_prec = '1' then
                     -- divwe[u][o], shift A left 32 bits
-                    v.shift := to_signed(32, EXP_BITS);
+                    -- set shift to 32
+                    rs_con2 <= RSCON2_32;
                     v.state := IDIV_SH32;
                 elsif r.div_close = '0' then
-                    v.shift := to_signed(64 - UNIT_BIT, EXP_BITS);
+                    -- set shift to 64 - UNIT_BIT (== 8)
+                    rs_con2 <= RSCON2_64_UNIT;
                     v.state := IDIV_EXTDIV;
                 else
                     -- handle top bit of quotient specially
@@ -2623,7 +2818,9 @@ begin
             when IDIV_SH32 =>
                 -- r.shift = 32, R contains the dividend
                 opsel_r <= RES_SHIFT;
-                v.shift := to_signed(-UNIT_BIT, EXP_BITS);
+                -- set shift to -UNIT_BIT (== -56)
+                rs_con2 <= RSCON2_UNIT;
+                rs_neg2 <= '1';
                 v.first := '1';
                 v.state := IDIV_DIV;
             when IDIV_DIV =>
@@ -2637,7 +2834,9 @@ begin
                 f_to_multiply.valid <= r.first;
                 pshift := '1';
                 opsel_r <= RES_MULT;
-                v.shift := - r.b.exponent;
+                -- set shift to - b.exp
+                rs_sel1 <= RSH1_B;
+                rs_neg1 <= '1';
                 if multiply_to_f.valid = '1' then
                     v.state := IDIV_DIV2;
                 end if;
@@ -2670,7 +2869,8 @@ begin
                 if r.divmod = '0' then
                     v.opsel_a := AIN_B;
                 end if;
-                v.shift := to_signed(UNIT_BIT, EXP_BITS);
+                -- set shift to UNIT_BIT (== 56)
+                rs_con2 <= RSCON2_UNIT;
                 if pcmpc_lt = '1' or pcmpc_eq = '1' then
                     if r.divmod = '0' then
                         v.state := IDIV_DIVADJ;
@@ -2687,7 +2887,9 @@ begin
             when IDIV_DIV5 =>
                 pshift := '1';
                 opsel_r <= RES_MULT;
-                v.shift := - r.b.exponent;
+                -- set shift to - b.exp
+                rs_sel1 <= RSH1_B;
+                rs_neg1 <= '1';
                 if multiply_to_f.valid = '1' then
                     v.state := IDIV_DIV6;
                 end if;
@@ -2727,7 +2929,8 @@ begin
                 if r.divmod = '0' then
                     v.opsel_a := AIN_B;
                 end if;
-                v.shift := to_signed(UNIT_BIT, EXP_BITS);
+                -- set shift to UNIT_BIT (== 56)
+                rs_con2 <= RSCON2_UNIT;
                 if r.divmod = '0' then
                     v.state := IDIV_DIVADJ;
                 elsif pcmpc_eq = '1' then
@@ -2737,14 +2940,18 @@ begin
                 end if;
             when IDIV_EXT_TBH =>
                 -- r.opsel_a = AIN_C; get divisor into R and prepare to shift left
-                v.shift := to_signed(63, EXP_BITS) - r.b.exponent;
+                -- set shift to 63 - b.exp
+                rs_sel1 <= RSH1_B;
+                rs_neg1 <= '1';
+                rs_con2 <= RSCON2_63;
                 v.opsel_a := AIN_A;
                 v.state := IDIV_EXT_TBH2;
             when IDIV_EXT_TBH2 =>
                 -- r.opsel_a = AIN_A; divisor is in R
                 -- r.shift = 63 - b.exponent; shift and put into B
                 set_b_mant := '1';
-                v.shift := to_signed(64 - UNIT_BIT, EXP_BITS);
+                -- set shift to 64 - UNIT_BIT (== 8)
+                rs_con2 <= RSCON2_64_UNIT;
                 v.state := IDIV_EXT_TBH3;
             when IDIV_EXT_TBH3 =>
                 -- Dividing (A << 64) by C
@@ -2752,7 +2959,10 @@ begin
                 -- Put A in the top 64 bits of Ahi/A/Alo
                 set_a_hi := '1';
                 set_a_mant := '1';
-                v.shift := to_signed(64, EXP_BITS) - r.b.exponent;
+                -- set shift to 64 - b.exp
+                rs_sel1 <= RSH1_B;
+                rs_neg1 <= '1';
+                rs_con2 <= RSCON2_64;
                 v.state := IDIV_EXT_TBH4;
             when IDIV_EXT_TBH4 =>
                 -- dividend (A) is in R
@@ -2760,7 +2970,8 @@ begin
                 opsel_r <= RES_SHIFT;
                 -- top bit of A gets lost in the shift, so handle it specially
                 v.opsel_a := AIN_B;
-                v.shift := to_signed(63, EXP_BITS);
+                -- set shift to 63
+                rs_con2 <= RSCON2_63;
                 v.state := IDIV_EXT_TBH5;
             when IDIV_EXT_TBH5 =>
                 -- r.opsel_a = AIN_B, r.shift = 63
@@ -2779,7 +2990,10 @@ begin
                 -- Put A in the top 64 bits of Ahi/A/Alo
                 set_a_hi := '1';
                 set_a_mant := '1';
-                v.shift := to_signed(64, EXP_BITS) - r.b.exponent;
+                -- set shift to 64 - b.exp
+                rs_sel1 <= RSH1_B;
+                rs_neg1 <= '1';
+                rs_con2 <= RSCON2_64;
                 v.state := IDIV_EXTDIV1;
             when IDIV_EXTDIV1 =>
                 -- dividend is in R
@@ -2816,7 +3030,10 @@ begin
                 opsel_r <= RES_MULT;
                 opsel_s <= S_MULT;
                 set_s := '1';
-                v.shift := to_signed(UNIT_BIT, EXP_BITS) - r.b.exponent;
+                -- set shift to UNIT_BIT - b.exp
+                rs_sel1 <= RSH1_B;
+                rs_neg1 <= '1';
+                rs_con2 <= RSCON2_UNIT;
                 if multiply_to_f.valid = '1' then
                     v.state := IDIV_EXTDIV5;
                 end if;
@@ -3200,17 +3417,100 @@ begin
             v.c.mantissa := shift_res;
         end if;
 
-        if opsel_r = RES_SHIFT then
-            v.result_exp := new_exp;
+        -- exponent data path
+        case re_sel1 is
+            when REXP1_R =>
+                rexp_in1 := r.result_exp;
+            when REXP1_A =>
+                rexp_in1 := r.a.exponent;
+            when REXP1_BHALF =>
+                rexp_in1 := r.b.exponent(EXP_BITS-1) & r.b.exponent(EXP_BITS-1 downto 1);
+            when others =>
+                rexp_in1 := to_signed(0, EXP_BITS);
+        end case;
+        if re_neg1 = '1' then
+            rexp_in1 := not rexp_in1;
         end if;
-
-        if renormalize = '1' then
+        case re_sel2 is
+            when REXP2_NE =>
+                rexp_in2 := new_exp;
+            when REXP2_C =>
+                rexp_in2 := r.c.exponent;
+            when REXP2_B =>
+                rexp_in2 := r.b.exponent;
+            when others =>
+                case re_con2 is
+                    when RECON2_UNIT =>
+                        rexp_in2 := to_signed(UNIT_BIT, EXP_BITS);
+                    when RECON2_MAX =>
+                        rexp_in2 := max_exp;
+                    when RECON2_BIAS =>
+                        rexp_in2 := bias_exp;
+                    when others =>
+                        rexp_in2 := to_signed(0, EXP_BITS);
+                end case;
+        end case;
+        if re_neg2 = '1' then
+            rexp_in2 := not rexp_in2;
+        end if;
+        rexp_cin := re_neg1 or re_neg2;
+        rexp_sum := rexp_in1 + rexp_in2 + rexp_cin;
+        if re_set_result = '1' then
+            v.result_exp := rexp_sum;
+        end if;
+        case rs_sel1 is
+            when RSH1_B =>
+                rsh_in1 := r.b.exponent;
+            when RSH1_NE =>
+                rsh_in1 := new_exp;
+            when RSH1_S =>
+                rsh_in1 := r.shift;
+            when others =>
+                rsh_in1 := to_signed(0, EXP_BITS);
+        end case;
+        if rs_neg1 = '1' then
+            rsh_in1 := not rsh_in1;
+        end if;
+        case rs_sel2 is
+            when RSH2_A =>
+                rsh_in2 := r.a.exponent;
+            when others =>
+                case rs_con2 is
+                    when RSCON2_1 =>
+                        rsh_in2 := to_signed(1, EXP_BITS);
+                    when RSCON2_UNIT_52 =>
+                        rsh_in2 := to_signed(UNIT_BIT - 52, EXP_BITS);
+                    when RSCON2_64_UNIT =>
+                        rsh_in2 := to_signed(64 - UNIT_BIT, EXP_BITS);
+                    when RSCON2_32 =>
+                        rsh_in2 := to_signed(32, EXP_BITS);
+                    when RSCON2_52 =>
+                        rsh_in2 := to_signed(52, EXP_BITS);
+                    when RSCON2_UNIT =>
+                        rsh_in2 := to_signed(UNIT_BIT, EXP_BITS);
+                    when RSCON2_63 =>
+                        rsh_in2 := to_signed(63, EXP_BITS);
+                    when RSCON2_64 =>
+                        rsh_in2 := to_signed(64, EXP_BITS);
+                    when RSCON2_MINEXP =>
+                        rsh_in2 := min_exp;
+                    when others =>
+                        rsh_in2 := to_signed(0, EXP_BITS);
+                end case;
+        end case;
+        if rs_neg2 = '1' then
+            rsh_in2 := not rsh_in2;
+        end if;
+        if rs_norm = '1' then
             clz := count_left_zeroes(r.r);
             if renorm_sqrt = '1' then
                 -- make denormalized value end up with even exponent
                 clz(0) := '1';
             end if;
+            -- do this as a separate dedicated 7-bit adder for timing reasons
             v.shift := resize(signed('0' & clz) - (63 - UNIT_BIT), EXP_BITS);
+        else
+            v.shift := rsh_in1 + rsh_in2 + (rs_neg1 or rs_neg2);
         end if;
 
         if r.update_fprf = '1' then
