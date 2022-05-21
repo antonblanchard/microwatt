@@ -88,13 +88,13 @@ const char *units[4] = { "--", "al", "ls", "fp" };
 const char *ops[64] =
 {
 	"illegal", "nop    ", "add    ", "and    ", "attn   ", "b      ", "bc     ", "bcreg  ",
-	"bperm  ", "cmp    ", "cmpb   ", "cmpeqb ", "cmprb  ", "cntz   ", "crop   ", "darn   ",
-	"dcbf   ", "dcbst  ", "dcbt   ", "dcbtst ", "dcbz   ", "div    ", "dive   ", "exts   ",
-	"extswsl", "fpop   ", "fpopi  ", "icbi   ", "icbt   ", "isel   ", "isync  ", "ld     ",
-	"st     ", "mcrxrx ", "mfcr   ", "mfmsr  ", "mfspr  ", "mod    ", "mtcrf  ", "mtmsr  ",
-	"mtspr  ", "mull64 ", "mulh64 ", "mulh32 ", "or     ", "popcnt ", "prty   ", "rfid   ",
-	"rlc    ", "rlcl   ", "rlcr   ", "sc     ", "setb   ", "shl    ", "shr    ", "sync   ",
-	"tlbie  ", "trap   ", "xor    ", "bcd    ", "addg6s ", "ffail  ", "?62    ", "?63    "
+	"bcd    ", "bperm  ", "cmp    ", "cmpb   ", "cmpeqb ", "cmprb  ", "cntz   ", "crop   ",
+	"darn   ", "dcbf   ", "dcbst  ", "dcbt   ", "dcbtst ", "dcbz   ", "icbi   ", "icbt   ",
+	"fpcmp  ", "fparith", "fpmove ", "fpmisc ", "div    ", "dive   ", "mod    ", "exts   ",
+	"extswsl", "isel   ", "isync  ", "ld     ", "st     ", "mcrxrx ", "mfcr   ", "mfmsr  ",
+	"mfspr  ", "mtcrf  ", "mtmsr  ", "mtspr  ", "mull64 ", "mulh64 ", "mulh32 ", "or     ",
+	"popcnt ", "prty   ", "rfid   ", "rlc    ", "rlcl   ", "rlcr   ", "sc     ", "setb   ",
+	"shl    ", "shr    ", "sync   ", "tlbie  ", "trap   ", "xor    ", "addg6s ", "ffail  ",
 };
 
 const char *spr_names[13] =

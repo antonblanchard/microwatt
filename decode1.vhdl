@@ -443,18 +443,18 @@ architecture behaviour of decode1 is
     constant decode_op_59_array : op_59_subop_array_t := (
         --             unit fac  internal       in1   in2   in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                             op                               in   out   A   out  in    out  len        ext                                pipe
-        2#01110#  =>  (FPU, FPU, OP_FPOP_I,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fcfid[u]s
-        2#10010#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fdivs
-        2#10100#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fsubs
-        2#10101#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fadds
-        2#10110#  =>  (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fsqrts
-        2#11000#  =>  (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fres
-        2#11001#  =>  (FPU, FPU, OP_FPOP,       FRA,  NONE, FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmuls
-        2#11010#  =>  (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- frsqrtes
-        2#11100#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmsubs
-        2#11101#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmadds
-        2#11110#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fnmsubs
-        2#11111#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fnmadds
+        2#01110#  =>  (FPU, FPU, OP_FP_MISC,    NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fcfid[u]s
+        2#10010#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fdivs
+        2#10100#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fsubs
+        2#10101#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fadds
+        2#10110#  =>  (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fsqrts
+        2#11000#  =>  (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fres
+        2#11001#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  NONE, FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmuls
+        2#11010#  =>  (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- frsqrtes
+        2#11100#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmsubs
+        2#11101#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmadds
+        2#11110#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fnmsubs
+        2#11111#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fnmadds
         others => illegal_inst
         );
 
@@ -470,38 +470,38 @@ architecture behaviour of decode1 is
     constant decode_op_63l_array : op_63_subop_array_0_t := (
         --                unit fac  internal       in1   in2   in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                                op                               in   out   A   out  in    out  len        ext                                pipe
-        2#000000000#  => (FPU, FPU, OP_FPOP,       FRA,  FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  0/0=fcmpu
-        2#000000001#  => (FPU, FPU, OP_FPOP,       FRA,  FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  1/0=fcmpo
-        2#000000010#  => (FPU, FPU, OP_FPOP,       NONE, NONE, NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  2/0=mcrfs
-        2#000000100#  => (FPU, FPU, OP_FPOP,       FRA,  FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  4/0=ftdiv
-        2#000000101#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  5/0=ftsqrt
-        2#011000001#  => (FPU, FPU, OP_FPOP,       NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  1/6=mtfsb1
-        2#011000010#  => (FPU, FPU, OP_FPOP,       NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  2/6=mtfsb0
-        2#011000100#  => (FPU, FPU, OP_FPOP,       NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  4/6=mtfsfi
-        2#011011010#  => (FPU, FPU, OP_FPOP_I,     FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- 26/6=fmrgow
-        2#011011110#  => (FPU, FPU, OP_FPOP_I,     FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- 30/6=fmrgew
-        2#011110010#  => (FPU, FPU, OP_FPOP_I,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 18/7=mffs family
-        2#011110110#  => (FPU, FPU, OP_FPOP_I,     NONE, FRB,  NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 22/7=mtfsf
-        2#100000000#  => (FPU, FPU, OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  0/8=fcpsgn
-        2#100000001#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  1/8=fneg
-        2#100000010#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  2/8=fmr
-        2#100000100#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  4/8=fnabs
-        2#100001000#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  8/8=fabs
-        2#100001100#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 12/8=frin
-        2#100001101#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 13/8=friz
-        2#100001110#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 14/8=frip
-        2#100001111#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 15/8=frim
-        2#110000000#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), --  0/12=frsp
-        2#111000000#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  0/14=fctiw
-        2#111000100#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  4/14=fctiwu
-        2#111011001#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 25/14=fctid
-        2#111011010#  => (FPU, FPU, OP_FPOP_I,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 26/14=fcfid
-        2#111011101#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 29/14=fctidu
-        2#111011110#  => (FPU, FPU, OP_FPOP_I,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 30/14=fcfidu
-        2#111100000#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  0/15=fctiwz
-        2#111100100#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  4/15=fctiwuz
-        2#111111001#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 25/15=fctidz
-        2#111111101#  => (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 29/15=fctiduz
+        2#000000000#  => (FPU, FPU, OP_FP_CMP,     FRA,  FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  0/0=fcmpu
+        2#000000001#  => (FPU, FPU, OP_FP_CMP,     FRA,  FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  1/0=fcmpo
+        2#000000010#  => (FPU, FPU, OP_FP_CMP,     NONE, NONE, NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  2/0=mcrfs
+        2#000000100#  => (FPU, FPU, OP_FP_CMP,     FRA,  FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  4/0=ftdiv
+        2#000000101#  => (FPU, FPU, OP_FP_CMP,     NONE, FRB,  NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  5/0=ftsqrt
+        2#011000001#  => (FPU, FPU, OP_FP_MISC,    NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  1/6=mtfsb1
+        2#011000010#  => (FPU, FPU, OP_FP_MISC,    NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  2/6=mtfsb0
+        2#011000100#  => (FPU, FPU, OP_FP_MISC,    NONE, NONE, NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  4/6=mtfsfi
+        2#011011010#  => (FPU, FPU, OP_FP_MISC,    FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- 26/6=fmrgow
+        2#011011110#  => (FPU, FPU, OP_FP_MISC,    FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- 30/6=fmrgew
+        2#011110010#  => (FPU, FPU, OP_FP_MISC,    NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 18/7=mffs family
+        2#011110110#  => (FPU, FPU, OP_FP_MISC,    NONE, FRB,  NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 22/7=mtfsf
+        2#100000000#  => (FPU, FPU, OP_FP_MOVE,    FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  0/8=fcpsgn
+        2#100000001#  => (FPU, FPU, OP_FP_MOVE,    NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  1/8=fneg
+        2#100000010#  => (FPU, FPU, OP_FP_MOVE,    NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  2/8=fmr
+        2#100000100#  => (FPU, FPU, OP_FP_MOVE,    NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  4/8=fnabs
+        2#100001000#  => (FPU, FPU, OP_FP_MOVE,    NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  8/8=fabs
+        2#100001100#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 12/8=frin
+        2#100001101#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 13/8=friz
+        2#100001110#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 14/8=frip
+        2#100001111#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 15/8=frim
+        2#110000000#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), --  0/12=frsp
+        2#111000000#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  0/14=fctiw
+        2#111000100#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  4/14=fctiwu
+        2#111011001#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 25/14=fctid
+        2#111011010#  => (FPU, FPU, OP_FP_MISC,    NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 26/14=fcfid
+        2#111011101#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 29/14=fctidu
+        2#111011110#  => (FPU, FPU, OP_FP_MISC,    NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 30/14=fcfidu
+        2#111100000#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  0/15=fctiwz
+        2#111100100#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  4/15=fctiwuz
+        2#111111001#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 25/15=fctidz
+        2#111111101#  => (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 29/15=fctiduz
         others => illegal_inst
         );
 
@@ -509,18 +509,18 @@ architecture behaviour of decode1 is
     constant decode_op_63h_array : op_63_subop_array_1_t := (
         --            unit fac  internal       in1   in2   in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                            op                               in   out   A   out  in    out  len        ext                                pipe
-        2#0010#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fdiv
-        2#0100#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fsub
-        2#0101#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fadd
-        2#0110#  =>  (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fsqrt
-        2#0111#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fsel
-        2#1000#  =>  (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fre
-        2#1001#  =>  (FPU, FPU, OP_FPOP,       FRA,  NONE, FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fmul
-        2#1010#  =>  (FPU, FPU, OP_FPOP,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- frsqrte
-        2#1100#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fmsub
-        2#1101#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fmadd
-        2#1110#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fnmsub
-        2#1111#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fnmadd
+        2#0010#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fdiv
+        2#0100#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fsub
+        2#0101#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fadd
+        2#0110#  =>  (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fsqrt
+        2#0111#  =>  (FPU, FPU, OP_FP_MOVE,    FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fsel
+        2#1000#  =>  (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fre
+        2#1001#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  NONE, FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fmul
+        2#1010#  =>  (FPU, FPU, OP_FP_ARITH,   NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- frsqrte
+        2#1100#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fmsub
+        2#1101#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fmadd
+        2#1110#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fnmsub
+        2#1111#  =>  (FPU, FPU, OP_FP_ARITH,   FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- fnmadd
         others => illegal_inst
         );
 

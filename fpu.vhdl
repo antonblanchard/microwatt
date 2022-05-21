@@ -40,6 +40,7 @@ architecture behaviour of fpu is
     type fpu_reg_type is record
         class    : fp_number_class;
         negative : std_ulogic;
+        denorm   : std_ulogic;
         exponent : signed(EXP_BITS-1 downto 0);         -- unbiased
         mantissa : std_ulogic_vector(63 downto 0);      -- 8.56 format
     end record;
@@ -52,6 +53,7 @@ architecture behaviour of fpu is
                      DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT, DO_FMADD,
                      DO_FRE, DO_FRSQRTE,
                      DO_FSEL,
+                     DO_IDIVMOD,
                      FRI_1,
                      ADD_1, ADD_SHIFT, ADD_2, ADD_3,
                      CMP_1, CMP_2,
@@ -76,7 +78,6 @@ architecture behaviour of fpu is
                      RENORM_B, RENORM_B2,
                      RENORM_C, RENORM_C2,
                      NAN_RESULT, EXC_RESULT,
-                     DO_IDIVMOD,
                      IDIV_NORMB, IDIV_NORMB2, IDIV_NORMB3,
                      IDIV_CLZA, IDIV_CLZA2, IDIV_CLZA3,
                      IDIV_NR0, IDIV_NR1, IDIV_NR2, IDIV_USE0_5,
@@ -88,6 +89,9 @@ architecture behaviour of fpu is
                      IDIV_EXTDIV, IDIV_EXTDIV1, IDIV_EXTDIV2, IDIV_EXTDIV3,
                      IDIV_EXTDIV4, IDIV_EXTDIV5, IDIV_EXTDIV6,
                      IDIV_MODADJ, IDIV_MODSUB, IDIV_DIVADJ, IDIV_OVFCHK, IDIV_DONE, IDIV_ZERO);
+
+    type decode32 is array(0 to 31) of state_t;
+    type decode8 is array(0 to 7) of state_t;
 
     type reg_type is record
         state        : state_t;
@@ -103,6 +107,7 @@ architecture behaviour of fpu is
         dest_fpr     : gspr_index_t;
         fe_mode      : std_ulogic;
         rc           : std_ulogic;
+        fp_rc        : std_ulogic;
         is_cmp       : std_ulogic;
         single_prec  : std_ulogic;
         sp_result    : std_ulogic;
@@ -280,6 +285,48 @@ architecture behaviour of fpu is
     signal rs_neg1       : std_ulogic;
     signal rs_neg2       : std_ulogic;
     signal rs_norm       : std_ulogic;
+
+    constant arith_decode : decode32 := (
+        -- indexed by bits 5..1 of opcode
+        2#01000# => DO_FRI,
+        2#01100# => DO_FRSP,
+        2#01110# => DO_FCTI,
+        2#01111# => DO_FCTI,
+        2#10010# => DO_FDIV,
+        2#10100# => DO_FADD,
+        2#10101# => DO_FADD,
+        2#10110# => DO_FSQRT,
+        2#11000# => DO_FRE,
+        2#11001# => DO_FMUL,
+        2#11010# => DO_FRSQRTE,
+        2#11100# => DO_FMADD,
+        2#11101# => DO_FMADD,
+        2#11110# => DO_FMADD,
+        2#11111# => DO_FMADD,
+        others   => DO_ILLEGAL
+        );
+
+    constant cmp_decode : decode8 := (
+        2#000# => DO_FCMP,
+        2#001# => DO_FCMP,
+        2#010# => DO_MCRFS,
+        2#100# => DO_FTDIV,
+        2#101# => DO_FTSQRT,
+        others => DO_ILLEGAL
+        );
+
+    constant misc_decode : decode32 := (
+        -- indexed by bits 10, 8, 4, 2, 1 of opcode
+        2#00010# => DO_MTFSB,
+        2#01010# => DO_MTFSFI,
+        2#10010# => DO_FMRG,
+        2#11010# => DO_FMRG,
+        2#10011# => DO_MFFS,
+        2#11011# => DO_MTFSF,
+        2#10110# => DO_FCFID,
+        2#11110# => DO_FCFID,
+        others   => DO_ILLEGAL
+        );
 
     -- Inverse lookup table, indexed by the top 8 fraction bits
     -- The first 256 entries are the reciprocal (1/x) lookup table,
@@ -503,7 +550,7 @@ architecture behaviour of fpu is
 
     -- Split a DP floating-point number into components and work out its class.
     -- If is_int = 1, the input is considered an integer
-    function decode_dp(fpr: std_ulogic_vector(63 downto 0); is_int: std_ulogic;
+    function decode_dp(fpr: std_ulogic_vector(63 downto 0); is_fp: std_ulogic;
                        is_32bint: std_ulogic; is_signed: std_ulogic) return fpu_reg_type is
         variable reg     : fpu_reg_type;
         variable exp_nz  : std_ulogic;
@@ -513,11 +560,13 @@ architecture behaviour of fpu is
         variable cls     : std_ulogic_vector(2 downto 0);
     begin
         reg.negative := fpr(63);
+        reg.denorm := '0';
         exp_nz := or (fpr(62 downto 52));
         exp_ao := and (fpr(62 downto 52));
         frac_nz := or (fpr(51 downto 0));
         low_nz := or (fpr(31 downto 0));
-        if is_int = '0' then
+        if is_fp = '1' then
+            reg.denorm := frac_nz and not exp_nz;
             reg.exponent := signed(resize(unsigned(fpr(62 downto 52)), EXP_BITS)) - to_signed(1023, EXP_BITS);
             if exp_nz = '0' then
                 reg.exponent := to_signed(-1022, EXP_BITS);
@@ -735,7 +784,9 @@ begin
         variable fpscr_mask  : std_ulogic_vector(31 downto 0);
         variable j, k        : integer;
         variable flm         : std_ulogic_vector(7 downto 0);
-        variable int_input   : std_ulogic;
+        variable fpin_a      : std_ulogic;
+        variable fpin_b      : std_ulogic;
+        variable fpin_c      : std_ulogic;
         variable is_32bint   : std_ulogic;
         variable mask        : std_ulogic_vector(63 downto 0);
         variable in_a0       : std_ulogic_vector(63 downto 0);
@@ -795,14 +846,16 @@ begin
         variable rexp_sum    : signed(EXP_BITS-1 downto 0);
         variable rsh_in1     : signed(EXP_BITS-1 downto 0);
         variable rsh_in2     : signed(EXP_BITS-1 downto 0);
+        variable exec_state  : state_t;
+        variable opcbits     : std_ulogic_vector(4 downto 0);
         variable int_result  : std_ulogic;
         variable illegal     : std_ulogic;
     begin
         v := r;
         v.complete := '0';
         v.do_intr := '0';
-        int_input := '0';
         is_32bint := '0';
+        exec_state := IDLE;
 
         if r.complete = '1' or r.do_intr = '1' then
             v.instr_done := '0';
@@ -823,6 +876,7 @@ begin
             v.single_prec := e_in.single;
             v.is_signed := e_in.is_signed;
             v.rc := e_in.rc;
+            v.fp_rc := '0';
             v.is_cmp := e_in.out_cr;
             v.oe := e_in.oe;
             v.m32b := e_in.m32b;
@@ -831,36 +885,79 @@ begin
             v.integer_op := '0';
             v.divext := '0';
             v.divmod := '0';
-            if e_in.op = OP_FPOP or e_in.op = OP_FPOP_I then
-                v.longmask := e_in.single;
-                if e_in.op = OP_FPOP_I then
-                    int_input := '1';
-                end if;
-            else -- OP_DIV, OP_DIVE, OP_MOD
-                v.integer_op := '1';
-                int_input := '1';
-                is_32bint := e_in.single;
-                if e_in.op = OP_DIVE then
+            v.is_sqrt := '0';
+            v.is_multiply := '0';
+            fpin_a := '0';
+            fpin_b := '0';
+            fpin_c := '0';
+            v.use_a := e_in.valid_a;
+            v.use_b := e_in.valid_b;
+            v.use_c := e_in.valid_c;
+            v.round_mode := '0' & r.fpscr(FPSCR_RN+1 downto FPSCR_RN);
+            case e_in.op is
+                when OP_FP_ARITH =>
+                    fpin_a := e_in.valid_a;
+                    fpin_b := e_in.valid_b;
+                    fpin_c := e_in.valid_c;
+                    v.longmask := e_in.single;
+                    v.fp_rc := e_in.rc;
+                    exec_state := arith_decode(to_integer(unsigned(e_in.insn(5 downto 1))));
+                    if e_in.insn(5 downto 1) = "11001" or e_in.insn(5 downto 3) = "111" then
+                        v.is_multiply := '1';
+                    end if;
+                    if e_in.insn(5 downto 1) = "10110" or e_in.insn(5 downto 1) = "11010" then
+                        v.is_sqrt := '1';
+                    end if;
+                    if e_in.insn(5 downto 1) = "01111" then
+                        v.round_mode := "001";
+                    end if;
+                when OP_FP_CMP =>
+                    fpin_a := e_in.valid_a;
+                    fpin_b := e_in.valid_b;
+                    exec_state := cmp_decode(to_integer(unsigned(e_in.insn(8 downto 6))));
+                when OP_FP_MISC =>
+                    v.fp_rc := e_in.rc;
+                    opcbits := e_in.insn(10) & e_in.insn(8) & e_in.insn(4) & e_in.insn(2) & e_in.insn(1);
+                    exec_state := misc_decode(to_integer(unsigned(opcbits)));
+                when OP_FP_MOVE =>
+                    v.fp_rc := e_in.rc;
+                    fpin_a := e_in.valid_a;
+                    fpin_b := e_in.valid_b;
+                    fpin_c := e_in.valid_c;
+                    if e_in.insn(5) = '0' then
+                        exec_state := DO_FMR;
+                    else
+                        exec_state := DO_FSEL;
+                    end if;
+                when OP_DIV =>
+                    v.integer_op := '1';
+                    is_32bint := e_in.single;
+                    exec_state := DO_IDIVMOD;
+                when OP_DIVE =>
+                    v.integer_op := '1';
                     v.divext := '1';
-                elsif e_in.op = OP_MOD then
+                    is_32bint := e_in.single;
+                    exec_state := DO_IDIVMOD;
+                when OP_MOD =>
+                    v.integer_op := '1';
                     v.divmod := '1';
-                end if;
-            end if;
+                    is_32bint := e_in.single;
+                    exec_state := DO_IDIVMOD;
+                when others =>
+                    exec_state := DO_ILLEGAL;
+            end case;
             v.quieten_nan := '1';
             v.tiny := '0';
             v.denorm := '0';
-            v.round_mode := '0' & r.fpscr(FPSCR_RN+1 downto FPSCR_RN);
             v.is_subtract := '0';
-            v.is_multiply := '0';
-            v.is_sqrt := '0';
             v.add_bsmall := '0';
             v.doing_ftdiv := "00";
             v.int_ovf := '0';
             v.div_close := '0';
 
-            adec := decode_dp(e_in.fra, int_input, is_32bint, e_in.is_signed);
-            bdec := decode_dp(e_in.frb, int_input, is_32bint, e_in.is_signed);
-            cdec := decode_dp(e_in.frc, int_input, '0', '0');
+            adec := decode_dp(e_in.fra, fpin_a, is_32bint, e_in.is_signed);
+            bdec := decode_dp(e_in.frb, fpin_b, is_32bint, e_in.is_signed);
+            cdec := decode_dp(e_in.frc, fpin_c, '0', '0');
             v.a := adec;
             v.b := bdec;
             v.c := cdec;
@@ -996,110 +1093,36 @@ begin
 
         case r.state is
             when IDLE =>
-                v.use_a := '0';
-                v.use_b := '0';
-                v.use_c := '0';
                 v.invalid := '0';
                 v.negate := '0';
                 if e_in.valid = '1' then
+                    v.opsel_a := AIN_B;
                     v.busy := '1';
-                    case e_in.insn(5 downto 1) is
-                        when "00000" =>
-                            if e_in.insn(8) = '1' then
-                                if e_in.insn(6) = '0' then
-                                    v.state := DO_FTDIV;
-                                else
-                                    v.state := DO_FTSQRT;
+                    if e_in.op = OP_FP_ARITH and e_in.valid_a = '1' and
+                        (e_in.valid_b = '0' or e_in.valid_c = '0') then
+                        v.opsel_a := AIN_A;
+                    end if;
+                    if e_in.op = OP_FP_ARITH then
+                        -- input selection for denorm cases
+                        case e_in.insn(5 downto 1) is
+                            when "10010" =>         -- fdiv
+                                if v.b.mantissa(UNIT_BIT) = '0' and v.a.mantissa(UNIT_BIT) = '1' then
+                                    v.opsel_a := AIN_B;
                                 end if;
-                            elsif e_in.insn(7) = '1' then
-                                v.state := DO_MCRFS;
-                            else
-                                v.opsel_a := AIN_B;
-                                v.state := DO_FCMP;
-                            end if;
-                        when "00110" =>
-                            if e_in.insn(10) = '0' then
-                                if e_in.insn(8) = '0' then
-                                    v.state := DO_MTFSB;
-                                else
-                                    v.state := DO_MTFSFI;
+                            when "11001" =>         -- fmul
+                                if v.c.mantissa(UNIT_BIT) = '0' and v.a.mantissa(UNIT_BIT) = '1' then
+                                    v.opsel_a := AIN_C;
                                 end if;
-                            else
-                                v.state := DO_FMRG;
-                            end if;
-                        when "00111" =>
-                            if e_in.insn(8) = '0' then
-                                v.state := DO_MFFS;
-                            else
-                                v.state := DO_MTFSF;
-                            end if;
-                        when "01000" =>
-                            v.opsel_a := AIN_B;
-                            if e_in.insn(9 downto 8) /= "11" then
-                                v.state := DO_FMR;
-                            else
-                                v.state := DO_FRI;
-                            end if;
-                        when "01001" | "01011" =>
-                            -- integer divides and mods, major opcode 31
-                            v.opsel_a := AIN_B;
-                            v.state := DO_IDIVMOD;
-                        when "01100" =>
-                            v.opsel_a := AIN_B;
-                            v.state := DO_FRSP;
-                        when "01110" =>
-                            v.opsel_a := AIN_B;
-                            if int_input = '1' then
-                                -- fcfid[u][s]
-                                v.state := DO_FCFID;
-                            else
-                                v.state := DO_FCTI;
-                            end if;
-                        when "01111" =>
-                            v.round_mode := "001";
-                            v.opsel_a := AIN_B;
-                            v.state := DO_FCTI;
-                        when "10010" =>
-                            v.opsel_a := AIN_A;
-                            if v.b.mantissa(UNIT_BIT) = '0' and v.a.mantissa(UNIT_BIT) = '1' then
-                                v.opsel_a := AIN_B;
-                            end if;
-                            v.state := DO_FDIV;
-                        when "10100" | "10101" =>
-                            v.opsel_a := AIN_A;
-                            v.state := DO_FADD;
-                        when "10110" =>
-                            v.is_sqrt := '1';
-                            v.opsel_a := AIN_B;
-                            v.state := DO_FSQRT;
-                        when "10111" =>
-                            v.state := DO_FSEL;
-                        when "11000" =>
-                            v.opsel_a := AIN_B;
-                            v.state := DO_FRE;
-                        when "11001" =>
-                            v.is_multiply := '1';
-                            v.opsel_a := AIN_A;
-                            if v.c.mantissa(UNIT_BIT) = '0' and v.a.mantissa(UNIT_BIT) = '1' then
-                                v.opsel_a := AIN_C;
-                            end if;
-                            v.state := DO_FMUL;
-                        when "11010" =>
-                            v.is_sqrt := '1';
-                            v.opsel_a := AIN_B;
-                            v.state := DO_FRSQRTE;
-                        when "11100" | "11101" | "11110" | "11111" =>
-                            if v.a.mantissa(UNIT_BIT) = '0' then
-                                v.opsel_a := AIN_A;
-                            elsif v.c.mantissa(UNIT_BIT) = '0' then
-                                v.opsel_a := AIN_C;
-                            else
-                                v.opsel_a := AIN_B;
-                            end if;
-                            v.state := DO_FMADD;
-                        when others =>
-                            v.state := DO_ILLEGAL;
-                    end case;
+                            when "11100" | "11101" | "11110" | "11111" =>   -- fmadd etc.
+                                if v.a.mantissa(UNIT_BIT) = '0' then
+                                    v.opsel_a := AIN_A;
+                                elsif v.c.mantissa(UNIT_BIT) = '0' then
+                                    v.opsel_a := AIN_C;
+                                end if;
+                            when others =>
+                        end case;
+                    end if;
+                    v.state := exec_state;
                 end if;
                 v.x := '0';
                 v.old_exc := r.fpscr(FPSCR_VX downto FPSCR_XX);
@@ -1444,8 +1467,6 @@ begin
                 rs_sel2 <= RSH2_A;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
-                v.use_a := '1';
-                v.use_b := '1';
                 is_add := r.a.negative xor r.b.negative xor r.insn(1);
                 if r.a.class = FINITE and r.b.class = FINITE then
                     v.is_subtract := not is_add;
@@ -1493,8 +1514,6 @@ begin
                 v.result_class := r.a.class;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
-                v.use_a := '1';
-                v.use_c := '1';
                 re_sel1 <= REXP1_A;
                 re_sel2 <= REXP2_C;
                 re_set_result <= '1';
@@ -1532,8 +1551,6 @@ begin
                 v.result_class := r.a.class;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
-                v.use_a := '1';
-                v.use_b := '1';
                 v.result_sign := r.a.negative xor r.b.negative;
                 re_sel1 <= REXP1_A;
                 re_sel2 <= REXP2_B;
@@ -1594,7 +1611,6 @@ begin
                 v.result_sign := r.b.negative;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
-                v.use_b := '1';
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 case r.b.class is
@@ -1631,7 +1647,6 @@ begin
                 v.result_sign := r.b.negative;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
-                v.use_b := '1';
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 case r.b.class is
@@ -1658,7 +1673,6 @@ begin
                 v.result_sign := r.b.negative;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
-                v.use_b := '1';
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 -- set shift to 1
@@ -1705,9 +1719,6 @@ begin
                 rs_sel1 <= RSH1_B;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
-                v.use_a := '1';
-                v.use_b := '1';
-                v.use_c := '1';
                 is_add := r.a.negative xor r.c.negative xor r.b.negative xor r.insn(1);
                 if r.a.class = FINITE and r.c.class = FINITE and
                     (r.b.class = FINITE or r.b.class = ZERO) then
@@ -1769,7 +1780,7 @@ begin
             when RENORM_A =>
                 rs_norm <= '1';
                 v.state := RENORM_A2;
-                if r.insn(4) = '1' then
+                if r.use_c = '1' and r.c.denorm = '1' then
                     v.opsel_a := AIN_C;
                 else
                     v.opsel_a := AIN_B;
@@ -3532,7 +3543,7 @@ begin
                 v.state := IDLE;
                 v.busy := '0';
                 v.f2stall := '0';
-                if r.rc = '1' and (r.op = OP_FPOP or r.op = OP_FPOP_I) then
+                if r.fp_rc = '1' then
                     v.cr_result := v.fpscr(FPSCR_FX downto FPSCR_OX);
                 end if;
                 v.sp_result := r.single_prec;

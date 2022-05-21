@@ -58,10 +58,6 @@ architecture behaviour of decode2 is
         busy : std_ulogic;
         sgl_pipe : std_ulogic;
         prev_sgl : std_ulogic;
-        reg_a_valid : std_ulogic;
-        reg_b_valid : std_ulogic;
-        reg_c_valid : std_ulogic;
-        reg_o_valid : std_ulogic;
         input_ov  : std_ulogic;
         output_ov : std_ulogic;
         read_rspr : std_ulogic;
@@ -450,11 +446,6 @@ begin
                 when others =>
             end case;
 
-            v.reg_a_valid := decoded_reg_a.reg_valid;
-            v.reg_b_valid := decoded_reg_b.reg_valid;
-            v.reg_c_valid := decoded_reg_c.reg_valid;
-            v.reg_o_valid := decoded_reg_o.reg_valid;
-
             if d_in.decode.lr = '1' then
                 v.e.lr := insn_lk(d_in.insn);
                 -- b and bc have even major opcodes; bcreg is considered absolute
@@ -542,6 +533,9 @@ begin
             v.e.read_reg1 := d_in.reg_a;
             v.e.read_reg2 := d_in.reg_b;
             v.e.read_reg3 := d_in.reg_c;
+            v.e.reg_valid1 := decoded_reg_a.reg_valid;
+            v.e.reg_valid2 := decoded_reg_b.reg_valid;
+            v.e.reg_valid3 := decoded_reg_c.reg_valid;
             v.e.write_reg := decoded_reg_o.reg;
             v.e.write_reg_enable := decoded_reg_o.reg_valid;
             v.e.invert_a := d_in.decode.invert_a;
@@ -583,16 +577,16 @@ begin
         control_valid_in <= valid_in;
         control_serialize <= v.sgl_pipe or v.prev_sgl;
 
-        gpr_write_valid <= v.reg_o_valid;
+        gpr_write_valid <= v.e.write_reg_enable;
         gpr_write <= v.e.write_reg;
 
-        gpr_a_read_valid <= v.reg_a_valid;
+        gpr_a_read_valid <= v.e.reg_valid1;
         gpr_a_read <= v.e.read_reg1;
 
-        gpr_b_read_valid <= v.reg_b_valid;
+        gpr_b_read_valid <= v.e.reg_valid2;
         gpr_b_read <= v.e.read_reg2;
 
-        gpr_c_read_valid <= v.reg_c_valid;
+        gpr_c_read_valid <= v.e.reg_valid3;
         gpr_c_read <= v.e.read_reg3;
 
         cr_write_valid <= v.e.output_cr or v.e.rc;

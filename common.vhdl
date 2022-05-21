@@ -317,6 +317,9 @@ package common is
 	read_data1: std_ulogic_vector(63 downto 0);
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
+        reg_valid1: std_ulogic;
+        reg_valid2: std_ulogic;
+        reg_valid3: std_ulogic;
 	cr: std_ulogic_vector(31 downto 0);
 	xerc: xer_common_t;
 	lr: std_ulogic;
@@ -363,6 +366,7 @@ package common is
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
+         reg_valid1 => '0', reg_valid2 => '0', reg_valid3 => '0',
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
          result_sel => "000", sub_select => "000",
          repeat => '0', second => '0', spr_select => spr_id_init,
@@ -671,6 +675,9 @@ package common is
         fra       : std_ulogic_vector(63 downto 0);
         frb       : std_ulogic_vector(63 downto 0);
         frc       : std_ulogic_vector(63 downto 0);
+        valid_a   : std_ulogic;
+        valid_b   : std_ulogic;
+        valid_c   : std_ulogic;
         frt       : gspr_index_t;
         rc        : std_ulogic;
         m32b      : std_ulogic;
@@ -684,6 +691,7 @@ package common is
                                                        insn => (others => '0'), fe_mode => "00", rc => '0',
                                                        fra => (others => '0'), frb => (others => '0'),
                                                        frc => (others => '0'), frt => (others => '0'),
+                                                       valid_a => '0', valid_b => '0', valid_c => '0',
                                                        single => '0', is_signed => '0', out_cr => '0',
                                                        m32b => '0', oe => '0', xerc => xerc_init,
                                                        stall => '0');

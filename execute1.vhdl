@@ -1590,6 +1590,9 @@ begin
         fv.fra := a_in;
         fv.frb := b_in;
         fv.frc := c_in;
+        fv.valid_a := e_in.reg_valid1;
+        fv.valid_b := e_in.reg_valid2;
+        fv.valid_c := e_in.reg_valid3;
         fv.frt := e_in.write_reg;
         fv.rc := e_in.rc;
         fv.out_cr := e_in.output_cr;

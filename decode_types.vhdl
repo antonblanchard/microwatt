@@ -4,14 +4,16 @@ use ieee.std_logic_1164.all;
 package decode_types is
     type insn_type_t is (OP_ILLEGAL, OP_NOP, OP_ADD,
 			 OP_AND, OP_ATTN, OP_B, OP_BC, OP_BCREG,
-			 OP_BPERM, OP_CMP, OP_CMPB, OP_CMPEQB, OP_CMPRB,
+			 OP_BCD, OP_BPERM, OP_CMP, OP_CMPB, OP_CMPEQB, OP_CMPRB,
 			 OP_CNTZ, OP_CROP,
 			 OP_DARN, OP_DCBF, OP_DCBST, OP_DCBT, OP_DCBTST,
-			 OP_DCBZ, OP_DIV, OP_DIVE, OP_EXTS, OP_EXTSWSLI,
-                         OP_FPOP, OP_FPOP_I,
-                         OP_ICBI, OP_ICBT, OP_ISEL, OP_ISYNC,
+			 OP_DCBZ, OP_ICBI, OP_ICBT,
+                         OP_FP_CMP, OP_FP_ARITH, OP_FP_MOVE, OP_FP_MISC,
+                         OP_DIV, OP_DIVE, OP_MOD,
+                         OP_EXTS, OP_EXTSWSLI,
+                         OP_ISEL, OP_ISYNC,
 			 OP_LOAD, OP_STORE,
-			 OP_MCRXRX, OP_MFCR, OP_MFMSR, OP_MFSPR, OP_MOD,
+			 OP_MCRXRX, OP_MFCR, OP_MFMSR, OP_MFSPR,
 			 OP_MTCRF, OP_MTMSRD, OP_MTSPR, OP_MUL_L64,
 			 OP_MUL_H64, OP_MUL_H32, OP_OR,
 			 OP_POPCNT, OP_PRTY, OP_RFID,
@@ -19,7 +21,7 @@ package decode_types is
 			 OP_SHL, OP_SHR,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
 			 OP_XOR,
-                         OP_BCD, OP_ADDG6S,
+                         OP_ADDG6S,
                          OP_FETCH_FAILED
 			 );
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, CIA, FRA);
