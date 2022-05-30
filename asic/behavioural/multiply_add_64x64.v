@@ -12,13 +12,11 @@ module multiply_add_64x64
     input [BITS*2-1:0] c,
     output [BITS*2-1:0] o
 );
-    reg [BITS*2-1:0] o_tmp[2:0];
+    reg [BITS*2-1:0] o_tmp;
 
     always @(posedge clk) begin
-        o_tmp[2] = o_tmp[1];
-        o_tmp[1] = o_tmp[0];
-	o_tmp[0] = (a * b) + c;
+	o_tmp = (a * b) + c;
     end
 
-    assign o = o_tmp[2];
+    assign o = o_tmp;
 endmodule
