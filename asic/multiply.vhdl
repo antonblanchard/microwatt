@@ -5,10 +5,9 @@ use ieee.numeric_std.all;
 library work;
 use work.common.all;
 
--- XXX We should be able to make timing with a 2 cycle multiplier
 entity multiply is
     generic (
-        PIPELINE_DEPTH : natural := 4
+        PIPELINE_DEPTH : natural := 2
         );
     port (
         clk   : in std_logic;
