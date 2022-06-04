@@ -458,17 +458,6 @@ begin
         -- check alignment for larx/stcx
         misaligned := or (addr_mask and addr(2 downto 0));
         v.align_intr := l_in.reserve and misaligned;
-        if l_in.repeat = '1' and l_in.second = '0' and l_in.update = '0' and addr(3) = '1' then
-            -- length is really 16 not 8
-            -- Make misaligned lq cause an alignment interrupt in LE mode,
-            -- in order to avoid the case with RA = RT + 1 where the second half
-            -- faults but the first doesn't (and updates RT+1, destroying RA).
-            -- The equivalent BE case doesn't occur because RA = RT is illegal.
-            misaligned := '1';
-            if l_in.reserve = '1' or (l_in.op = OP_LOAD and l_in.byte_reverse = '0') then
-                v.align_intr := '1';
-            end if;
-        end if;
 
         v.atomic := not misaligned;
         v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);

@@ -155,31 +155,3 @@ call_ret:
 	ld	%r31,248(%r1)
 	addi	%r1,%r1,256
 	blr
-
-	.global	do_lqarx
-do_lqarx:
-	/* r3 = src, r4 = regs */
-	lqarx	%r10,0,%r3
-	std	%r10,0(%r4)
-	std	%r11,8(%r4)
-	li	%r3,0
-	blr
-
-	.global do_lqarx_bad
-do_lqarx_bad:
-	/* r3 = src, r4 = regs */
-	.long	0x7d405228	/* lqarx %r10,0,%r10 */
-	std	%r10,0(%r4)
-	std	%r11,8(%r4)
-	li	%r3,0
-	blr
-
-	.global do_stqcx
-do_stqcx:
-	/* r3 = dest, r4 = regs, return CR */
-	ld	%r10,0(%r4)
-	ld	%r11,8(%r4)
-	stqcx.	%r10,0,%r3
-	mfcr	%r3
-	oris	%r3,%r3,1	/* to distinguish from trap number */
-	blr

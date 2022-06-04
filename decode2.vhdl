@@ -406,16 +406,6 @@ begin
             v.e.repeat := '1';
             v.e.second := dc2.repeat;
             case d_in.decode.repeat is
-                when DRSE =>
-                    -- do RS|1,RS for LE; RS,RS|1 for BE
-                    if dc2.repeat = d_in.big_endian then
-                        decoded_reg_c.reg(0) := '1';
-                    end if;
-                when DRTE =>
-                    -- do RT|1,RT for LE; RT,RT|1 for BE
-                    if dc2.repeat = d_in.big_endian then
-                        decoded_reg_o.reg(0) := '1';
-                    end if;
                 when DUPD =>
                     -- update-form loads, 2nd instruction writes RA
                     if dc2.repeat = '1' then

@@ -53,8 +53,6 @@ package decode_types is
     type length_t is (NONE, is1B, is2B, is4B, is8B);
 
     type repeat_t is (NONE,      -- instruction is not repeated
-                      DRSE,      -- double RS, endian twist
-                      DRTE,      -- double RT, endian twist
                       DUPD);     -- update-form load
 
     type decode_rom_t is record

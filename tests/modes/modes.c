@@ -12,14 +12,6 @@
 extern unsigned long callit(unsigned long arg1, unsigned long arg2,
 			    unsigned long fn, unsigned long msr);
 
-extern void do_lq(void *src, unsigned long *regs);
-extern void do_lq_np(void *src, unsigned long *regs);
-extern void do_lq_bad(void *src, unsigned long *regs);
-extern void do_stq(void *dst, unsigned long *regs);
-extern void do_lq_be(void *src, unsigned long *regs);
-extern void do_lq_np_be(void *src, unsigned long *regs);
-extern void do_stq_be(void *dst, unsigned long *regs);
-
 static inline void do_tlbie(unsigned long rb, unsigned long rs)
 {
 	__asm__ volatile("tlbie %0,%1" : : "r" (rb), "r" (rs) : "memory");
@@ -302,167 +294,6 @@ int mode_test_6(void)
 	return 0;
 }
 
-int mode_test_7(void)
-{
-	unsigned long quad[4] __attribute__((__aligned__(16)));
-	unsigned long regs[2];
-	unsigned long ret, msr;
-
-	/*
-	 * Test lq/stq in LE mode
-	 */
-	msr = MSR_SF | MSR_LE;
-	quad[0] = 0x123456789abcdef0ul;
-	quad[1] = 0xfafa5959bcbc3434ul;
-	ret = callit((unsigned long)quad, (unsigned long)regs,
-		     (unsigned long)&do_lq, msr);
-	if (ret)
-		return ret | 1;
-	if (regs[0] != quad[1] || regs[1] != quad[0])
-		return 2;
-	/* unaligned may give alignment interrupt */
-	quad[2] = 0x0011223344556677ul;
-	ret = callit((unsigned long)&quad[1], (unsigned long)regs,
-		     (unsigned long)&do_lq, msr);
-	if (ret == 0) {
-		if (regs[0] != quad[2] || regs[1] != quad[1])
-			return 3;
-	} else if (ret == 0x600) {
-		if (mfspr(SPRG0) != (unsigned long) &do_lq ||
-		    mfspr(DAR) != (unsigned long) &quad[1])
-			return ret | 4;
-	} else
-		return ret | 5;
-
-	/* try stq */
-	regs[0] = 0x5238523852385238ul;
-	regs[1] = 0x5239523952395239ul;
-	ret = callit((unsigned long)quad, (unsigned long)regs,
-		     (unsigned long)&do_stq, msr);
-	if (ret)
-		return ret | 5;
-	if (quad[0] != regs[1] || quad[1] != regs[0])
-		return 6;
-	regs[0] = 0x0172686966746564ul;
-	regs[1] = 0xfe8d0badd00dabcdul;
-	ret = callit((unsigned long)quad + 1, (unsigned long)regs,
-		     (unsigned long)&do_stq, msr);
-	if (ret)
-		return ret | 7;
-	if (((quad[0] >> 8) | (quad[1] << 56)) != regs[1] ||
-	    ((quad[1] >> 8) | (quad[2] << 56)) != regs[0])
-		return 8;
-
-	/* try lq non-preferred form */
-	quad[0] = 0x56789abcdef01234ul;
-	quad[1] = 0x5959bcbc3434fafaul;
-	ret = callit((unsigned long)quad, (unsigned long)regs,
-		     (unsigned long)&do_lq_np, msr);
-	if (ret)
-		return ret | 9;
-	if (regs[0] != quad[1] || regs[1] != quad[0])
-		return 10;
-	/* unaligned should give alignment interrupt in uW implementation */
-	quad[2] = 0x6677001122334455ul;
-	ret = callit((unsigned long)&quad[1], (unsigned long)regs,
-		     (unsigned long)&do_lq_np, msr);
-	if (ret == 0x600) {
-		if (mfspr(SPRG0) != (unsigned long) &do_lq_np + 4 ||
-		    mfspr(DAR) != (unsigned long) &quad[1])
-			return ret | 11;
-	} else
-		return 12;
-
-	/* make sure lq with rt = ra causes an illegal instruction interrupt */
-	ret = callit((unsigned long)quad, (unsigned long)regs,
-		     (unsigned long)&do_lq_bad, msr);
-	if (ret != 0x700)
-		return 13;
-	if (mfspr(SPRG0) != (unsigned long)&do_lq_bad + 4 ||
-	    !(mfspr(SPRG3) & 0x80000))
-		return 14;
-	return 0;
-}
-
-int mode_test_8(void)
-{
-	unsigned long quad[4] __attribute__((__aligned__(16)));
-	unsigned long regs[2];
-	unsigned long ret, msr;
-
-	/*
-	 * Test lq/stq in BE mode
-	 */
-	msr = MSR_SF;
-	quad[0] = 0x123456789abcdef0ul;
-	quad[1] = 0xfafa5959bcbc3434ul;
-	ret = callit((unsigned long)quad, (unsigned long)regs,
-		     (unsigned long)&do_lq_be, msr);
-	if (ret)
-		return ret | 1;
-	if (regs[0] != quad[0] || regs[1] != quad[1]) {
-		print_hex(regs[0], 16);
-		print_string(" ");
-		print_hex(regs[1], 16);
-		print_string(" ");
-		return 2;
-	}
-	/* don't expect alignment interrupt */
-	quad[2] = 0x0011223344556677ul;
-	ret = callit((unsigned long)&quad[1], (unsigned long)regs,
-		     (unsigned long)&do_lq_be, msr);
-	if (ret == 0) {
-		if (regs[0] != quad[1] || regs[1] != quad[2])
-			return 3;
-	} else
-		return ret | 5;
-
-	/* try stq */
-	regs[0] = 0x5238523852385238ul;
-	regs[1] = 0x5239523952395239ul;
-	ret = callit((unsigned long)quad, (unsigned long)regs,
-		     (unsigned long)&do_stq_be, msr);
-	if (ret)
-		return ret | 5;
-	if (quad[0] != regs[0] || quad[1] != regs[1])
-		return 6;
-	regs[0] = 0x0172686966746564ul;
-	regs[1] = 0xfe8d0badd00dabcdul;
-	ret = callit((unsigned long)quad + 1, (unsigned long)regs,
-		     (unsigned long)&do_stq_be, msr);
-	if (ret)
-		return ret | 7;
-	if (((quad[0] >> 8) | (quad[1] << 56)) != regs[0] ||
-	    ((quad[1] >> 8) | (quad[2] << 56)) != regs[1]) {
-			print_hex(quad[0], 16);
-			print_string(" ");
-			print_hex(quad[1], 16);
-			print_string(" ");
-			print_hex(quad[2], 16);
-			print_string(" ");
-		return 8;
-	}
-
-	/* try lq non-preferred form */
-	quad[0] = 0x56789abcdef01234ul;
-	quad[1] = 0x5959bcbc3434fafaul;
-	ret = callit((unsigned long)quad, (unsigned long)regs,
-		     (unsigned long)&do_lq_np_be, msr);
-	if (ret)
-		return ret | 9;
-	if (regs[0] != quad[0] || regs[1] != quad[1])
-		return 10;
-	/* unaligned should not give alignment interrupt in uW implementation */
-	quad[2] = 0x6677001122334455ul;
-	ret = callit((unsigned long)&quad[1], (unsigned long)regs,
-		     (unsigned long)&do_lq_np_be, msr);
-	if (ret)
-		return ret | 11;
-	if (regs[0] != quad[1] || regs[1] != quad[2])
-		return 12;
-	return 0;
-}
-
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -507,8 +338,6 @@ int main(void)
 	do_test(4, mode_test_4);
 	do_test(5, mode_test_5);
 	do_test(6, mode_test_6);
-	do_test(7, mode_test_7);
-	do_test(8, mode_test_8);
 
 	return fail;
 }
