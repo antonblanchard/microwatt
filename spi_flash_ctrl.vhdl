@@ -50,7 +50,7 @@ architecture rtl of spi_flash_ctrl is
     constant SPI_REG_INVALID      : std_ulogic_vector(SPI_REG_BITS-1 downto 0) := "111";
 
     -- Control register
-    signal ctrl_reg    : std_ulogic_vector(15 downto 0) := (others => '0');
+    signal ctrl_reg    : std_ulogic_vector(15 downto 0);
     alias  ctrl_reset  : std_ulogic is ctrl_reg(0);
     alias  ctrl_cs     : std_ulogic is ctrl_reg(1);
     alias  ctrl_rsrv1  : std_ulogic is ctrl_reg(2);

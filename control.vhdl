@@ -64,8 +64,8 @@ architecture rtl of control is
 
     signal r_int, rin_int : reg_internal_type := reg_internal_init;
 
-    signal gpr_write_valid : std_ulogic := '0';
-    signal cr_write_valid  : std_ulogic := '0';
+    signal gpr_write_valid : std_ulogic;
+    signal cr_write_valid  : std_ulogic;
 
     type tag_register is record
         wr_gpr : std_ulogic;
@@ -245,6 +245,8 @@ begin
         end if;
 
         if rst = '1' then
+            gpr_write_valid <= '0';
+            cr_write_valid <= '0';
             v_int := reg_internal_init;
             valid_tmp := '0';
         end if;

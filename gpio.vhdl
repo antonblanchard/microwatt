@@ -40,8 +40,8 @@ architecture behaviour of gpio is
     constant GPIO_REG_DATA_CLR : std_ulogic_vector(GPIO_REG_BITS-1 downto 0) := "00101";
 
     -- Current output value and direction
-    signal reg_data : std_ulogic_vector(NGPIO - 1 downto 0) := (others => '0');
-    signal reg_dirn : std_ulogic_vector(NGPIO - 1 downto 0) := (others => '0');
+    signal reg_data : std_ulogic_vector(NGPIO - 1 downto 0);
+    signal reg_dirn : std_ulogic_vector(NGPIO - 1 downto 0);
     signal reg_in1  : std_ulogic_vector(NGPIO - 1 downto 0);
     signal reg_in2  : std_ulogic_vector(NGPIO - 1 downto 0);
 
