@@ -122,6 +122,68 @@ You should then be able to see output via the serial port of the board (/dev/tty
 fusesoc run --target=nexys_video microwatt
 ```
 
+## Linux on Microwatt
+
+Mainline Linux supports Microwatt as of v5.14. The Arty A7 is the best tested
+platform, but it's also been tested on the OrangeCrab and ButterStick.
+
+1. Use buildroot to create a userspace
+
+   A small change is required to glibc in order to support the VMX/AltiVec-less
+   Microwatt, as float128 support is mandiatory and for this in GCC requires
+   VSX/AltiVec. This change is included in Joel's buildroot fork, along with a
+   defconfig:
+   ```
+   git clone -b microwatt https://github.com/shenki/buildroot
+   cd buildroot
+   make ppc64le_microwatt_defconfig
+   make
+   ```
+
+   The output is `output/images/rootfs.cpio`.
+
+2. Build the Linux kernel
+   ```
+   git clone https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+   cd linux
+   make ARCH=powerpc microwatt_defconfig
+   make ARCH=powerpc CROSS_COMPILE=powerpc64le-linux-gnu- \
+     CONFIG_INITRAMFS_SOURCE=/buildroot/output/images/rootfs.cpio -j`nproc`
+   ```
+
+   The output is `arch/powerpc/boot/dtbImage.microwatt.elf`.
+
+3. Build gateware using FuseSoC
+
+   First configure FuseSoC as above.
+   ```
+   fusesoc run --build --target=arty_a7-100 microwatt --no_bram --memory_size=0
+   ```
+
+   The output is `build/microwatt_0/arty_a7-100-vivado/microwatt_0.bit`.
+
+4. Program the flash
+
+   This operation will overwrite the contents of your flash.
+
+   For the Arty A7 A100, set `FLASH_ADDRESS` to `0x400000` and pass `-f a100`.
+
+   For the Arty A7 A35, set `FLASH_ADDRESS` to `0x300000` and pass `-f a35`.
+   ```
+   microwatt/openocd/flash-arty -f a100 build/microwatt_0/arty_a7-100-vivado/microwatt_0.bit
+   microwatt/openocd/flash-arty -f a100 dtbImage.microwatt.elf -t bin -a $FLASH_ADDRESS
+   ```
+
+5. Connect to the second USB TTY device exposed by the FPGA
+
+   ```
+   minicom -D /dev/ttyUSB1
+   ```
+
+   The gateware has firmware that will look at `FLASH_ADDRESS` and attempt to
+   parse an ELF there, loading it to the address specified in the ELF header
+   and jumping to it.
+
 ## Testing
 
 - A simple test suite containing random execution test cases and a couple of
