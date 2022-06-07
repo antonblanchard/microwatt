@@ -103,14 +103,8 @@ sudo dnf install fusesoc
 
 ```
 fusesoc init
-```
-
-- Create a working directory and point FuseSoC at microwatt:
-
-```
-mkdir microwatt-fusesoc
-cd microwatt-fusesoc
-fusesoc library add microwatt /path/to/microwatt/
+fusesoc fetch uart16550
+fusesoc library add microwatt /path/to/microwatt
 ```
 
 - Build using FuseSoC. For hello world (Replace nexys_video with your FPGA board such as --target=arty_a7-100):
