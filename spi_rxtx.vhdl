@@ -126,10 +126,10 @@ architecture rtl of spi_rxtx is
     signal dat_ack_l : std_ulogic;
 
     -- Delayed recv signal for the read machine
-    signal sck_recv_d : std_ulogic := '0';
+    signal sck_recv_d : std_ulogic;
 
     -- Input shift register (use fifo ?)
-    signal ireg       : std_ulogic_vector(7 downto 0) := (others => '0');
+    signal ireg       : std_ulogic_vector(7 downto 0);
 
     -- Bit counter
     signal bit_count  : std_ulogic_vector(2 downto 0);
@@ -157,7 +157,7 @@ architecture rtl of spi_rxtx is
     end;
 
     type state_t is (STANDBY, DATA);
-    signal state : state_t := STANDBY;
+    signal state : state_t;
 begin
 
     -- We don't support multiple data lines at this point
@@ -349,6 +349,9 @@ begin
     shift_in: process(clk)
     begin
         if rising_edge(clk) then
+            if rst = '1' then
+                ireg <= (others => '0');
+            end if;
 
             -- Delay the receive signal to match the input latch
             if state = DATA then

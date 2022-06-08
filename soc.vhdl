@@ -223,15 +223,15 @@ architecture behaviour of soc is
     signal dmi_core_ack   : std_ulogic;
 
     -- Delayed/latched resets and alt_reset
-    signal rst_core    : std_ulogic := '1';
-    signal rst_uart    : std_ulogic := '1';
-    signal rst_xics    : std_ulogic := '1';
-    signal rst_spi     : std_ulogic := '1';
-    signal rst_gpio    : std_ulogic := '1';
-    signal rst_bram    : std_ulogic := '1';
-    signal rst_dtm     : std_ulogic := '1';
-    signal rst_wbar    : std_ulogic := '1';
-    signal rst_wbdb    : std_ulogic := '1';
+    signal rst_core    : std_ulogic;
+    signal rst_uart    : std_ulogic;
+    signal rst_xics    : std_ulogic;
+    signal rst_spi     : std_ulogic;
+    signal rst_gpio    : std_ulogic;
+    signal rst_bram    : std_ulogic;
+    signal rst_dtm     : std_ulogic;
+    signal rst_wbar    : std_ulogic;
+    signal rst_wbdb    : std_ulogic;
     signal alt_reset_d : std_ulogic;
 
     -- IO branch split:

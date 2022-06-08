@@ -121,17 +121,17 @@ architecture behave of core is
     signal do_interrupt: std_ulogic;
 
     -- Delayed/Latched resets and alt_reset
-    signal rst_fetch1  : std_ulogic := '1';
-    signal rst_fetch2  : std_ulogic := '1';
-    signal rst_icache  : std_ulogic := '1';
-    signal rst_dcache  : std_ulogic := '1';
-    signal rst_dec1    : std_ulogic := '1';
-    signal rst_dec2    : std_ulogic := '1';
-    signal rst_ex1     : std_ulogic := '1';
-    signal rst_fpu     : std_ulogic := '1';
-    signal rst_ls1     : std_ulogic := '1';
-    signal rst_wback   : std_ulogic := '1';
-    signal rst_dbg     : std_ulogic := '1';
+    signal rst_fetch1  : std_ulogic;
+    signal rst_fetch2  : std_ulogic;
+    signal rst_icache  : std_ulogic;
+    signal rst_dcache  : std_ulogic;
+    signal rst_dec1    : std_ulogic;
+    signal rst_dec2    : std_ulogic;
+    signal rst_ex1     : std_ulogic;
+    signal rst_fpu     : std_ulogic;
+    signal rst_ls1     : std_ulogic;
+    signal rst_wback   : std_ulogic;
+    signal rst_dbg     : std_ulogic;
     signal alt_reset_d : std_ulogic;
 
     signal sim_cr_dump: std_ulogic;

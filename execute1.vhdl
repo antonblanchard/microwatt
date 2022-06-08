@@ -99,8 +99,8 @@ architecture behaviour of execute1 is
     signal mshort_p : std_ulogic_vector(31 downto 0) := (others => '0');
 
     signal valid_in : std_ulogic;
-    signal ctrl: ctrl_t := (others => (others => '0'));
-    signal ctrl_tmp: ctrl_t := (others => (others => '0'));
+    signal ctrl: ctrl_t;
+    signal ctrl_tmp: ctrl_t;
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
     signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
@@ -406,6 +406,7 @@ begin
                 r <= reg_type_init;
                 ctrl.tb <= (others => '0');
                 ctrl.dec <= (others => '0');
+                ctrl.cfar <= (others => '0');
                 ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
             else
                 r <= rin;

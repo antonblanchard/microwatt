@@ -50,7 +50,7 @@ architecture rtl of spi_flash_ctrl is
     constant SPI_REG_INVALID      : std_ulogic_vector(SPI_REG_BITS-1 downto 0) := "111";
 
     -- Control register
-    signal ctrl_reg    : std_ulogic_vector(15 downto 0) := (others => '0');
+    signal ctrl_reg    : std_ulogic_vector(15 downto 0);
     alias  ctrl_reset  : std_ulogic is ctrl_reg(0);
     alias  ctrl_cs     : std_ulogic is ctrl_reg(1);
     alias  ctrl_rsrv1  : std_ulogic is ctrl_reg(2);
@@ -58,7 +58,7 @@ architecture rtl of spi_flash_ctrl is
     alias  ctrl_div    : std_ulogic_vector(7 downto 0) is ctrl_reg(15 downto 8);
 
     -- Auto mode config register
-    signal auto_cfg_reg     : std_ulogic_vector(29 downto 0) := (others => '0');
+    signal auto_cfg_reg     : std_ulogic_vector(29 downto 0);
     alias  auto_cfg_cmd     : std_ulogic_vector(7 downto 0) is auto_cfg_reg(7 downto 0);
     alias  auto_cfg_dummies : std_ulogic_vector(2 downto 0) is auto_cfg_reg(10 downto 8);
     alias  auto_cfg_mode    : std_ulogic_vector(1 downto 0) is auto_cfg_reg(12 downto 11);
@@ -126,9 +126,9 @@ architecture rtl of spi_flash_ctrl is
     signal auto_latch_adr : std_ulogic;
 
     -- Automatic mode latches
-    signal auto_data      : std_ulogic_vector(wb_out.dat'left downto 0) := (others => '0');
-    signal auto_cnt       : integer range 0 to 63 := 0;
-    signal auto_state     : auto_state_t := AUTO_BOOT;
+    signal auto_data      : std_ulogic_vector(wb_out.dat'left downto 0);
+    signal auto_cnt       : integer range 0 to 63;
+    signal auto_state     : auto_state_t;
     signal auto_last_addr : std_ulogic_vector(31 downto 0);
 
 begin
@@ -351,6 +351,8 @@ begin
             if rst = '1' then
                 auto_last_addr <= (others => '0');
                 auto_state <= AUTO_BOOT;
+                auto_cnt <= 0;
+                auto_data  <= (others => '0');
             else
                 auto_state <= auto_next;
                 auto_cnt   <= auto_cnt_next;
