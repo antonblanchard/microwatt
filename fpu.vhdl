@@ -16,7 +16,7 @@ entity fpu is
         clk : in std_ulogic;
         rst : in std_ulogic;
 
-        e_in  : in  Execute1toFPUType;
+        e_in  : in  Execute1ToFPUType;
         e_out : out FPUToExecute1Type;
 
         w_out : out FPUToWritebackType
