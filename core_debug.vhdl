@@ -154,6 +154,7 @@ begin
                 stopping <= '0';
                 terminated <= '0';
                 log_trigger_delay <= 0;
+                gspr_index <= (others => '0');
             else
                 if do_log_trigger = '1' or log_trigger_delay /= 0 then
                     if log_trigger_delay = 255 then
