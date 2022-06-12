@@ -286,6 +286,8 @@ begin
                 r3.interrupt <= '0';
                 r3.stage1_en <= '1';
                 r3.convert_lfs <= '0';
+                r3.events.load_complete <= '0';
+                r3.events.store_complete <= '0';
                 flushing <= '0';
             else
                 r1 <= r1in;
