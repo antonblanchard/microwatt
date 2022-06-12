@@ -113,8 +113,6 @@ architecture behaviour of execute1 is
     signal misc_result: std_ulogic_vector(63 downto 0);
     signal muldiv_result: std_ulogic_vector(63 downto 0);
     signal spr_result: std_ulogic_vector(63 downto 0);
-    signal result_mux_sel: std_ulogic_vector(2 downto 0);
-    signal sub_mux_sel: std_ulogic_vector(2 downto 0);
     signal next_nia : std_ulogic_vector(63 downto 0);
     signal current: Decode2ToExecute1Type;
 
