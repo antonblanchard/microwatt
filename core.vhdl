@@ -117,7 +117,6 @@ architecture behave of core is
     signal complete: instr_tag_t;
     signal terminate: std_ulogic;
     signal core_rst: std_ulogic;
-    signal icache_inv: std_ulogic;
     signal do_interrupt: std_ulogic;
 
     -- Delayed/Latched resets and alt_reset
