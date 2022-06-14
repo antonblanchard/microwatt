@@ -549,6 +549,10 @@ begin
                 r.do_intr <= '0';
                 r.fpscr <= (others => '0');
                 r.writing_back <= '0';
+                r.dest_fpr <= (others =>'0');
+                r.cr_mask <= (others =>'0');
+                r.cr_result <= (others =>'0');
+                r.instr_tag.valid <= '0';
             else
                 assert not (r.state /= IDLE and e_in.valid = '1') severity failure;
                 r <= rin;
