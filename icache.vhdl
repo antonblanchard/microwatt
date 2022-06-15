@@ -820,4 +820,7 @@ begin
         end process;
         log_out <= log_data;
     end generate;
+
+    events <= ev;
+
 end;
