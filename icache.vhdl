@@ -555,7 +555,11 @@ begin
 	--       I prefer not to do just yet as it would force fetch2 to know about
 	--       some of the cache geometry information.
 	--
-        i_out.insn <= read_insn_word(r.hit_nia, cache_out(r.hit_way));
+	if r.hit_valid = '1' then
+            i_out.insn <= read_insn_word(r.hit_nia, cache_out(r.hit_way));
+	else
+            i_out.insn <= (others => '0');
+	end if;
 	i_out.valid <= r.hit_valid;
 	i_out.nia <= r.hit_nia;
 	i_out.stop_mark <= r.hit_smark;
