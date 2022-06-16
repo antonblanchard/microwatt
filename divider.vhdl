@@ -42,6 +42,8 @@ begin
                 quot <= (others => '0');
                 running <= '0';
                 count <= "0000000";
+                is_32bit <= '0';
+                overflow <= '0';
             elsif d_in.valid = '1' then
                 if d_in.is_extended = '1'  then
                     dend <= '0' & d_in.dividend & x"0000000000000000";
