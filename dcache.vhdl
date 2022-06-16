@@ -1121,7 +1121,6 @@ begin
     rams: for i in 0 to NUM_WAYS-1 generate
 	signal do_read  : std_ulogic;
 	signal rd_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
-	signal do_write : std_ulogic;
 	signal wr_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
 	signal wr_data  : std_ulogic_vector(wishbone_data_bits-1 downto 0);
 	signal wr_sel   : std_ulogic_vector(ROW_SIZE-1 downto 0);
