@@ -275,10 +275,27 @@ begin
         if rising_edge(clk) then
             if rst = '1' then
                 r1.req.valid <= '0';
+                r1.req.tlbie <= '0';
+                r1.req.is_slbia <= '0';
+                r1.req.instr_fault <= '0';
+                r1.req.load <= '0';
+                r1.req.priv_mode <= '0';
+                r1.req.sprn <= (others => '0');
+                r1.req.xerc <= xerc_init;
+
                 r2.req.valid <= '0';
+                r2.req.tlbie <= '0';
+                r2.req.is_slbia <= '0';
+                r2.req.instr_fault <= '0';
+                r2.req.load <= '0';
+                r2.req.priv_mode <= '0';
+                r2.req.sprn <= (others => '0');
+                r2.req.xerc <= xerc_init;
+
                 r2.wait_dc <= '0';
                 r2.wait_mmu <= '0';
                 r2.one_cycle <= '0';
+
                 r3.dar <= (others => '0');
                 r3.dsisr <= (others => '0');
                 r3.state <= IDLE;
