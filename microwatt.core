@@ -300,6 +300,21 @@ targets:
       vivado: {part : xc7a35ticsg324-1L}
     toplevel : toplevel
 
+  arty_a7-50:
+    default_tool: vivado
+    filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram]
+    parameters :
+      - memory_size
+      - ram_init_file
+      - use_litedram=true
+      - disable_flatten_core
+      - no_bram
+      - spi_flash_offset=3145728
+    generate: [dram_arty]
+    tools:
+      vivado: {part : xc7a50ticsg324-1L}
+    toplevel : toplevel
+
   arty_a7-100-nodram:
     default_tool: vivado
     filesets: [core, arty_a7, soc, fpga, debug_xilinx, uart16550, xilinx_specific, litesdcard]

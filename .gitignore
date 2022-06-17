@@ -7,6 +7,7 @@
 microwatt.json
 microwatt.svf
 *_tb
+*.swp
 main_ram.bin
 tests/*/*.bin
 tests/*/*.hex
@@ -15,3 +16,11 @@ TAGS
 litedram/build/*
 liteeth/build/*
 obj_dir/*
+tags
+scripts/mw_debug/mw_debug
+loader/loader.bin
+loader/loader.hex
+loader/loader.elf
+loader/powerpc.lds
+*.swn
+*.swo
