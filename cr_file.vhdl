@@ -66,7 +66,11 @@ begin
                 crs <= crs_updated;
             end if;
             if w_in.write_xerc_enable = '1' then
-                report "Writing XERC";
+                report "Writing XERC SO=" & std_ulogic'image(xerc_updated.so) &
+                    " OV=" & std_ulogic'image(xerc_updated.ov) &
+                    " CA=" & std_ulogic'image(xerc_updated.ca) &
+                    " OV32=" & std_ulogic'image(xerc_updated.ov32) &
+                    " CA32=" & std_ulogic'image(xerc_updated.ca32);
                 xerc <= xerc_updated;
             end if;
         end if;

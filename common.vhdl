@@ -124,6 +124,23 @@ package common is
     end record;
     constant xerc_init : xer_common_t := (others => '0');
 
+    subtype spr_selector is std_ulogic_vector(2 downto 0);
+    type spr_id is record
+        sel   : spr_selector;
+        valid : std_ulogic;
+        ispmu : std_ulogic;
+    end record;
+    constant spr_id_init : spr_id := (sel => "000", others => '0');
+
+    constant SPRSEL_TB   : spr_selector := 3x"0";
+    constant SPRSEL_TBU  : spr_selector := 3x"1";
+    constant SPRSEL_DEC  : spr_selector := 3x"2";
+    constant SPRSEL_PVR  : spr_selector := 3x"3";
+    constant SPRSEL_LOGA : spr_selector := 3x"4";
+    constant SPRSEL_LOGD : spr_selector := 3x"5";
+    constant SPRSEL_CFAR : spr_selector := 3x"6";
+    constant SPRSEL_XER  : spr_selector := 3x"7";
+
     -- FPSCR bit numbers
     constant FPSCR_FX     : integer := 63 - 32;
     constant FPSCR_FEX    : integer := 63 - 33;
@@ -235,11 +252,13 @@ package common is
 	decode: decode_rom_t;
         br_pred: std_ulogic; -- Branch was predicted to be taken
         big_endian: std_ulogic;
+        spr_info : spr_id;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
         (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
          ispr1 => (others => '0'), ispr2 => (others => '0'), ispro => (others => '0'),
-         decode => decode_rom_init, br_pred => '0', big_endian => '0');
+         decode => decode_rom_init, br_pred => '0', big_endian => '0',
+         spr_info => spr_id_init);
 
     type Decode1ToFetch1Type is record
         redirect     : std_ulogic;
@@ -299,6 +318,7 @@ package common is
         sub_select : std_ulogic_vector(2 downto 0);     -- sub-result selection
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
+        spr_select : spr_id;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
@@ -311,7 +331,8 @@ package common is
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
          result_sel => "000", sub_select => "000",
-         repeat => '0', second => '0', others => (others => '0'));
+         repeat => '0', second => '0', spr_select => spr_id_init,
+         others => (others => '0'));
 
     type MultiplyInputType is record
 	valid: std_ulogic;

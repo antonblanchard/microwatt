@@ -519,6 +519,40 @@ architecture behaviour of decode1 is
     constant nop_instr      : decode_rom_t := (ALU,  NONE, OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
     constant fetch_fail_inst: decode_rom_t := (LDST, NONE, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
 
+    function map_spr(sprn : spr_num_t) return spr_id is
+        variable i : spr_id;
+    begin
+        i.sel := "000";
+        i.valid := '1';
+        i.ispmu := '0';
+        case sprn is
+            when SPR_TB =>
+                i.sel := SPRSEL_TB;
+            when SPR_TBU =>
+                i.sel := SPRSEL_TBU;
+            when SPR_DEC =>
+                i.sel := SPRSEL_DEC;
+            when SPR_PVR =>
+                i.sel := SPRSEL_PVR;
+            when 724 =>     -- LOG_ADDR SPR
+                i.sel := SPRSEL_LOGA;
+            when 725 =>     -- LOG_DATA SPR
+                i.sel := SPRSEL_LOGD;
+            when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
+                SPR_UMMCR0 | SPR_UMMCR1 | SPR_UMMCR2 | SPR_UMMCRA | SPR_USIER | SPR_USIAR | SPR_USDAR |
+                SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
+                SPR_MMCR0 | SPR_MMCR1 | SPR_MMCR2 | SPR_MMCRA | SPR_SIER | SPR_SIAR | SPR_SDAR =>
+                i.ispmu := '1';
+            when SPR_CFAR =>
+                i.sel := SPRSEL_CFAR;
+            when SPR_XER =>
+                i.sel := SPRSEL_XER;
+            when others =>
+                i.valid := '0';
+        end case;
+        return i;
+    end;
+
 begin
     decode1_0: process(clk)
     begin
@@ -586,6 +620,9 @@ begin
         majorop := unsigned(f_in.insn(31 downto 26));
         v.decode := major_decode_rom_array(to_integer(majorop));
 
+        sprn := decode_spr_num(f_in.insn);
+        v.spr_info := map_spr(sprn);
+
         case to_integer(unsigned(majorop)) is
         when 4 =>
             -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
@@ -598,7 +635,6 @@ begin
             v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
 
             -- Work out ispr1/ispro independent of v.decode since they seem to be critical path
-            sprn := decode_spr_num(f_in.insn);
             v.ispr1 := fast_spr_num(sprn);
             v.ispro := fast_spr_num(sprn);
 

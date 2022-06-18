@@ -228,13 +228,6 @@ architecture behaviour of decode2 is
         OP_SHR      => "010",
         OP_EXTSWSLI => "010",
         OP_MUL_L64  => "011",           -- muldiv_result
-        OP_MUL_H64  => "011",
-        OP_MUL_H32  => "011",
-        OP_DIV      => "011",
-        OP_DIVE     => "011",
-        OP_MOD      => "011",
-        OP_CNTZ     => "100",           -- countbits_result
-        OP_POPCNT   => "100",
         OP_MFSPR    => "101",           -- spr_result
         OP_B        => "110",           -- next_nia
         OP_BC       => "110",
@@ -440,6 +433,8 @@ begin
             decoded_reg_o.reg(0) := not r.repeat;
         end if;
 
+        v.e.spr_select := d_in.spr_info;
+
         r_out.read1_enable <= decoded_reg_a.reg_valid and d_in.valid;
         r_out.read1_reg    <= decoded_reg_a.reg;
         r_out.read2_enable <= decoded_reg_b.reg_valid and d_in.valid;
@@ -494,6 +489,17 @@ begin
                 -- decrement CTR if BO(2) = 0 and not bcctr
                 v.e.addm1 := '1';
                 v.e.result_sel := "000";        -- select adder output
+            end if;
+        end if;
+        if op = OP_MFSPR then
+            if is_fast_spr(d_in.ispr1) = '1' then
+                v.e.result_sel := "000";        -- adder_result, effectively a_in
+            elsif d_in.spr_info.valid = '0' then
+                -- Privileged mfspr to invalid/unimplemented SPR numbers
+                -- writes the contents of RT back to RT (i.e. it's a no-op)
+                v.e.result_sel := "001";        -- logical_result
+            elsif d_in.spr_info.ispmu = '1' then
+                v.e.result_sel := "100";        -- pmuspr_result
             end if;
         end if;
 
