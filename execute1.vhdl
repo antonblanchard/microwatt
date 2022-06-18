@@ -118,7 +118,7 @@ architecture behaviour of execute1 is
     constant actions_type_init : actions_type :=
         (e => Execute1ToWritebackInit, new_msr => (others => '0'), others => '0');
 
-    signal r, rin : reg_type;
+    signal ex1, ex1in : reg_type;
     signal actions : actions_type;
 
     signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
@@ -372,7 +372,7 @@ begin
     end generate;
 
     dbg_ctrl_out <= ctrl;
-    log_rd_addr <= r.log_addr_spr;
+    log_rd_addr <= ex1.log_addr_spr;
 
     a_in <= e_in.read_data1;
     b_in <= e_in.read_data2;
@@ -391,11 +391,11 @@ begin
                        dtlb_miss_resolved => dc_events.dtlb_miss_resolved,
                        icache_miss => ic_events.icache_miss,
                        itlb_miss_resolved => ic_events.itlb_miss_resolved,
-                       no_instr_avail => r.no_instr_avail,
-                       dispatch => r.instr_dispatch,
-                       ext_interrupt => r.ext_interrupt,
-                       br_taken_complete => r.taken_branch_event,
-                       br_mispredict => r.br_mispredict,
+                       no_instr_avail => ex1.no_instr_avail,
+                       dispatch => ex1.instr_dispatch,
+                       ext_interrupt => ex1.ext_interrupt,
+                       br_taken_complete => ex1.taken_branch_event,
+                       br_mispredict => ex1.br_mispredict,
                        others => '0');
     x_to_pmu.nia <= e_in.nia;
     x_to_pmu.addr <= (others => '0');
@@ -409,15 +409,15 @@ begin
     -- (SO, OV[32] and CA[32]) are only modified by instructions that are
     -- handled here, we can just forward the result being sent to
     -- writeback.
-    xerc_in <= r.e.xerc when (r.e.write_xerc_enable and r.e.valid) = '1' else e_in.xerc;
+    xerc_in <= ex1.e.xerc when (ex1.e.write_xerc_enable and ex1.e.valid) = '1' else e_in.xerc;
 
     with e_in.unit select busy_out <=
-        l_in.busy or r.busy or fp_in.busy when LDST,
-        l_in.busy or l_in.in_progress or r.busy or fp_in.busy when others;
+        l_in.busy or ex1.busy or fp_in.busy when LDST,
+        l_in.busy or l_in.in_progress or ex1.busy or fp_in.busy when others;
 
     valid_in <= e_in.valid and not busy_out and not flush_in;
 
-    terminate_out <= r.terminate;
+    terminate_out <= ex1.terminate;
 
     -- Slow SPR read mux
     with e_in.spr_select.sel select spr_result <=
@@ -425,7 +425,7 @@ begin
         32x"0" & ctrl.tb(63 downto 32) when SPRSEL_TBU,
         ctrl.dec when SPRSEL_DEC,
         32x"0" & PVR_MICROWATT when SPRSEL_PVR,
-        log_wr_addr & r.log_addr_spr when SPRSEL_LOGA,
+        log_wr_addr & ex1.log_addr_spr when SPRSEL_LOGA,
         log_rd_data when SPRSEL_LOGD,
         ctrl.cfar when SPRSEL_CFAR,
         assemble_xer(xerc_in, ctrl.xer_low) when others;
@@ -445,16 +445,16 @@ begin
     begin
 	if rising_edge(clk) then
             if rst = '1' then
-                r <= reg_type_init;
+                ex1 <= reg_type_init;
                 ctrl <= ctrl_t_init;
                 ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
             else
-                r <= rin;
+                ex1 <= ex1in;
                 ctrl <= ctrl_tmp;
                 if valid_in = '1' then
                     report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
-                        " wr=" & to_hstring(rin.e.write_reg) & " we=" & std_ulogic'image(rin.e.write_enable) &
-                        " tag=" & integer'image(rin.e.instr_tag.tag) & std_ulogic'image(rin.e.instr_tag.valid);
+                        " wr=" & to_hstring(ex1in.e.write_reg) & " we=" & std_ulogic'image(ex1in.e.write_enable) &
+                        " tag=" & integer'image(ex1in.e.instr_tag.tag) & std_ulogic'image(ex1in.e.instr_tag.valid);
                 end if;
             end if;
 	end if;
@@ -583,7 +583,7 @@ begin
         end if;
 
         shortmul_result <= std_ulogic_vector(resize(signed(mshort_p), 64));
-        case r.mul_select is
+        case ex1.mul_select is
             when "00" =>
                 muldiv_result <= multiply_to_x.result(63 downto 0);
             when "01" =>
@@ -820,7 +820,7 @@ begin
         -- v.trap also means we want to generate an interrupt, but doesn't
         -- cancel instruction execution (hence we need to avoid setting any
         -- side-effect flags or write enables when generating a trap).
-        -- With v.trap = 1 we will assert both r.e.valid and r.e.interrupt
+        -- With v.trap = 1 we will assert both ex1.e.valid and ex1.e.interrupt
         -- to writeback, and it will complete the instruction and take
         -- and interrupt.  It is OK for v.trap to depend on operand data.
 
@@ -924,7 +924,7 @@ begin
                 if e_in.second = '0' then
                     v.take_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
                 else
-                    v.take_branch := r.br_taken;
+                    v.take_branch := ex1.br_taken;
                 end if;
                 if v.take_branch = '1' then
                     v.e.br_offset := b_in;
@@ -954,7 +954,7 @@ begin
                 if e_in.second = '0' then
                     v.take_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
                 else
-                    v.take_branch := r.br_taken;
+                    v.take_branch := ex1.br_taken;
                 end if;
                 if v.take_branch = '1' then
                     v.e.br_offset := b_in;
@@ -1172,8 +1172,8 @@ begin
         variable fv : Execute1ToFPUType;
         variable go : std_ulogic;
     begin
-	v := r;
-        if r.busy = '0' then
+	v := ex1;
+        if ex1.busy = '0' then
             v.e := actions.e;
             v.oe := e_in.oe;
             v.mul_select := e_in.sub_select(1 downto 0);
@@ -1223,9 +1223,9 @@ begin
 
         do_popcnt <= '1' when e_in.insn_type = OP_POPCNT else '0';
 
-        if r.intr_pending = '1' then
-            v.e.srr1 := r.e.srr1;
-            v.e.intr_vec := r.e.intr_vec;
+        if ex1.intr_pending = '1' then
+            v.e.srr1 := ex1.e.srr1;
+            v.e.intr_vec := ex1.e.intr_vec;
         end if;
 
         if valid_in = '1' then
@@ -1234,9 +1234,9 @@ begin
 
         -- Determine if there is any interrupt to be taken
         -- before/instead of executing this instruction
-        exception := r.intr_pending or (valid_in and actions.exception);
-        if valid_in = '1' and e_in.second = '0' and r.intr_pending = '0' then
-            if HAS_FPU and r.fp_exception_next = '1' then
+        exception := ex1.intr_pending or (valid_in and actions.exception);
+        if valid_in = '1' and e_in.second = '0' and ex1.intr_pending = '0' then
+            if HAS_FPU and ex1.fp_exception_next = '1' then
                 -- This is used for FP-type program interrupts that
                 -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.
                 exception := '1';
@@ -1244,17 +1244,18 @@ begin
                 v.e.srr1 := (others => '0');
                 v.e.srr1(47 - 43) := '1';
                 v.e.srr1(47 - 47) := '1';
-            elsif r.trace_next = '1' then
+            elsif ex1.trace_next = '1' then
                 -- Generate a trace interrupt rather than executing the next instruction
                 -- or taking any asynchronous interrupt
                 exception := '1';
                 v.e.intr_vec := 16#d00#;
                 v.e.srr1 := (others => '0');
                 v.e.srr1(47 - 33) := '1';
-                if r.prev_op = OP_LOAD or r.prev_op = OP_ICBI or r.prev_op = OP_ICBT or
-                    r.prev_op = OP_DCBT or r.prev_op = OP_DCBST or r.prev_op = OP_DCBF then
+                if ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or ex1.prev_op = OP_ICBT or
+                    ex1.prev_op = OP_DCBT or ex1.prev_op = OP_DCBST or ex1.prev_op = OP_DCBF then
                     v.e.srr1(47 - 35) := '1';
-                elsif r.prev_op = OP_STORE or r.prev_op = OP_DCBZ or r.prev_op = OP_DCBTST then
+                elsif ex1.prev_op = OP_STORE or ex1.prev_op = OP_DCBZ or
+                    ex1.prev_op = OP_DCBTST then
                     v.e.srr1(47 - 36) := '1';
                 end if;
 
@@ -1284,7 +1285,7 @@ begin
             v.busy := '1';
         end if;
 
-        v.no_instr_avail := not (e_in.valid or l_in.busy or l_in.in_progress or r.busy or fp_in.busy);
+        v.no_instr_avail := not (e_in.valid or l_in.busy or l_in.in_progress or ex1.busy or fp_in.busy);
 
         go := valid_in and not exception;
         v.instr_dispatch := go;
@@ -1312,7 +1313,7 @@ begin
             if actions.write_loga = '1' then
                 v.log_addr_spr := c_in(31 downto 0);
             elsif actions.inc_loga = '1' then
-                v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
+                v.log_addr_spr := std_ulogic_vector(unsigned(ex1.log_addr_spr) + 1);
             end if;
             x_to_pmu.mtspr <= actions.write_pmuspr;
             icache_inval <= actions.icache_inval;
@@ -1334,22 +1335,22 @@ begin
             end if;
         end if;
 
-        -- The following cases all occur when r.busy = 1 and therefore
+        -- The following cases all occur when ex1.busy = 1 and therefore
         -- valid_in = 0.  Hence they don't happen in the same cycle as any of
         -- the cases above which depend on valid_in = 1.
-        if r.cntz_in_progress = '1' then
+        if ex1.cntz_in_progress = '1' then
             -- cnt[lt]z and popcnt* always take two cycles
             v.e.valid := '1';
             v.e.write_data := countbits_result;
         end if;
-	if r.div_in_progress = '1' then
+	if ex1.div_in_progress = '1' then
 	    if divider_to_x.valid = '1' then
                 v.e.write_data := muldiv_result;
                 overflow := divider_to_x.overflow;
                 -- We must test oe because the RC update code in writeback
                 -- will use the xerc value to set CR0:SO so we must not clobber
                 -- xerc if OE wasn't set.
-                if r.oe = '1' then
+                if ex1.oe = '1' then
                     v.e.xerc.ov := overflow;
                     v.e.xerc.ov32 := overflow;
                     if overflow = '1' then
@@ -1362,10 +1363,10 @@ begin
 		v.div_in_progress := '1';
 	    end if;
         end if;
-	if r.mul_in_progress = '1' then
+	if ex1.mul_in_progress = '1' then
 	    if multiply_to_x.valid = '1' then
                 v.e.write_data := muldiv_result;
-                if r.oe = '1' then
+                if ex1.oe = '1' then
                     -- have to wait until next cycle for overflow indication
                     v.mul_finish := '1';
                     v.busy := '1';
@@ -1377,7 +1378,7 @@ begin
 		v.mul_in_progress := '1';
 	    end if;
         end if;
-        if r.mul_finish = '1' then
+        if ex1.mul_finish = '1' then
             v.e.xerc.ov := multiply_to_x.overflow;
             v.e.xerc.ov32 := multiply_to_x.overflow;
             if multiply_to_x.overflow = '1' then
@@ -1460,12 +1461,12 @@ begin
         fv.out_cr := e_in.output_cr;
 
 	-- Update registers
-	rin <= v;
+	ex1in <= v;
 
 	-- update outputs
         l_out <= lv;
-	e_out <= r.e;
-        if r.e.valid = '0' then
+	e_out <= ex1.e;
+        if ex1.e.valid = '0' then
             e_out.write_enable <= '0';
             e_out.write_cr_enable <= '0';
             e_out.write_xerc_enable <= '0';
@@ -1491,10 +1492,10 @@ begin
                             irq_valid_log &
                             interrupt_in &
                             "000" &
-                            r.e.write_enable &
-                            r.e.valid &
-                            ((r.e.redirect and r.e.valid) or r.e.interrupt) &
-                            r.busy &
+                            ex1.e.write_enable &
+                            ex1.e.valid &
+                            ((ex1.e.redirect and ex1.e.valid) or ex1.e.interrupt) &
+                            ex1.busy &
                             flush_in;
             end if;
         end process;
