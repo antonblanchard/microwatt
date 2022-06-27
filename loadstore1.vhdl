@@ -624,7 +624,7 @@ begin
             store_data(i * 8 + 7 downto i * 8) <= r1.req.store_data(j + 7 downto j);
         end loop;
 
-        if (dc_stall or d_in.error or r2.busy) = '0' then
+        if (dc_stall or d_in.error or r2.busy or l_in.e2stall) = '0' then
             if r1.req.valid = '0' or r1.issued = '1' or r1.req.dc_req = '0' then
                 v.req := r1.req;
                 v.addr0 := r1.addr0;
@@ -950,7 +950,7 @@ begin
         else
             d_out.data <= r2.req.store_data;
         end if;
-        d_out.hold <= '0';
+        d_out.hold <= l_in.e2stall;
 
         -- Update outputs to MMU
         m_out.valid <= mmureq;
@@ -980,8 +980,8 @@ begin
 
         -- update busy signal back to execute1
         e_out.busy <= busy;
+        e_out.l2stall <= dc_stall or d_in.error or r2.busy;
         e_out.in_progress <= in_progress;
-        e_out.interrupt <= r3.interrupt;
 
         events <= r3.events;
 

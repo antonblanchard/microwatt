@@ -204,6 +204,8 @@ architecture behaviour of execute1 is
     signal exception_log : std_ulogic;
     signal irq_valid_log : std_ulogic;
 
+    signal stage2_stall : std_ulogic;
+
     type privilege_level is (USER, SUPER);
     type op_privilege_array is array(insn_type_t) of privilege_level;
     constant op_privilege: op_privilege_array := (
@@ -351,6 +353,7 @@ begin
 	port map (
             clk => clk,
 	    rs => c_in,
+            stall => stage2_stall,
 	    count_right => e_in.insn(10),
 	    is_32bit => e_in.is_32bit,
             do_popcnt => do_popcnt,
@@ -436,14 +439,13 @@ begin
     -- XER forwarding. To avoid having to track XER hazards, we use
     -- the previously latched value.  Since the XER common bits
     -- (SO, OV[32] and CA[32]) are only modified by instructions that are
-    -- handled here, we can just forward the result being sent to
-    -- writeback.
+    -- handled here, we can just use the result most recently sent to
+    -- writeback, unless a pipeline flush has happened in the meantime.
     xerc_in <= ex1.xerc when ex1.xerc_valid = '1' else e_in.xerc;
 
     with e_in.unit select busy_out <=
-        l_in.busy or ex1.e.valid or ex1.busy or fp_in.busy when LDST,
         l_in.busy or l_in.in_progress or ex1.e.valid or ex1.busy or fp_in.busy when FPU,
-        l_in.busy or l_in.in_progress or ex1.busy or fp_in.busy when others;
+        l_in.busy or ex1.busy or fp_in.busy when others;
 
     valid_in <= e_in.valid and not (busy_out or flush_in or ex1.e.redirect or ex1.e.interrupt);
 
@@ -479,8 +481,7 @@ begin
                 -- We mustn't get stalled on a cycle where execute2 is
                 -- completing an instruction or generating an interrupt
                 if ex2.e.valid = '1' or ex2.e.interrupt = '1' then
-                    assert (l_in.busy or fp_in.busy) = '0'
-                        severity failure;
+                    assert stage2_stall = '0' severity failure;
                 end if;
             end if;
 	end if;
@@ -1434,6 +1435,7 @@ begin
         lv.is_32bit := e_in.is_32bit;
         lv.repeat := e_in.repeat;
         lv.second := e_in.second;
+        lv.e2stall := '0';
 
         -- Outputs to FPU
         fv.op := e_in.insn_type;
@@ -1476,6 +1478,8 @@ begin
         pmu_to_x.spr_val  when "11",
         ex1.e.write_data  when others;
 
+    stage2_stall <= l_in.l2stall or fp_in.busy;
+
     -- Second execute stage control
     execute2_1: process(all)
 	variable v : reg_stage2_type;
@@ -1487,7 +1491,7 @@ begin
         variable bypass_valid : std_ulogic;
     begin
 	v := ex2;
-        if (l_in.busy or fp_in.busy) = '0' then
+        if stage2_stall = '0' then
             v.e := ex1.e;
             v.se := ex1.se;
             v.e.write_data := ex_result;
@@ -1526,7 +1530,7 @@ begin
             v.ext_interrupt := '0';
         end if;
 
-	if (l_in.busy or fp_in.busy) = '0' then
+	if stage2_stall = '0' then
             if ex1.se.write_msr = '1' then
                 ctrl_tmp.msr <= ex1.msr;
             end if;
@@ -1563,7 +1567,7 @@ begin
         end if;
 
         bypass_valid := ex1.e.valid;
-        if (ex2.busy or l_in.busy or fp_in.busy) = '1' and ex1.res2_sel(1) = '1' then
+        if stage2_stall = '1' and ex1.res2_sel(1) = '1' then
             bypass_valid := '0';
         end if;
 

@@ -461,6 +461,7 @@ package common is
         is_32bit : std_ulogic;
         repeat : std_ulogic;
         second : std_ulogic;
+        e2stall : std_ulogic;
         msr : std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
@@ -473,13 +474,13 @@ package common is
          write_reg => (others => '0'),
          length => (others => '0'),
          mode_32bit => '0', is_32bit => '0',
-         repeat => '0', second => '0',
+         repeat => '0', second => '0', e2stall => '0',
          msr => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
+        l2stall : std_ulogic;
         in_progress : std_ulogic;
-        interrupt : std_ulogic;
     end record;
 
     type Loadstore1ToDcacheType is record

@@ -9,6 +9,7 @@ entity bit_counter is
     port (
         clk         : in std_logic;
         rs          : in std_ulogic_vector(63 downto 0);
+        stall       : in std_ulogic;
         count_right : in std_ulogic;
         do_popcnt   : in std_ulogic;
         is_32bit    : in std_ulogic;
@@ -49,7 +50,7 @@ architecture behaviour of bit_counter is
 begin
     countzero_r: process(clk)
     begin
-        if rising_edge(clk) then
+        if rising_edge(clk) and stall = '0' then
             inp_r <= inp;
             sum_r <= sum;
         end if;
@@ -88,7 +89,7 @@ begin
 
     popcnt_r: process(clk)
     begin
-        if rising_edge(clk) then
+        if rising_edge(clk) and stall = '0' then
             for i in 0 to 7 loop
                 pc8_r(i) <= pc8(i);
             end loop;
