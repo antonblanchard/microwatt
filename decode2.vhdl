@@ -39,6 +39,8 @@ entity decode2 is
 
         execute_bypass    : in bypass_data_t;
         execute_cr_bypass : in cr_bypass_data_t;
+        execute2_bypass    : in bypass_data_t;
+        execute2_cr_bypass : in cr_bypass_data_t;
 
         log_out : out std_ulogic_vector(9 downto 0)
 	);
@@ -273,19 +275,19 @@ architecture behaviour of decode2 is
 
     signal gpr_a_read_valid : std_ulogic;
     signal gpr_a_read       : gspr_index_t;
-    signal gpr_a_bypass     : std_ulogic;
+    signal gpr_a_bypass     : std_ulogic_vector(1 downto 0);
 
     signal gpr_b_read_valid : std_ulogic;
     signal gpr_b_read       : gspr_index_t;
-    signal gpr_b_bypass     : std_ulogic;
+    signal gpr_b_bypass     : std_ulogic_vector(1 downto 0);
 
     signal gpr_c_read_valid : std_ulogic;
     signal gpr_c_read       : gspr_index_t;
-    signal gpr_c_bypass     : std_ulogic;
+    signal gpr_c_bypass     : std_ulogic_vector(1 downto 0);
 
     signal cr_read_valid   : std_ulogic;
     signal cr_write_valid  : std_ulogic;
-    signal cr_bypass       : std_ulogic;
+    signal cr_bypass       : std_ulogic_vector(1 downto 0);
 
     signal instr_tag       : instr_tag_t;
 
@@ -321,6 +323,8 @@ begin
 
             execute_next_tag     => execute_bypass.tag,
             execute_next_cr_tag  => execute_cr_bypass.tag,
+            execute2_next_tag    => execute2_bypass.tag,
+            execute2_next_cr_tag => execute2_cr_bypass.tag,
 
             cr_read_in           => cr_read_valid,
             cr_write_in          => cr_write_valid,
@@ -504,27 +508,35 @@ begin
 
         -- See if any of the operands can get their value via the bypass path.
         case gpr_a_bypass is
-            when '1' =>
+            when "10" =>
                 v.e.read_data1 := execute_bypass.data;
+            when "11" =>
+                v.e.read_data1 := execute2_bypass.data;
             when others =>
                 v.e.read_data1 := decoded_reg_a.data;
         end case;
         case gpr_b_bypass is
-            when '1' =>
+            when "10" =>
                 v.e.read_data2 := execute_bypass.data;
+            when "11" =>
+                v.e.read_data2 := execute2_bypass.data;
             when others =>
                 v.e.read_data2 := decoded_reg_b.data;
         end case;
         case gpr_c_bypass is
-            when '1' =>
+            when "10" =>
                 v.e.read_data3 := execute_bypass.data;
+            when "11" =>
+                v.e.read_data3 := execute2_bypass.data;
             when others =>
                 v.e.read_data3 := decoded_reg_c.data;
         end case;
 
         v.e.cr := c_in.read_cr_data;
-        if cr_bypass = '1' then
+        if cr_bypass = "10" then
             v.e.cr := execute_cr_bypass.data;
+        elsif cr_bypass = "11" then
+            v.e.cr := execute2_cr_bypass.data;
         end if;
 
         -- issue control
@@ -577,9 +589,9 @@ begin
                             r.e.valid &
                             stopped_out &
                             stall_out &
-                            gpr_a_bypass &
-                            gpr_b_bypass &
-                            gpr_c_bypass;
+                            (gpr_a_bypass(1) or gpr_a_bypass(0)) &
+                            (gpr_b_bypass(1) or gpr_b_bypass(0)) &
+                            (gpr_c_bypass(1) or gpr_c_bypass(0));
             end if;
         end process;
         log_out <= log_data;

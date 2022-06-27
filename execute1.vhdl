@@ -40,6 +40,8 @@ entity execute1 is
 	e_out : out Execute1ToWritebackType;
         bypass_data : out bypass_data_t;
         bypass_cr_data : out cr_bypass_data_t;
+        bypass2_data : out bypass_data_t;
+        bypass2_cr_data : out cr_bypass_data_t;
 
         dbg_ctrl_out : out ctrl_t;
 
@@ -1482,6 +1484,7 @@ begin
         variable fv : Execute1ToFPUType;
         variable k : integer;
         variable go : std_ulogic;
+        variable bypass_valid : std_ulogic;
     begin
 	v := ex2;
         if (l_in.busy or fp_in.busy) = '0' then
@@ -1558,6 +1561,19 @@ begin
             ctrl_tmp.msr(MSR_RI) <= '0';
             ctrl_tmp.msr(MSR_LE) <= '1';
         end if;
+
+        bypass_valid := ex1.e.valid;
+        if (ex2.busy or l_in.busy or fp_in.busy) = '1' and ex1.res2_sel(1) = '1' then
+            bypass_valid := '0';
+        end if;
+
+        bypass2_data.tag.valid <= ex1.e.write_enable and bypass_valid;
+        bypass2_data.tag.tag <= ex1.e.instr_tag.tag;
+        bypass2_data.data <= ex_result;
+
+        bypass2_cr_data.tag.valid <= ex1.e.write_cr_enable and bypass_valid;
+        bypass2_cr_data.tag.tag <= ex1.e.instr_tag.tag;
+        bypass2_cr_data.data <= ex1.e.write_cr_data;
 
 	-- Update registers
 	ex2in <= v;
