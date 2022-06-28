@@ -169,7 +169,6 @@ architecture behaviour of execute1 is
     signal muldiv_result: std_ulogic_vector(63 downto 0);
     signal shortmul_result: std_ulogic_vector(63 downto 0);
     signal spr_result: std_ulogic_vector(63 downto 0);
-    signal ex_result: std_ulogic_vector(63 downto 0);
     signal next_nia : std_ulogic_vector(63 downto 0);
     signal s1_sel : std_ulogic_vector(2 downto 0);
 
@@ -799,8 +798,10 @@ begin
                 crnum := fxm_to_num(insn_fxm(e_in.insn));
                 write_cr_mask <= num_to_fxm(crnum);
             end if;
-        else
+        elsif e_in.output_cr = '1' then
             write_cr_mask <= num_to_fxm(crnum);
+        else
+            write_cr_mask <= (others => '0');
         end if;
         for i in 0 to 7 loop
             if write_cr_mask(i) = '0' then
@@ -1471,13 +1472,6 @@ begin
         ctrl.cfar when SPRSEL_CFAR,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
-    -- Second stage result mux
-    with ex1.res2_sel select ex_result <=
-        countbits_result  when "01",
-        spr_result        when "10",
-        pmu_to_x.spr_val  when "11",
-        ex1.e.write_data  when others;
-
     stage2_stall <= l_in.l2stall or fp_in.busy;
 
     -- Second execute stage control
@@ -1489,12 +1483,18 @@ begin
         variable k : integer;
         variable go : std_ulogic;
         variable bypass_valid : std_ulogic;
+        variable rcresult : std_ulogic_vector(63 downto 0);
+        variable sprres : std_ulogic_vector(63 downto 0);
+        variable ex_result : std_ulogic_vector(63 downto 0);
+        variable cr_res : std_ulogic_vector(31 downto 0);
+        variable cr_mask : std_ulogic_vector(7 downto 0);
+        variable sign, zero : std_ulogic;
+        variable rcnz_hi, rcnz_lo : std_ulogic;
     begin
 	v := ex2;
         if stage2_stall = '0' then
             v.e := ex1.e;
             v.se := ex1.se;
-            v.e.write_data := ex_result;
             v.ext_interrupt := ex1.ext_interrupt;
             v.taken_branch_event := ex1.taken_branch_event;
             v.br_mispredict := ex1.br_mispredict;
@@ -1530,7 +1530,49 @@ begin
             v.ext_interrupt := '0';
         end if;
 
+        -- This is split like this because mfspr doesn't have an Rc bit,
+        -- and we don't want the zero-detect logic to be after the
+        -- SPR mux for timing reasons.
+        if ex1.res2_sel(0) = '0' then
+            rcresult := ex1.e.write_data;
+            sprres := spr_result;
+        else
+            rcresult := countbits_result;
+            sprres := pmu_to_x.spr_val;
+        end if;
+        if ex1.res2_sel(1) = '0' then
+            ex_result := rcresult;
+        else
+            ex_result := sprres;
+        end if;
+
+        cr_res := ex1.e.write_cr_data;
+        cr_mask := ex1.e.write_cr_mask;
+        if ex1.e.rc = '1' and ex1.e.write_enable = '1' then
+            rcnz_lo := or (rcresult(31 downto 0));
+            if ex1.e.mode_32bit = '0' then
+                rcnz_hi := or (rcresult(63 downto 32));
+                zero := not (rcnz_hi or rcnz_lo);
+                sign := ex_result(63);
+            else
+                zero := not rcnz_lo;
+                sign := ex_result(31);
+            end if;
+            cr_res(31) := sign;
+            cr_res(30) := not (sign or zero);
+            cr_res(29) := zero;
+            cr_res(28) := ex1.xerc.so;
+            cr_mask(7) := '1';
+        end if;
+
 	if stage2_stall = '0' then
+            v.e.write_data := ex_result;
+            v.e.write_cr_data := cr_res;
+            v.e.write_cr_mask := cr_mask;
+            if ex1.e.rc = '1' and ex1.e.write_enable = '1' and v.e.valid = '1' then
+                v.e.write_cr_enable := '1';
+            end if;
+
             if ex1.se.write_msr = '1' then
                 ctrl_tmp.msr <= ex1.msr;
             end if;
@@ -1575,9 +1617,10 @@ begin
         bypass2_data.tag.tag <= ex1.e.instr_tag.tag;
         bypass2_data.data <= ex_result;
 
-        bypass2_cr_data.tag.valid <= ex1.e.write_cr_enable and bypass_valid;
+        bypass2_cr_data.tag.valid <= (ex1.e.write_cr_enable or (ex1.e.rc and ex1.e.write_enable))
+                                     and bypass_valid;
         bypass2_cr_data.tag.tag <= ex1.e.instr_tag.tag;
-        bypass2_cr_data.data <= ex1.e.write_cr_data;
+        bypass2_cr_data.data <= cr_res;
 
 	-- Update registers
 	ex2in <= v;
