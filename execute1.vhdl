@@ -41,7 +41,7 @@ entity execute1 is
         bypass_data : out bypass_data_t;
         bypass_cr_data : out cr_bypass_data_t;
 
-        dbg_msr_out : out std_ulogic_vector(63 downto 0);
+        dbg_ctrl_out : out ctrl_t;
 
 	icache_inval : out std_ulogic;
 	terminate_out : out std_ulogic;
@@ -99,8 +99,8 @@ architecture behaviour of execute1 is
     signal mshort_p : std_ulogic_vector(31 downto 0) := (others => '0');
 
     signal valid_in : std_ulogic;
-    signal ctrl: ctrl_t;
-    signal ctrl_tmp: ctrl_t;
+    signal ctrl: ctrl_t := ctrl_t_init;
+    signal ctrl_tmp: ctrl_t := ctrl_t_init;
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
     signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
@@ -249,6 +249,13 @@ architecture behaviour of execute1 is
         return x(n - 1) = '1';
     end;
 
+    function assemble_xer(xerc: xer_common_t; xer_low: std_ulogic_vector)
+        return std_ulogic_vector is
+    begin
+        return 32x"0" & xerc.so & xerc.ov & xerc.ca & "000000000" &
+            xerc.ov32 & xerc.ca32 & xer_low(17 downto 0);
+    end;
+
     -- Tell vivado to keep the hierarchy for the random module so that the
     -- net names in the xdc file match.
     attribute keep_hierarchy : string;
@@ -336,7 +343,7 @@ begin
             );
     end generate;
 
-    dbg_msr_out <= ctrl.msr;
+    dbg_ctrl_out <= ctrl;
     log_rd_addr <= r.log_addr_spr;
 
     a_in <= e_in.read_data1;
@@ -402,9 +409,7 @@ begin
 	if rising_edge(clk) then
             if rst = '1' then
                 r <= reg_type_init;
-                ctrl.tb <= (others => '0');
-                ctrl.dec <= (others => '0');
-                ctrl.cfar <= (others => '0');
+                ctrl <= ctrl_t_init;
                 ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
             else
                 r <= rin;
@@ -1043,19 +1048,11 @@ begin
 		    "=" & to_hstring(a_in);
 		if is_fast_spr(e_in.read_reg1) = '1' then
 		    spr_val := a_in;
-                    if decode_spr_num(e_in.insn) = SPR_XER then
-			-- bits 0:31 and 35:43 are treated as reserved and return 0s when read using mfxer
-			spr_val(63 downto 32) := (others => '0');
-			spr_val(63-32) := xerc_in.so;
-			spr_val(63-33) := xerc_in.ov;
-			spr_val(63-34) := xerc_in.ca;
-			spr_val(63-35 downto 63-43) := "000000000";
-			spr_val(63-44) := xerc_in.ov32;
-			spr_val(63-45) := xerc_in.ca32;
-                    end if;
 		else
                     spr_val := c_in;
                     case decode_spr_num(e_in.insn) is
+                    when SPR_XER =>
+                        spr_val := assemble_xer(xerc_in, ctrl.xer_low);
 		    when SPR_TB =>
 			spr_val := ctrl.tb;
 		    when SPR_TBU =>
@@ -1118,17 +1115,16 @@ begin
 	    when OP_MTSPR =>
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(c_in);
-		if is_fast_spr(e_in.write_reg) then
-		    if decode_spr_num(e_in.insn) = SPR_XER then
+		if is_fast_spr(e_in.write_reg) = '0' then
+		    -- slow spr
+		    case decode_spr_num(e_in.insn) is
+                    when SPR_XER =>
 			v.e.xerc.so := c_in(63-32);
 			v.e.xerc.ov := c_in(63-33);
 			v.e.xerc.ca := c_in(63-34);
 			v.e.xerc.ov32 := c_in(63-44);
 			v.e.xerc.ca32 := c_in(63-45);
-		    end if;
-		else
-		    -- slow spr
-		    case decode_spr_num(e_in.insn) is
+                        ctrl_tmp.xer_low <= c_in(17 downto 0);
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;
                     when 724 =>     -- LOG_ADDR SPR

@@ -114,7 +114,7 @@ package common is
 
     -- The XER is split: the common bits (CA, OV, SO, OV32 and CA32) are
     -- in the CR file as a kind of CR extension (with a separate write
-    -- control). The rest is stored as a fast SPR.
+    -- control). The rest is stored in ctrl_t (effectively in execute1).
     type xer_common_t is record
 	ca : std_ulogic;
 	ca32 : std_ulogic;
@@ -192,7 +192,10 @@ package common is
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
         cfar: std_ulogic_vector(63 downto 0);
+        xer_low: std_ulogic_vector(17 downto 0);
     end record;
+    constant ctrl_t_init : ctrl_t :=
+        (xer_low => 18x"0", others => (others => '0'));
 
     type Fetch1ToIcacheType is record
 	req: std_ulogic;
@@ -739,8 +742,6 @@ package body common is
            n := 10;
        when SPR_HSPRG1 =>
            n := 11;
-       when SPR_XER =>
-           n := 12;
        when SPR_TAR =>
            n := 13;
        when others =>

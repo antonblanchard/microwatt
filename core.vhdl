@@ -145,7 +145,7 @@ architecture behave of core is
     signal dbg_gpr_addr : gspr_index_t;
     signal dbg_gpr_data : std_ulogic_vector(63 downto 0);
 
-    signal msr : std_ulogic_vector(63 downto 0);
+    signal ctrl_debug : ctrl_t;
 
     -- PMU event bus
     signal icache_events    : IcacheEventType;
@@ -333,6 +333,7 @@ begin
             d_out => cr_file_to_decode2,
             w_in => writeback_to_cr_file,
             sim_dump => sim_cr_dump,
+            ctrl => ctrl_debug,
             log_out => log_data(183 downto 171)
             );
 
@@ -359,7 +360,7 @@ begin
             bypass_data => execute1_bypass,
             bypass_cr_data => execute1_cr_bypass,
 	    icache_inval => ex1_icache_inval,
-            dbg_msr_out => msr,
+            dbg_ctrl_out => ctrl_debug,
             wb_events => writeback_events,
             ls_events => loadstore_events,
             dc_events => dcache_events,
@@ -482,7 +483,7 @@ begin
 	    terminate => terminate,
 	    core_stopped => dbg_core_is_stopped,
 	    nia => fetch1_to_icache.nia,
-            msr => msr,
+            msr => ctrl_debug.msr,
             dbg_gpr_req => dbg_gpr_req,
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,

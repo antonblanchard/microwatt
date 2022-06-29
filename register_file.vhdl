@@ -143,7 +143,6 @@ begin
 
                 report "LR " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_LR)))));
                 report "CTR " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_CTR)))));
-                report "XER " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_XER)))));
                 sim_dump_done <= '1';
             else
                 sim_dump_done <= '0';
