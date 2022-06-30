@@ -26,6 +26,7 @@ begin
     bitcounter_0: entity work.bit_counter
         port map (
             clk => clk,
+            stall => '0',
             rs => rs,
             result => res,
             count_right => count_right,

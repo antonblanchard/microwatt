@@ -36,7 +36,7 @@ begin
     divider_0: process(clk)
     begin
         if rising_edge(clk) then
-            if rst = '1' then
+            if rst = '1' or d_in.flush = '1' then
                 dend <= (others => '0');
                 div <= (others => '0');
                 quot <= (others => '0');

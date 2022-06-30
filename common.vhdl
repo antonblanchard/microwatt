@@ -356,6 +356,7 @@ package common is
 
     type Execute1ToDividerType is record
 	valid: std_ulogic;
+        flush: std_ulogic;
 	dividend: std_ulogic_vector(63 downto 0);
 	divisor: std_ulogic_vector(63 downto 0);
 	is_signed: std_ulogic;
@@ -364,9 +365,8 @@ package common is
 	is_modulus: std_ulogic;
         neg_result: std_ulogic;
     end record;
-    constant Execute1ToDividerInit: Execute1ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0',
-                                                              is_extended => '0', is_modulus => '0',
-                                                              neg_result => '0', others => (others => '0'));
+    constant Execute1ToDividerInit: Execute1ToDividerType := (
+        dividend => 64x"0", divisor => 64x"0", others => '0');
 
     type PMUEventType is record
         no_instr_avail      : std_ulogic;

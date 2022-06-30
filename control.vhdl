@@ -104,7 +104,8 @@ begin
                         tag_regs(i).wr_cr <= '0';
                         report "tag " & integer'image(i) & " not valid";
                     end if;
-                    if gpr_write_valid = '1' and tag_regs(i).reg = gpr_write_in then
+                    if instr_tag.valid = '1' and gpr_write_valid = '1' and
+                        tag_regs(i).reg = gpr_write_in then
                         tag_regs(i).recent <= '0';
                         if tag_regs(i).recent = '1' and tag_regs(i).wr_gpr = '1' then
                             report "tag " & integer'image(i) & " not recent";
@@ -126,7 +127,7 @@ begin
                 curr_cr_tag <= 0;
             else
                 curr_tag <= next_tag;
-                if cr_write_valid = '1' then
+                if instr_tag.valid = '1' and cr_write_valid = '1' then
                     curr_cr_tag <= instr_tag.tag;
                 end if;
             end if;
