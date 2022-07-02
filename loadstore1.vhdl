@@ -159,7 +159,6 @@ architecture behave of loadstore1 is
     signal flush    : std_ulogic;
     signal busy     : std_ulogic;
     signal complete : std_ulogic;
-    signal in_progress : std_ulogic;
     signal flushing : std_ulogic;
 
     signal store_sp_data : std_ulogic_vector(31 downto 0);
@@ -523,7 +522,6 @@ begin
 
     busy <= dc_stall or d_in.error or r1.busy or r2.busy;
     complete <= r2.one_cycle or (r2.wait_dc and d_in.valid) or r3.complete;
-    in_progress <= r1.req.valid or (r2.req.valid and not complete);
 
     -- Processing done in the first cycle of a load/store instruction
     loadstore1_1: process(all)
@@ -981,7 +979,6 @@ begin
         -- update busy signal back to execute1
         e_out.busy <= busy;
         e_out.l2stall <= dc_stall or d_in.error or r2.busy;
-        e_out.in_progress <= in_progress;
 
         events <= r3.events;
 

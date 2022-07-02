@@ -384,6 +384,7 @@ begin
             port map (
                 clk => clk,
                 rst => rst_fpu,
+                flush_in => flush,
                 e_in => execute1_to_fpu,
                 e_out => fpu_to_execute1,
                 w_out => fpu_to_writeback

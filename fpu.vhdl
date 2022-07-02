@@ -15,6 +15,7 @@ entity fpu is
     port (
         clk : in std_ulogic;
         rst : in std_ulogic;
+        flush_in : in std_ulogic;
 
         e_in  : in  Execute1ToFPUType;
         e_out : out FPUToExecute1Type;
@@ -35,7 +36,7 @@ architecture behaviour of fpu is
         mantissa : std_ulogic_vector(63 downto 0);      -- 10.54 format
     end record;
 
-    type state_t is (IDLE,
+    type state_t is (IDLE, DO_ILLEGAL,
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
                      DO_FMR, DO_FMRG, DO_FCMP, DO_FTDIV, DO_FTSQRT,
                      DO_FCFID, DO_FCTI,
@@ -71,7 +72,9 @@ architecture behaviour of fpu is
     type reg_type is record
         state        : state_t;
         busy         : std_ulogic;
+        f2stall      : std_ulogic;
         instr_done   : std_ulogic;
+        complete     : std_ulogic;
         do_intr      : std_ulogic;
         illegal      : std_ulogic;
         op           : insn_type_t;
@@ -83,7 +86,9 @@ architecture behaviour of fpu is
         rc           : std_ulogic;
         is_cmp       : std_ulogic;
         single_prec  : std_ulogic;
+        sp_result    : std_ulogic;
         fpscr        : std_ulogic_vector(31 downto 0);
+        comm_fpscr   : std_ulogic_vector(31 downto 0);  -- committed FPSCR value
         a            : fpu_reg_type;
         b            : fpu_reg_type;
         c            : fpu_reg_type;
@@ -96,13 +101,17 @@ architecture behaviour of fpu is
         result_class : fp_number_class;
         result_exp   : signed(EXP_BITS-1 downto 0);
         shift        : signed(EXP_BITS-1 downto 0);
-        writing_back : std_ulogic;
+        writing_fpr  : std_ulogic;
+        write_reg    : gspr_index_t;
+        complete_tag : instr_tag_t;
+        writing_cr   : std_ulogic;
         int_result   : std_ulogic;
         cr_result    : std_ulogic_vector(3 downto 0);
         cr_mask      : std_ulogic_vector(7 downto 0);
         old_exc      : std_ulogic_vector(4 downto 0);
         update_fprf  : std_ulogic;
         quieten_nan  : std_ulogic;
+        nsnan_result : std_ulogic;
         tiny         : std_ulogic;
         denorm       : std_ulogic;
         round_mode   : std_ulogic_vector(2 downto 0);
@@ -542,17 +551,30 @@ begin
     fpu_0: process(clk)
     begin
         if rising_edge(clk) then
-            if rst = '1' then
+            if rst = '1' or flush_in = '1' then
                 r.state <= IDLE;
                 r.busy <= '0';
+                r.f2stall <= '0';
                 r.instr_done <= '0';
+                r.complete <= '0';
+                r.illegal <= '0';
                 r.do_intr <= '0';
+                r.writing_fpr <= '0';
+                r.writing_cr <= '0';
                 r.fpscr <= (others => '0');
-                r.writing_back <= '0';
-                r.dest_fpr <= (others =>'0');
+                r.write_reg <= (others =>'0');
+                r.complete_tag.valid <= '0';
                 r.cr_mask <= (others =>'0');
                 r.cr_result <= (others =>'0');
                 r.instr_tag.valid <= '0';
+                if rst = '1' then
+                    r.fpscr <= (others => '0');
+                    r.comm_fpscr <= (others => '0');
+                elsif r.do_intr = '0' then
+                    -- flush_in = 1 and not due to us generating an interrupt,
+                    -- roll back to committed fpscr
+                    r.fpscr <= r.comm_fpscr;
+                end if;
             else
                 assert not (r.state /= IDLE and e_in.valid = '1') severity failure;
                 r <= rin;
@@ -577,14 +599,19 @@ begin
     end process;
 
     e_out.busy <= r.busy;
+    e_out.f2stall <= r.f2stall;
     e_out.exception <= r.fpscr(FPSCR_FEX);
 
-    w_out.valid <= r.instr_done and not r.do_intr;
-    w_out.instr_tag <= r.instr_tag;
-    w_out.write_enable <= r.writing_back;
-    w_out.write_reg <= r.dest_fpr;
+    -- Note that the cycle where r.complete = 1 for an instruction can be as
+    -- late as the second cycle of the following instruction (i.e. in the state
+    -- following IDLE state).  Hence it is important that none of the fields of
+    -- r that are used below are modified in IDLE state.
+    w_out.valid <= r.complete;
+    w_out.instr_tag <= r.complete_tag;
+    w_out.write_enable <= r.writing_fpr and r.complete;
+    w_out.write_reg <= r.write_reg;
     w_out.write_data <= fp_result;
-    w_out.write_cr_enable <= r.instr_done and (r.rc or r.is_cmp);
+    w_out.write_cr_enable <= r.writing_cr and r.complete;
     w_out.write_cr_mask <= r.cr_mask;
     w_out.write_cr_data <= r.cr_result & r.cr_result & r.cr_result & r.cr_result &
                            r.cr_result & r.cr_result & r.cr_result & r.cr_result;
@@ -599,7 +626,6 @@ begin
         variable bdec        : fpu_reg_type;
         variable cdec        : fpu_reg_type;
         variable fpscr_mask  : std_ulogic_vector(31 downto 0);
-        variable illegal     : std_ulogic;
         variable j, k        : integer;
         variable flm         : std_ulogic_vector(7 downto 0);
         variable int_input   : std_ulogic;
@@ -644,11 +670,21 @@ begin
         variable maddend     : std_ulogic_vector(127 downto 0);
         variable sum         : std_ulogic_vector(63 downto 0);
         variable round_inc   : std_ulogic_vector(63 downto 0);
+        variable int_result  : std_ulogic;
+        variable illegal     : std_ulogic;
     begin
         v := r;
-        illegal := '0';
-        v.busy := '0';
+        v.complete := '0';
+        v.do_intr := '0';
         int_input := '0';
+
+        if r.complete = '1' or r.do_intr = '1' then
+            v.instr_done := '0';
+            v.writing_fpr := '0';
+            v.writing_cr := '0';
+            v.comm_fpscr := r.fpscr;
+            v.illegal := '0';
+        end if;
 
         -- capture incoming instruction
         if e_in.valid = '1' then
@@ -660,14 +696,8 @@ begin
             v.dest_fpr := e_in.frt;
             v.single_prec := e_in.single;
             v.longmask := e_in.single;
-            v.int_result := '0';
             v.rc := e_in.rc;
             v.is_cmp := e_in.out_cr;
-            if e_in.out_cr = '0' then
-                v.cr_mask := num_to_fxm(1);
-            else
-                v.cr_mask := num_to_fxm(to_integer(unsigned(insn_bf(e_in.insn))));
-            end if;
             int_input := '0';
             if e_in.op = OP_FPOP_I then
                 int_input := '1';
@@ -741,8 +771,6 @@ begin
             pcmpb_lt := '1';
         end if;
 
-        v.writing_back := '0';
-        v.instr_done := '0';
         v.update_fprf := '0';
         v.shift := to_signed(0, EXP_BITS);
         v.first := '0';
@@ -777,6 +805,8 @@ begin
         pshift := '0';
         renorm_sqrt := '0';
         shiftin := '0';
+        int_result := '0';
+        illegal := '0';
         case r.state is
             when IDLE =>
                 v.use_a := '0';
@@ -785,6 +815,7 @@ begin
                 v.invalid := '0';
                 v.negate := '0';
                 if e_in.valid = '1' then
+                    v.busy := '1';
                     case e_in.insn(5 downto 1) is
                         when "00000" =>
                             if e_in.insn(8) = '1' then
@@ -876,12 +907,16 @@ begin
                             end if;
                             v.state := DO_FMADD;
                         when others =>
-                            illegal := '1';
+                            v.state := DO_ILLEGAL;
                     end case;
                 end if;
                 v.x := '0';
                 v.old_exc := r.fpscr(FPSCR_VX downto FPSCR_XX);
                 set_s := '1';
+
+            when DO_ILLEGAL =>
+                illegal := '1';
+                v.instr_done := '1';
 
             when DO_MCRFS =>
                 j := to_integer(unsigned(insn_bfa(r.insn)));
@@ -894,11 +929,9 @@ begin
                 end loop;
                 v.fpscr := r.fpscr and (fpscr_mask or x"6007F8FF");
                 v.instr_done := '1';
-                v.state := IDLE;
 
             when DO_FTDIV =>
                 v.instr_done := '1';
-                v.state := IDLE;
                 v.cr_result := "0000";
                 if r.a.class = INFINITY or r.b.class = ZERO or r.b.class = INFINITY or
                     (r.b.class = FINITE and r.b.mantissa(53) = '0') then
@@ -917,7 +950,6 @@ begin
 
             when DO_FTSQRT =>
                 v.instr_done := '1';
-                v.state := IDLE;
                 v.cr_result := "0000";
                 if r.b.class = ZERO or r.b.class = INFINITY or
                     (r.b.class = FINITE and r.b.mantissa(53) = '0') then
@@ -932,7 +964,6 @@ begin
                 -- fcmp[uo]
                 -- r.opsel_a = AIN_B
                 v.instr_done := '1';
-                v.state := IDLE;
                 update_fx := '1';
                 v.result_exp := r.b.exponent;
                 if (r.a.class = NAN and r.a.mantissa(53) = '0') or
@@ -993,7 +1024,6 @@ begin
                     end if;
                 end loop;
                 v.instr_done := '1';
-                v.state := IDLE;
 
             when DO_MTFSFI =>
                 -- mtfsfi
@@ -1007,20 +1037,17 @@ begin
                     end loop;
                 end if;
                 v.instr_done := '1';
-                v.state := IDLE;
 
             when DO_FMRG =>
                 -- fmrgew, fmrgow
                 opsel_r <= RES_MISC;
                 misc_sel <= "01" & r.insn(8) & '0';
-                v.int_result := '1';
-                v.writing_back := '1';
+                int_result := '1';
+                v.writing_fpr := '1';
                 v.instr_done := '1';
-                v.state := IDLE;
 
             when DO_MFFS =>
-                v.int_result := '1';
-                v.writing_back := '1';
+                v.writing_fpr := '1';
                 opsel_r <= RES_MISC;
                 case r.insn(20 downto 16) is
                     when "00000" =>
@@ -1044,10 +1071,11 @@ begin
                         -- mffsl
                         fpscr_mask := x"0007F0FF";
                     when others =>
-                        illegal := '1';
+                        v.illegal := '1';
+                        v.writing_fpr := '0';
                 end case;
+                int_result := '1';
                 v.instr_done := '1';
-                v.state := IDLE;
 
             when DO_MTFSF =>
                 if r.insn(25) = '1' then
@@ -1064,7 +1092,6 @@ begin
                     end if;
                 end loop;
                 v.instr_done := '1';
-                v.state := IDLE;
 
             when DO_FMR =>
                 -- r.opsel_a = AIN_B
@@ -1082,9 +1109,8 @@ begin
                 else
                     v.result_sign := r.a.negative;     -- fcpsgn
                 end if;
-                v.writing_back := '1';
+                v.writing_fpr := '1';
                 v.instr_done := '1';
-                v.state := IDLE;
 
             when DO_FRI =>    -- fri[nzpm]
                 -- r.opsel_a = AIN_B
@@ -1153,7 +1179,7 @@ begin
                     invalid := '1';
                 end if;
 
-                v.int_result := '1';
+                int_result := '1';
                 case r.b.class is
                     when ZERO =>
                         arith_done := '1';
@@ -1671,7 +1697,6 @@ begin
                 end if;
                 v.fpscr(FPSCR_FL downto FPSCR_FU) := v.cr_result;
                 v.instr_done := '1';
-                v.state := IDLE;
 
             when MULT_1 =>
                 f_to_multiply.valid <= r.first;
@@ -1849,7 +1874,6 @@ begin
                 v.cr_result(1) := exp_tiny or exp_huge;
                 if exp_tiny = '1' or exp_huge = '1' or r.a.class = ZERO or r.first = '0' then
                     v.instr_done := '1';
-                    v.state := IDLE;
                 else
                     v.shift := r.a.exponent;
                     v.doing_ftdiv := "10";
@@ -2054,6 +2078,7 @@ begin
                     when others =>      -- fctidu[z]
                         need_check := r.r(63);
                 end case;
+                int_result := '1';
                 if need_check = '1' then
                     v.state := INT_CHECK;
                 else
@@ -2080,6 +2105,7 @@ begin
                         v.fpscr(FPSCR_XX) := '1';
                     end if;
                 end if;
+                int_result := '1';
                 arith_done := '1';
 
             when INT_OFLOW =>
@@ -2090,6 +2116,7 @@ begin
                 end if;
                 v.fpscr(FPSCR_VXCVI) := '1';
                 invalid := '1';
+                int_result := '1';
                 arith_done := '1';
 
             when FRI_1 =>
@@ -2306,11 +2333,10 @@ begin
             -- Neither does enabled zero-divide exception
             if (v.invalid and r.fpscr(FPSCR_VE)) = '0' and
                 (zero_divide and r.fpscr(FPSCR_ZE)) = '0' then
-                v.writing_back := '1';
+                v.writing_fpr := '1';
                 v.update_fprf := '1';
             end if;
             v.instr_done := '1';
-            v.state := IDLE;
             update_fx := '1';
         end if;
 
@@ -2530,12 +2556,6 @@ begin
             v.shift := resize(signed('0' & clz) - 9, EXP_BITS);
         end if;
 
-        if r.int_result = '1' then
-            fp_result <= r.r;
-        else
-            fp_result <= pack_dp(r.result_sign, r.result_class, r.result_exp, r.r,
-                                 r.single_prec, r.quieten_nan);
-        end if;
         if r.update_fprf = '1' then
             v.fpscr(FPSCR_C downto FPSCR_FU) := result_flags(r.result_sign, r.result_class,
                                                              r.r(54) and not r.denorm);
@@ -2549,22 +2569,47 @@ begin
             (v.fpscr(FPSCR_VX downto FPSCR_XX) and not r.old_exc) /= "00000" then
             v.fpscr(FPSCR_FX) := '1';
         end if;
-        if r.rc = '1' then
-            v.cr_result := v.fpscr(FPSCR_FX downto FPSCR_OX);
+
+        if v.instr_done = '1' then
+            if r.state /= IDLE then
+                v.state := IDLE;
+                v.busy := '0';
+                v.f2stall := '0';
+                if r.rc = '1' then
+                    v.cr_result := v.fpscr(FPSCR_FX downto FPSCR_OX);
+                end if;
+                v.sp_result := r.single_prec;
+                v.int_result := int_result;
+                v.illegal := illegal;
+                v.nsnan_result := v.quieten_nan;
+                if r.is_cmp = '0' then
+                    v.cr_mask := num_to_fxm(1);
+                else
+                    v.cr_mask := num_to_fxm(to_integer(unsigned(insn_bf(r.insn))));
+                end if;
+                v.writing_cr := r.is_cmp or r.rc;
+                v.write_reg := r.dest_fpr;
+                v.complete_tag := r.instr_tag;
+            end if;
+            if e_in.stall = '0' then
+                v.complete := not v.illegal;
+                v.do_intr := (v.fpscr(FPSCR_FEX) and r.fe_mode) or v.illegal;
+            end if;
+            -- N.B. We rely on execute1 to prevent any new instruction
+            -- coming in while e_in.stall = 1, without us needing to
+            -- have busy asserted.
+        else
+            if r.state /= IDLE and e_in.stall = '0' then
+                v.f2stall := '1';
+            end if;
         end if;
 
-        v.illegal := illegal;
-        if illegal = '1' then
-            v.instr_done := '0';
-            v.do_intr := '1';
-            v.writing_back := '0';
-            v.busy := '0';
-            v.state := IDLE;
+        -- This mustn't depend on any fields of r that are modified in IDLE state.
+        if r.int_result = '1' then
+            fp_result <= r.r;
         else
-            v.do_intr := v.instr_done and v.fpscr(FPSCR_FEX) and r.fe_mode;
-            if v.state /= IDLE or v.do_intr = '1' then
-                v.busy := '1';
-            end if;
+            fp_result <= pack_dp(r.result_sign, r.result_class, r.result_exp, r.r,
+                                 r.sp_result, r.nsnan_result);
         end if;
 
         rin <= v;

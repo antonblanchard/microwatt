@@ -442,9 +442,9 @@ begin
     -- writeback, unless a pipeline flush has happened in the meantime.
     xerc_in <= ex1.xerc when ex1.xerc_valid = '1' else e_in.xerc;
 
-    with e_in.unit select busy_out <=
-        l_in.busy or l_in.in_progress or ex1.e.valid or ex1.busy or fp_in.busy when FPU,
-        l_in.busy or ex1.busy or fp_in.busy when others;
+    -- N.B. the busy signal from each source includes the
+    -- stage2 stall from that source in it.
+    busy_out <= l_in.busy or ex1.busy or fp_in.busy;
 
     valid_in <= e_in.valid and not (busy_out or flush_in or ex1.e.redirect or ex1.e.interrupt);
 
@@ -1299,8 +1299,7 @@ begin
             end if;
         end if;
 
-        v.no_instr_avail := not (e_in.valid or l_in.busy or l_in.in_progress or
-                                 ex1.busy or fp_in.busy);
+        v.no_instr_avail := not (e_in.valid or l_in.busy or ex1.busy or fp_in.busy);
 
         go := valid_in and not exception;
         v.instr_dispatch := go;
@@ -1436,7 +1435,7 @@ begin
         lv.is_32bit := e_in.is_32bit;
         lv.repeat := e_in.repeat;
         lv.second := e_in.second;
-        lv.e2stall := '0';
+        lv.e2stall := fp_in.f2stall;
 
         -- Outputs to FPU
         fv.op := e_in.insn_type;
@@ -1451,6 +1450,7 @@ begin
         fv.frt := e_in.write_reg;
         fv.rc := e_in.rc;
         fv.out_cr := e_in.output_cr;
+        fv.stall := l_in.l2stall;
 
 	-- Update registers
 	ex1in <= v;
@@ -1472,7 +1472,7 @@ begin
         ctrl.cfar when SPRSEL_CFAR,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
-    stage2_stall <= l_in.l2stall or fp_in.busy;
+    stage2_stall <= l_in.l2stall or fp_in.f2stall;
 
     -- Second execute stage control
     execute2_1: process(all)
