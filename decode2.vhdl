@@ -52,7 +52,7 @@ architecture behaviour of decode2 is
         repeat : std_ulogic;
     end record;
 
-    signal r, rin : reg_type;
+    signal dc2, dc2in : reg_type;
 
     signal deferred : std_ulogic;
 
@@ -302,7 +302,7 @@ begin
 
             complete_in => complete_in,
             valid_in    => control_valid_in,
-            repeated    => r.repeat,
+            repeated    => dc2.repeat,
             busy_in     => busy_in,
             deferred    => deferred,
             flush_in    => flush_in,
@@ -341,16 +341,16 @@ begin
             instr_tag_out => instr_tag
             );
 
-    deferred <= r.e.valid and busy_in;
+    deferred <= dc2.e.valid and busy_in;
 
     decode2_0: process(clk)
     begin
         if rising_edge(clk) then
             if rst = '1' or flush_in = '1' or deferred = '0' then
-                if rin.e.valid = '1' then
-                    report "execute " & to_hstring(rin.e.nia);
+                if dc2in.e.valid = '1' then
+                    report "execute " & to_hstring(dc2in.e.nia);
                 end if;
-                r <= rin;
+                dc2 <= dc2in;
             end if;
         end if;
     end process;
@@ -359,8 +359,6 @@ begin
 
     decode2_1: process(all)
         variable v : reg_type;
-        variable mul_a : std_ulogic_vector(63 downto 0);
-        variable mul_b : std_ulogic_vector(63 downto 0);
         variable decoded_reg_a : decode_input_reg_t;
         variable decoded_reg_b : decode_input_reg_t;
         variable decoded_reg_c : decode_input_reg_t;
@@ -368,12 +366,9 @@ begin
         variable length : std_ulogic_vector(3 downto 0);
         variable op : insn_type_t;
     begin
-        v := r;
+        v := dc2;
 
         v.e := Decode2ToExecute1Init;
-
-        mul_a := (others => '0');
-        mul_b := (others => '0');
 
         --v.e.input_cr := d_in.decode.input_cr;
         v.e.output_cr := d_in.decode.output_cr;
@@ -409,21 +404,21 @@ begin
 
         if d_in.decode.repeat /= NONE then
             v.e.repeat := '1';
-            v.e.second := r.repeat;
+            v.e.second := dc2.repeat;
             case d_in.decode.repeat is
                 when DRSE =>
                     -- do RS|1,RS for LE; RS,RS|1 for BE
-                    if r.repeat = d_in.big_endian then
+                    if dc2.repeat = d_in.big_endian then
                         decoded_reg_c.reg(0) := '1';
                     end if;
                 when DRTE =>
                     -- do RT|1,RT for LE; RT,RT|1 for BE
-                    if r.repeat = d_in.big_endian then
+                    if dc2.repeat = d_in.big_endian then
                         decoded_reg_o.reg(0) := '1';
                     end if;
                 when DUPD =>
                     -- update-form loads, 2nd instruction writes RA
-                    if r.repeat = '1' then
+                    if dc2.repeat = '1' then
                         decoded_reg_o.reg := decoded_reg_a.reg;
                     end if;
                 when others =>
@@ -431,9 +426,9 @@ begin
         elsif v.e.lr = '1' and decoded_reg_a.reg_valid = '1' then
             -- bcl/bclrl/bctarl that needs to write both CTR and LR has to be doubled
             v.e.repeat := '1';
-            v.e.second := r.repeat;
+            v.e.second := dc2.repeat;
             -- first one does CTR, second does LR
-            decoded_reg_o.reg(0) := not r.repeat;
+            decoded_reg_o.reg(0) := not dc2.repeat;
         end if;
 
         v.e.spr_select := d_in.spr_info;
@@ -487,7 +482,7 @@ begin
         v.e.result_sel := result_select(op);
         v.e.sub_select := subresult_select(op);
         if op = OP_BC or op = OP_BCREG then
-            if d_in.insn(23) = '0' and r.repeat = '0' and
+            if d_in.insn(23) = '0' and dc2.repeat = '0' and
                 not (d_in.decode.insn_type = OP_BCREG and d_in.insn(10) = '0') then
                 -- decrement CTR if BO(2) = 0 and not bcctr
                 v.e.addm1 := '1';
@@ -562,7 +557,7 @@ begin
 
         v.e.valid := control_valid_out;
         if control_valid_out = '1' then
-            v.repeat := v.e.repeat and not r.repeat;
+            v.repeat := v.e.repeat and not dc2.repeat;
         end if;
 
         stall_out <= control_stall_out or v.repeat;
@@ -573,10 +568,10 @@ begin
         end if;
 
         -- Update registers
-        rin <= v;
+        dc2in <= v;
 
         -- Update outputs
-        e_out <= r.e;
+        e_out <= dc2.e;
     end process;
 
     d2_log: if LOG_LENGTH > 0 generate
@@ -585,8 +580,8 @@ begin
         dec2_log : process(clk)
         begin
             if rising_edge(clk) then
-                log_data <= r.e.nia(5 downto 2) &
-                            r.e.valid &
+                log_data <= dc2.e.nia(5 downto 2) &
+                            dc2.e.valid &
                             stopped_out &
                             stall_out &
                             (gpr_a_bypass(1) or gpr_a_bypass(0)) &
