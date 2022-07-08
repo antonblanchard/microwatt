@@ -15,9 +15,7 @@ entity control is
 
         complete_in         : in instr_tag_t;
         valid_in            : in std_ulogic;
-        repeated            : in std_ulogic;
         flush_in            : in std_ulogic;
-        busy_in             : in std_ulogic;
         deferred            : in std_ulogic;
         sgl_pipe_in         : in std_ulogic;
         stop_mark_in        : in std_ulogic;
@@ -43,7 +41,6 @@ entity control is
         cr_write_in         : in std_ulogic;
 
         valid_out           : out std_ulogic;
-        stall_out           : out std_ulogic;
         stopped_out         : out std_ulogic;
 
         gpr_bypass_a        : out std_ulogic_vector(1 downto 0);
@@ -157,9 +154,6 @@ begin
                 tag_a.tag := i;
             end if;
         end loop;
-        if tag_match(tag_a, complete_in) then
-            tag_a.valid := '0';
-        end if;
         tag_b := instr_tag_init;
         for i in tag_number_t loop
             if tag_regs(i).wr_gpr = '1' and tag_regs(i).recent = '1' and tag_regs(i).reg = gpr_b_read_in then
@@ -167,9 +161,6 @@ begin
                 tag_b.tag := i;
             end if;
         end loop;
-        if tag_match(tag_b, complete_in) then
-            tag_b.valid := '0';
-        end if;
         tag_c := instr_tag_init;
         for i in tag_number_t loop
             if tag_regs(i).wr_gpr = '1' and tag_regs(i).recent = '1' and tag_regs(i).reg = gpr_c_read_in then
@@ -177,26 +168,29 @@ begin
                 tag_c.tag := i;
             end if;
         end loop;
-        if tag_match(tag_c, complete_in) then
-            tag_c.valid := '0';
-        end if;
 
         byp_a := "00";
         if EX1_BYPASS and tag_match(execute_next_tag, tag_a) then
-            byp_a := "10";
+            byp_a := "01";
         elsif EX1_BYPASS and tag_match(execute2_next_tag, tag_a) then
+            byp_a := "10";
+        elsif tag_match(complete_in, tag_a) then
             byp_a := "11";
         end if;
         byp_b := "00";
         if EX1_BYPASS and tag_match(execute_next_tag, tag_b) then
-            byp_b := "10";
+            byp_b := "01";
         elsif EX1_BYPASS and tag_match(execute2_next_tag, tag_b) then
+            byp_b := "10";
+        elsif tag_match(complete_in, tag_b) then
             byp_b := "11";
         end if;
         byp_c := "00";
         if EX1_BYPASS and tag_match(execute_next_tag, tag_c) then
-            byp_c := "10";
+            byp_c := "01";
         elsif EX1_BYPASS and tag_match(execute2_next_tag, tag_c) then
+            byp_c := "10";
+        elsif tag_match(complete_in, tag_c) then
             byp_c := "11";
         end if;
 
@@ -204,9 +198,9 @@ begin
         gpr_bypass_b <= byp_b;
         gpr_bypass_c <= byp_c;
 
-        gpr_tag_stall <= (tag_a.valid and not byp_a(1)) or
-                         (tag_b.valid and not byp_b(1)) or
-                         (tag_c.valid and not byp_c(1));
+        gpr_tag_stall <= (tag_a.valid and not (or (byp_a))) or
+                         (tag_b.valid and not (or (byp_b))) or
+                         (tag_c.valid and not (or (byp_c)));
 
         incr_tag := curr_tag;
         instr_tag.tag <= curr_tag;
@@ -331,7 +325,6 @@ begin
 
         -- update outputs
         valid_out <= valid_tmp;
-        stall_out <= stall_tmp or deferred;
 
         -- update registers
         rin_int <= v_int;

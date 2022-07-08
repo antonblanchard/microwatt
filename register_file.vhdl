@@ -100,18 +100,8 @@ begin
         d_out.read2_data <= rd_port_b;
         d_out.read3_data <= registers(to_integer(unsigned(c_addr)));
 
-        -- Forward any written data
-        if w_in.write_enable = '1' then
-            if a_addr = w_addr then
-                d_out.read1_data <= w_in.write_data;
-            end if;
-            if b_addr = w_addr then
-                d_out.read2_data <= w_in.write_data;
-            end if;
-            if c_addr = w_addr then
-                d_out.read3_data <= w_in.write_data;
-            end if;
-        end if;
+        -- Forwarding of written data is now done explicitly with a bypass path
+        -- from writeback to decode2.
     end process register_read_0;
 
     -- Latch read data and ack if dbg read requested and B port not busy

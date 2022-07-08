@@ -41,6 +41,7 @@ entity decode2 is
         execute_cr_bypass : in cr_bypass_data_t;
         execute2_bypass    : in bypass_data_t;
         execute2_cr_bypass : in cr_bypass_data_t;
+        writeback_bypass  : in bypass_data_t;
 
         log_out : out std_ulogic_vector(9 downto 0)
 	);
@@ -49,8 +50,16 @@ end entity decode2;
 architecture behaviour of decode2 is
     type reg_type is record
         e : Decode2ToExecute1Type;
-        repeat : std_ulogic;
+        repeat : repeat_t;
+        busy : std_ulogic;
+        sgl_pipe : std_ulogic;
+        reg_a_valid : std_ulogic;
+        reg_b_valid : std_ulogic;
+        reg_c_valid : std_ulogic;
+        reg_o_valid : std_ulogic;
     end record;
+    constant reg_type_init : reg_type :=
+        (e => Decode2ToExecute1Init, repeat => NONE, others => '0');
 
     signal dc2, dc2in : reg_type;
 
@@ -61,20 +70,21 @@ architecture behaviour of decode2 is
         reg       : gspr_index_t;
         data      : std_ulogic_vector(63 downto 0);
     end record;
+    constant decode_input_reg_init : decode_input_reg_t := ('0', (others => '0'), (others => '0'));
 
     type decode_output_reg_t is record
         reg_valid : std_ulogic;
         reg       : gspr_index_t;
     end record;
+    constant decode_output_reg_init : decode_output_reg_t := ('0', (others => '0'));
 
     function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
-                                 reg_data : std_ulogic_vector(63 downto 0);
                                  ispr : gspr_index_t;
                                  instr_addr : std_ulogic_vector(63 downto 0))
         return decode_input_reg_t is
     begin
         if t = RA or (t = RA_OR_ZERO and insn_ra(insn_in) /= "00000") then
-            return ('1', gpr_to_gspr(insn_ra(insn_in)), reg_data);
+            return ('1', gpr_to_gspr(insn_ra(insn_in)), (others => '0'));
         elsif t = SPR then
             -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
             -- If it's all 0, we don't treat it as a dependency as slow SPRs
@@ -83,27 +93,26 @@ architecture behaviour of decode2 is
             assert is_fast_spr(ispr) =  '1' or ispr = "0000000"
                 report "Decode A says SPR but ISPR is invalid:" &
                 to_hstring(ispr) severity failure;
-            return (is_fast_spr(ispr), ispr, reg_data);
+            return (is_fast_spr(ispr), ispr, (others => '0'));
         elsif t = CIA then
             return ('0', (others => '0'), instr_addr);
         elsif HAS_FPU and t = FRA then
-            return ('1', fpr_to_gspr(insn_fra(insn_in)), reg_data);
+            return ('1', fpr_to_gspr(insn_fra(insn_in)), (others => '0'));
         else
             return ('0', (others => '0'), (others => '0'));
         end if;
     end;
 
     function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0);
-                                 reg_data : std_ulogic_vector(63 downto 0);
                                  ispr : gspr_index_t) return decode_input_reg_t is
         variable ret : decode_input_reg_t;
     begin
         case t is
             when RB =>
-                ret := ('1', gpr_to_gspr(insn_rb(insn_in)), reg_data);
+                ret := ('1', gpr_to_gspr(insn_rb(insn_in)), (others => '0'));
             when FRB =>
                 if HAS_FPU then
-                    ret := ('1', fpr_to_gspr(insn_frb(insn_in)), reg_data);
+                    ret := ('1', fpr_to_gspr(insn_frb(insn_in)), (others => '0'));
                 else
                     ret := ('0', (others => '0'), (others => '0'));
                 end if;
@@ -138,7 +147,7 @@ architecture behaviour of decode2 is
                 assert is_fast_spr(ispr) = '1' or ispr = "0000000"
                     report "Decode B says SPR but ISPR is invalid:" &
                     to_hstring(ispr) severity failure;
-                ret := (is_fast_spr(ispr), ispr, reg_data);
+                ret := (is_fast_spr(ispr), ispr, (others => '0'));
             when NONE =>
                 ret := ('0', (others => '0'), (others => '0'));
         end case;
@@ -146,23 +155,23 @@ architecture behaviour of decode2 is
         return ret;
     end;
 
-    function decode_input_reg_c (t : input_reg_c_t; insn_in : std_ulogic_vector(31 downto 0);
-                                 reg_data : std_ulogic_vector(63 downto 0)) return decode_input_reg_t is
+    function decode_input_reg_c (t : input_reg_c_t; insn_in : std_ulogic_vector(31 downto 0))
+        return decode_input_reg_t is
     begin
         case t is
             when RS =>
-                return ('1', gpr_to_gspr(insn_rs(insn_in)), reg_data);
+                return ('1', gpr_to_gspr(insn_rs(insn_in)), (others => '0'));
             when RCR =>
-                return ('1', gpr_to_gspr(insn_rcreg(insn_in)), reg_data);
+                return ('1', gpr_to_gspr(insn_rcreg(insn_in)), (others => '0'));
             when FRS =>
                 if HAS_FPU then
-                    return ('1', fpr_to_gspr(insn_frt(insn_in)), reg_data);
+                    return ('1', fpr_to_gspr(insn_frt(insn_in)), (others => '0'));
                 else
                     return ('0', (others => '0'), (others => '0'));
                 end if;
             when FRC =>
                 if HAS_FPU then
-                    return ('1', fpr_to_gspr(insn_frc(insn_in)), reg_data);
+                    return ('1', fpr_to_gspr(insn_frc(insn_in)), (others => '0'));
                 else
                     return ('0', (others => '0'), (others => '0'));
                 end if;
@@ -264,10 +273,14 @@ architecture behaviour of decode2 is
         others     => "000"
         );
 
+    signal decoded_reg_a : decode_input_reg_t;
+    signal decoded_reg_b : decode_input_reg_t;
+    signal decoded_reg_c : decode_input_reg_t;
+    signal decoded_reg_o : decode_output_reg_t;
+
     -- issue control signals
     signal control_valid_in : std_ulogic;
     signal control_valid_out : std_ulogic;
-    signal control_stall_out : std_ulogic;
     signal control_sgl_pipe : std_logic;
 
     signal gpr_write_valid : std_ulogic;
@@ -302,8 +315,6 @@ begin
 
             complete_in => complete_in,
             valid_in    => control_valid_in,
-            repeated    => dc2.repeat,
-            busy_in     => busy_in,
             deferred    => deferred,
             flush_in    => flush_in,
             sgl_pipe_in => control_sgl_pipe,
@@ -331,7 +342,6 @@ begin
             cr_bypass            => cr_bypass,
 
             valid_out   => control_valid_out,
-            stall_out   => control_stall_out,
             stopped_out => stopped_out,
 
             gpr_bypass_a => gpr_a_bypass,
@@ -346,9 +356,12 @@ begin
     decode2_0: process(clk)
     begin
         if rising_edge(clk) then
-            if rst = '1' or flush_in = '1' or deferred = '0' then
+            if rst = '1' or flush_in = '1' then
+                dc2 <= reg_type_init;
+            elsif deferred = '0' then
                 if dc2in.e.valid = '1' then
-                    report "execute " & to_hstring(dc2in.e.nia);
+                    report "execute " & to_hstring(dc2in.e.nia) &
+                        " tag=" & integer'image(dc2in.e.instr_tag.tag) & std_ulogic'image(dc2in.e.instr_tag.valid);
                 end if;
                 dc2 <= dc2in;
             end if;
@@ -357,205 +370,246 @@ begin
 
     c_out.read <= d_in.decode.input_cr;
 
+    decode2_addrs: process(all)
+    begin
+        decoded_reg_a <= decode_input_reg_init;
+        decoded_reg_b <= decode_input_reg_init;
+        decoded_reg_c <= decode_input_reg_init;
+        decoded_reg_o <= decode_output_reg_init;
+        if d_in.valid = '1' then
+            decoded_reg_a <= decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.ispr1, d_in.nia);
+            decoded_reg_b <= decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, d_in.ispr2);
+            decoded_reg_c <= decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn);
+            decoded_reg_o <= decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.ispro);
+        end if;
+
+        r_out.read1_enable <= decoded_reg_a.reg_valid;
+        r_out.read1_reg    <= decoded_reg_a.reg;
+        r_out.read2_enable <= decoded_reg_b.reg_valid;
+        r_out.read2_reg    <= decoded_reg_b.reg;
+        r_out.read3_enable <= decoded_reg_c.reg_valid;
+        r_out.read3_reg    <= decoded_reg_c.reg;
+
+    end process;
+
     decode2_1: process(all)
         variable v : reg_type;
-        variable decoded_reg_a : decode_input_reg_t;
-        variable decoded_reg_b : decode_input_reg_t;
-        variable decoded_reg_c : decode_input_reg_t;
-        variable decoded_reg_o : decode_output_reg_t;
         variable length : std_ulogic_vector(3 downto 0);
         variable op : insn_type_t;
+        variable valid_in : std_ulogic;
     begin
         v := dc2;
 
-        v.e := Decode2ToExecute1Init;
+        valid_in := d_in.valid or dc2.busy;
 
-        --v.e.input_cr := d_in.decode.input_cr;
-        v.e.output_cr := d_in.decode.output_cr;
+        if dc2.busy = '0' then
+            v.e := Decode2ToExecute1Init;
 
-        -- Work out whether XER common bits are set
-        v.e.output_xer := d_in.decode.output_carry;
-        case d_in.decode.insn_type is
-            when OP_ADD | OP_MUL_L64 | OP_DIV | OP_DIVE =>
-                -- OE field is valid in OP_ADD/OP_MUL_L64 with major opcode 31 only
-                if d_in.insn(31 downto 26) = "011111" and insn_oe(d_in.insn) = '1' then
-                    v.e.oe := '1';
-                    v.e.output_xer := '1';
-                end if;
-            when OP_MTSPR =>
-                if decode_spr_num(d_in.insn) = SPR_XER then
-                    v.e.output_xer := '1';
-                end if;
-            when others =>
-        end case;
+            v.sgl_pipe := d_in.decode.sgl_pipe;
 
-        decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data, d_in.ispr1,
-                                             d_in.nia);
-        decoded_reg_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, r_in.read2_data, d_in.ispr2);
-        decoded_reg_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn, r_in.read3_data);
-        decoded_reg_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.ispro);
+            v.e.input_cr := d_in.decode.input_cr;
+            v.e.output_cr := d_in.decode.output_cr;
 
-        if d_in.decode.lr = '1' then
-            v.e.lr := insn_lk(d_in.insn);
-            -- b and bc have even major opcodes; bcreg is considered absolute
-            v.e.br_abs := insn_aa(d_in.insn) or d_in.insn(26);
-        end if;
-        op := d_in.decode.insn_type;
-
-        if d_in.decode.repeat /= NONE then
-            v.e.repeat := '1';
-            v.e.second := dc2.repeat;
-            case d_in.decode.repeat is
-                when DUPD =>
-                    -- update-form loads, 2nd instruction writes RA
-                    if dc2.repeat = '1' then
-                        decoded_reg_o.reg := decoded_reg_a.reg;
+            -- Work out whether XER common bits are set
+            v.e.output_xer := d_in.decode.output_carry;
+            case d_in.decode.insn_type is
+                when OP_ADD | OP_MUL_L64 | OP_DIV | OP_DIVE =>
+                    -- OE field is valid in OP_ADD/OP_MUL_L64 with major opcode 31 only
+                    if d_in.insn(31 downto 26) = "011111" and insn_oe(d_in.insn) = '1' then
+                        v.e.oe := '1';
+                        v.e.output_xer := '1';
+                    end if;
+                when OP_MTSPR =>
+                    if decode_spr_num(d_in.insn) = SPR_XER then
+                        v.e.output_xer := '1';
                     end if;
                 when others =>
             end case;
-        elsif v.e.lr = '1' and decoded_reg_a.reg_valid = '1' then
-            -- bcl/bclrl/bctarl that needs to write both CTR and LR has to be doubled
-            v.e.repeat := '1';
-            v.e.second := dc2.repeat;
-            -- first one does CTR, second does LR
-            decoded_reg_o.reg(0) := not dc2.repeat;
-        end if;
 
-        v.e.spr_select := d_in.spr_info;
+            v.reg_a_valid := decoded_reg_a.reg_valid;
+            v.reg_b_valid := decoded_reg_b.reg_valid;
+            v.reg_c_valid := decoded_reg_c.reg_valid;
+            v.reg_o_valid := decoded_reg_o.reg_valid;
 
-        r_out.read1_enable <= decoded_reg_a.reg_valid and d_in.valid;
-        r_out.read1_reg    <= decoded_reg_a.reg;
-        r_out.read2_enable <= decoded_reg_b.reg_valid and d_in.valid;
-        r_out.read2_reg    <= decoded_reg_b.reg;
-        r_out.read3_enable <= decoded_reg_c.reg_valid and d_in.valid;
-        r_out.read3_reg    <= decoded_reg_c.reg;
-
-        case d_in.decode.length is
-            when is1B =>
-                length := "0001";
-            when is2B =>
-                length := "0010";
-            when is4B =>
-                length := "0100";
-            when is8B =>
-                length := "1000";
-            when NONE =>
-                length := "0000";
-        end case;
-
-        -- execute unit
-        v.e.nia := d_in.nia;
-        v.e.unit := d_in.decode.unit;
-        v.e.fac := d_in.decode.facility;
-        v.e.instr_tag := instr_tag;
-        v.e.read_reg1 := decoded_reg_a.reg;
-        v.e.read_reg2 := decoded_reg_b.reg;
-        v.e.write_reg := decoded_reg_o.reg;
-        v.e.write_reg_enable := decoded_reg_o.reg_valid;
-        v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
-        v.e.xerc := c_in.read_xerc_data;
-        v.e.invert_a := d_in.decode.invert_a;
-        v.e.addm1 := '0';
-        v.e.insn_type := op;
-        v.e.invert_out := d_in.decode.invert_out;
-        v.e.input_carry := d_in.decode.input_carry;
-        v.e.output_carry := d_in.decode.output_carry;
-        v.e.is_32bit := d_in.decode.is_32bit;
-        v.e.is_signed := d_in.decode.is_signed;
-        v.e.insn := d_in.insn;
-        v.e.data_len := length;
-        v.e.byte_reverse := d_in.decode.byte_reverse;
-        v.e.sign_extend := d_in.decode.sign_extend;
-        v.e.update := d_in.decode.update;
-        v.e.reserve := d_in.decode.reserve;
-        v.e.br_pred := d_in.br_pred;
-        v.e.result_sel := result_select(op);
-        v.e.sub_select := subresult_select(op);
-        if op = OP_BC or op = OP_BCREG then
-            if d_in.insn(23) = '0' and dc2.repeat = '0' and
-                not (d_in.decode.insn_type = OP_BCREG and d_in.insn(10) = '0') then
-                -- decrement CTR if BO(2) = 0 and not bcctr
-                v.e.addm1 := '1';
-                v.e.result_sel := "000";        -- select adder output
+            if d_in.decode.lr = '1' then
+                v.e.lr := insn_lk(d_in.insn);
+                -- b and bc have even major opcodes; bcreg is considered absolute
+                v.e.br_abs := insn_aa(d_in.insn) or d_in.insn(26);
             end if;
-        end if;
-        if op = OP_MFSPR then
-            if is_fast_spr(d_in.ispr1) = '1' then
-                v.e.result_sel := "000";        -- adder_result, effectively a_in
-            elsif d_in.spr_info.valid = '0' then
-                -- Privileged mfspr to invalid/unimplemented SPR numbers
-                -- writes the contents of RT back to RT (i.e. it's a no-op)
-                v.e.result_sel := "001";        -- logical_result
-            elsif d_in.spr_info.ispmu = '1' then
-                v.e.result_sel := "100";        -- pmuspr_result
+            op := d_in.decode.insn_type;
+
+            v.repeat := d_in.decode.repeat;
+            if d_in.decode.repeat /= NONE then
+                v.e.repeat := '1';
+            elsif v.e.lr = '1' and decoded_reg_a.reg_valid = '1' then
+                -- bcl/bclrl/bctarl that needs to write both CTR and LR has to be doubled
+                v.e.repeat := '1';
             end if;
-        end if;
 
-        -- See if any of the operands can get their value via the bypass path.
-        case gpr_a_bypass is
-            when "10" =>
-                v.e.read_data1 := execute_bypass.data;
-            when "11" =>
-                v.e.read_data1 := execute2_bypass.data;
-            when others =>
-                v.e.read_data1 := decoded_reg_a.data;
-        end case;
-        case gpr_b_bypass is
-            when "10" =>
-                v.e.read_data2 := execute_bypass.data;
-            when "11" =>
-                v.e.read_data2 := execute2_bypass.data;
-            when others =>
-                v.e.read_data2 := decoded_reg_b.data;
-        end case;
-        case gpr_c_bypass is
-            when "10" =>
-                v.e.read_data3 := execute_bypass.data;
-            when "11" =>
-                v.e.read_data3 := execute2_bypass.data;
-            when others =>
-                v.e.read_data3 := decoded_reg_c.data;
-        end case;
+            v.e.spr_select := d_in.spr_info;
 
-        v.e.cr := c_in.read_cr_data;
-        if cr_bypass = "10" then
-            v.e.cr := execute_cr_bypass.data;
-        elsif cr_bypass = "11" then
-            v.e.cr := execute2_cr_bypass.data;
+            case d_in.decode.length is
+                when is1B =>
+                    length := "0001";
+                when is2B =>
+                    length := "0010";
+                when is4B =>
+                    length := "0100";
+                when is8B =>
+                    length := "1000";
+                when NONE =>
+                    length := "0000";
+            end case;
+
+            -- execute unit
+            v.e.nia := d_in.nia;
+            v.e.unit := d_in.decode.unit;
+            v.e.fac := d_in.decode.facility;
+            v.e.read_reg1 := decoded_reg_a.reg;
+            v.e.read_reg2 := decoded_reg_b.reg;
+            v.e.read_reg3 := decoded_reg_c.reg;
+            v.e.write_reg := decoded_reg_o.reg;
+            v.e.write_reg_enable := decoded_reg_o.reg_valid;
+            v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
+            v.e.xerc := c_in.read_xerc_data;
+            v.e.invert_a := d_in.decode.invert_a;
+            v.e.addm1 := '0';
+            v.e.insn_type := op;
+            v.e.invert_out := d_in.decode.invert_out;
+            v.e.input_carry := d_in.decode.input_carry;
+            v.e.output_carry := d_in.decode.output_carry;
+            v.e.is_32bit := d_in.decode.is_32bit;
+            v.e.is_signed := d_in.decode.is_signed;
+            v.e.insn := d_in.insn;
+            v.e.data_len := length;
+            v.e.byte_reverse := d_in.decode.byte_reverse;
+            v.e.sign_extend := d_in.decode.sign_extend;
+            v.e.update := d_in.decode.update;
+            v.e.reserve := d_in.decode.reserve;
+            v.e.br_pred := d_in.br_pred;
+            v.e.result_sel := result_select(op);
+            v.e.sub_select := subresult_select(op);
+            if op = OP_BC or op = OP_BCREG then
+                if d_in.insn(23) = '0' and
+                    not (d_in.decode.insn_type = OP_BCREG and d_in.insn(10) = '0') then
+                    -- decrement CTR if BO(2) = 0 and not bcctr
+                    v.e.addm1 := '1';
+                    v.e.result_sel := "000";        -- select adder output
+                end if;
+            end if;
+            if op = OP_MFSPR then
+                if is_fast_spr(d_in.ispr1) = '1' then
+                    v.e.result_sel := "000";        -- adder_result, effectively a_in
+                elsif d_in.spr_info.valid = '0' then
+                    -- Privileged mfspr to invalid/unimplemented SPR numbers
+                    -- writes the contents of RT back to RT (i.e. it's a no-op)
+                    v.e.result_sel := "001";        -- logical_result
+                elsif d_in.spr_info.ispmu = '1' then
+                    v.e.result_sel := "100";        -- pmuspr_result
+                end if;
+            end if;
+
+        elsif dc2.e.valid = '1' then
+            -- dc2.busy = 1 and dc2.e.valid = 1, thus this must be a repeated instruction.
+            -- Set up for the second iteration (if deferred = 1 this will all be ignored)
+            v.e.second := '1';
+            case dc2.repeat is
+                when DUPD =>
+                    -- update-form loads, 2nd instruction writes RA
+                    v.e.write_reg := dc2.e.read_reg1;
+                when NONE =>
+                    -- bcl/bclrl/bctarl that needs to write both CTR and LR
+                    v.e.write_reg(0) := '0';    -- point to LR
+                    v.e.result_sel := "110";    -- select NIA (to go to LR)
+                when others =>
+            end case;
         end if;
 
         -- issue control
-        control_valid_in <= d_in.valid;
-        control_sgl_pipe <= d_in.decode.sgl_pipe;
+        control_valid_in <= valid_in;
+        control_sgl_pipe <= v.sgl_pipe;
 
-        gpr_write_valid <= v.e.write_reg_enable;
-        gpr_write <= decoded_reg_o.reg;
+        gpr_write_valid <= v.reg_o_valid;
+        gpr_write <= v.e.write_reg;
 
-        gpr_a_read_valid <= decoded_reg_a.reg_valid;
-        gpr_a_read <= decoded_reg_a.reg;
+        gpr_a_read_valid <= v.reg_a_valid;
+        gpr_a_read <= v.e.read_reg1;
 
-        gpr_b_read_valid <= decoded_reg_b.reg_valid;
-        gpr_b_read <= decoded_reg_b.reg;
+        gpr_b_read_valid <= v.reg_b_valid;
+        gpr_b_read <= v.e.read_reg2;
 
-        gpr_c_read_valid <= decoded_reg_c.reg_valid;
-        gpr_c_read <= decoded_reg_c.reg;
+        gpr_c_read_valid <= v.reg_c_valid;
+        gpr_c_read <= v.e.read_reg3;
 
-        cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
+        cr_write_valid <= v.e.output_cr or v.e.rc;
         -- Since ops that write CR only write some of the fields,
         -- any op that writes CR effectively also reads it.
-        cr_read_valid <= cr_write_valid or d_in.decode.input_cr;
+        cr_read_valid <= cr_write_valid or v.e.input_cr;
+
+        -- See if any of the operands can get their value via the bypass path.
+        if dc2.busy = '0' or gpr_a_bypass /= "00" then
+            case gpr_a_bypass is
+                when "01" =>
+                    v.e.read_data1 := execute_bypass.data;
+                when "10" =>
+                    v.e.read_data1 := execute2_bypass.data;
+                when "11" =>
+                    v.e.read_data1 := writeback_bypass.data;
+                when others =>
+                    if decoded_reg_a.reg_valid = '1' then
+                        v.e.read_data1 := r_in.read1_data;
+                    else
+                        v.e.read_data1 := decoded_reg_a.data;
+                    end if;
+            end case;
+        end if;
+        if dc2.busy = '0' or gpr_b_bypass /= "00" then
+            case gpr_b_bypass is
+                when "01" =>
+                    v.e.read_data2 := execute_bypass.data;
+                when "10" =>
+                    v.e.read_data2 := execute2_bypass.data;
+                when "11" =>
+                    v.e.read_data2 := writeback_bypass.data;
+                when others =>
+                    if decoded_reg_b.reg_valid = '1' then
+                        v.e.read_data2 := r_in.read2_data;
+                    else
+                        v.e.read_data2 := decoded_reg_b.data;
+                    end if;
+            end case;
+        end if;
+        if dc2.busy = '0' or gpr_c_bypass /= "00" then
+            case gpr_c_bypass is
+                when "01" =>
+                    v.e.read_data3 := execute_bypass.data;
+                when "10" =>
+                    v.e.read_data3 := execute2_bypass.data;
+                when "11" =>
+                    v.e.read_data3 := writeback_bypass.data;
+                when others =>
+                    if decoded_reg_c.reg_valid = '1' then
+                        v.e.read_data3 := r_in.read3_data;
+                    else
+                        v.e.read_data3 := decoded_reg_c.data;
+                    end if;
+            end case;
+        end if;
+
+        case cr_bypass is
+            when "10" =>
+                v.e.cr := execute_cr_bypass.data;
+            when "11" =>
+                v.e.cr := execute2_cr_bypass.data;
+            when others =>
+                v.e.cr := c_in.read_cr_data;
+        end case;
 
         v.e.valid := control_valid_out;
-        if control_valid_out = '1' then
-            v.repeat := v.e.repeat and not dc2.repeat;
-        end if;
+        v.e.instr_tag := instr_tag;
+        v.busy := valid_in and (not control_valid_out or (v.e.repeat and not v.e.second));
 
-        stall_out <= control_stall_out or v.repeat;
-
-        if rst = '1' or flush_in = '1' then
-            v.e := Decode2ToExecute1Init;
-            v.repeat := '0';
-        end if;
+        stall_out <= dc2.busy or deferred;
 
         -- Update registers
         dc2in <= v;
@@ -574,9 +628,9 @@ begin
                             dc2.e.valid &
                             stopped_out &
                             stall_out &
-                            (gpr_a_bypass(1) or gpr_a_bypass(0)) &
-                            (gpr_b_bypass(1) or gpr_b_bypass(0)) &
-                            (gpr_c_bypass(1) or gpr_c_bypass(0));
+                            (gpr_a_bypass(1) xor gpr_a_bypass(0)) &
+                            (gpr_b_bypass(1) xor gpr_b_bypass(0)) &
+                            (gpr_c_bypass(1) xor gpr_c_bypass(0));
             end if;
         end process;
         log_out <= log_data;

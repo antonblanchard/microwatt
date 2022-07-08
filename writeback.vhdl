@@ -19,6 +19,8 @@ entity writeback is
         c_out        : out WritebackToCrFileType;
         f_out        : out WritebackToFetch1Type;
 
+        wb_bypass    : out bypass_data_t;
+
         -- PMU event bus
         events       : out WritebackEventType;
 
@@ -214,6 +216,11 @@ begin
 
         f_out <= f;
         flush_out <= f_out.redirect;
+
+        -- Register write data bypass to decode2
+        wb_bypass.tag.tag <= complete_out.tag;
+        wb_bypass.tag.valid <= complete_out.valid and w_out.write_enable;
+        wb_bypass.data <= w_out.write_data;
 
         rin <= v;
     end process;

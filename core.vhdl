@@ -100,6 +100,9 @@ architecture behave of core is
     signal fpu_to_execute1: FPUToExecute1Type;
     signal fpu_to_writeback: FPUToWritebackType;
 
+    -- Writeback signals
+    signal writeback_bypass: bypass_data_t;
+
     -- local signals
     signal fetch1_stall_in : std_ulogic;
     signal icache_stall_out : std_ulogic;
@@ -302,6 +305,7 @@ begin
             execute_cr_bypass => execute1_cr_bypass,
             execute2_bypass => execute2_bypass,
             execute2_cr_bypass => execute2_cr_bypass,
+            writeback_bypass => writeback_bypass,
             log_out => log_data(119 downto 110)
             );
     decode2_busy_in <= ex1_busy_out;
@@ -463,6 +467,7 @@ begin
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             f_out => writeback_to_fetch1,
+            wb_bypass => writeback_bypass,
             events => writeback_events,
             interrupt_out => do_interrupt,
             complete_out => complete

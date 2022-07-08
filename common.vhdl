@@ -288,6 +288,7 @@ package common is
         write_reg_enable: std_ulogic;
 	read_reg1: gspr_index_t;
 	read_reg2: gspr_index_t;
+	read_reg3: gspr_index_t;
 	read_data1: std_ulogic_vector(63 downto 0);
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
