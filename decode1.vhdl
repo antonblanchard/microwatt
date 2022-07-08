@@ -30,7 +30,6 @@ end entity decode1;
 
 architecture behaviour of decode1 is
     signal r, rin : Decode1ToDecode2Type;
-    signal s      : Decode1ToDecode2Type;
     signal f, fin : Decode1ToFetch1Type;
 
     constant illegal_inst : decode_rom_t :=
@@ -46,7 +45,6 @@ architecture behaviour of decode1 is
         (override => '0', override_decode => illegal_inst, override_unit => '0', force_single => '0');
 
     signal ri, ri_in : reg_internal_t;
-    signal si        : reg_internal_t;
 
     type br_predictor_t is record
         br_nia    : std_ulogic_vector(61 downto 0);
@@ -555,26 +553,12 @@ begin
         if rising_edge(clk) then
             if rst = '1' then
                 r <= Decode1ToDecode2Init;
-                s <= Decode1ToDecode2Init;
                 ri <= reg_internal_t_init;
-                si <= reg_internal_t_init;
             elsif flush_in = '1' then
                 r.valid <= '0';
-                s.valid <= '0';
-            elsif s.valid = '1' then
-                if stall_in = '0' then
-                    r <= s;
-                    ri <= si;
-                    s.valid <= '0';
-                end if;
-            else
-                s <= rin;
-                si <= ri_in;
-                s.valid <= rin.valid and r.valid and stall_in;
-                if r.valid = '0' or stall_in = '0' then
-                    r <= rin;
-                    ri <= ri_in;
-                end if;
+            elsif stall_in = '0' then
+                r <= rin;
+                ri <= ri_in;
             end if;
             if rst = '1' then
                 br.br_nia <= (others => '0');
@@ -585,7 +569,7 @@ begin
             end if;
         end if;
     end process;
-    busy_out <= s.valid;
+    busy_out <= stall_in;
 
     decode1_1: process(all)
         variable v : Decode1ToDecode2Type;
