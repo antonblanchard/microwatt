@@ -17,7 +17,7 @@ entity control is
         valid_in            : in std_ulogic;
         flush_in            : in std_ulogic;
         deferred            : in std_ulogic;
-        sgl_pipe_in         : in std_ulogic;
+        serialize           : in std_ulogic;
         stop_mark_in        : in std_ulogic;
 
         gpr_write_valid_in  : in std_ulogic;
@@ -53,16 +53,6 @@ entity control is
 end entity control;
 
 architecture rtl of control is
-    type state_type is (IDLE, WAIT_FOR_PREV_TO_COMPLETE, WAIT_FOR_CURR_TO_COMPLETE);
-
-    type reg_internal_type is record
-        state : state_type;
-        outstanding : integer range -1 to PIPELINE_DEPTH+2;
-    end record;
-    constant reg_internal_init : reg_internal_type := (state => IDLE, outstanding => 0);
-
-    signal r_int, rin_int : reg_internal_type := reg_internal_init;
-
     signal gpr_write_valid : std_ulogic;
     signal cr_write_valid  : std_ulogic;
 
@@ -71,6 +61,7 @@ architecture rtl of control is
         reg    : gspr_index_t;
         recent : std_ulogic;
         wr_cr  : std_ulogic;
+        valid  : std_ulogic;
     end record;
 
     type tag_regs_array is array(tag_number_t) of tag_register;
@@ -80,27 +71,29 @@ architecture rtl of control is
 
     signal gpr_tag_stall : std_ulogic;
     signal cr_tag_stall  : std_ulogic;
+    signal serial_stall  : std_ulogic;
 
     signal curr_tag : tag_number_t;
     signal next_tag : tag_number_t;
 
     signal curr_cr_tag : tag_number_t;
+    signal prev_tag : tag_number_t;
 
 begin
     control0: process(clk)
     begin
         if rising_edge(clk) then
-            assert rin_int.outstanding >= 0 and rin_int.outstanding <= (PIPELINE_DEPTH+1)
-                report "Outstanding bad " & integer'image(rin_int.outstanding) severity failure;
-            r_int <= rin_int;
             for i in tag_number_t loop
                 if rst = '1' or flush_in = '1' then
                     tag_regs(i).wr_gpr <= '0';
                     tag_regs(i).wr_cr <= '0';
+                    tag_regs(i).valid <= '0';
                 else
                     if complete_in.valid = '1' and i = complete_in.tag then
+                        assert tag_regs(i).valid = '1' report "spurious completion" severity failure;
                         tag_regs(i).wr_gpr <= '0';
                         tag_regs(i).wr_cr <= '0';
+                        tag_regs(i).valid <= '0';
                         report "tag " & integer'image(i) & " not valid";
                     end if;
                     if instr_tag.valid = '1' and gpr_write_valid = '1' and
@@ -115,6 +108,7 @@ begin
                         tag_regs(i).reg <= gpr_write_in;
                         tag_regs(i).recent <= gpr_write_valid;
                         tag_regs(i).wr_cr <= cr_write_valid;
+                        tag_regs(i).valid <= '1';
                         if gpr_write_valid = '1' then
                             report "tag " & integer'image(i) & " valid for gpr " & to_hstring(gpr_write_in);
                         end if;
@@ -124,10 +118,14 @@ begin
             if rst = '1' then
                 curr_tag <= 0;
                 curr_cr_tag <= 0;
+                prev_tag <= 0;
             else
                 curr_tag <= next_tag;
                 if instr_tag.valid = '1' and cr_write_valid = '1' then
                     curr_cr_tag <= instr_tag.tag;
+                end if;
+                if valid_out = '1' then
+                    prev_tag <= instr_tag.tag;
                 end if;
             end if;
         end if;
@@ -146,6 +144,7 @@ begin
         variable byp_c : std_ulogic_vector(1 downto 0);
         variable tag_cr : instr_tag_t;
         variable byp_cr : std_ulogic_vector(1 downto 0);
+        variable tag_prev : instr_tag_t;
     begin
         tag_a := instr_tag_init;
         for i in tag_number_t loop
@@ -226,107 +225,40 @@ begin
 
         cr_bypass <= byp_cr;
         cr_tag_stall <= tag_cr.valid and not byp_cr(1);
+
+        tag_prev.tag := prev_tag;
+        tag_prev.valid := tag_regs(prev_tag).valid;
+        if tag_match(tag_prev, complete_in) then
+            tag_prev.valid := '0';
+        end if;
+        serial_stall <= tag_prev.valid;
     end process;
 
     control1 : process(all)
-        variable v_int : reg_internal_type;
         variable valid_tmp : std_ulogic;
-        variable stall_tmp : std_ulogic;
     begin
-        v_int := r_int;
-
         -- asynchronous
         valid_tmp := valid_in and not flush_in;
-        stall_tmp := '0';
-
-        if flush_in = '1' then
-            v_int.outstanding := 0;
-        elsif complete_in.valid = '1' then
-            v_int.outstanding := r_int.outstanding - 1;
-        end if;
-        if r_int.outstanding >= PIPELINE_DEPTH + 1 then
-            valid_tmp := '0';
-            stall_tmp := '1';
-        end if;
 
         if rst = '1' then
             gpr_write_valid <= '0';
             cr_write_valid <= '0';
-            v_int := reg_internal_init;
             valid_tmp := '0';
         end if;
 
         -- Handle debugger stop
-        stopped_out <= '0';
-        if stop_mark_in = '1' and v_int.outstanding = 0 then
-            stopped_out <= '1';
-        end if;
+        stopped_out <= stop_mark_in and not serial_stall;
 
-        -- state machine to handle instructions that must be single
-        -- through the pipeline.
-        case r_int.state is
-            when IDLE =>
-                if valid_tmp = '1' then
-                    if (sgl_pipe_in = '1') then
-                        if v_int.outstanding /= 0 then
-                            v_int.state := WAIT_FOR_PREV_TO_COMPLETE;
-                            stall_tmp := '1';
-                        else
-                            -- send insn out and wait on it to complete
-                            v_int.state := WAIT_FOR_CURR_TO_COMPLETE;
-                        end if;
-                    else
-                        -- let it go out if there are no GPR or CR hazards
-                        stall_tmp := gpr_tag_stall or cr_tag_stall;
-                    end if;
-                end if;
-
-            when WAIT_FOR_PREV_TO_COMPLETE =>
-                if v_int.outstanding = 0 then
-                    -- send insn out and wait on it to complete
-                    v_int.state := WAIT_FOR_CURR_TO_COMPLETE;
-                else
-                    stall_tmp := '1';
-                end if;
-
-            when WAIT_FOR_CURR_TO_COMPLETE =>
-                if v_int.outstanding = 0 then
-                    v_int.state := IDLE;
-                    -- XXX Don't replicate this
-                    if valid_tmp = '1' then
-                        if (sgl_pipe_in = '1') then
-                            if v_int.outstanding /= 0 then
-                                v_int.state := WAIT_FOR_PREV_TO_COMPLETE;
-                                stall_tmp := '1';
-                            else
-                                -- send insn out and wait on it to complete
-                                v_int.state := WAIT_FOR_CURR_TO_COMPLETE;
-                            end if;
-                        else
-                            -- let it go out if there are no GPR or CR hazards
-                            stall_tmp := gpr_tag_stall or cr_tag_stall;
-                        end if;
-                    end if;
-                else
-                    stall_tmp := '1';
-                end if;
-        end case;
-
-        if stall_tmp = '1' then
+        -- Don't let it go out if there are GPR or CR hazards
+        -- or we are waiting for the previous instruction to complete
+        if (gpr_tag_stall or cr_tag_stall or (serialize and serial_stall)) = '1' then
             valid_tmp := '0';
         end if;
 
         gpr_write_valid <= gpr_write_valid_in and valid_tmp;
         cr_write_valid <= cr_write_in and valid_tmp;
 
-        if valid_tmp = '1' and deferred = '0' then
-            v_int.outstanding := v_int.outstanding + 1;
-        end if;
-
         -- update outputs
         valid_out <= valid_tmp;
-
-        -- update registers
-        rin_int <= v_int;
     end process;
 end;

@@ -53,6 +53,7 @@ architecture behaviour of decode2 is
         repeat : repeat_t;
         busy : std_ulogic;
         sgl_pipe : std_ulogic;
+        prev_sgl : std_ulogic;
         reg_a_valid : std_ulogic;
         reg_b_valid : std_ulogic;
         reg_c_valid : std_ulogic;
@@ -281,7 +282,7 @@ architecture behaviour of decode2 is
     -- issue control signals
     signal control_valid_in : std_ulogic;
     signal control_valid_out : std_ulogic;
-    signal control_sgl_pipe : std_logic;
+    signal control_serialize : std_logic;
 
     signal gpr_write_valid : std_ulogic;
     signal gpr_write : gspr_index_t;
@@ -317,7 +318,7 @@ begin
             valid_in    => control_valid_in,
             deferred    => deferred,
             flush_in    => flush_in,
-            sgl_pipe_in => control_sgl_pipe,
+            serialize   => control_serialize,
             stop_mark_in => d_in.stop_mark,
 
             gpr_write_valid_in => gpr_write_valid,
@@ -405,7 +406,10 @@ begin
         if dc2.busy = '0' then
             v.e := Decode2ToExecute1Init;
 
-            v.sgl_pipe := d_in.decode.sgl_pipe;
+            if d_in.valid = '1' then
+                v.prev_sgl := dc2.sgl_pipe;
+                v.sgl_pipe := d_in.decode.sgl_pipe;
+            end if;
 
             v.e.input_cr := d_in.decode.input_cr;
             v.e.output_cr := d_in.decode.output_cr;
@@ -527,7 +531,7 @@ begin
 
         -- issue control
         control_valid_in <= valid_in;
-        control_sgl_pipe <= v.sgl_pipe;
+        control_serialize <= v.sgl_pipe or v.prev_sgl;
 
         gpr_write_valid <= v.reg_o_valid;
         gpr_write <= v.e.write_reg;
