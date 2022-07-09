@@ -435,12 +435,18 @@ begin
     x_to_pmu.spr_val <= ex1.e.write_data;
     x_to_pmu.run <= '1';
 
-    -- XER forwarding. To avoid having to track XER hazards, we use
-    -- the previously latched value.  Since the XER common bits
-    -- (SO, OV[32] and CA[32]) are only modified by instructions that are
-    -- handled here, we can just use the result most recently sent to
-    -- writeback, unless a pipeline flush has happened in the meantime.
-    xerc_in <= ex1.xerc when ex1.xerc_valid = '1' else e_in.xerc;
+    -- XER forwarding.  The CA and CA32 bits are only modified by instructions
+    -- that are handled here, so for them we can just use the result most
+    -- recently sent to writeback, unless a pipeline flush has happened in the
+    -- meantime.
+    -- Hazards for SO/OV/OV32 are handled by control.vhdl as there may be other
+    -- units writing to them.  No forwarding is done because performance of
+    -- instructions that alter them is not considered significant.
+    xerc_in.so <= e_in.xerc.so;
+    xerc_in.ov <= e_in.xerc.ov;
+    xerc_in.ov32 <= e_in.xerc.ov32;
+    xerc_in.ca <= ex1.xerc.ca when ex1.xerc_valid = '1' else e_in.xerc.ca;
+    xerc_in.ca32 <= ex1.xerc.ca32 when ex1.xerc_valid = '1' else e_in.xerc.ca32;
 
     -- N.B. the busy signal from each source includes the
     -- stage2 stall from that source in it.
@@ -1561,7 +1567,7 @@ begin
             cr_res(31) := sign;
             cr_res(30) := not (sign or zero);
             cr_res(29) := zero;
-            cr_res(28) := ex1.xerc.so;
+            cr_res(28) := ex1.e.xerc.so;
             cr_mask(7) := '1';
         end if;
 

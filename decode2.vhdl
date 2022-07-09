@@ -58,6 +58,8 @@ architecture behaviour of decode2 is
         reg_b_valid : std_ulogic;
         reg_c_valid : std_ulogic;
         reg_o_valid : std_ulogic;
+        input_ov  : std_ulogic;
+        output_ov : std_ulogic;
     end record;
     constant reg_type_init : reg_type :=
         (e => Decode2ToExecute1Init, repeat => NONE, others => '0');
@@ -303,6 +305,9 @@ architecture behaviour of decode2 is
     signal cr_write_valid  : std_ulogic;
     signal cr_bypass       : std_ulogic_vector(1 downto 0);
 
+    signal ov_read_valid   : std_ulogic;
+    signal ov_write_valid  : std_ulogic;
+
     signal instr_tag       : instr_tag_t;
 
 begin
@@ -341,6 +346,9 @@ begin
             cr_read_in           => cr_read_valid,
             cr_write_in          => cr_write_valid,
             cr_bypass            => cr_bypass,
+
+            ov_read_in           => ov_read_valid,
+            ov_write_in          => ov_write_valid,
 
             valid_out   => control_valid_out,
             stopped_out => stopped_out,
@@ -414,19 +422,39 @@ begin
             v.e.input_cr := d_in.decode.input_cr;
             v.e.output_cr := d_in.decode.output_cr;
 
-            -- Work out whether XER common bits are set
+            -- Work out whether XER SO/OV/OV32 bits are set
+            -- or used by this instruction
+            v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
             v.e.output_xer := d_in.decode.output_carry;
+            v.input_ov := d_in.decode.output_carry;
+            v.output_ov := '0';
+            if d_in.decode.input_carry = OV then
+                v.input_ov := '1';
+                v.output_ov := '1';
+            end if;
+            if v.e.rc = '1' and d_in.decode.facility /= FPU then
+                v.input_ov := '1';
+            end if;
             case d_in.decode.insn_type is
                 when OP_ADD | OP_MUL_L64 | OP_DIV | OP_DIVE =>
                     -- OE field is valid in OP_ADD/OP_MUL_L64 with major opcode 31 only
                     if d_in.insn(31 downto 26) = "011111" and insn_oe(d_in.insn) = '1' then
                         v.e.oe := '1';
                         v.e.output_xer := '1';
+                        v.output_ov := '1';
+                        v.input_ov := '1';      -- need SO state if setting OV to 0
+                    end if;
+                when OP_MFSPR =>
+                    if decode_spr_num(d_in.insn) = SPR_XER then
+                        v.input_ov := '1';
                     end if;
                 when OP_MTSPR =>
                     if decode_spr_num(d_in.insn) = SPR_XER then
                         v.e.output_xer := '1';
+                        v.output_ov := '1';
                     end if;
+                when OP_CMP | OP_MCRXRX =>
+                    v.input_ov := '1';
                 when others =>
             end case;
 
@@ -474,8 +502,6 @@ begin
             v.e.read_reg3 := decoded_reg_c.reg;
             v.e.write_reg := decoded_reg_o.reg;
             v.e.write_reg_enable := decoded_reg_o.reg_valid;
-            v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
-            v.e.xerc := c_in.read_xerc_data;
             v.e.invert_a := d_in.decode.invert_a;
             v.e.addm1 := '0';
             v.e.insn_type := op;
@@ -550,6 +576,9 @@ begin
         -- any op that writes CR effectively also reads it.
         cr_read_valid <= cr_write_valid or v.e.input_cr;
 
+        ov_read_valid <= v.input_ov;
+        ov_write_valid <= v.output_ov;
+
         -- See if any of the operands can get their value via the bypass path.
         if dc2.busy = '0' or gpr_a_bypass /= "00" then
             case gpr_a_bypass is
@@ -608,6 +637,7 @@ begin
             when others =>
                 v.e.cr := c_in.read_cr_data;
         end case;
+        v.e.xerc := c_in.read_xerc_data;
 
         v.e.valid := control_valid_out;
         v.e.instr_tag := instr_tag;

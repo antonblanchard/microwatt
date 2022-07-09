@@ -39,6 +39,8 @@ entity control is
 
         cr_read_in          : in std_ulogic;
         cr_write_in         : in std_ulogic;
+        ov_read_in          : in std_ulogic;
+        ov_write_in         : in std_ulogic;
 
         valid_out           : out std_ulogic;
         stopped_out         : out std_ulogic;
@@ -55,12 +57,14 @@ end entity control;
 architecture rtl of control is
     signal gpr_write_valid : std_ulogic;
     signal cr_write_valid  : std_ulogic;
+    signal ov_write_valid  : std_ulogic;
 
     type tag_register is record
         wr_gpr : std_ulogic;
         reg    : gspr_index_t;
         recent : std_ulogic;
         wr_cr  : std_ulogic;
+        wr_ov  : std_ulogic;
         valid  : std_ulogic;
     end record;
 
@@ -71,12 +75,14 @@ architecture rtl of control is
 
     signal gpr_tag_stall : std_ulogic;
     signal cr_tag_stall  : std_ulogic;
+    signal ov_tag_stall  : std_ulogic;
     signal serial_stall  : std_ulogic;
 
     signal curr_tag : tag_number_t;
     signal next_tag : tag_number_t;
 
     signal curr_cr_tag : tag_number_t;
+    signal curr_ov_tag : tag_number_t;
     signal prev_tag : tag_number_t;
 
 begin
@@ -87,12 +93,14 @@ begin
                 if rst = '1' or flush_in = '1' then
                     tag_regs(i).wr_gpr <= '0';
                     tag_regs(i).wr_cr <= '0';
+                    tag_regs(i).wr_ov <= '0';
                     tag_regs(i).valid <= '0';
                 else
                     if complete_in.valid = '1' and i = complete_in.tag then
                         assert tag_regs(i).valid = '1' report "spurious completion" severity failure;
                         tag_regs(i).wr_gpr <= '0';
                         tag_regs(i).wr_cr <= '0';
+                        tag_regs(i).wr_ov <= '0';
                         tag_regs(i).valid <= '0';
                         report "tag " & integer'image(i) & " not valid";
                     end if;
@@ -108,6 +116,7 @@ begin
                         tag_regs(i).reg <= gpr_write_in;
                         tag_regs(i).recent <= gpr_write_valid;
                         tag_regs(i).wr_cr <= cr_write_valid;
+                        tag_regs(i).wr_ov <= ov_write_valid;
                         tag_regs(i).valid <= '1';
                         if gpr_write_valid = '1' then
                             report "tag " & integer'image(i) & " valid for gpr " & to_hstring(gpr_write_in);
@@ -118,11 +127,15 @@ begin
             if rst = '1' then
                 curr_tag <= 0;
                 curr_cr_tag <= 0;
+                curr_ov_tag <= 0;
                 prev_tag <= 0;
             else
                 curr_tag <= next_tag;
                 if instr_tag.valid = '1' and cr_write_valid = '1' then
                     curr_cr_tag <= instr_tag.tag;
+                end if;
+                if instr_tag.valid = '1' and ov_write_valid = '1' then
+                    curr_ov_tag <= instr_tag.tag;
                 end if;
                 if valid_out = '1' then
                     prev_tag <= instr_tag.tag;
@@ -144,6 +157,7 @@ begin
         variable byp_c : std_ulogic_vector(1 downto 0);
         variable tag_cr : instr_tag_t;
         variable byp_cr : std_ulogic_vector(1 downto 0);
+        variable tag_ov : instr_tag_t;
         variable tag_prev : instr_tag_t;
     begin
         tag_a := instr_tag_init;
@@ -226,6 +240,14 @@ begin
         cr_bypass <= byp_cr;
         cr_tag_stall <= tag_cr.valid and not byp_cr(1);
 
+        -- OV hazards
+        tag_ov.tag := curr_ov_tag;
+        tag_ov.valid := ov_read_in and tag_regs(curr_ov_tag).wr_ov;
+        if tag_match(tag_ov, complete_in) then
+            tag_ov.valid := '0';
+        end if;
+        ov_tag_stall <= tag_ov.valid;
+
         tag_prev.tag := prev_tag;
         tag_prev.valid := tag_regs(prev_tag).valid;
         if tag_match(tag_prev, complete_in) then
@@ -251,12 +273,14 @@ begin
 
         -- Don't let it go out if there are GPR or CR hazards
         -- or we are waiting for the previous instruction to complete
-        if (gpr_tag_stall or cr_tag_stall or (serialize and serial_stall)) = '1' then
+        if (gpr_tag_stall or cr_tag_stall or ov_tag_stall or
+            (serialize and serial_stall)) = '1' then
             valid_tmp := '0';
         end if;
 
         gpr_write_valid <= gpr_write_valid_in and valid_tmp;
         cr_write_valid <= cr_write_in and valid_tmp;
+        ov_write_valid <= ov_write_in and valid_tmp;
 
         -- update outputs
         valid_out <= valid_tmp;
