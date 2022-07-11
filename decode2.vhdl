@@ -480,6 +480,23 @@ begin
 
             v.e.spr_select := d_in.spr_info;
 
+            case op is
+                when OP_MFSPR =>
+                    v.e.ramspr_even_rdaddr := d_in.ram_spr.index;
+                    v.e.ramspr_odd_rdaddr := d_in.ram_spr.index;
+                    v.e.ramspr_rd_odd := d_in.ram_spr.isodd;
+                    v.e.spr_is_ram := d_in.ram_spr.valid;
+                when OP_MTSPR =>
+                    v.e.ramspr_wraddr := d_in.ram_spr.index;
+                    v.e.ramspr_write_even := d_in.ram_spr.valid and not d_in.ram_spr.isodd;
+                    v.e.ramspr_write_odd := d_in.ram_spr.valid and d_in.ram_spr.isodd;
+                    v.e.spr_is_ram := d_in.ram_spr.valid;
+                when OP_RFID =>
+                    v.e.ramspr_even_rdaddr := RAMSPR_SRR0;
+                    v.e.ramspr_odd_rdaddr := RAMSPR_SRR1;
+                when others =>
+            end case;
+
             case d_in.decode.length is
                 when is1B =>
                     length := "0001";
@@ -530,6 +547,8 @@ begin
             if op = OP_MFSPR then
                 if is_fast_spr(d_in.ispr1) = '1' then
                     v.e.result_sel := "000";        -- adder_result, effectively a_in
+                elsif d_in.ram_spr.valid = '1' then
+                    v.e.result_sel := "101";        -- ramspr_result
                 elsif d_in.spr_info.valid = '0' then
                     -- Privileged mfspr to invalid/unimplemented SPR numbers
                     -- writes the contents of RT back to RT (i.e. it's a no-op)

@@ -102,6 +102,7 @@ architecture behave of core is
 
     -- Writeback signals
     signal writeback_bypass: bypass_data_t;
+    signal wb_interrupt: WritebackToExecute1Type;
 
     -- local signals
     signal fetch1_stall_in : std_ulogic;
@@ -122,7 +123,6 @@ architecture behave of core is
     signal complete: instr_tag_t;
     signal terminate: std_ulogic;
     signal core_rst: std_ulogic;
-    signal do_interrupt: std_ulogic;
 
     -- Delayed/Latched resets and alt_reset
     signal rst_fetch1  : std_ulogic;
@@ -361,7 +361,7 @@ begin
             l_in => loadstore1_to_execute1,
             fp_in => fpu_to_execute1,
             ext_irq_in => ext_irq,
-            interrupt_in => do_interrupt,
+            interrupt_in => wb_interrupt,
             l_out => execute1_to_loadstore1,
             fp_out => execute1_to_fpu,
             e_out => execute1_to_writeback,
@@ -469,7 +469,7 @@ begin
             f_out => writeback_to_fetch1,
             wb_bypass => writeback_bypass,
             events => writeback_events,
-            interrupt_out => do_interrupt,
+            interrupt_out => wb_interrupt,
             complete_out => complete
             );
 

@@ -181,7 +181,7 @@ architecture behaviour of decode1 is
         -- isync
         2#111#    =>       (ALU, NONE, OP_ISYNC,     NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         -- rfid
-        2#101#    =>       (ALU, NONE, OP_RFID,      SPR,        SPR,         NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        2#101#    =>       (ALU, NONE, OP_RFID,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         others   => illegal_inst
         );
 
@@ -525,6 +525,42 @@ architecture behaviour of decode1 is
     constant nop_instr      : decode_rom_t := (ALU,  NONE, OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
     constant fetch_fail_inst: decode_rom_t := (LDST, NONE, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
 
+    function decode_ram_spr(sprn : spr_num_t) return ram_spr_info is
+        variable ret : ram_spr_info;
+    begin
+        ret := (index => 0, isodd => '0', valid => '1');
+        case sprn is
+            when SPR_SRR0 =>
+                ret.index := RAMSPR_SRR0;
+            when SPR_SRR1 =>
+                ret.index := RAMSPR_SRR1;
+                ret.isodd := '1';
+            when SPR_HSRR0 =>
+                ret.index := RAMSPR_HSRR0;
+            when SPR_HSRR1 =>
+                ret.index := RAMSPR_HSRR1;
+                ret.isodd := '1';
+            when SPR_SPRG0 =>
+                ret.index := RAMSPR_SPRG0;
+            when SPR_SPRG1 =>
+                ret.index := RAMSPR_SPRG1;
+                ret.isodd := '1';
+            when SPR_SPRG2 =>
+                ret.index := RAMSPR_SPRG2;
+            when SPR_SPRG3 | SPR_SPRG3U =>
+                ret.index := RAMSPR_SPRG3;
+                ret.isodd := '1';
+            when SPR_HSPRG0 =>
+                ret.index := RAMSPR_HSPRG0;
+            when SPR_HSPRG1 =>
+                ret.index := RAMSPR_HSPRG1;
+                ret.isodd := '1';
+            when others =>
+                ret.valid := '0';
+        end case;
+        return ret;
+    end;
+
     function map_spr(sprn : spr_num_t) return spr_id is
         variable i : spr_id;
     begin
@@ -614,6 +650,7 @@ begin
 
         sprn := decode_spr_num(f_in.insn);
         v.spr_info := map_spr(sprn);
+        v.ram_spr := decode_ram_spr(sprn);
 
         case to_integer(unsigned(majorop)) is
         when 4 =>
@@ -632,17 +669,17 @@ begin
 
             if std_match(f_in.insn(10 downto 1), "01-1010011") then
                 -- mfspr or mtspr
-                if is_fast_spr(v.ispr1) = '0' then
-                    -- Make mtspr to slow SPRs single issue
+                -- Make mtspr to slow SPRs single issue
+                if v.spr_info.valid = '1' then
                     vi.force_single := f_in.insn(8);
-                    -- send MMU-related SPRs to loadstore1
-                    case sprn is
-                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
-                            vi.override_decode.unit := LDST;
-                            vi.override_unit := '1';
-                        when others =>
-                    end case;
                 end if;
+                -- send MMU-related SPRs to loadstore1
+                case sprn is
+                    when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                        vi.override_decode.unit := LDST;
+                        vi.override_unit := '1';
+                    when others =>
+                end case;
             end if;
 
         when 16 =>
@@ -690,10 +727,6 @@ begin
                 else
                     v.ispr2 := fast_spr_num(SPR_TAR);
                 end if;
-            else
-                -- Could be OP_RFID
-                v.ispr1 := fast_spr_num(SPR_SRR1);
-                v.ispr2 := fast_spr_num(SPR_SRR0);
             end if;
 
         when 24 =>

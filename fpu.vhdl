@@ -99,7 +99,6 @@ architecture behaviour of fpu is
         illegal      : std_ulogic;
         op           : insn_type_t;
         insn         : std_ulogic_vector(31 downto 0);
-        nia          : std_ulogic_vector(63 downto 0);
         instr_tag    : instr_tag_t;
         dest_fpr     : gspr_index_t;
         fe_mode      : std_ulogic;
@@ -669,7 +668,6 @@ begin
     w_out.xerc <= r.xerc_result;
     w_out.interrupt <= r.do_intr;
     w_out.intr_vec <= 16#700#;
-    w_out.srr0 <= r.nia;
     w_out.srr1 <= (47-44 => r.illegal, 47-43 => not r.illegal, others => '0');
 
     fpu_1: process(all)
@@ -756,7 +754,6 @@ begin
         -- capture incoming instruction
         if e_in.valid = '1' then
             v.insn := e_in.insn;
-            v.nia := e_in.nia;
             v.op := e_in.op;
             v.instr_tag := e_in.itag;
             v.fe_mode := or (e_in.fe_mode);

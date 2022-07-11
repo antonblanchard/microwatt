@@ -31,7 +31,7 @@ entity execute1 is
         fp_in : in FPUToExecute1Type;
 
 	ext_irq_in : std_ulogic;
-        interrupt_in : std_ulogic;
+        interrupt_in : WritebackToExecute1Type;
 
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
@@ -72,6 +72,8 @@ architecture behaviour of execute1 is
         write_loga : std_ulogic;
         inc_loga : std_ulogic;
         write_pmuspr : std_ulogic;
+        ramspr_write_even : std_ulogic;
+        ramspr_write_odd : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -119,6 +121,7 @@ architecture behaviour of execute1 is
         msr : std_ulogic_vector(63 downto 0);
         xerc : xer_common_t;
         xerc_valid : std_ulogic;
+        ramspr_wraddr : ramspr_index;
     end record;
     constant reg_stage1_type_init : reg_stage1_type :=
         (e => Execute1ToWritebackInit, se => side_effect_init,
@@ -130,7 +133,8 @@ architecture behaviour of execute1 is
          no_instr_avail => '0', instr_dispatch => '0', ext_interrupt => '0',
          taken_branch_event => '0', br_mispredict => '0',
          msr => 64x"0",
-         xerc => xerc_init, xerc_valid => '0');
+         xerc => xerc_init, xerc_valid => '0',
+         ramspr_wraddr => 0);
 
     type reg_stage2_type is record
 	e : Execute1ToWritebackType;
@@ -202,6 +206,20 @@ architecture behaviour of execute1 is
     -- signals for logging
     signal exception_log : std_ulogic;
     signal irq_valid_log : std_ulogic;
+
+    -- SPR-related signals
+    type ramspr_half_t is array(ramspr_index) of std_ulogic_vector(63 downto 0);
+    signal even_sprs : ramspr_half_t := (others => (others => '0'));
+    signal odd_sprs : ramspr_half_t := (others => (others => '0'));
+    signal ramspr_even : std_ulogic_vector(63 downto 0);
+    signal ramspr_odd : std_ulogic_vector(63 downto 0);
+    signal ramspr_result : std_ulogic_vector(63 downto 0);
+    signal ramspr_rd_odd : std_ulogic;
+    signal ramspr_wr_addr : ramspr_index;
+    signal ramspr_even_wr_data : std_ulogic_vector(63 downto 0);
+    signal ramspr_even_wr_enab : std_ulogic;
+    signal ramspr_odd_wr_data : std_ulogic_vector(63 downto 0);
+    signal ramspr_odd_wr_enab : std_ulogic;
 
     signal stage2_stall : std_ulogic;
 
@@ -287,6 +305,18 @@ architecture behaviour of execute1 is
 	msr_out(26 downto 22) := msr(26 downto 22);
 	msr_out(15 downto 0)  := msr(15 downto 0);
 	return msr_out;
+    end;
+
+    function intr_srr1(msr: std_ulogic_vector; flags: std_ulogic_vector)
+        return std_ulogic_vector is
+        variable srr1: std_ulogic_vector(63 downto 0);
+    begin
+        srr1(63 downto 31) := msr(63 downto 31);
+        srr1(30 downto 27) := flags(14 downto 11);
+        srr1(26 downto 22) := msr(26 downto 22);
+        srr1(21 downto 16) := flags(5 downto 0);
+        srr1(15 downto  0) := msr(15 downto 0);
+        return srr1;
     end;
 
     -- Work out whether a signed value fits into n bits,
@@ -456,6 +486,78 @@ begin
 
     valid_in <= e_in.valid and not (busy_out or flush_in or ex1.e.redirect or ex1.e.interrupt);
 
+    -- SPRs stored in two small RAM arrays (two so that we can read and write
+    -- two SPRs in each cycle).
+
+    ramspr_read: process(all)
+        variable even_rd_data, odd_rd_data : std_ulogic_vector(63 downto 0);
+        variable wr_addr : ramspr_index;
+        variable even_wr_enab, odd_wr_enab : std_ulogic;
+        variable even_wr_data, odd_wr_data : std_ulogic_vector(63 downto 0);
+        variable doit : std_ulogic;
+    begin
+        -- Read address mux and async RAM reading
+        even_rd_data := even_sprs(e_in.ramspr_even_rdaddr);
+        odd_rd_data := odd_sprs(e_in.ramspr_odd_rdaddr);
+
+        -- Write address and data muxes
+        doit := ex1.e.valid and not stage2_stall and not flush_in;
+        even_wr_enab := (ex1.se.ramspr_write_even and doit) or interrupt_in.intr;
+        odd_wr_enab  := (ex1.se.ramspr_write_odd and doit) or interrupt_in.intr;
+        if interrupt_in.intr = '1' then
+            wr_addr := RAMSPR_SRR0;
+        else
+            wr_addr := ex1.ramspr_wraddr;
+        end if;
+        if interrupt_in.intr = '1' then
+            even_wr_data := ex2.e.last_nia;
+            odd_wr_data := intr_srr1(ctrl.msr, interrupt_in.srr1);
+        else
+            even_wr_data := ex1.e.write_data;
+            odd_wr_data := ex1.e.write_data;
+        end if;
+        ramspr_wr_addr <= wr_addr;
+        ramspr_even_wr_data <= even_wr_data;
+        ramspr_even_wr_enab <= even_wr_enab;
+        ramspr_odd_wr_data <= odd_wr_data;
+        ramspr_odd_wr_enab <= odd_wr_enab;
+
+        -- SPR RAM read with write data bypass
+        -- We assume no instruction executes in the cycle immediately following
+        -- an interrupt, so we don't need to bypass interrupt data
+        if ex1.se.ramspr_write_even = '1' and e_in.ramspr_even_rdaddr = ex1.ramspr_wraddr then
+            ramspr_even <= ex1.e.write_data;
+        else
+            ramspr_even <= even_rd_data;
+        end if;
+        if ex1.se.ramspr_write_odd = '1' and e_in.ramspr_odd_rdaddr = ex1.ramspr_wraddr then
+            ramspr_odd <= ex1.e.write_data;
+        else
+            ramspr_odd <= odd_rd_data;
+        end if;
+        if e_in.ramspr_rd_odd = '0' then
+            ramspr_result <= ramspr_even;
+        else
+            ramspr_result <= ramspr_odd;
+        end if;
+    end process;
+
+    ramspr_write: process(clk)
+    begin
+        if rising_edge(clk) then
+            if ramspr_even_wr_enab = '1' then
+                even_sprs(ramspr_wr_addr) <= ramspr_even_wr_data;
+                report "writing even spr " & integer'image(ramspr_wr_addr) & " data=" &
+                    to_hstring(ramspr_even_wr_data);
+            end if;
+            if ramspr_odd_wr_enab = '1' then
+                odd_sprs(ramspr_wr_addr) <= ramspr_odd_wr_data;
+                report "writing odd spr " & integer'image(ramspr_wr_addr) & " data=" &
+                    to_hstring(ramspr_odd_wr_data);
+            end if;
+        end if;
+    end process;
+
     -- First stage result mux
     s1_sel <= e_in.result_sel when ex1.busy = '0' else "100";
     with s1_sel select alu_result <=
@@ -464,6 +566,7 @@ begin
         rotator_result     when "010",
         shortmul_result    when "011",
         muldiv_result      when "100",
+        ramspr_result      when "101",
         next_nia           when "110",
         misc_result        when others;
 
@@ -830,6 +933,7 @@ begin
         variable privileged : std_ulogic;
         variable slow_op : std_ulogic;
         variable owait : std_ulogic;
+        variable srr1 : std_ulogic_vector(63 downto 0);
     begin
         v := actions_type_init;
         v.e.write_data := alu_result;
@@ -849,6 +953,9 @@ begin
         v.e.instr_tag := e_in.instr_tag;
         v.e.last_nia := e_in.nia;
         v.e.br_offset := 64x"4";
+
+        v.se.ramspr_write_even := e_in.ramspr_write_even;
+        v.se.ramspr_write_odd := e_in.ramspr_write_odd;
 
         -- Note the difference between v.exception and v.trap:
         -- v.exception signals a condition that prevents execution of the
@@ -1009,26 +1116,27 @@ begin
                 end if;
 
 	    when OP_RFID =>
-                v.e.redir_mode := (a_in(MSR_IR) or a_in(MSR_PR)) & not a_in(MSR_PR) &
-                                  not a_in(MSR_LE) & not a_in(MSR_SF);
+                srr1 := ramspr_odd;
+                v.e.redir_mode := (srr1(MSR_IR) or srr1(MSR_PR)) & not srr1(MSR_PR) &
+                                  not srr1(MSR_LE) & not srr1(MSR_SF);
                 -- Can't use msr_copy here because the partial function MSR
                 -- bits should be left unchanged, not zeroed.
-                v.new_msr(63 downto 31) := a_in(63 downto 31);
-                v.new_msr(26 downto 22) := a_in(26 downto 22);
-                v.new_msr(15 downto 0)  := a_in(15 downto 0);
-                if a_in(MSR_PR) = '1' then
+                v.new_msr(63 downto 31) := srr1(63 downto 31);
+                v.new_msr(26 downto 22) := srr1(26 downto 22);
+                v.new_msr(15 downto 0)  := srr1(15 downto 0);
+                if srr1(MSR_PR) = '1' then
                     v.new_msr(MSR_EE) := '1';
                     v.new_msr(MSR_IR) := '1';
                     v.new_msr(MSR_DR) := '1';
                 end if;
                 v.se.write_msr := '1';
-                v.e.br_offset := b_in;
+                v.e.br_offset := ramspr_even;
                 v.e.abs_br := '1';
                 v.e.redirect := '1';
                 v.se.write_cfar := '1';
                 if HAS_FPU then
                     v.fp_intr := fp_in.exception and
-                                 (a_in(MSR_FE0) or a_in(MSR_FE1));
+                                 (srr1(MSR_FE0) or srr1(MSR_FE1));
                 end if;
                 v.do_trace := '0';
 
@@ -1041,10 +1149,10 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
-		if is_fast_spr(e_in.read_reg1) = '1' then
+		if is_fast_spr(e_in.read_reg1) = '1' or e_in.spr_is_ram = '1' then
                     if e_in.valid = '1' then
                         report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
-                            "=" & to_hstring(a_in);
+                            "=" & to_hstring(alu_result);
                     end if;
 		elsif e_in.spr_select.valid = '1' then
                     if e_in.valid = '1' then
@@ -1121,7 +1229,9 @@ begin
                             v.se.write_loga := '1';
                         when others =>
                     end case;
-		elsif is_fast_spr(e_in.write_reg) = '0' then
+                end if;
+		if e_in.spr_select.valid = '0' and is_fast_spr(e_in.write_reg) = '0' and
+                    e_in.spr_is_ram = '0' then
                     -- mtspr to unimplemented SPRs should be a nop in
                     -- supervisor mode and a program interrupt for user mode
                     if ex1.msr(MSR_PR) = '1' then
@@ -1232,6 +1342,7 @@ begin
             v.pmu_spr_num := e_in.insn(20 downto 16);
             v.mul_select := e_in.sub_select(1 downto 0);
             v.se := side_effect_init;
+            v.ramspr_wraddr := e_in.ramspr_wraddr;
         end if;
 
         lv := Execute1ToLoadstore1Init;
@@ -1402,10 +1513,10 @@ begin
             v.mul_finish := '0';
             v.xerc_valid := '0';
         end if;
-        if flush_in = '1' or interrupt_in = '1' then
+        if flush_in = '1' or interrupt_in.intr = '1' then
             v.msr := ctrl_tmp.msr;
         end if;
-        if interrupt_in = '1' then
+        if interrupt_in.intr = '1' then
             v.trace_next := '0';
             v.fp_exception_next := '0';
         end if;
@@ -1449,7 +1560,6 @@ begin
 
         -- Outputs to FPU
         fv.op := e_in.insn_type;
-        fv.nia := e_in.nia;
         fv.insn := e_in.insn;
         fv.itag := e_in.instr_tag;
         fv.single := e_in.is_32bit;
@@ -1607,7 +1717,7 @@ begin
             x_to_pmu.mtspr <= ex1.se.write_pmuspr;
         end if;
 
- 	if interrupt_in = '1' then
+ 	if interrupt_in.intr = '1' then
             ctrl_tmp.msr(MSR_SF) <= '1';
             ctrl_tmp.msr(MSR_EE) <= '0';
             ctrl_tmp.msr(MSR_PR) <= '0';
@@ -1659,7 +1769,7 @@ begin
                             ctrl.msr(MSR_IR) & ctrl.msr(MSR_DR) &
                             exception_log &
                             irq_valid_log &
-                            interrupt_in &
+                            interrupt_in.intr &
                             "000" &
                             ex2.e.write_enable &
                             ex2.e.valid &

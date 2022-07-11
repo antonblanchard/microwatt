@@ -90,7 +90,6 @@ architecture behave of loadstore1 is
         dword_index  : std_ulogic;
         two_dwords   : std_ulogic;
         incomplete   : std_ulogic;
-        nia          : std_ulogic_vector(63 downto 0);
     end record;
     constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0', tlbie => '0',
                                           dcbz => '0', read_spr => '0', write_spr => '0', mmu_op => '0',
@@ -105,8 +104,7 @@ architecture behave of loadstore1 is
                                           atomic => '0', atomic_last => '0', rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
                                           sprn => 10x"0", is_slbia => '0', align_intr => '0',
-                                          dword_index => '0', two_dwords => '0', incomplete => '0',
-                                          nia => (others => '0'));
+                                          dword_index => '0', two_dwords => '0', incomplete => '0');
 
     type reg_stage1_t is record
         req : request_t;
@@ -146,7 +144,6 @@ architecture behave of loadstore1 is
         stage1_en    : std_ulogic;
         interrupt    : std_ulogic;
         intr_vec     : integer range 0 to 16#fff#;
-        nia          : std_ulogic_vector(63 downto 0);
         srr1         : std_ulogic_vector(15 downto 0);
         events       : Loadstore1EventType;
     end record;
@@ -412,7 +409,6 @@ begin
         v.virt_mode := l_in.virt_mode;
         v.priv_mode := l_in.priv_mode;
         v.sprn := sprn;
-        v.nia := l_in.nia;
 
         lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
 
@@ -866,7 +862,6 @@ begin
         -- or ISI or ISegI for instruction fetch exceptions
         v.interrupt := exception;
         if exception = '1' then
-            v.nia := r2.req.nia;
             if r2.req.align_intr = '1' then
                 v.intr_vec := 16#600#;
                 v.dar := r2.req.addr;
@@ -962,7 +957,6 @@ begin
         l_out.store_done <= d_in.store_done;
         l_out.interrupt <= r3.interrupt;
         l_out.intr_vec <= r3.intr_vec;
-        l_out.srr0 <= r3.nia;
         l_out.srr1 <= r3.srr1;
 
         -- update busy signal back to execute1
