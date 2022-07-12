@@ -12,6 +12,7 @@ use work.ppc_fx_insns.all;
 
 entity execute1 is
     generic (
+        SIM : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
         HAS_SHORT_MULT : boolean := false;
@@ -54,6 +55,10 @@ entity execute1 is
         dc_events    : in DcacheEventType;
         ic_events    : in IcacheEventType;
 
+        -- debug
+        sim_dump      : in std_ulogic;
+        sim_dump_done : out std_ulogic;
+
         log_out : out std_ulogic_vector(14 downto 0);
         log_rd_addr : out std_ulogic_vector(31 downto 0);
         log_rd_data : in std_ulogic_vector(63 downto 0);
@@ -92,10 +97,12 @@ architecture behaviour of execute1 is
         fp_intr : std_ulogic;
         res2_sel : std_ulogic_vector(1 downto 0);
         bypass_valid : std_ulogic;
+        ramspr_odd_data : std_ulogic_vector(63 downto 0);
     end record;
     constant actions_type_init : actions_type :=
         (e => Execute1ToWritebackInit, se => side_effect_init,
-         new_msr => (others => '0'), res2_sel => "00", others => '0');
+         new_msr => (others => '0'), res2_sel => "00",
+         ramspr_odd_data => 64x"0", others => '0');
 
     type reg_stage1_type is record
 	e : Execute1ToWritebackType;
@@ -104,7 +111,6 @@ architecture behaviour of execute1 is
         fp_exception_next : std_ulogic;
         trace_next : std_ulogic;
         prev_op : insn_type_t;
-        br_taken : std_ulogic;
         oe : std_ulogic;
         mul_select : std_ulogic_vector(1 downto 0);
         res2_sel : std_ulogic_vector(1 downto 0);
@@ -122,11 +128,12 @@ architecture behaviour of execute1 is
         xerc : xer_common_t;
         xerc_valid : std_ulogic;
         ramspr_wraddr : ramspr_index;
+        ramspr_odd_data : std_ulogic_vector(63 downto 0);
     end record;
     constant reg_stage1_type_init : reg_stage1_type :=
         (e => Execute1ToWritebackInit, se => side_effect_init,
          busy => '0',
-         fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL, br_taken => '0',
+         fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
          oe => '0', mul_select => "00", res2_sel => "00",
          spr_select => spr_id_init, pmu_spr_num => 5x"0",
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0',
@@ -134,7 +141,7 @@ architecture behaviour of execute1 is
          taken_branch_event => '0', br_mispredict => '0',
          msr => 64x"0",
          xerc => xerc_init, xerc_valid => '0',
-         ramspr_wraddr => 0);
+         ramspr_wraddr => 0, ramspr_odd_data => 64x"0");
 
     type reg_stage2_type is record
 	e : Execute1ToWritebackType;
@@ -514,7 +521,7 @@ begin
             odd_wr_data := intr_srr1(ctrl.msr, interrupt_in.srr1);
         else
             even_wr_data := ex1.e.write_data;
-            odd_wr_data := ex1.e.write_data;
+            odd_wr_data := ex1.ramspr_odd_data;
         end if;
         ramspr_wr_addr <= wr_addr;
         ramspr_even_wr_data <= even_wr_data;
@@ -531,7 +538,7 @@ begin
             ramspr_even <= even_rd_data;
         end if;
         if ex1.se.ramspr_write_odd = '1' and e_in.ramspr_odd_rdaddr = ex1.ramspr_wraddr then
-            ramspr_odd <= ex1.e.write_data;
+            ramspr_odd <= ex1.ramspr_odd_data;
         else
             ramspr_odd <= odd_rd_data;
         end if;
@@ -600,7 +607,6 @@ begin
     -- Data path for integer instructions (first execute stage)
     execute1_dp: process(all)
 	variable a_inv : std_ulogic_vector(63 downto 0);
-	variable b_or_m1 : std_ulogic_vector(63 downto 0);
 	variable sum_with_carry : std_ulogic_vector(64 downto 0);
         variable sign1, sign2 : std_ulogic;
         variable abs1, abs2 : signed(63 downto 0);
@@ -635,12 +641,7 @@ begin
         else
             a_inv := not a_in;
         end if;
-        if e_in.addm1 = '0' then
-            b_or_m1 := b_in;
-        else
-            b_or_m1 := (others => '1');
-        end if;
-        sum_with_carry := ppc_adde(a_inv, b_or_m1,
+        sum_with_carry := ppc_adde(a_inv, b_in,
                                    decode_input_carry(e_in.input_carry, xerc_in));
         adder_result <= sum_with_carry(63 downto 0);
         carry_32 <= sum_with_carry(32) xor a_inv(32) xor b_in(32);
@@ -956,6 +957,10 @@ begin
 
         v.se.ramspr_write_even := e_in.ramspr_write_even;
         v.se.ramspr_write_odd := e_in.ramspr_write_odd;
+        v.ramspr_odd_data := c_in;
+        if e_in.dec_ctr = '1' then
+            v.ramspr_odd_data := std_ulogic_vector(unsigned(ramspr_odd) - 1);
+        end if;
 
         -- Note the difference between v.exception and v.trap:
         -- v.exception signals a condition that prevents execution of the
@@ -1059,61 +1064,42 @@ begin
                 end if;
                 v.se.write_cfar := '1';
             when OP_BC =>
-                -- read_data1 is CTR
-                -- If this instruction updates both CTR and LR, then it is
-                -- doubled; the first instruction decrements CTR and determines
-                -- whether the branch is taken, and the second does the
-                -- redirect and the LR update.
+                -- If CTR is being decremented, it is in ramspr_odd.
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
-                if e_in.second = '0' then
-                    v.take_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
-                else
-                    v.take_branch := ex1.br_taken;
-                end if;
+                v.take_branch := ppc_bc_taken(bo, bi, cr_in, ramspr_odd);
                 if v.take_branch = '1' then
                     v.e.br_offset := b_in;
                     v.e.abs_br := insn_aa(e_in.insn);
                 end if;
-                if e_in.repeat = '0' or e_in.second = '1' then
-                    -- Mispredicted branches cause a redirect
-                    if v.take_branch /= e_in.br_pred then
-                        v.e.redirect := '1';
-                    end if;
-                    v.direct_branch := '1';
-                    v.e.br_last := '1';
-                    v.e.br_taken := v.take_branch;
-                    if ex1.msr(MSR_BE) = '1' then
-                        v.do_trace := '1';
-                    end if;
-                    v.se.write_cfar := v.take_branch;
+                -- Mispredicted branches cause a redirect
+                if v.take_branch /= e_in.br_pred then
+                    v.e.redirect := '1';
                 end if;
+                v.direct_branch := '1';
+                v.e.br_last := '1';
+                v.e.br_taken := v.take_branch;
+                if ex1.msr(MSR_BE) = '1' then
+                    v.do_trace := '1';
+                end if;
+                v.se.write_cfar := v.take_branch;
             when OP_BCREG =>
-                -- read_data1 is CTR, read_data2 is target register (CTR, LR or TAR)
-                -- If this instruction updates both CTR and LR, then it is
-                -- doubled; the first instruction decrements CTR and determines
-                -- whether the branch is taken, and the second does the
-                -- redirect and the LR update.
+                -- If CTR is being decremented, it is in ramspr_odd.
+                -- The target address is in ramspr_result (LR, CTR or TAR).
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
-                if e_in.second = '0' then
-                    v.take_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
-                else
-                    v.take_branch := ex1.br_taken;
-                end if;
+                v.take_branch := ppc_bc_taken(bo, bi, cr_in, ramspr_odd);
                 if v.take_branch = '1' then
-                    v.e.br_offset := b_in;
+                    v.e.br_offset := ramspr_result;
                     v.e.abs_br := '1';
                 end if;
-                if e_in.repeat = '0' or e_in.second = '1' then
-                    -- Indirect branches are never predicted taken
-                    v.e.redirect := v.take_branch;
-                    v.e.br_taken := v.take_branch;
-                    if ex1.msr(MSR_BE) = '1' then
-                        v.do_trace := '1';
-                    end if;
-                    v.se.write_cfar := v.take_branch;
+                -- Indirect branches are never predicted taken
+                v.e.redirect := v.take_branch;
+                v.e.br_taken := v.take_branch;
+                if ex1.msr(MSR_BE) = '1' then
+                    v.do_trace := '1';
                 end if;
+                v.se.write_cfar := v.take_branch;
 
 	    when OP_RFID =>
                 srr1 := ramspr_odd;
@@ -1130,7 +1116,7 @@ begin
                     v.new_msr(MSR_DR) := '1';
                 end if;
                 v.se.write_msr := '1';
-                v.e.br_offset := ramspr_even;
+                v.e.br_offset := ramspr_result;
                 v.e.abs_br := '1';
                 v.e.redirect := '1';
                 v.se.write_cfar := '1';
@@ -1343,6 +1329,7 @@ begin
             v.mul_select := e_in.sub_select(1 downto 0);
             v.se := side_effect_init;
             v.ramspr_wraddr := e_in.ramspr_wraddr;
+            v.ramspr_odd_data := actions.ramspr_odd_data;
         end if;
 
         lv := Execute1ToLoadstore1Init;
@@ -1430,7 +1417,6 @@ begin
             v.e.valid := actions.complete;
             bypass_valid := actions.bypass_valid;
             v.taken_branch_event := actions.take_branch;
-            v.br_taken := actions.take_branch;
             v.trace_next := actions.do_trace;
             v.fp_exception_next := actions.fp_intr;
             v.res2_sel := actions.res2_sel;
@@ -1758,6 +1744,25 @@ begin
 
         exception_log <= v.e.interrupt;
     end process;
+
+    sim_dump_test: if SIM generate
+        dump_exregs: process(all)
+            variable xer : std_ulogic_vector(63 downto 0);
+        begin
+            if sim_dump = '1' then
+                report "LR " & to_hstring(even_sprs(RAMSPR_LR));
+                report "CTR " & to_hstring(odd_sprs(RAMSPR_CTR));
+                sim_dump_done <= '1';
+            else
+                sim_dump_done <= '0';
+            end if;
+        end process;
+    end generate;
+
+    -- Keep GHDL synthesis happy
+    sim_dump_test_synth: if not SIM generate
+        sim_dump_done <= '0';
+    end generate;
 
     e1_log: if LOG_LENGTH > 0 generate
         signal log_data : std_ulogic_vector(14 downto 0);

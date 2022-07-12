@@ -89,8 +89,8 @@ architecture behaviour of decode1 is
         28 =>       (ALU,  NONE, OP_AND,       NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0', NONE), -- andi.
         29 =>       (ALU,  NONE, OP_AND,       NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0', NONE), -- andis.
          0 =>       (ALU,  NONE, OP_ATTN,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE), -- attn
-        18 =>       (ALU,  NONE, OP_B,         NONE,       CONST_LI,    NONE, SPR,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE), -- b
-        16 =>       (ALU,  NONE, OP_BC,        SPR,        CONST_BD,    NONE, SPR , '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE), -- bc
+        18 =>       (ALU,  NONE, OP_B,         NONE,       CONST_LI,    NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE), -- b
+        16 =>       (ALU,  NONE, OP_BC,        NONE,       CONST_BD,    NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE), -- bc
         11 =>       (ALU,  NONE, OP_CMP,       RA,         CONST_SI,    NONE, NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', NONE), -- cmpi
         10 =>       (ALU,  NONE, OP_CMP,       RA,         CONST_UI,    NONE, NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- cmpli
         34 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lbz
@@ -177,7 +177,7 @@ architecture behaviour of decode1 is
         -- addpcis
         2#001#    =>       (ALU, NONE, OP_ADD,       CIA,        CONST_DXHI4, NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         -- bclr, bcctr, bctar
-        2#100#    =>       (ALU, NONE, OP_BCREG,     SPR,        SPR,         NONE, SPR,  '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
+        2#100#    =>       (ALU, NONE, OP_BCREG,     NONE,       NONE,        NONE, SPR,  '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
         -- isync
         2#111#    =>       (ALU, NONE, OP_ISYNC,     NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         -- rfid
@@ -530,6 +530,13 @@ architecture behaviour of decode1 is
     begin
         ret := (index => 0, isodd => '0', valid => '1');
         case sprn is
+            when SPR_LR =>
+                ret.index := RAMSPR_LR;
+            when SPR_CTR =>
+                ret.index := RAMSPR_CTR;
+                ret.isodd := '1';
+            when SPR_TAR =>
+                ret.index := RAMSPR_TAR;
             when SPR_SRR0 =>
                 ret.index := RAMSPR_SRR0;
             when SPR_SRR1 =>
@@ -683,13 +690,6 @@ begin
             end if;
 
         when 16 =>
-            -- CTR may be needed as input to bc
-            if f_in.insn(23) = '0' then
-                v.ispr1 := fast_spr_num(SPR_CTR);
-                v.ispro := fast_spr_num(SPR_CTR);
-            elsif f_in.insn(0) = '1' then
-                v.ispro := fast_spr_num(SPR_LR);
-            end if;
             -- Predict backward branches as taken, forward as untaken
             v.br_pred := f_in.insn(15);
             br_offset := resize(signed(f_in.insn(15 downto 2)), 24);
@@ -698,36 +698,11 @@ begin
             -- Unconditional branches are always taken
             v.br_pred := '1';
             br_offset := signed(f_in.insn(25 downto 2));
-            if f_in.insn(0) = '1' then
-                v.ispro := fast_spr_num(SPR_LR);
-            end if;
 
         when 19 =>
             vi.override := not decode_op_19_valid(to_integer(unsigned(f_in.insn(5 downto 1) & f_in.insn(10 downto 6))));
             op_19_bits := f_in.insn(5) & f_in.insn(3) & f_in.insn(2);
             v.decode := decode_op_19_array(to_integer(unsigned(op_19_bits)));
-
-            -- Work out ispr1/ispr2 independent of v.decode since they seem to be critical path
-            if f_in.insn(2) = '0' then
-                -- Could be OP_BCREG: bclr, bcctr, bctar
-                -- Branch uses CTR as condition when BO(2) is 0. This is
-                -- also used to indicate that CTR is modified (they go
-                -- together).
-                -- bcctr doesn't update CTR or use it in the branch condition
-                if f_in.insn(23) = '0' and (f_in.insn(10) = '0' or f_in.insn(6) = '1') then
-                    v.ispr1 := fast_spr_num(SPR_CTR);
-                    v.ispro := fast_spr_num(SPR_CTR);
-                elsif f_in.insn(0) = '1' then
-                    v.ispro := fast_spr_num(SPR_LR);
-                end if;
-                if f_in.insn(10) = '0' then
-                    v.ispr2 := fast_spr_num(SPR_LR);
-                elsif f_in.insn(6) = '0' then
-                    v.ispr2 := fast_spr_num(SPR_CTR);
-                else
-                    v.ispr2 := fast_spr_num(SPR_TAR);
-                end if;
-            end if;
 
         when 24 =>
             -- ori, special-case the standard NOP

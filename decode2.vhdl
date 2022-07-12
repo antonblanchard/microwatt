@@ -406,6 +406,7 @@ begin
         variable length : std_ulogic_vector(3 downto 0);
         variable op : insn_type_t;
         variable valid_in : std_ulogic;
+        variable decctr : std_ulogic;
     begin
         v := dc2;
 
@@ -470,17 +471,45 @@ begin
             end if;
             op := d_in.decode.insn_type;
 
+            -- Does this instruction decrement CTR?
+            -- bc, bclr, bctar with BO(2) = 0 do, but not bcctr.
+            decctr := '0';
+            if d_in.insn(23) = '0' and
+                (op = OP_BC or
+                 (op = OP_BCREG and not (d_in.insn(10) = '1' and d_in.insn(6) = '0'))) then
+                decctr := '1';
+            end if;
+            v.e.dec_ctr := decctr;
+
             v.repeat := d_in.decode.repeat;
             if d_in.decode.repeat /= NONE then
-                v.e.repeat := '1';
-            elsif v.e.lr = '1' and decoded_reg_a.reg_valid = '1' then
-                -- bcl/bclrl/bctarl that needs to write both CTR and LR has to be doubled
                 v.e.repeat := '1';
             end if;
 
             v.e.spr_select := d_in.spr_info;
 
+            if decctr = '1' then
+                -- read and write CTR
+                v.e.ramspr_odd_rdaddr := RAMSPR_CTR;
+                v.e.ramspr_wraddr := RAMSPR_CTR;
+                v.e.ramspr_write_odd := '1';
+            end if;
+            if v.e.lr = '1' then
+                -- write LR
+                v.e.ramspr_wraddr := RAMSPR_LR;
+                v.e.ramspr_write_even := '1';
+            end if;
+
             case op is
+                when OP_BCREG =>
+                    if d_in.insn(10) = '0' then
+                        v.e.ramspr_even_rdaddr := RAMSPR_LR;
+                    elsif d_in.insn(6) = '0' then
+                        v.e.ramspr_odd_rdaddr := RAMSPR_CTR;
+                        v.e.ramspr_rd_odd := '1';
+                    else
+                        v.e.ramspr_even_rdaddr := RAMSPR_TAR;
+                    end if;
                 when OP_MFSPR =>
                     v.e.ramspr_even_rdaddr := d_in.ram_spr.index;
                     v.e.ramspr_odd_rdaddr := d_in.ram_spr.index;
@@ -520,7 +549,6 @@ begin
             v.e.write_reg := decoded_reg_o.reg;
             v.e.write_reg_enable := decoded_reg_o.reg_valid;
             v.e.invert_a := d_in.decode.invert_a;
-            v.e.addm1 := '0';
             v.e.insn_type := op;
             v.e.invert_out := d_in.decode.invert_out;
             v.e.input_carry := d_in.decode.input_carry;
@@ -536,14 +564,6 @@ begin
             v.e.br_pred := d_in.br_pred;
             v.e.result_sel := result_select(op);
             v.e.sub_select := subresult_select(op);
-            if op = OP_BC or op = OP_BCREG then
-                if d_in.insn(23) = '0' and
-                    not (d_in.decode.insn_type = OP_BCREG and d_in.insn(10) = '0') then
-                    -- decrement CTR if BO(2) = 0 and not bcctr
-                    v.e.addm1 := '1';
-                    v.e.result_sel := "000";        -- select adder output
-                end if;
-            end if;
             if op = OP_MFSPR then
                 if is_fast_spr(d_in.ispr1) = '1' then
                     v.e.result_sel := "000";        -- adder_result, effectively a_in
@@ -562,16 +582,9 @@ begin
             -- dc2.busy = 1 and dc2.e.valid = 1, thus this must be a repeated instruction.
             -- Set up for the second iteration (if deferred = 1 this will all be ignored)
             v.e.second := '1';
-            case dc2.repeat is
-                when DUPD =>
-                    -- update-form loads, 2nd instruction writes RA
-                    v.e.write_reg := dc2.e.read_reg1;
-                when NONE =>
-                    -- bcl/bclrl/bctarl that needs to write both CTR and LR
-                    v.e.write_reg(0) := '0';    -- point to LR
-                    v.e.result_sel := "110";    -- select NIA (to go to LR)
-                when others =>
-            end case;
+            -- DUPD is the only possibility here:
+            -- update-form loads, 2nd instruction writes RA
+            v.e.write_reg := dc2.e.read_reg1;
         end if;
 
         -- issue control

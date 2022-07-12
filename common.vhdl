@@ -132,12 +132,15 @@ package common is
     constant RAMSPR_SPRG0  : ramspr_index := 2;
     constant RAMSPR_SPRG2  : ramspr_index := 3;
     constant RAMSPR_HSPRG0 : ramspr_index := 4;
+    constant RAMSPR_LR     : ramspr_index := 5;         -- must equal RAMSPR_CTR
+    constant RAMSPR_TAR    : ramspr_index := 6;
     -- Odd half:
     constant RAMSPR_SRR1   : ramspr_index := 0;
     constant RAMSPR_HSRR1  : ramspr_index := 1;
     constant RAMSPR_SPRG1  : ramspr_index := 2;
     constant RAMSPR_SPRG3  : ramspr_index := 3;
     constant RAMSPR_HSPRG1 : ramspr_index := 4;
+    constant RAMSPR_CTR    : ramspr_index := 5;         -- must equal RAMSPR_LR
 
     type ram_spr_info is record
         index : ramspr_index;
@@ -322,7 +325,6 @@ package common is
 	rc: std_ulogic;
 	oe: std_ulogic;
 	invert_a: std_ulogic;
-        addm1 : std_ulogic;
 	invert_out: std_ulogic;
 	input_carry: carry_in_t;
 	output_carry: std_ulogic;
@@ -350,11 +352,12 @@ package common is
         ramspr_wraddr      : ramspr_index;
         ramspr_write_even  : std_ulogic;
         ramspr_write_odd   : std_ulogic;
+        dec_ctr : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
          write_reg_enable => '0',
-         lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
+         lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0',
          output_cr => '0', output_xer => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
@@ -366,6 +369,7 @@ package common is
          spr_is_ram => '0',
          ramspr_even_rdaddr => 0, ramspr_odd_rdaddr => 0, ramspr_rd_odd => '0',
          ramspr_wraddr => 0, ramspr_write_even => '0', ramspr_write_odd => '0',
+         dec_ctr => '0',
          others => (others => '0'));
 
     type MultiplyInputType is record
@@ -780,25 +784,8 @@ package body common is
 	return to_integer(unsigned(insn(15 downto 11) & insn(20 downto 16)));
     end;
     function fast_spr_num(spr: spr_num_t) return gspr_index_t is
-       variable n : integer range 0 to 31;
-       -- tmp variable introduced as workaround for VCS compilation
-       -- simulation was failing with subtype constraint mismatch error
-       -- see GitHub PR #173
-       variable tmp : std_ulogic_vector(4 downto 0);
     begin
-       case spr is
-       when SPR_LR =>
-           n := 0;              -- N.B. decode2 relies on this specific value
-       when SPR_CTR =>
-           n := 1;              -- N.B. decode2 relies on this specific value
-       when SPR_TAR =>
-           n := 13;
-       when others =>
-           n := 0;
-           return "0000000";
-       end case;
-       tmp := std_ulogic_vector(to_unsigned(n, 5));
-       return "01" & tmp;
+        return "0000000";
     end;
 
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t is

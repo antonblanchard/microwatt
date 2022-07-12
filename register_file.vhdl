@@ -130,9 +130,6 @@ begin
                 loop_0: for i in 0 to 31 loop
                     report "GPR" & integer'image(i) & " " & to_hstring(registers(i));
                 end loop loop_0;
-
-                report "LR " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_LR)))));
-                report "CTR " & to_hstring(registers(to_integer(unsigned(fast_spr_num(SPR_CTR)))));
                 sim_dump_done <= '1';
             else
                 sim_dump_done <= '0';

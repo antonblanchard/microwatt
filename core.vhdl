@@ -138,6 +138,7 @@ architecture behave of core is
     signal rst_dbg     : std_ulogic;
     signal alt_reset_d : std_ulogic;
 
+    signal sim_ex_dump: std_ulogic;
     signal sim_cr_dump: std_ulogic;
 
     -- Debug actions
@@ -326,7 +327,7 @@ begin
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
 	    sim_dump => terminate,
-	    sim_dump_done => sim_cr_dump,
+	    sim_dump_done => sim_ex_dump,
             log_out => log_data(255 downto 184)
 	    );
 
@@ -347,6 +348,7 @@ begin
 
     execute1_0: entity work.execute1
         generic map (
+            SIM => SIM,
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
             HAS_SHORT_MULT => HAS_SHORT_MULT,
@@ -376,6 +378,8 @@ begin
             dc_events => dcache_events,
             ic_events => icache_events,
             terminate_out => terminate,
+            sim_dump => sim_ex_dump,
+            sim_dump_done => sim_cr_dump,
             log_out => log_data(134 downto 120),
             log_rd_addr => log_rd_addr,
             log_rd_data => log_rd_data,
