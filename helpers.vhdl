@@ -162,7 +162,9 @@ package body helpers is
 
     function ra_or_zero(ra: std_ulogic_vector(63 downto 0); reg: std_ulogic_vector(4 downto 0)) return std_ulogic_vector is
     begin
-        if to_integer(unsigned(reg)) = 0 then
+	if is_X(reg) then
+	    return x"XXXXXXXXXXXXXXXX";
+        elsif to_integer(unsigned(reg)) = 0 then
             return x"0000000000000000";
         else
             return ra;
