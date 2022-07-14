@@ -123,15 +123,22 @@ begin
                 raddr := unsigned(r.nia(BTC_ADDR_BITS + 1 downto 2)) +
                          to_unsigned(2, BTC_ADDR_BITS);
                 if advance_nia = '1' then
-                    btc_rd_data <= btc_memory(to_integer(raddr));
-                    btc_rd_valid <= btc_valids(to_integer(raddr));
+		    if is_X(raddr) then
+			btc_rd_data <= (others => 'X');
+			btc_rd_valid <= 'X';
+		    else
+			btc_rd_data <= btc_memory(to_integer(raddr));
+			btc_rd_valid <= btc_valids(to_integer(raddr));
+		    end if;
                 end if;
                 if btc_wr = '1' then
+		    assert not is_X(btc_wr_addr) report "Writing to unknown address" severity FAILURE;
                     btc_memory(to_integer(unsigned(btc_wr_addr))) <= btc_wr_data;
                 end if;
                 if inval_btc = '1' or rst = '1' then
                     btc_valids <= (others => '0');
                 elsif btc_wr = '1' then
+		    assert not is_X(btc_wr_addr) report "Writing to unknown address" severity FAILURE;
                     btc_valids(to_integer(unsigned(btc_wr_addr))) <= '1';
                 end if;
             end if;
