@@ -163,11 +163,15 @@ begin
     begin
         -- mask_count has to be >= 5
         m := x"001f";
-        for i in 5 to 15 loop
-            if i < to_integer(r.mask_size) then
-                m(i) := '1';
-            end if;
-        end loop;
+        if is_X(r.mask_size) then
+            m := (others => 'X');
+        else
+            for i in 5 to 15 loop
+                if i < to_integer(r.mask_size) then
+                    m(i) := '1';
+                end if;
+            end loop;
+        end if;
         mask <= m;
     end process;
 
@@ -178,7 +182,9 @@ begin
     begin
         m := (others => '0');
         for i in 0 to 43 loop
-            if i < to_integer(r.shift) then
+            if is_X(r.shift) then
+                m(i) := 'X';
+            elsif i < to_integer(r.shift) then
                 m(i) := '1';
             end if;
         end loop;
