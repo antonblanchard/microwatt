@@ -1170,12 +1170,12 @@ begin
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
 		if e_in.spr_is_ram = '1' then
-                    if e_in.valid = '1' then
+                    if e_in.valid = '1' and not is_X(e_in.insn) then
                         report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
                             "=" & to_hstring(alu_result);
                     end if;
 		elsif e_in.spr_select.valid = '1' then
-                    if e_in.valid = '1' then
+                    if e_in.valid = '1' and not is_X(e_in.insn) then
                         report "MFSPR to slow SPR " & integer'image(decode_spr_num(e_in.insn));
                     end if;
                     slow_op := '1';
@@ -1192,7 +1192,7 @@ begin
                 else
                     -- mfspr from unimplemented SPRs should be a nop in
                     -- supervisor mode and a program interrupt for user mode
-                    if e_in.valid = '1' then
+                    if e_in.valid = '1' and not is_X(e_in.insn) then
                         report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
                             " invalid";
                     end if;
@@ -1229,7 +1229,7 @@ begin
                     end if;
                 end if;
 	    when OP_MTSPR =>
-                if e_in.valid = '1' then
+                if e_in.valid = '1' and not is_X(e_in.insn) then
                     report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
                         "=" & to_hstring(c_in);
                 end if;
