@@ -625,8 +625,12 @@ begin
         byte_offset := unsigned(r1.addr0(2 downto 0));
         for i in 0 to 7 loop
             k := (to_unsigned(i, 3) - byte_offset) xor r1.req.brev_mask;
-            j := to_integer(k) * 8;
-            store_data(i * 8 + 7 downto i * 8) <= r1.req.store_data(j + 7 downto j);
+	    if is_X(k) then
+		store_data(i * 8 + 7 downto i * 8) <= (others => 'X');
+	    else
+		j := to_integer(k) * 8;
+		store_data(i * 8 + 7 downto i * 8) <= r1.req.store_data(j + 7 downto j);
+	    end if;
         end loop;
 
         dbg_spr_rd := dbg_spr_req and not (r1.req.valid and r1.req.read_spr);
@@ -757,8 +761,12 @@ begin
         -- load data formatting
         -- shift and byte-reverse data bytes
         for i in 0 to 7 loop
-            j := to_integer(r2.byte_index(i)) * 8;
-            data_permuted(i * 8 + 7 downto i * 8) := d_in.data(j + 7 downto j);
+	    if is_X(r2.byte_index(i)) then
+		data_permuted(i * 8 + 7 downto i * 8) := (others => 'X');
+	    else
+		j := to_integer(r2.byte_index(i)) * 8;
+		data_permuted(i * 8 + 7 downto i * 8) := d_in.data(j + 7 downto j);
+	    end if;
         end loop;
 
         -- Work out the sign bit for sign extension.
@@ -779,7 +787,9 @@ begin
 
         -- trim and sign-extend
         for i in 0 to 7 loop
-            if i < to_integer(unsigned(r2.req.length)) then
+	    if is_X(r2.req.length) then
+		trim_ctl(i) := "XX";
+            elsif i < to_integer(unsigned(r2.req.length)) then
                 if r2.req.dword_index = '1' then
                     trim_ctl(i) := '1' & not r2.use_second(i);
                 else
