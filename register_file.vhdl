@@ -125,10 +125,6 @@ begin
             data_3 <= registers(to_integer(unsigned(c_addr)));
 
             prev_write_data <= w_in.write_data;
-
-            assert (d_in.read1_enable = '0') or (d_in.read1_reg = addr_1_reg) severity failure;
-            assert (d_in.read2_enable = '0') or (d_in.read2_reg = addr_2_reg) severity failure;
-            assert (d_in.read3_enable = '0') or (d_in.read3_reg = addr_3_reg) severity failure;
         end if;
     end process register_write_0;
 

@@ -360,6 +360,11 @@ begin
                 dc2.e.ramspr_odd_rdaddr <= dc2in.e.ramspr_odd_rdaddr;
                 dc2.e.ramspr_rd_odd <= dc2in.e.ramspr_rd_odd;
             end if;
+            if d_in.valid = '1' then
+                assert decoded_reg_a.reg_valid = '0' or decoded_reg_a.reg = d_in.reg_a severity failure;
+                assert decoded_reg_b.reg_valid = '0' or decoded_reg_b.reg = d_in.reg_b severity failure;
+                assert decoded_reg_c.reg_valid = '0' or decoded_reg_c.reg = d_in.reg_c severity failure;
+            end if;
         end if;
     end process;
 
@@ -379,11 +384,8 @@ begin
         end if;
 
         r_out.read1_enable <= decoded_reg_a.reg_valid;
-        r_out.read1_reg    <= decoded_reg_a.reg;
         r_out.read2_enable <= decoded_reg_b.reg_valid;
-        r_out.read2_reg    <= decoded_reg_b.reg;
         r_out.read3_enable <= decoded_reg_c.reg_valid;
-        r_out.read3_reg    <= decoded_reg_c.reg;
 
     end process;
 
@@ -537,9 +539,9 @@ begin
             v.e.nia := d_in.nia;
             v.e.unit := d_in.decode.unit;
             v.e.fac := d_in.decode.facility;
-            v.e.read_reg1 := decoded_reg_a.reg;
-            v.e.read_reg2 := decoded_reg_b.reg;
-            v.e.read_reg3 := decoded_reg_c.reg;
+            v.e.read_reg1 := d_in.reg_a;
+            v.e.read_reg2 := d_in.reg_b;
+            v.e.read_reg3 := d_in.reg_c;
             v.e.write_reg := decoded_reg_o.reg;
             v.e.write_reg_enable := decoded_reg_o.reg_valid;
             v.e.invert_a := d_in.decode.invert_a;

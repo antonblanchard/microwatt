@@ -792,6 +792,10 @@ begin
         vr.read_2_enable := f_in.valid and not f_in.fetch_failed and may_read_rb;
         vr.read_3_enable := f_in.valid and not f_in.fetch_failed;
 
+        v.reg_a := vr.reg_1_addr;
+        v.reg_b := vr.reg_2_addr;
+        v.reg_c := vr.reg_3_addr;
+
         if f_in.fetch_failed = '1' then
             v.valid := '1';
             vi.override := '1';

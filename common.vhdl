@@ -265,11 +265,15 @@ package common is
         big_endian: std_ulogic;
         spr_info : spr_id;
         ram_spr : ram_spr_info;
+        reg_a : gspr_index_t;
+        reg_b : gspr_index_t;
+        reg_c : gspr_index_t;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
         (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
          decode => decode_rom_init, br_pred => '0', big_endian => '0',
-         spr_info => spr_id_init, ram_spr => ram_spr_info_init);
+         spr_info => spr_id_init, ram_spr => ram_spr_info_init,
+         reg_a => (others => '0'), reg_b => (others => '0'), reg_c => (others => '0'));
 
     type Decode1ToFetch1Type is record
         redirect     : std_ulogic;
@@ -449,11 +453,8 @@ package common is
 
     type Decode2ToRegisterFileType is record
 	read1_enable : std_ulogic;
-	read1_reg : gspr_index_t;
 	read2_enable : std_ulogic;
-	read2_reg : gspr_index_t;
 	read3_enable : std_ulogic;
-	read3_reg : gspr_index_t;
     end record;
 
     type RegisterFileToDecode2Type is record
