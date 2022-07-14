@@ -207,7 +207,6 @@ architecture rtl of icache is
     signal req_is_miss : std_ulogic;
     signal req_raddr   : real_addr_t;
 
-    signal tlb_req_index : tlb_index_t;
     signal real_addr     : real_addr_t;
     signal ra_valid      : std_ulogic;
     signal priv_fault    : std_ulogic;
@@ -317,14 +316,15 @@ architecture rtl of icache is
     end;
 
     -- Simple hash for direct-mapped TLB index
-    function hash_ea(addr: std_ulogic_vector(63 downto 0)) return tlb_index_t is
+    function hash_ea(addr: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
         variable hash : std_ulogic_vector(TLB_BITS - 1 downto 0);
     begin
         hash := addr(TLB_LG_PGSZ + TLB_BITS - 1 downto TLB_LG_PGSZ)
                 xor addr(TLB_LG_PGSZ + 2 * TLB_BITS - 1 downto TLB_LG_PGSZ + TLB_BITS)
                 xor addr(TLB_LG_PGSZ + 3 * TLB_BITS - 1 downto TLB_LG_PGSZ + 2 * TLB_BITS);
-        return to_integer(unsigned(hash));
+        return hash;
     end;
+
 begin
 
     assert LINE_SIZE mod ROW_SIZE = 0;
@@ -435,7 +435,9 @@ begin
 	    process(all)
 	    begin
 		-- PLRU interface
-		if get_index(r.hit_nia) = i then
+		if is_X(r.hit_nia) then
+		    plru_acc_en <= 'X';
+		elsif get_index(r.hit_nia) = i then
 		    plru_acc_en <= r.hit_valid;
 		else
 		    plru_acc_en <= '0';
@@ -450,15 +452,25 @@ begin
     itlb_lookup : process(all)
         variable pte : tlb_pte_t;
         variable ttag : tlb_tag_t;
+	variable tlb_req_index : std_ulogic_vector(TLB_BITS - 1 downto 0);
     begin
-        tlb_req_index <= hash_ea(i_in.nia);
-        pte := itlb_ptes(tlb_req_index);
-        ttag := itlb_tags(tlb_req_index);
+        tlb_req_index := hash_ea(i_in.nia);
+	if is_X(tlb_req_index) then
+	    pte := (others => 'X');
+	    ttag := (others => 'X');
+	else
+	    pte := itlb_ptes(to_integer(unsigned(tlb_req_index)));
+	    ttag := itlb_tags(to_integer(unsigned(tlb_req_index)));
+	end if;
         if i_in.virt_mode = '1' then
             real_addr <= pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
                          i_in.nia(TLB_LG_PGSZ - 1 downto 0);
             if ttag = i_in.nia(63 downto TLB_LG_PGSZ + TLB_BITS) then
-                ra_valid <= itlb_valids(tlb_req_index);
+		if is_X(tlb_req_index) then
+		    ra_valid <= 'X';
+		else
+		    ra_valid <= itlb_valids(to_integer(unsigned(tlb_req_index)));
+		end if;
             else
                 ra_valid <= '0';
             end if;
@@ -476,7 +488,7 @@ begin
 
     -- iTLB update
     itlb_update: process(clk)
-        variable wr_index : tlb_index_t;
+	variable wr_index : std_ulogic_vector(TLB_BITS - 1 downto 0);
     begin
         if rising_edge(clk) then
             wr_index := hash_ea(m_in.addr);
@@ -486,12 +498,14 @@ begin
                     itlb_valids(i) <= '0';
                 end loop;
             elsif m_in.tlbie = '1' then
+		assert not is_X(wr_index) report "icache index invalid on write" severity FAILURE;
                 -- clear entry regardless of hit or miss
-                itlb_valids(wr_index) <= '0';
+                itlb_valids(to_integer(unsigned(wr_index))) <= '0';
             elsif m_in.tlbld = '1' then
-                itlb_tags(wr_index) <= m_in.addr(63 downto TLB_LG_PGSZ + TLB_BITS);
-                itlb_ptes(wr_index) <= m_in.pte;
-                itlb_valids(wr_index) <= '1';
+		assert not is_X(wr_index) report "icache index invalid on write" severity FAILURE;
+                itlb_tags(to_integer(unsigned(wr_index))) <= m_in.addr(63 downto TLB_LG_PGSZ + TLB_BITS);
+                itlb_ptes(to_integer(unsigned(wr_index))) <= m_in.pte;
+                itlb_valids(to_integer(unsigned(wr_index))) <= '1';
             end if;
             ev.itlb_miss_resolved <= m_in.tlbld and not rst;
         end if;
@@ -503,9 +517,11 @@ begin
 	variable hit_way : way_t;
     begin
 	-- Extract line, row and tag from request
-        req_index <= get_index(i_in.nia);
-        req_row <= get_row(i_in.nia);
-        req_tag <= get_tag(real_addr, i_in.big_endian);
+	if not is_X(i_in.nia) then
+	    req_index <= get_index(i_in.nia);
+	    req_row <= get_row(i_in.nia);
+	end if;
+	req_tag <= get_tag(real_addr, i_in.big_endian);
 
 	-- Calculate address of beginning of cache row, will be
 	-- used for cache miss processing if needed
@@ -517,7 +533,11 @@ begin
 	hit_way := 0;
 	is_hit := '0';
 	for i in way_t loop
-	    if i_in.req = '1' and
+	    if is_X(i_in.nia) then
+		-- FIXME: This is fragile
+		-- req_index or req_row could be a metavalue
+		is_hit := 'X';
+	    elsif i_in.req = '1' and
                 (cache_valids(req_index)(i) = '1' or
                  (r.state = WAIT_ACK and
                   req_index = r.store_index and
@@ -556,7 +576,7 @@ begin
 	--       some of the cache geometry information.
 	--
 	if r.hit_valid = '1' then
-            i_out.insn <= read_insn_word(r.hit_nia, cache_out(r.hit_way));
+	    i_out.insn <= read_insn_word(r.hit_nia, cache_out(r.hit_way));
 	else
             i_out.insn <= (others => '0');
 	end if;
@@ -592,6 +612,8 @@ begin
                 r.hit_valid <= req_is_hit;
                 if req_is_hit = '1' then
                     r.hit_way <= req_hit_way;
+		    -- this is a bit fragile but better than propogating bad values
+		    assert not is_X(i_in.nia) report "metavalue in NIA" severity FAILURE;
 
                     report "cache hit nia:" & to_hstring(i_in.nia) &
                         " IR:" & std_ulogic'image(i_in.virt_mode) &
@@ -648,6 +670,9 @@ begin
                 snoop_addr := addr_to_real(wb_to_addr(wb_snoop_in.adr));
                 snoop_index <= get_index(snoop_addr);
                 snoop_cache_tags := cache_tags(get_index(snoop_addr));
+		if snoop_valid = '1' and is_X(snoop_addr) then
+		    report "metavalue in snoop_addr" severity FAILURE;
+		end if;
                 snoop_tag := get_tag(snoop_addr, '0');
                 snoop_hits <= (others => '0');
                 for i in way_t loop
