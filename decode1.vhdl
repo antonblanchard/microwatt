@@ -36,6 +36,8 @@ architecture behaviour of decode1 is
 
     constant illegal_inst : decode_rom_t :=
         (NONE, NONE, OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
+    constant x_inst : decode_rom_t :=
+        (NONE, NONE, OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, 'X', 'X', 'X', 'X', ZERO, 'X', NONE, 'X', 'X', 'X', 'X', 'X', 'X', NONE, 'X', 'X', NONE);
 
     -- If we have an FPU, then it is used for integer divisions,
     -- otherwise a dedicated divider in the ALU is used.
@@ -664,14 +666,23 @@ begin
         br_offset := (others => '0');
 
         majorop := unsigned(f_in.insn(31 downto 26));
-        v.decode := major_decode_rom_array(to_integer(majorop));
+        if is_X(majorop) then
+            v.decode := x_inst;
+        else
+            v.decode := major_decode_rom_array(to_integer(majorop));
+        end if;
 
-        sprn := decode_spr_num(f_in.insn);
-        v.spr_info := map_spr(sprn);
-        v.ram_spr := decode_ram_spr(sprn);
+	if is_X(f_in.insn) then
+	    v.spr_info := (sel => "XXX", others => 'X');
+	    v.ram_spr := (index => (others => 'X'), others => 'X');
+	else
+	    sprn := decode_spr_num(f_in.insn);
+	    v.spr_info := map_spr(sprn);
+	    v.ram_spr := decode_ram_spr(sprn);
+	end if;
 
-        case to_integer(unsigned(majorop)) is
-        when 4 =>
+        case unsigned(majorop) is
+        when "000100" => -- 4
             -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
             minor4op := f_in.insn(5 downto 0) & f_in.insn(10 downto 6);
             vi.override := not decode_op_4_valid(to_integer(unsigned(minor4op)));
@@ -679,13 +690,17 @@ begin
             in3rc := '1';
             may_read_rb := '1';
 
-        when 23 =>
+        when "010111" => -- 23
             -- rlwnm[.]
             may_read_rb := '1';
 
-        when 31 =>
+        when "011111" => -- 31
             -- major opcode 31, lots of things
-            v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
+            if is_X(f_in.insn) then
+                v.decode := x_inst;
+            else
+                v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
+            end if;
             may_read_rb := '1';
 
             if std_match(f_in.insn(10 downto 1), "01-1010011") then
@@ -705,28 +720,43 @@ begin
                         end if;
                     when others =>
                 end case;
+		-- FIXME: This is a bit fragile doing this here but sprn depends
+		-- on f_in.insn
+		if is_X(f_in.insn) then
+		    vi.override_decode.unit := NONE;
+		    vi.override_unit := 'X';
+		    vi.force_single := 'X';
+		end if;
             end if;
             if HAS_FPU and std_match(f_in.insn(10 downto 1), "1----10111") then
                 -- lower half of column 23 has FP loads and stores
                 fprs := '1';
             end if;
 
-        when 16 =>
+        when "010000" => -- 16
             -- Predict backward branches as taken, forward as untaken
             v.br_pred := f_in.insn(15);
             br_offset := resize(signed(f_in.insn(15 downto 2)), 24);
 
-        when 18 =>
+        when "010010" => -- 18
             -- Unconditional branches are always taken
             v.br_pred := '1';
             br_offset := signed(f_in.insn(25 downto 2));
 
-        when 19 =>
-            vi.override := not decode_op_19_valid(to_integer(unsigned(f_in.insn(5 downto 1) & f_in.insn(10 downto 6))));
+        when "010011" => -- 19
+            if is_X(f_in.insn) then
+                vi.override := 'X';
+            else
+                vi.override := not decode_op_19_valid(to_integer(unsigned(f_in.insn(5 downto 1) & f_in.insn(10 downto 6))));
+            end if;
             op_19_bits := f_in.insn(5) & f_in.insn(3) & f_in.insn(2);
-            v.decode := decode_op_19_array(to_integer(unsigned(op_19_bits)));
+            if is_X(op_19_bits) then
+                v.decode := x_inst;
+            else
+                v.decode := decode_op_19_array(to_integer(unsigned(op_19_bits)));
+            end if;
 
-        when 24 =>
+        when "011000" => -- 24
             -- ori, special-case the standard NOP
             if std_match(f_in.insn, "01100000000000000000000000000000") then
                 report "PPC_nop";
@@ -734,23 +764,35 @@ begin
                 vi.override_decode := nop_instr;
             end if;
 
-        when 30 =>
-            v.decode := decode_op_30_array(to_integer(unsigned(f_in.insn(4 downto 1))));
+        when "011110" => -- 30
+            if is_X(f_in.insn) then
+                v.decode := x_inst;
+            else
+                v.decode := decode_op_30_array(to_integer(unsigned(f_in.insn(4 downto 1))));
+            end if;
             may_read_rb := f_in.insn(4);
 
-        when 52 | 53 | 54 | 55 =>
+        when "110100" | "110101" | "110110" | "110111" => -- 52, 53, 54, 55
             -- stfd[u] and stfs[u]
             if HAS_FPU then
                 fprs := '1';
             end if;
 
-        when 58 =>
-            v.decode := decode_op_58_array(to_integer(unsigned(f_in.insn(1 downto 0))));
+        when "111010" => -- 58
+            if is_X(f_in.insn) then
+                v.decode := x_inst;
+            else
+                v.decode := decode_op_58_array(to_integer(unsigned(f_in.insn(1 downto 0))));
+            end if;
 
-        when 59 =>
+        when "111011" => -- 59
             if HAS_FPU then
                 -- floating point operations, mostly single-precision
-                v.decode := decode_op_59_array(to_integer(unsigned(f_in.insn(5 downto 1))));
+                if is_X(f_in.insn) then
+                    v.decode := x_inst;
+                else
+                    v.decode := decode_op_59_array(to_integer(unsigned(f_in.insn(5 downto 1))));
+                end if;
                 if f_in.insn(5) = '0' and not std_match(f_in.insn(10 downto 1), "11-1001110") then
                     vi.override := '1';
                 end if;
@@ -760,13 +802,19 @@ begin
                 may_read_rb := '1';
             end if;
 
-        when 62 =>
-            v.decode := decode_op_62_array(to_integer(unsigned(f_in.insn(1 downto 0))));
+        when "111110" => -- 62
+                if is_X(f_in.insn) then
+                    v.decode := x_inst;
+                else
+                    v.decode := decode_op_62_array(to_integer(unsigned(f_in.insn(1 downto 0))));
+                end if;
 
-        when 63 =>
+        when "111111" => -- 63
             if HAS_FPU then
                 -- floating point operations, general and double-precision
-                if f_in.insn(5) = '0' then
+                if is_X(f_in.insn) then
+                    v.decode := x_inst;
+                elsif f_in.insn(5) = '0' then
                     v.decode := decode_op_63l_array(to_integer(unsigned(f_in.insn(4 downto 1) & f_in.insn(10 downto 6))));
                 else
                     v.decode := decode_op_63h_array(to_integer(unsigned(f_in.insn(4 downto 1))));
