@@ -34,6 +34,10 @@ architecture behaviour of rotator is
         variable ret: std_ulogic_vector(63 downto 0);
     begin
         ret := (others => '0');
+	if is_X(mask_begin) then
+	    ret := (others => 'X');
+	    return ret;
+	end if;
         for i in 0 to 63 loop
             if i >= to_integer(unsigned(mask_begin)) then
                 ret(63 - i) := '1';
