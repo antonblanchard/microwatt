@@ -120,9 +120,21 @@ begin
                 b_addr(5) := '0';
                 c_addr(5) := '0';
             end if;
-            data_1 <= registers(to_integer(unsigned(a_addr)));
-            data_2 <= registers(to_integer(unsigned(b_addr)));
-            data_3 <= registers(to_integer(unsigned(c_addr)));
+	    if is_X(a_addr) then
+		data_1 <= (others => 'X');
+	    else
+		data_1 <= registers(to_integer(unsigned(a_addr)));
+	    end if;
+	    if is_X(b_addr) then
+		data_2 <= (others => 'X');
+	    else
+		data_2 <= registers(to_integer(unsigned(b_addr)));
+	    end if;
+	    if is_X(c_addr) then
+		data_3 <= (others => 'X');
+	    else
+		data_3 <= registers(to_integer(unsigned(c_addr)));
+	    end if;
 
             prev_write_data <= w_in.write_data;
         end if;
