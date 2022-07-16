@@ -66,6 +66,7 @@ filesets:
   xilinx_specific:
     files:
       - xilinx-mult.vhdl : {file_type : vhdlSource-2008}
+      - xilinx-mult-32s.vhdl : {file_type : vhdlSource-2008}
       - fpga/fpga-random.vhdl : {file_type : vhdlSource-2008}
       - fpga/fpga-random.xdc : {file_type : xdc}
 

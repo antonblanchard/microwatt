@@ -85,6 +85,7 @@ architecture behaviour of execute1 is
         write_pmuspr : std_ulogic;
         ramspr_write_even : std_ulogic;
         ramspr_write_odd : std_ulogic;
+        mult_32s : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -203,6 +204,8 @@ architecture behaviour of execute1 is
     -- multiply signals
     signal x_to_multiply: MultiplyInputType;
     signal multiply_to_x: MultiplyOutputType;
+    signal x_to_mult_32s: MultiplyInputType;
+    signal mult_32s_to_x: MultiplyOutputType;
 
     -- divider signals
     signal x_to_divider: Execute1ToDividerType;
@@ -409,6 +412,14 @@ begin
             clk => clk,
             m_in => x_to_multiply,
             m_out => multiply_to_x
+            );
+
+    mult_32s_0: entity work.multiply_32s
+        port map (
+            clk => clk,
+            stall => stage2_stall,
+            m_in => x_to_mult_32s,
+            m_out => mult_32s_to_x
             );
 
     divider_0: if not HAS_FPU generate
@@ -730,14 +741,14 @@ begin
             addend := not addend;
         end if;
 
+        x_to_multiply.data1 <= std_ulogic_vector(abs1);
+        x_to_multiply.data2 <= std_ulogic_vector(abs2);
 	x_to_multiply.is_32bit <= e_in.is_32bit;
         x_to_multiply.not_result <= sign1 xor sign2;
         x_to_multiply.addend <= addend;
         x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
         if e_in.is_32bit = '0' then
             -- 64-bit forms
-            x_to_multiply.data1 <= std_ulogic_vector(abs1);
-            x_to_multiply.data2 <= std_ulogic_vector(abs2);
             if e_in.insn_type = OP_DIVE then
                 x_to_divider.is_extended <= '1';
             end if;
@@ -745,8 +756,6 @@ begin
             x_to_divider.divisor <= std_ulogic_vector(abs2);
         else
             -- 32-bit forms
-            x_to_multiply.data1 <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
-            x_to_multiply.data2 <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
             x_to_divider.is_extended <= '0';
             if e_in.insn_type = OP_DIVE then   -- extended forms
                 x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
@@ -755,6 +764,14 @@ begin
             end if;
             x_to_divider.divisor <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
         end if;
+
+        -- signals to 32-bit multiplier
+        x_to_mult_32s.data1 <= 31x"0" & (a_in(31) and e_in.is_signed) & a_in(31 downto 0);
+        x_to_mult_32s.data2 <= 31x"0" & (b_in(31) and e_in.is_signed) & b_in(31 downto 0);
+        -- The following are unused, but set here to avoid X states
+        x_to_mult_32s.is_32bit <= '1';
+        x_to_mult_32s.not_result <= '0';
+        x_to_mult_32s.addend <= (others => '0');
 
         shortmul_result <= std_ulogic_vector(resize(signed(mshort_p), 64));
         case ex1.mul_select is
@@ -1271,7 +1288,11 @@ begin
 		v.se.icache_inval := '1';
 
 	    when OP_MUL_L64 =>
-                if HAS_SHORT_MULT and e_in.reg_valid3 = '0' and
+                if e_in.is_32bit = '1' then
+                    v.se.mult_32s := '1';
+                    v.res2_sel := "00";
+                    slow_op := '1';
+                elsif HAS_SHORT_MULT and e_in.reg_valid3 = '0' and
                     fits_in_n_bits(a_in, 16) and fits_in_n_bits(b_in, 16) then
                     -- Operands fit into 16 bits, so use short multiplier
                     if e_in.oe = '1' then
@@ -1285,10 +1306,15 @@ begin
                     owait := '1';
                 end if;
 
-	    when OP_MUL_H64 | OP_MUL_H32 =>
+	    when OP_MUL_H64 =>
                 v.start_mul := '1';
                 slow_op := '1';
                 owait := '1';
+
+            when OP_MUL_H32 =>
+                v.se.mult_32s := '1';
+                v.res2_sel := "01";
+                slow_op := '1';
 
 	    when OP_DIV | OP_DIVE | OP_MOD =>
                 if not HAS_FPU then
@@ -1370,6 +1396,7 @@ begin
         fv := Execute1ToFPUInit;
 
         x_to_multiply.valid <= '0';
+        x_to_mult_32s.valid <= '0';
         x_to_divider.valid <= '0';
         v.ext_interrupt := '0';
         v.taken_branch_event := '0';
@@ -1456,6 +1483,7 @@ begin
             v.res2_sel := actions.res2_sel;
             v.msr := actions.new_msr;
             x_to_multiply.valid <= actions.start_mul;
+            x_to_mult_32s.valid <= actions.se.mult_32s;
             v.mul_in_progress := actions.start_mul;
             x_to_divider.valid <= actions.start_div;
             v.div_in_progress := actions.start_div;
@@ -1624,11 +1652,6 @@ begin
     -- Second execute stage control
     execute2_1: process(all)
 	variable v : reg_stage2_type;
-	variable overflow : std_ulogic;
-        variable lv : Execute1ToLoadstore1Type;
-        variable fv : Execute1ToFPUType;
-        variable k : integer;
-        variable go : std_ulogic;
         variable bypass_valid : std_ulogic;
         variable rcresult : std_ulogic_vector(63 downto 0);
         variable sprres : std_ulogic_vector(63 downto 0);
@@ -1645,6 +1668,14 @@ begin
             v.ext_interrupt := ex1.ext_interrupt;
             v.taken_branch_event := ex1.taken_branch_event;
             v.br_mispredict := ex1.br_mispredict;
+        end if;
+
+        if ex1.se.mult_32s = '1' and ex1.oe = '1' then
+            v.e.xerc.ov := mult_32s_to_x.overflow;
+            v.e.xerc.ov32 := mult_32s_to_x.overflow;
+            if mult_32s_to_x.overflow = '1' then
+                v.e.xerc.so := '1';
+            end if;
         end if;
 
 	ctrl_tmp <= ctrl;
@@ -1667,24 +1698,34 @@ begin
             v.e.write_xerc_enable := '0';
             v.e.redirect := '0';
             v.e.br_last := '0';
-            v.se := side_effect_init;
             v.taken_branch_event := '0';
             v.br_mispredict := '0';
         end if;
         if flush_in = '1' then
             v.e.valid := '0';
             v.e.interrupt := '0';
+            v.se := side_effect_init;
             v.ext_interrupt := '0';
         end if;
 
         -- This is split like this because mfspr doesn't have an Rc bit,
         -- and we don't want the zero-detect logic to be after the
         -- SPR mux for timing reasons.
-        if ex1.res2_sel(0) = '0' then
+        if ex1.se.mult_32s = '1' then
+            if ex1.res2_sel(0) = '0' then
+                rcresult := mult_32s_to_x.result(63 downto 0);
+            else
+                rcresult := mult_32s_to_x.result(63 downto 32) &
+                            mult_32s_to_x.result(63 downto 32);
+            end if;
+        elsif ex1.res2_sel(0) = '0' then
             rcresult := ex1.e.write_data;
-            sprres := spr_result;
         else
             rcresult := countbits_result;
+        end if;
+        if ex1.res2_sel(0) = '0' then
+            sprres := spr_result;
+        else
             sprres := pmu_to_x.spr_val;
         end if;
         if ex1.res2_sel(1) = '0' then
@@ -1708,7 +1749,7 @@ begin
             cr_res(31) := sign;
             cr_res(30) := not (sign or zero);
             cr_res(29) := zero;
-            cr_res(28) := ex1.e.xerc.so;
+            cr_res(28) := v.e.xerc.so;
             cr_mask(7) := '1';
         end if;
 
