@@ -15,7 +15,6 @@ entity execute1 is
         SIM : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
-        HAS_SHORT_MULT : boolean := false;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -447,17 +446,6 @@ begin
             p_in => x_to_pmu,
             p_out => pmu_to_x
             );
-
-    short_mult_0: if HAS_SHORT_MULT generate
-    begin
-        short_mult: entity work.short_multiply
-        port map (
-            clk => clk,
-            a_in => a_in(15 downto 0),
-            b_in => b_in(15 downto 0),
-            m_out => mshort_p
-            );
-    end generate;
 
     dbg_ctrl_out <= ctrl;
     log_rd_addr <= ex2.log_addr_spr;
@@ -1288,13 +1276,6 @@ begin
                     v.se.mult_32s := '1';
                     v.res2_sel := "00";
                     slow_op := '1';
-                elsif HAS_SHORT_MULT and e_in.reg_valid3 = '0' and
-                    fits_in_n_bits(a_in, 16) and fits_in_n_bits(b_in, 16) then
-                    -- Operands fit into 16 bits, so use short multiplier
-                    if e_in.oe = '1' then
-                        -- Note 16x16 multiply can't overflow, even for mullwo
-                        set_ov(v.e, '0', '0');
-                    end if;
                 else
                     -- Use standard multiplier
                     v.start_mul := '1';

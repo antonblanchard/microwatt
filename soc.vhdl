@@ -59,7 +59,6 @@ entity soc is
 	SIM                : boolean;
         HAS_FPU            : boolean := true;
         HAS_BTC            : boolean := true;
-        HAS_SHORT_MULT     : boolean := false;
 	DISABLE_FLATTEN_CORE : boolean := false;
         ALT_RESET_ADDRESS  : std_logic_vector(63 downto 0) := (23 downto 0 => '0', others => '1');
 	HAS_DRAM           : boolean  := false;
@@ -335,7 +334,6 @@ begin
 	    SIM => SIM,
             HAS_FPU => HAS_FPU,
             HAS_BTC => HAS_BTC,
-            HAS_SHORT_MULT => HAS_SHORT_MULT,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
 	    ALT_RESET_ADDRESS => ALT_RESET_ADDRESS,
             LOG_LENGTH => LOG_LENGTH,

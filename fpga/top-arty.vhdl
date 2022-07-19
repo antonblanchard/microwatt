@@ -16,7 +16,6 @@ entity toplevel is
         CLK_FREQUENCY      : positive := 100000000;
         HAS_FPU            : boolean  := true;
         HAS_BTC            : boolean  := true;
-        HAS_SHORT_MULT     : boolean  := false;
         USE_LITEDRAM       : boolean  := false;
         NO_BRAM            : boolean  := false;
         DISABLE_FLATTEN_CORE : boolean := false;
@@ -199,7 +198,6 @@ begin
             CLK_FREQ           => CLK_FREQUENCY,
             HAS_FPU            => HAS_FPU,
             HAS_BTC            => HAS_BTC,
-            HAS_SHORT_MULT     => HAS_SHORT_MULT,
             HAS_DRAM           => USE_LITEDRAM,
             DRAM_SIZE          => 256 * 1024 * 1024,
             DRAM_INIT_SIZE     => PAYLOAD_SIZE,

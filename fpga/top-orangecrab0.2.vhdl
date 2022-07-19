@@ -188,7 +188,6 @@ begin
             HAS_UART1          => HAS_UART1,
             HAS_SD_CARD        => USE_LITESDCARD,
             ICACHE_NUM_LINES   => ICACHE_NUM_LINES,
-            HAS_SHORT_MULT     => true,
             NGPIO              => NGPIO
             )
         port map (
