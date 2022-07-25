@@ -4,18 +4,18 @@
 #include "console.h"
 
 
-#define asm	__asm__ volatile
+#define asm     __asm__ volatile
 
-#define MMCR0 	795 
-#define MMCR1 	798
-#define MMCR2 	785
-#define MMCRA 	786
-#define PMC1 	771
-#define PMC2 	772
-#define PMC3 	773
-#define PMC4 	774
-#define PMC5 	775
-#define PMC6 	776
+#define MMCR0   795
+#define MMCR1   798
+#define MMCR2   785
+#define MMCRA   786
+#define PMC1    771
+#define PMC2    772
+#define PMC3    773
+#define PMC4    774
+#define PMC5    775
+#define PMC6    776
 
 #define MMCR0_FC    0x80000000 // Freeze Counters
 #define PMC1SEL_FC  0xFC000000 // Load Completed
@@ -47,8 +47,8 @@ void print_test_number(int i)
 }
 
 void reset_pmu() {
-    mtspr(MMCR0, MMCR0_FC);
-    mtspr(MMCR1, 0);
+	mtspr(MMCR0, MMCR0_FC);
+	mtspr(MMCR1, 0);
 	mtspr(PMC1, 0);
 	mtspr(PMC2, 0);
 	mtspr(PMC3, 0);
@@ -62,19 +62,19 @@ void reset_pmu() {
 	Runs 50 load instructions
 	Expects PMC1 to be 50 at the end
 */
-int test_load_complete() 
+int test_load_complete()
 {
-    reset_pmu();
-    unsigned long volatile b = 0;
-    mtspr(MMCR1, PMC1SEL_FC);
-    mtspr(MMCR0, 0);
-    
+	reset_pmu();
+	unsigned long volatile b = 0;
+	mtspr(MMCR1, PMC1SEL_FC);
+	mtspr(MMCR0, 0);
+
 	for(int i = 0; i < 50; i++)
 		++b;
 
-    mtspr(MMCR0, MMCR0_FC);
-    
-    return mfspr(PMC1) == 50;
+	mtspr(MMCR0, MMCR0_FC);
+
+	return mfspr(PMC1) == 50;
 }
 
 /*
@@ -84,17 +84,17 @@ int test_load_complete()
 */
 int test_store_complete()
 {
-    reset_pmu();
-    unsigned long volatile b = 0;
-    mtspr(MMCR1, PMC2SEL_F0);
-    mtspr(MMCR0, 0);
-    
+	reset_pmu();
+	unsigned long volatile b = 0;
+	mtspr(MMCR1, PMC2SEL_F0);
+	mtspr(MMCR0, 0);
+
 	for(int i = 0; i < 50; i++)
 		++b;
 
-    mtspr(MMCR0, MMCR0_FC);
-    
-    return mfspr(PMC2) == 50;
+	mtspr(MMCR0, MMCR0_FC);
+
+	return mfspr(PMC2) == 50;
 }
 
 /*
@@ -104,16 +104,16 @@ int test_store_complete()
 */
 int test_instruction_complete()
 {
-    reset_pmu();
-    unsigned long volatile b = 0;
-    mtspr(MMCR0, 0);
-    
+	reset_pmu();
+	unsigned long volatile b = 0;
+	mtspr(MMCR0, 0);
+
 	for(int i = 0; i < 50; i++)
 		++b;
 
-    mtspr(MMCR0, MMCR0_FC);
-    
-    return mfspr(PMC5) > 0;
+	mtspr(MMCR0, MMCR0_FC);
+
+	return mfspr(PMC5) > 0;
 }
 
 /*
@@ -126,12 +126,12 @@ int test_count_cycles()
     reset_pmu();
     unsigned long volatile b = 0;
     mtspr(MMCR0, 0);
-    
-	for(int i = 0; i < 50; i++)
-		++b;
+
+    for(int i = 0; i < 50; i++)
+	    ++b;
 
     mtspr(MMCR0, MMCR0_FC);
-    
+
     return mfspr(PMC6) > 0;
 }
 
@@ -161,7 +161,7 @@ int main(void)
 		puts(FAIL);
 	} else
 		puts(PASS);
-    
+
 	print_test_number(4);
 	if (test_count_cycles() == 0) {
 		fail = 1;
