@@ -18,6 +18,7 @@ entity cr_file is
         d_out : out CrFileToDecode2Type;
 
         w_in  : in WritebackToCrFileType;
+        ctrl  : in ctrl_t;
 
         -- debug
         sim_dump : in std_ulogic;
@@ -65,7 +66,11 @@ begin
                 crs <= crs_updated;
             end if;
             if w_in.write_xerc_enable = '1' then
-                report "Writing XERC";
+                report "Writing XERC SO=" & std_ulogic'image(xerc_updated.so) &
+                    " OV=" & std_ulogic'image(xerc_updated.ov) &
+                    " CA=" & std_ulogic'image(xerc_updated.ca) &
+                    " OV32=" & std_ulogic'image(xerc_updated.ov32) &
+                    " CA32=" & std_ulogic'image(xerc_updated.ca32);
                 xerc <= xerc_updated;
             end if;
         end if;
@@ -84,9 +89,18 @@ begin
 
     sim_dump_test: if SIM generate
         dump_cr: process(all)
+            variable xer : std_ulogic_vector(31 downto 0);
         begin
             if sim_dump = '1' then
                 report "CR 00000000" & to_hstring(crs);
+                xer := (others => '0');
+                xer(31) := xerc.so;
+                xer(30) := xerc.ov;
+                xer(29) := xerc.ca;
+                xer(19) := xerc.ov32;
+                xer(18) := xerc.ca32;
+                xer(17 downto 0) := ctrl.xer_low;
+                report "XER 00000000" & to_hstring(xer);
                 assert false report "end of test" severity failure;
             end if;
         end process;

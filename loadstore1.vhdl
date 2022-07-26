@@ -35,6 +35,12 @@ entity loadstore1 is
 
         events  : out Loadstore1EventType;
 
+        -- Access to SPRs from core_debug module
+        dbg_spr_req   : in std_ulogic;
+        dbg_spr_ack   : out std_ulogic;
+        dbg_spr_addr  : in std_ulogic_vector(1 downto 0);
+        dbg_spr_data  : out std_ulogic_vector(63 downto 0);
+
         log_out : out std_ulogic_vector(9 downto 0)
         );
 end loadstore1;
@@ -43,9 +49,7 @@ architecture behave of loadstore1 is
 
     -- State machine for unaligned loads/stores
     type state_t is (IDLE,              -- ready for instruction
-                     MMU_LOOKUP,        -- waiting for MMU to look up translation
-                     TLBIE_WAIT,        -- waiting for MMU to finish doing a tlbie
-                     FINISH_LFS         -- write back converted SP data for lfs*
+                     MMU_WAIT           -- waiting for MMU to finish doing something
                      );
 
     type byte_index_t is array(0 to 7) of unsigned(2 downto 0);
@@ -63,9 +67,7 @@ architecture behave of loadstore1 is
         write_spr    : std_ulogic;
         mmu_op       : std_ulogic;
         instr_fault  : std_ulogic;
-        load_zero    : std_ulogic;
         do_update    : std_ulogic;
-        noop         : std_ulogic;
         mode_32bit   : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
         byte_sel     : std_ulogic_vector(7 downto 0);
@@ -88,31 +90,32 @@ architecture behave of loadstore1 is
         virt_mode    : std_ulogic;
         priv_mode    : std_ulogic;
         load_sp      : std_ulogic;
-        sprn         : std_ulogic_vector(9 downto 0);
+        sprsel       : std_ulogic_vector(1 downto 0);
+        ric          : std_ulogic_vector(1 downto 0);
         is_slbia     : std_ulogic;
         align_intr   : std_ulogic;
         dword_index  : std_ulogic;
         two_dwords   : std_ulogic;
-        nia          : std_ulogic_vector(63 downto 0);
+        incomplete   : std_ulogic;
     end record;
     constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0', tlbie => '0',
                                           dcbz => '0', read_spr => '0', write_spr => '0', mmu_op => '0',
-                                          instr_fault => '0', load_zero => '0', do_update => '0', noop => '0',
+                                          instr_fault => '0', do_update => '0',
                                           mode_32bit => '0', addr => (others => '0'),
                                           byte_sel => x"00", second_bytes => x"00",
                                           store_data => (others => '0'), instr_tag => instr_tag_init,
-                                          write_reg => 7x"00", length => x"0",
+                                          write_reg => 6x"00", length => x"0",
                                           elt_length => x"0", byte_reverse => '0', brev_mask => "000",
                                           sign_extend => '0', update => '0',
                                           xerc => xerc_init, reserve => '0',
                                           atomic => '0', atomic_last => '0', rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
-                                          sprn => 10x"0", is_slbia => '0', align_intr => '0',
-                                          dword_index => '0', two_dwords => '0',
-                                          nia => (others => '0'));
+                                          sprsel => "00", ric => "00", is_slbia => '0', align_intr => '0',
+                                          dword_index => '0', two_dwords => '0', incomplete => '0');
 
     type reg_stage1_t is record
         req : request_t;
+        busy : std_ulogic;
         issued : std_ulogic;
         addr0 : std_ulogic_vector(63 downto 0);
     end record;
@@ -121,15 +124,20 @@ architecture behave of loadstore1 is
         req        : request_t;
         byte_index : byte_index_t;
         use_second : std_ulogic_vector(7 downto 0);
+        busy       : std_ulogic;
         wait_dc    : std_ulogic;
         wait_mmu   : std_ulogic;
         one_cycle  : std_ulogic;
         wr_sel     : std_ulogic_vector(1 downto 0);
         addr0      : std_ulogic_vector(63 downto 0);
+        sprsel     : std_ulogic_vector(1 downto 0);
+        dbg_spr    : std_ulogic_vector(63 downto 0);
+        dbg_spr_ack: std_ulogic;
     end record;
 
     type reg_stage3_t is record
         state        : state_t;
+        complete     : std_ulogic;
         instr_tag    : instr_tag_t;
         write_enable : std_ulogic;
 	write_reg    : gspr_index_t;
@@ -137,7 +145,6 @@ architecture behave of loadstore1 is
         rc           : std_ulogic;
         xerc         : xer_common_t;
         store_done   : std_ulogic;
-        convert_lfs  : std_ulogic;
         load_data    : std_ulogic_vector(63 downto 0);
         dar          : std_ulogic_vector(63 downto 0);
         dsisr        : std_ulogic_vector(31 downto 0);
@@ -147,7 +154,6 @@ architecture behave of loadstore1 is
         stage1_en    : std_ulogic;
         interrupt    : std_ulogic;
         intr_vec     : integer range 0 to 16#fff#;
-        nia          : std_ulogic_vector(63 downto 0);
         srr1         : std_ulogic_vector(15 downto 0);
         events       : Loadstore1EventType;
     end record;
@@ -157,21 +163,18 @@ architecture behave of loadstore1 is
     signal r2, r2in : reg_stage2_t;
     signal r3, r3in : reg_stage3_t;
 
+    signal flush    : std_ulogic;
     signal busy     : std_ulogic;
     signal complete : std_ulogic;
-    signal in_progress : std_ulogic;
     signal flushing : std_ulogic;
 
     signal store_sp_data : std_ulogic_vector(31 downto 0);
     signal load_dp_data  : std_ulogic_vector(63 downto 0);
     signal store_data    : std_ulogic_vector(63 downto 0);
 
-    signal stage1_issue_enable : std_ulogic;
     signal stage1_req          : request_t;
     signal stage1_dcreq        : std_ulogic;
     signal stage1_dreq         : std_ulogic;
-    signal stage2_busy_next    : std_ulogic;
-    signal stage3_busy_next    : std_ulogic;
 
     -- Generate byte enables from sizes
     function length_to_sel(length : in std_logic_vector(3 downto 0)) return std_ulogic_vector is
@@ -274,22 +277,29 @@ begin
     begin
         if rising_edge(clk) then
             if rst = '1' then
+                r1.busy <= '0';
+                r1.issued <= '0';
                 r1.req.valid <= '0';
+                r1.req.dc_req <= '0';
+                r1.req.incomplete <= '0';
                 r1.req.tlbie <= '0';
                 r1.req.is_slbia <= '0';
                 r1.req.instr_fault <= '0';
                 r1.req.load <= '0';
                 r1.req.priv_mode <= '0';
-                r1.req.sprn <= (others => '0');
+                r1.req.sprsel <= "00";
+                r1.req.ric <= "00";
                 r1.req.xerc <= xerc_init;
 
                 r2.req.valid <= '0';
+                r2.busy <= '0';
                 r2.req.tlbie <= '0';
                 r2.req.is_slbia <= '0';
                 r2.req.instr_fault <= '0';
                 r2.req.load <= '0';
                 r2.req.priv_mode <= '0';
-                r2.req.sprn <= (others => '0');
+                r2.req.sprsel <= "00";
+                r2.req.ric <= "00";
                 r2.req.xerc <= xerc_init;
 
                 r2.wait_dc <= '0';
@@ -301,8 +311,8 @@ begin
                 r3.state <= IDLE;
                 r3.write_enable <= '0';
                 r3.interrupt <= '0';
+                r3.complete <= '0';
                 r3.stage1_en <= '1';
-                r3.convert_lfs <= '0';
                 r3.events.load_complete <= '0';
                 r3.events.store_complete <= '0';
                 flushing <= '0';
@@ -311,7 +321,7 @@ begin
                 r2 <= r2in;
                 r3 <= r3in;
                 flushing <= (flushing or (r1in.req.valid and r1in.req.align_intr)) and
-                            not r3in.interrupt;
+                            not flush;
             end if;
             stage1_dreq <= stage1_dcreq;
             if d_in.valid = '1' then
@@ -321,7 +331,7 @@ begin
                 assert r2.req.valid = '1' and r2.req.dc_req = '1' and r3.state = IDLE severity failure;
             end if;
             if m_in.done = '1' or m_in.err = '1' then
-                assert r2.req.valid = '1' and (r3.state = MMU_LOOKUP or r3.state = TLBIE_WAIT) severity failure;
+                assert r2.req.valid = '1' and r3.state = MMU_WAIT severity failure;
             end if;
         end if;
     end process;
@@ -410,8 +420,14 @@ begin
         v.nc := l_in.ci;
         v.virt_mode := l_in.virt_mode;
         v.priv_mode := l_in.priv_mode;
-        v.sprn := sprn;
-        v.nia := l_in.nia;
+        v.ric := l_in.insn(19 downto 18);
+        if sprn(1) = '1' then
+            -- DSISR and DAR
+            v.sprsel := '1' & sprn(0);
+        else
+            -- PID and PTCR
+            v.sprsel := '0' & sprn(8);
+        end if;
 
         lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
 
@@ -457,17 +473,6 @@ begin
         -- check alignment for larx/stcx
         misaligned := or (addr_mask and addr(2 downto 0));
         v.align_intr := l_in.reserve and misaligned;
-        if l_in.repeat = '1' and l_in.second = '0' and l_in.update = '0' and addr(3) = '1' then
-            -- length is really 16 not 8
-            -- Make misaligned lq cause an alignment interrupt in LE mode,
-            -- in order to avoid the case with RA = RT + 1 where the second half
-            -- faults but the first doesn't (and updates RT+1, destroying RA).
-            -- The equivalent BE case doesn't occur because RA = RT is illegal.
-            misaligned := '1';
-            if l_in.reserve = '1' or (l_in.op = OP_LOAD and l_in.byte_reverse = '0') then
-                v.align_intr := '1';
-            end if;
-        end if;
 
         v.atomic := not misaligned;
         v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
@@ -498,7 +503,7 @@ begin
                 v.read_spr := '1';
             when OP_MTSPR =>
                 v.write_spr := '1';
-                v.mmu_op := sprn(8) or sprn(5);
+                v.mmu_op := not sprn(1);
             when OP_FETCH_FAILED =>
                 -- send it to the MMU to do the radix walk
                 v.instr_fault := '1';
@@ -507,6 +512,7 @@ begin
             when others =>
         end case;
         v.dc_req := l_in.valid and (v.load or v.store or v.dcbz) and not v.align_intr;
+        v.incomplete := v.dc_req and v.two_dwords;
 
         -- Work out controls for load and store formatting
         brev_lenm1 := "000";
@@ -518,16 +524,8 @@ begin
         req_in <= v;
     end process;
 
-    busy <= r1.req.valid and ((r1.req.dc_req and not r1.issued) or
-                              (r1.issued and d_in.error) or
-                              stage2_busy_next or
-                              (r1.req.dc_req and r1.req.two_dwords and not r1.req.dword_index));
-    complete <= r2.one_cycle or (r2.wait_dc and d_in.valid) or
-                (r2.wait_mmu and m_in.done) or r3.convert_lfs;
-    in_progress <= r1.req.valid or (r2.req.valid and not complete);
-
-    stage1_issue_enable <= r3.stage1_en and not (r1.req.valid and r1.req.mmu_op) and
-                           not (r2.req.valid and r2.req.mmu_op);
+    busy <= dc_stall or d_in.error or r1.busy or r2.busy;
+    complete <= r2.one_cycle or (r2.wait_dc and d_in.valid) or r3.complete;
 
     -- Processing done in the first cycle of a load/store instruction
     loadstore1_1: process(all)
@@ -538,10 +536,11 @@ begin
     begin
         v := r1;
         issue := '0';
+        dcreq := '0';
 
-        if busy = '0' then
+        if r1.busy = '0' then
             req := req_in;
-            v.issued := '0';
+            req.valid := l_in.valid;
             if flushing = '1' then
                 -- Make this a no-op request rather than simply invalid.
                 -- It will never get to stage 3 since there is a request ahead of
@@ -554,37 +553,49 @@ begin
             end if;
         else
             req := r1.req;
-        end if;
-
-        if r1.req.valid = '1' then
             if r1.req.dc_req = '1' and r1.issued = '0' then
                 issue := '1';
-            elsif r1.issued = '1' and d_in.error = '1' then
-                v.issued := '0';
-            elsif stage2_busy_next = '0' then
-                -- we can change what's in r1 next cycle because the current thing
-                -- in r1 will go into r2
-                if r1.req.dc_req = '1' and r1.req.two_dwords = '1' and r1.req.dword_index = '0' then
-                    -- construct the second request for a misaligned access
-                    req.dword_index := '1';
-                    req.addr := std_ulogic_vector(unsigned(r1.req.addr(63 downto 3)) + 1) & "000";
-                    if r1.req.mode_32bit = '1' then
-                        req.addr(32) := '0';
-                    end if;
-                    req.byte_sel := r1.req.second_bytes;
-                    issue := '1';
+            elsif r1.req.incomplete = '1' then
+                -- construct the second request for a misaligned access
+                req.dword_index := '1';
+                req.incomplete := '0';
+                req.addr := std_ulogic_vector(unsigned(r1.req.addr(63 downto 3)) + 1) & "000";
+                if r1.req.mode_32bit = '1' then
+                    req.addr(32) := '0';
                 end if;
+                req.byte_sel := r1.req.second_bytes;
+                issue := '1';
+            else
+                -- For the lfs conversion cycle, leave the request valid
+                -- for another cycle but with req.dc_req = 0.
+                -- For an MMU request last cycle, we have nothing
+                -- to do in this cycle, so make it invalid.
+                if r1.req.load_sp = '0' then
+                    req.valid := '0';
+                end if;
+                req.dc_req := '0';
             end if;
         end if;
-        if r3in.interrupt = '1' then
-            req.valid := '0';
-            issue := '0';
-        end if;
 
-        v.req := req;
-        dcreq := issue and stage1_issue_enable and not d_in.error and not dc_stall;
-        if issue = '1' then
-            v.issued := dcreq;
+        if flush = '1' then
+            v.req.valid := '0';
+            v.req.dc_req := '0';
+            v.req.incomplete := '0';
+            v.issued := '0';
+            v.busy := '0';
+        elsif (dc_stall or d_in.error or r2.busy) = '0' then
+            -- we can change what's in r1 next cycle because the current thing
+            -- in r1 will go into r2
+            v.req := req;
+            dcreq := issue;
+            v.issued := issue;
+            v.busy := (issue and (req.incomplete or req.load_sp)) or (req.valid and req.mmu_op);
+        else
+            -- pipeline is stalled
+            if r1.issued = '1' and d_in.error = '1' then
+                v.issued := '0';
+                v.busy := '1';
+            end if;
         end if;
 
         stage1_req <= req;
@@ -602,6 +613,10 @@ begin
         variable kk : unsigned(3 downto 0);
         variable idx : unsigned(2 downto 0);
         variable byte_offset : unsigned(2 downto 0);
+        variable interrupt : std_ulogic;
+        variable dbg_spr_rd : std_ulogic;
+        variable sprsel : std_ulogic_vector(1 downto 0);
+        variable sprval : std_ulogic_vector(63 downto 0);
     begin
         v := r2;
 
@@ -614,47 +629,91 @@ begin
             store_data(i * 8 + 7 downto i * 8) <= r1.req.store_data(j + 7 downto j);
         end loop;
 
-        if stage3_busy_next = '0' and
-            (r1.req.valid = '0' or r1.issued = '1' or r1.req.dc_req = '0') then
-            v.req := r1.req;
-            v.addr0 := r1.addr0;
-            v.req.store_data := store_data;
-            v.wait_dc := r1.req.valid and r1.req.dc_req and not r1.req.load_sp and
-                         not (r1.req.two_dwords and not r1.req.dword_index);
-            v.wait_mmu := r1.req.valid and r1.req.mmu_op;
-            v.one_cycle := r1.req.valid and (r1.req.noop or r1.req.read_spr or
-                                             (r1.req.write_spr and not r1.req.mmu_op) or
-                                             r1.req.load_zero or r1.req.do_update);
-            if r1.req.read_spr = '1' then
-                v.wr_sel := "00";
-            elsif r1.req.do_update = '1' or r1.req.store = '1' then
-                v.wr_sel := "01";
-            elsif r1.req.load_sp = '1' then
-                v.wr_sel := "10";
+        dbg_spr_rd := dbg_spr_req and not (r1.req.valid and r1.req.read_spr);
+        if dbg_spr_rd = '0' then
+            sprsel := r1.req.sprsel;
+        else
+            sprsel := dbg_spr_addr;
+        end if;
+        if sprsel(1) = '1' then
+            if sprsel(0) = '0' then
+                sprval := x"00000000" & r3.dsisr;
             else
-                v.wr_sel := "11";
+                sprval := r3.dar;
             end if;
-
-            -- Work out load formatter controls for next cycle
-            for i in 0 to 7 loop
-                idx := to_unsigned(i, 3) xor r1.req.brev_mask;
-                kk := ('0' & idx) + ('0' & byte_offset);
-                v.use_second(i) := kk(3);
-                v.byte_index(i) := kk(2 downto 0);
-            end loop;
-        elsif stage3_busy_next = '0' then
-            v.req.valid := '0';
-            v.wait_dc := '0';
-            v.wait_mmu := '0';
+        else
+            sprval := m_in.sprval;
+        end if;
+        if dbg_spr_req = '0' then
+            v.dbg_spr_ack := '0';
+        elsif dbg_spr_rd = '1' and r2.dbg_spr_ack = '0' then
+            v.dbg_spr := sprval;
+            v.dbg_spr_ack := '1';
         end if;
 
-        stage2_busy_next <= r1.req.valid and stage3_busy_next;
+        if (dc_stall or d_in.error or r2.busy or l_in.e2stall) = '0' then
+            if r1.req.valid = '0' or r1.issued = '1' or r1.req.dc_req = '0' then
+                v.req := r1.req;
+                v.addr0 := r1.addr0;
+                v.req.store_data := store_data;
+                v.wait_dc := r1.req.valid and r1.req.dc_req and not r1.req.load_sp and
+                             not r1.req.incomplete;
+                v.wait_mmu := r1.req.valid and r1.req.mmu_op;
+                v.busy := r1.req.valid and r1.req.mmu_op;
+                v.one_cycle := r1.req.valid and not (r1.req.dc_req or r1.req.mmu_op);
+                if r1.req.do_update = '1' or r1.req.store = '1' or r1.req.read_spr = '1' then
+                    v.wr_sel := "00";
+                elsif r1.req.load_sp = '1' then
+                    v.wr_sel := "01";
+                else
+                    v.wr_sel := "10";
+                end if;
+                if r1.req.read_spr = '1' then
+                    v.addr0 := sprval;
+                end if;
 
-        if r3in.interrupt = '1' then
+                -- Work out load formatter controls for next cycle
+                for i in 0 to 7 loop
+                    idx := to_unsigned(i, 3) xor r1.req.brev_mask;
+                    kk := ('0' & idx) + ('0' & byte_offset);
+                    v.use_second(i) := kk(3);
+                    v.byte_index(i) := kk(2 downto 0);
+                end loop;
+            else
+                v.req.valid := '0';
+                v.wait_dc := '0';
+                v.wait_mmu := '0';
+                v.one_cycle := '0';
+            end if;
+        end if;
+        if r2.wait_mmu = '1' and m_in.done = '1' then
+            if r2.req.mmu_op = '1' then
+                v.req.valid := '0';
+                v.busy := '0';
+            end if;
+            v.wait_mmu := '0';
+        end if;
+        if r2.busy = '1' and r2.wait_mmu = '0' then
+            v.busy := '0';
+        end if;
+
+        interrupt := (r2.req.valid and r2.req.align_intr) or
+                     (d_in.error and d_in.cache_paradox) or m_in.err;
+        if interrupt = '1' then
             v.req.valid := '0';
+            v.busy := '0';
+            v.wait_dc := '0';
+            v.wait_mmu := '0';
+        elsif d_in.error = '1' then
+            v.wait_mmu := '1';
+            v.busy := '1';
         end if;
 
         r2in <= v;
+
+        -- SPR values for core_debug
+        dbg_spr_data <= r2.dbg_spr;
+        dbg_spr_ack <= r2.dbg_spr_ack;
     end process;
 
     -- Processing done in the third cycle of a load/store instruction.
@@ -671,7 +730,6 @@ begin
         variable write_data    : std_ulogic_vector(63 downto 0);
         variable do_update     : std_ulogic;
         variable done          : std_ulogic;
-        variable part_done     : std_ulogic;
         variable exception     : std_ulogic;
         variable data_permuted : std_ulogic_vector(63 downto 0);
         variable data_trimmed  : std_ulogic_vector(63 downto 0);
@@ -687,13 +745,12 @@ begin
         mmureq := '0';
         mmu_mtspr := '0';
         done := '0';
-        part_done := '0';
         exception := '0';
         dsisr := (others => '0');
         write_enable := '0';
         sprval := (others => '0');
         do_update := '0';
-        v.convert_lfs := '0';
+        v.complete := '0';
         v.srr1 := (others => '0');
         v.events := (others => '0');
 
@@ -755,114 +812,83 @@ begin
             v.load_data := data_permuted;
         end if;
 
+
         if r2.req.valid = '1' then
             if r2.req.read_spr = '1' then
                 write_enable := '1';
-                -- partial decode on SPR number should be adequate given
-                -- the restricted set that get sent down this path
-                if r2.req.sprn(8) = '0' and r2.req.sprn(5) = '0' then
-                    if r2.req.sprn(0) = '0' then
-                        sprval := x"00000000" & r3.dsisr;
-                    else
-                        sprval := r3.dar;
-                    end if;
-                else
-                    -- reading one of the SPRs in the MMU
-                    sprval := m_in.sprval;
-                end if;
             end if;
             if r2.req.align_intr = '1' then
                 -- generate alignment interrupt
                 exception := '1';
             end if;
-            if r2.req.load_zero = '1' then
-                write_enable := '1';
-            end if;
             if r2.req.do_update = '1' then
                 do_update := '1';
             end if;
+            if r2.req.load_sp = '1' and r2.req.dc_req = '0' then
+                write_enable := '1';
+            end if;
+            if r2.req.write_spr = '1' and r2.req.mmu_op = '0' then
+                if r2.req.sprsel(0) = '0' then
+                    v.dsisr := r2.req.store_data(31 downto 0);
+                else
+                    v.dar := r2.req.store_data;
+                end if;
+            end if;
         end if;
 
-        case r3.state is
-        when IDLE =>
-            if d_in.valid = '1' then
-                if r2.req.two_dwords = '0' or r2.req.dword_index = '1' then
-                    write_enable := r2.req.load and not r2.req.load_sp;
-                    if HAS_FPU and r2.req.load_sp = '1' then
-                        -- SP to DP conversion takes a cycle
-                        v.state := FINISH_LFS;
-                        v.convert_lfs := '1';
-                    else
-                        -- stores write back rA update
-                        do_update := r2.req.update and r2.req.store;
-                    end if;
-                else
-                    part_done := '1';
-                end if;
+        if r3.state = IDLE and r2.req.valid = '1' and r2.req.mmu_op = '1' then
+            -- send request (tlbie, mtspr, itlb miss) to MMU
+            mmureq := not r2.req.write_spr;
+            mmu_mtspr := r2.req.write_spr;
+            if r2.req.instr_fault = '1' then
+                v.events.itlb_miss := '1';
             end if;
-            if d_in.error = '1' then
-                if d_in.cache_paradox = '1' then
-                    -- signal an interrupt straight away
-                    exception := '1';
-                    dsisr(63 - 38) := not r2.req.load;
-                    -- XXX there is no architected bit for this
-                    -- (probably should be a machine check in fact)
-                    dsisr(63 - 35) := d_in.cache_paradox;
-                else
-                    -- Look up the translation for TLB miss
-                    -- and also for permission error and RC error
-                    -- in case the PTE has been updated.
-                    mmureq := '1';
-                    v.state := MMU_LOOKUP;
-                    v.stage1_en := '0';
-                end if;
-            end if;
-            if r2.req.valid = '1' then
-                if r2.req.mmu_op = '1' then
-                    -- send request (tlbie, mtspr, itlb miss) to MMU
-                    mmureq := not r2.req.write_spr;
-                    mmu_mtspr := r2.req.write_spr;
-                    if r2.req.instr_fault = '1' then
-                        v.state := MMU_LOOKUP;
-                        v.events.itlb_miss := '1';
-                    else
-                        v.state := TLBIE_WAIT;
-                    end if;
-                elsif r2.req.write_spr = '1' then
-                    if r2.req.sprn(0) = '0' then
-                        v.dsisr := r2.req.store_data(31 downto 0);
-                    else
-                        v.dar := r2.req.store_data;
-                    end if;
-                end if;
-            end if;
+            v.state := MMU_WAIT;
+        end if;
 
-        when MMU_LOOKUP =>
-            if m_in.done = '1' then
-                if r2.req.instr_fault = '0' then
-                    -- retry the request now that the MMU has installed a TLB entry
-                    req := '1';
-                    v.stage1_en := '1';
-                    v.state := IDLE;
-                end if;
+        if d_in.valid = '1' then
+            if r2.req.incomplete = '0' then
+                write_enable := r2.req.load and not r2.req.load_sp;
+                -- stores write back rA update
+                do_update := r2.req.update and r2.req.store;
             end if;
-            if m_in.err = '1' then
+        end if;
+        if d_in.error = '1' then
+            if d_in.cache_paradox = '1' then
+                -- signal an interrupt straight away
                 exception := '1';
-                dsisr(63 - 33) := m_in.invalid;
-                dsisr(63 - 36) := m_in.perm_error;
-                dsisr(63 - 38) := r2.req.store or r2.req.dcbz;
-                dsisr(63 - 44) := m_in.badtree;
-                dsisr(63 - 45) := m_in.rc_error;
+                dsisr(63 - 38) := not r2.req.load;
+                -- XXX there is no architected bit for this
+                -- (probably should be a machine check in fact)
+                dsisr(63 - 35) := d_in.cache_paradox;
+            else
+                -- Look up the translation for TLB miss
+                -- and also for permission error and RC error
+                -- in case the PTE has been updated.
+                mmureq := '1';
+                v.state := MMU_WAIT;
+                v.stage1_en := '0';
             end if;
+        end if;
 
-        when TLBIE_WAIT =>
+        if m_in.done = '1' then
+            if r2.req.dc_req = '1' then
+                -- retry the request now that the MMU has installed a TLB entry
+                req := '1';
+            else
+                v.complete := '1';
+            end if;
+        end if;
+        if m_in.err = '1' then
+            exception := '1';
+            dsisr(63 - 33) := m_in.invalid;
+            dsisr(63 - 36) := m_in.perm_error;
+            dsisr(63 - 38) := r2.req.store or r2.req.dcbz;
+            dsisr(63 - 44) := m_in.badtree;
+            dsisr(63 - 45) := m_in.rc_error;
+        end if;
 
-        when FINISH_LFS =>
-            write_enable := '1';
-
-        end case;
-
-        if complete = '1' or exception = '1' then
+        if (m_in.done or m_in.err) = '1' then
             v.stage1_en := '1';
             v.state := IDLE;
         end if;
@@ -874,7 +900,6 @@ begin
         -- or ISI or ISegI for instruction fetch exceptions
         v.interrupt := exception;
         if exception = '1' then
-            v.nia := r2.req.nia;
             if r2.req.align_intr = '1' then
                 v.intr_vec := 16#600#;
                 v.dar := r2.req.addr;
@@ -901,12 +926,9 @@ begin
 
         case r2.wr_sel is
         when "00" =>
-            -- mfspr result
-            write_data := sprval;
-        when "01" =>
             -- update reg
             write_data := r2.addr0;
-        when "10" =>
+        when "01" =>
             -- lfs result
             write_data := load_dp_data;
         when others =>
@@ -915,7 +937,7 @@ begin
         end case;
 
         -- Update outputs to dcache
-        if stage1_issue_enable = '1' then
+        if r3.stage1_en = '1' then
             d_out.valid <= stage1_dcreq;
             d_out.load <= stage1_req.load;
             d_out.dcbz <= stage1_req.dcbz;
@@ -945,7 +967,7 @@ begin
         else
             d_out.data <= r2.req.store_data;
         end if;
-        d_out.hold <= r2.req.valid and r2.req.load_sp and d_in.valid;
+        d_out.hold <= l_in.e2stall;
 
         -- Update outputs to MMU
         m_out.valid <= mmureq;
@@ -953,8 +975,10 @@ begin
         m_out.load <= r2.req.load;
         m_out.priv <= r2.req.priv_mode;
         m_out.tlbie <= r2.req.tlbie;
+        m_out.ric <= r2.req.ric;
         m_out.mtspr <= mmu_mtspr;
-        m_out.sprn <= r2.req.sprn;
+        m_out.sprnf <= r1.req.sprsel(0);
+        m_out.sprnt <= r2.req.sprsel(0);
         m_out.addr <= r2.req.addr;
         m_out.slbia <= r2.req.is_slbia;
         m_out.rs <= r2.req.store_data;
@@ -970,18 +994,15 @@ begin
         l_out.store_done <= d_in.store_done;
         l_out.interrupt <= r3.interrupt;
         l_out.intr_vec <= r3.intr_vec;
-        l_out.srr0 <= r3.nia;
         l_out.srr1 <= r3.srr1;
 
         -- update busy signal back to execute1
         e_out.busy <= busy;
-        e_out.in_progress <= in_progress;
-        e_out.interrupt <= r3.interrupt;
+        e_out.l2stall <= dc_stall or d_in.error or r2.busy;
 
         events <= r3.events;
 
-        -- Busy calculation.
-        stage3_busy_next <= r2.req.valid and not (complete or part_done or exception);
+        flush <= exception;
 
         -- Update registers
         r3in <= v;
@@ -1001,7 +1022,9 @@ begin
                             d_out.valid &
                             m_in.done &
                             r2.req.dword_index &
-                            std_ulogic_vector(to_unsigned(state_t'pos(r3.state), 3));
+                            r2.req.valid &
+                            r2.wait_dc &
+                            std_ulogic_vector(to_unsigned(state_t'pos(r3.state), 1));
             end if;
         end process;
         log_out <= log_data;

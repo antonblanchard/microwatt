@@ -81,8 +81,8 @@ architecture behave of mmu is
 
 begin
     -- Multiplex internal SPR values back to loadstore1, selected
-    -- by l_in.sprn.
-    l_out.sprval <= r.ptcr when l_in.sprn(8) = '1' else x"00000000" & r.pid;
+    -- by l_in.sprnf.
+    l_out.sprval <= r.ptcr when l_in.sprnf = '1' else x"00000000" & r.pid;
 
     mmu_0: process(clk)
     begin
@@ -259,9 +259,8 @@ begin
                     -- RB[IS] != 0 or RB[AP] != 0, or for slbia
                     v.inval_all := l_in.slbia or l_in.addr(11) or l_in.addr(10) or
                                    l_in.addr(7) or l_in.addr(6) or l_in.addr(5);
-                    -- The RIC field of the tlbie instruction comes across on the
-                    -- sprn bus as bits 2--3.  RIC=2 flushes process table caches.
-                    if l_in.sprn(3) = '1' then
+                    -- RIC=2 or 3 flushes process table caches.
+                    if l_in.ric(1) = '1' then
                         v.pt0_valid := '0';
                         v.pt3_valid := '0';
                         v.ptb_valid := '0';
@@ -291,7 +290,7 @@ begin
                 -- Move to PID needs to invalidate L1 TLBs and cached
                 -- pgtbl0 value.  Move to PTCR does that plus
                 -- invalidating the cached pgtbl3 and prtbl values as well.
-                if l_in.sprn(8) = '0' then
+                if l_in.sprnt = '0' then
                     v.pid := l_in.rs(31 downto 0);
                 else
                     v.ptcr := l_in.rs;

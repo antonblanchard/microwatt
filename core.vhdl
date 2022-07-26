@@ -63,6 +63,7 @@ architecture behave of core is
     -- decode signals
     signal decode1_to_decode2: Decode1ToDecode2Type;
     signal decode1_to_fetch1: Decode1ToFetch1Type;
+    signal decode1_to_register_file: Decode1ToRegisterFileType;
     signal decode2_to_execute1: Decode2ToExecute1Type;
 
     -- register file signals
@@ -79,6 +80,8 @@ architecture behave of core is
     signal execute1_to_writeback: Execute1ToWritebackType;
     signal execute1_bypass: bypass_data_t;
     signal execute1_cr_bypass: cr_bypass_data_t;
+    signal execute2_bypass: bypass_data_t;
+    signal execute2_cr_bypass: cr_bypass_data_t;
 
     -- load store signals
     signal execute1_to_loadstore1: Execute1ToLoadstore1Type;
@@ -97,6 +100,10 @@ architecture behave of core is
     signal execute1_to_fpu: Execute1ToFPUType;
     signal fpu_to_execute1: FPUToExecute1Type;
     signal fpu_to_writeback: FPUToWritebackType;
+
+    -- Writeback signals
+    signal writeback_bypass: bypass_data_t;
+    signal wb_interrupt: WritebackToExecute1Type;
 
     -- local signals
     signal fetch1_stall_in : std_ulogic;
@@ -117,7 +124,6 @@ architecture behave of core is
     signal complete: instr_tag_t;
     signal terminate: std_ulogic;
     signal core_rst: std_ulogic;
-    signal do_interrupt: std_ulogic;
 
     -- Delayed/Latched resets and alt_reset
     signal rst_fetch1  : std_ulogic;
@@ -133,6 +139,7 @@ architecture behave of core is
     signal rst_dbg     : std_ulogic;
     signal alt_reset_d : std_ulogic;
 
+    signal sim_ex_dump: std_ulogic;
     signal sim_cr_dump: std_ulogic;
 
     -- Debug actions
@@ -144,8 +151,16 @@ architecture behave of core is
     signal dbg_gpr_ack : std_ulogic;
     signal dbg_gpr_addr : gspr_index_t;
     signal dbg_gpr_data : std_ulogic_vector(63 downto 0);
+    signal dbg_spr_req : std_ulogic;
+    signal dbg_spr_ack : std_ulogic;
+    signal dbg_spr_addr : std_ulogic_vector(7 downto 0);
+    signal dbg_spr_data : std_ulogic_vector(63 downto 0);
+    signal dbg_ls_spr_req : std_ulogic;
+    signal dbg_ls_spr_ack : std_ulogic;
+    signal dbg_ls_spr_addr : std_ulogic_vector(1 downto 0);
+    signal dbg_ls_spr_data : std_ulogic_vector(63 downto 0);
 
-    signal msr : std_ulogic_vector(63 downto 0);
+    signal ctrl_debug : ctrl_t;
 
     -- PMU event bus
     signal icache_events    : IcacheEventType;
@@ -271,6 +286,7 @@ begin
             f_in => icache_to_decode1,
             d_out => decode1_to_decode2,
             f_out => decode1_to_fetch1,
+            r_out => decode1_to_register_file,
             log_out => log_data(109 downto 97)
             );
 
@@ -298,6 +314,11 @@ begin
             c_out => decode2_to_cr_file,
             execute_bypass => execute1_bypass,
             execute_cr_bypass => execute1_cr_bypass,
+            execute2_bypass => execute2_bypass,
+            execute2_cr_bypass => execute2_cr_bypass,
+            writeback_bypass => writeback_bypass,
+            dbg_spr_req => dbg_spr_req,
+            dbg_spr_addr => dbg_spr_addr,
             log_out => log_data(119 downto 110)
             );
     decode2_busy_in <= ex1_busy_out;
@@ -310,6 +331,8 @@ begin
             )
         port map (
             clk => clk,
+            stall => decode2_stall_out,
+            d1_in => decode1_to_register_file,
             d_in => decode2_to_register_file,
             d_out => register_file_to_decode2,
             w_in => writeback_to_register_file,
@@ -318,7 +341,7 @@ begin
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
 	    sim_dump => terminate,
-	    sim_dump_done => sim_cr_dump,
+	    sim_dump_done => sim_ex_dump,
             log_out => log_data(255 downto 184)
 	    );
 
@@ -333,11 +356,13 @@ begin
             d_out => cr_file_to_decode2,
             w_in => writeback_to_cr_file,
             sim_dump => sim_cr_dump,
+            ctrl => ctrl_debug,
             log_out => log_data(183 downto 171)
             );
 
     execute1_0: entity work.execute1
         generic map (
+            SIM => SIM,
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
             HAS_SHORT_MULT => HAS_SHORT_MULT,
@@ -352,19 +377,27 @@ begin
             l_in => loadstore1_to_execute1,
             fp_in => fpu_to_execute1,
             ext_irq_in => ext_irq,
-            interrupt_in => do_interrupt,
+            interrupt_in => wb_interrupt,
             l_out => execute1_to_loadstore1,
             fp_out => execute1_to_fpu,
             e_out => execute1_to_writeback,
             bypass_data => execute1_bypass,
             bypass_cr_data => execute1_cr_bypass,
+            bypass2_data => execute2_bypass,
+            bypass2_cr_data => execute2_cr_bypass,
 	    icache_inval => ex1_icache_inval,
-            dbg_msr_out => msr,
+            dbg_ctrl_out => ctrl_debug,
             wb_events => writeback_events,
             ls_events => loadstore_events,
             dc_events => dcache_events,
             ic_events => icache_events,
             terminate_out => terminate,
+            dbg_spr_req => dbg_spr_req,
+            dbg_spr_ack => dbg_spr_ack,
+            dbg_spr_addr => dbg_spr_addr,
+            dbg_spr_data => dbg_spr_data,
+            sim_dump => sim_ex_dump,
+            sim_dump_done => sim_cr_dump,
             log_out => log_data(134 downto 120),
             log_rd_addr => log_rd_addr,
             log_rd_data => log_rd_data,
@@ -377,6 +410,7 @@ begin
             port map (
                 clk => clk,
                 rst => rst_fpu,
+                flush_in => flush,
                 e_in => execute1_to_fpu,
                 e_out => fpu_to_execute1,
                 w_out => fpu_to_writeback
@@ -406,6 +440,10 @@ begin
             m_in => mmu_to_loadstore1,
             dc_stall => dcache_stall_out,
             events => loadstore_events,
+            dbg_spr_req => dbg_ls_spr_req,
+            dbg_spr_ack => dbg_ls_spr_ack,
+            dbg_spr_addr => dbg_ls_spr_addr,
+            dbg_spr_data => dbg_ls_spr_data,
             log_out => log_data(149 downto 140)
             );
 
@@ -455,8 +493,9 @@ begin
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             f_out => writeback_to_fetch1,
+            wb_bypass => writeback_bypass,
             events => writeback_events,
-            interrupt_out => do_interrupt,
+            interrupt_out => wb_interrupt,
             complete_out => complete
             );
 
@@ -482,11 +521,19 @@ begin
 	    terminate => terminate,
 	    core_stopped => dbg_core_is_stopped,
 	    nia => fetch1_to_icache.nia,
-            msr => msr,
+            msr => ctrl_debug.msr,
             dbg_gpr_req => dbg_gpr_req,
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
+            dbg_spr_req => dbg_spr_req,
+            dbg_spr_ack => dbg_spr_ack,
+            dbg_spr_addr => dbg_spr_addr,
+            dbg_spr_data => dbg_spr_data,
+            dbg_ls_spr_req => dbg_ls_spr_req,
+            dbg_ls_spr_ack => dbg_ls_spr_ack,
+            dbg_ls_spr_addr => dbg_ls_spr_addr,
+            dbg_ls_spr_data => dbg_ls_spr_data,
             log_data => log_data,
             log_read_addr => log_rd_addr,
             log_read_data => log_rd_data,

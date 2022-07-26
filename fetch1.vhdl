@@ -93,7 +93,7 @@ begin
             end if;
             -- always send the up-to-date stop mark and req
             r.stop_mark <= stop_in;
-            r.req <= not rst;
+            r.req <= not rst and not stop_in;
 	end if;
     end process;
     log_out <= log_nia;

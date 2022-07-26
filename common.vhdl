@@ -86,35 +86,24 @@ package common is
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
 
-    -- Extended GPR index (can hold an SPR or a FPR)
-    subtype gspr_index_t is std_ulogic_vector(6 downto 0);
+    -- Extended GPR index (can hold a GPR or a FPR)
+    subtype gspr_index_t is std_ulogic_vector(5 downto 0);
 
     -- FPR indices
     subtype fpr_index_t is std_ulogic_vector(4 downto 0);
 
-    -- Some SPRs are stored in the register file, they use the magic
-    -- GPR numbers above 31.
+    -- FPRs are stored in the register file, using GSPR
+    -- numbers from 32 to 63.
     --
-    -- The function fast_spr_num() returns the corresponding fast
-    -- pseudo-GPR number for a given SPR number. The result MSB
-    -- indicates if this is indeed a fast SPR. If clear, then
-    -- the SPR is not stored in the GPR file.
-    --
-    -- FPRs are also stored in the register file, using GSPR
-    -- numbers from 64 to 95.
-    --
-    function fast_spr_num(spr: spr_num_t) return gspr_index_t;
 
     -- Indices conversion functions
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t;
     function gpr_to_gspr(i: gpr_index_t) return gspr_index_t;
-    function gpr_or_spr_to_gspr(g: gpr_index_t; s: gspr_index_t) return gspr_index_t;
-    function is_fast_spr(s: gspr_index_t) return std_ulogic;
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t;
 
     -- The XER is split: the common bits (CA, OV, SO, OV32 and CA32) are
     -- in the CR file as a kind of CR extension (with a separate write
-    -- control). The rest is stored as a fast SPR.
+    -- control). The rest is stored in ctrl_t (effectively in execute1).
     type xer_common_t is record
 	ca : std_ulogic;
 	ca32 : std_ulogic;
@@ -123,6 +112,48 @@ package common is
 	so : std_ulogic;
     end record;
     constant xerc_init : xer_common_t := (others => '0');
+
+    -- Some SPRs are stored in a pair of small RAMs in execute1
+    -- Even half:
+    subtype ramspr_index is natural range 0 to 7;
+    constant RAMSPR_SRR0   : ramspr_index := 0;
+    constant RAMSPR_HSRR0  : ramspr_index := 1;
+    constant RAMSPR_SPRG0  : ramspr_index := 2;
+    constant RAMSPR_SPRG2  : ramspr_index := 3;
+    constant RAMSPR_HSPRG0 : ramspr_index := 4;
+    constant RAMSPR_LR     : ramspr_index := 5;         -- must equal RAMSPR_CTR
+    constant RAMSPR_TAR    : ramspr_index := 6;
+    -- Odd half:
+    constant RAMSPR_SRR1   : ramspr_index := 0;
+    constant RAMSPR_HSRR1  : ramspr_index := 1;
+    constant RAMSPR_SPRG1  : ramspr_index := 2;
+    constant RAMSPR_SPRG3  : ramspr_index := 3;
+    constant RAMSPR_HSPRG1 : ramspr_index := 4;
+    constant RAMSPR_CTR    : ramspr_index := 5;         -- must equal RAMSPR_LR
+
+    type ram_spr_info is record
+        index : ramspr_index;
+        isodd : std_ulogic;
+        valid : std_ulogic;
+    end record;
+    constant ram_spr_info_init: ram_spr_info := (index => 0, others => '0');
+
+    subtype spr_selector is std_ulogic_vector(2 downto 0);
+    type spr_id is record
+        sel   : spr_selector;
+        valid : std_ulogic;
+        ispmu : std_ulogic;
+    end record;
+    constant spr_id_init : spr_id := (sel => "000", others => '0');
+
+    constant SPRSEL_TB   : spr_selector := 3x"0";
+    constant SPRSEL_TBU  : spr_selector := 3x"1";
+    constant SPRSEL_DEC  : spr_selector := 3x"2";
+    constant SPRSEL_PVR  : spr_selector := 3x"3";
+    constant SPRSEL_LOGA : spr_selector := 3x"4";
+    constant SPRSEL_LOGD : spr_selector := 3x"5";
+    constant SPRSEL_CFAR : spr_selector := 3x"6";
+    constant SPRSEL_XER  : spr_selector := 3x"7";
 
     -- FPSCR bit numbers
     constant FPSCR_FX     : integer := 63 - 32;
@@ -192,7 +223,10 @@ package common is
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
         cfar: std_ulogic_vector(63 downto 0);
+        xer_low: std_ulogic_vector(17 downto 0);
     end record;
+    constant ctrl_t_init : ctrl_t :=
+        (xer_low => 18x"0", others => (others => '0'));
 
     type Fetch1ToIcacheType is record
 	req: std_ulogic;
@@ -226,21 +260,33 @@ package common is
 	stop_mark : std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
-	ispr1: gspr_index_t; -- (G)SPR used for branch condition (CTR) or mfspr
-	ispr2: gspr_index_t; -- (G)SPR used for branch target (CTR, LR, TAR)
-	ispro: gspr_index_t; -- (G)SPR written with LR or CTR
 	decode: decode_rom_t;
         br_pred: std_ulogic; -- Branch was predicted to be taken
         big_endian: std_ulogic;
+        spr_info : spr_id;
+        ram_spr : ram_spr_info;
+        reg_a : gspr_index_t;
+        reg_b : gspr_index_t;
+        reg_c : gspr_index_t;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
         (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
-         ispr1 => (others => '0'), ispr2 => (others => '0'), ispro => (others => '0'),
-         decode => decode_rom_init, br_pred => '0', big_endian => '0');
+         decode => decode_rom_init, br_pred => '0', big_endian => '0',
+         spr_info => spr_id_init, ram_spr => ram_spr_info_init,
+         reg_a => (others => '0'), reg_b => (others => '0'), reg_c => (others => '0'));
 
     type Decode1ToFetch1Type is record
         redirect     : std_ulogic;
         redirect_nia : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type Decode1ToRegisterFileType is record
+        reg_1_addr : gspr_index_t;
+        reg_2_addr : gspr_index_t;
+        reg_3_addr : gspr_index_t;
+        read_1_enable : std_ulogic;
+        read_2_enable : std_ulogic;
+        read_3_enable : std_ulogic;
     end record;
 
     type bypass_data_t is record
@@ -266,6 +312,7 @@ package common is
         write_reg_enable: std_ulogic;
 	read_reg1: gspr_index_t;
 	read_reg2: gspr_index_t;
+	read_reg3: gspr_index_t;
 	read_data1: std_ulogic_vector(63 downto 0);
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
@@ -276,7 +323,6 @@ package common is
 	rc: std_ulogic;
 	oe: std_ulogic;
 	invert_a: std_ulogic;
-        addm1 : std_ulogic;
 	invert_out: std_ulogic;
 	input_carry: carry_in_t;
 	output_carry: std_ulogic;
@@ -296,11 +342,21 @@ package common is
         sub_select : std_ulogic_vector(2 downto 0);     -- sub-result selection
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
+        spr_select : spr_id;
+        spr_is_ram : std_ulogic;
+        ramspr_even_rdaddr : ramspr_index;
+        ramspr_odd_rdaddr  : ramspr_index;
+        ramspr_rd_odd      : std_ulogic;
+        ramspr_wraddr      : ramspr_index;
+        ramspr_write_even  : std_ulogic;
+        ramspr_write_odd   : std_ulogic;
+        dbg_spr_access : std_ulogic;
+        dec_ctr : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
          write_reg_enable => '0',
-         lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
+         lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0',
          output_cr => '0', output_xer => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
@@ -308,7 +364,13 @@ package common is
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
          result_sel => "000", sub_select => "000",
-         repeat => '0', second => '0', others => (others => '0'));
+         repeat => '0', second => '0', spr_select => spr_id_init,
+         spr_is_ram => '0',
+         ramspr_even_rdaddr => 0, ramspr_odd_rdaddr => 0, ramspr_rd_odd => '0',
+         ramspr_wraddr => 0, ramspr_write_even => '0', ramspr_write_odd => '0',
+         dbg_spr_access => '0',
+         dec_ctr => '0',
+         others => (others => '0'));
 
     type MultiplyInputType is record
 	valid: std_ulogic;
@@ -332,6 +394,7 @@ package common is
 
     type Execute1ToDividerType is record
 	valid: std_ulogic;
+        flush: std_ulogic;
 	dividend: std_ulogic_vector(63 downto 0);
 	divisor: std_ulogic_vector(63 downto 0);
 	is_signed: std_ulogic;
@@ -340,9 +403,8 @@ package common is
 	is_modulus: std_ulogic;
         neg_result: std_ulogic;
     end record;
-    constant Execute1ToDividerInit: Execute1ToDividerType := (valid => '0', is_signed => '0', is_32bit => '0',
-                                                              is_extended => '0', is_modulus => '0',
-                                                              neg_result => '0', others => (others => '0'));
+    constant Execute1ToDividerInit: Execute1ToDividerType := (
+        dividend => 64x"0", divisor => 64x"0", others => '0');
 
     type PMUEventType is record
         no_instr_avail      : std_ulogic;
@@ -391,11 +453,8 @@ package common is
 
     type Decode2ToRegisterFileType is record
 	read1_enable : std_ulogic;
-	read1_reg : gspr_index_t;
 	read2_enable : std_ulogic;
-	read2_reg : gspr_index_t;
 	read3_enable : std_ulogic;
-	read3_reg : gspr_index_t;
     end record;
 
     type RegisterFileToDecode2Type is record
@@ -437,6 +496,7 @@ package common is
         is_32bit : std_ulogic;
         repeat : std_ulogic;
         second : std_ulogic;
+        e2stall : std_ulogic;
         msr : std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
@@ -449,13 +509,12 @@ package common is
          write_reg => (others => '0'),
          length => (others => '0'),
          mode_32bit => '0', is_32bit => '0',
-         repeat => '0', second => '0',
+         repeat => '0', second => '0', e2stall => '0',
          msr => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
-        in_progress : std_ulogic;
-        interrupt : std_ulogic;
+        l2stall : std_ulogic;
     end record;
 
     type Loadstore1ToDcacheType is record
@@ -498,7 +557,9 @@ package common is
         iside : std_ulogic;
         load  : std_ulogic;
         priv  : std_ulogic;
-        sprn  : std_ulogic_vector(9 downto 0);
+        ric   : std_ulogic_vector(1 downto 0);
+        sprnf : std_ulogic;
+        sprnt : std_ulogic;
         addr  : std_ulogic_vector(63 downto 0);
         rs    : std_ulogic_vector(63 downto 0);
     end record;
@@ -549,7 +610,6 @@ package common is
         store_done : std_ulogic;
         interrupt : std_ulogic;
         intr_vec : intr_vector_t;
-        srr0: std_ulogic_vector(63 downto 0);
         srr1: std_ulogic_vector(15 downto 0);
     end record;
     constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType :=
@@ -557,7 +617,7 @@ package common is
          write_reg => (others => '0'), write_data => (others => '0'),
          xerc => xerc_init, rc => '0', store_done => '0',
          interrupt => '0', intr_vec => 0,
-         srr0 => (others => '0'), srr1 => (others => '0'));
+         srr1 => (others => '0'));
 
     type Loadstore1EventType is record
         load_complete  : std_ulogic;
@@ -602,29 +662,37 @@ package common is
          srr1 => (others => '0'), msr => (others => '0'));
 
     type Execute1ToFPUType is record
-        valid   : std_ulogic;
-        op      : insn_type_t;
-        nia     : std_ulogic_vector(63 downto 0);
-        itag    : instr_tag_t;
-        insn    : std_ulogic_vector(31 downto 0);
-        single  : std_ulogic;
-        fe_mode : std_ulogic_vector(1 downto 0);
-        fra     : std_ulogic_vector(63 downto 0);
-        frb     : std_ulogic_vector(63 downto 0);
-        frc     : std_ulogic_vector(63 downto 0);
-        frt     : gspr_index_t;
-        rc      : std_ulogic;
-        out_cr  : std_ulogic;
+        valid     : std_ulogic;
+        op        : insn_type_t;
+        nia       : std_ulogic_vector(63 downto 0);
+        itag      : instr_tag_t;
+        insn      : std_ulogic_vector(31 downto 0);
+        single    : std_ulogic;
+        is_signed : std_ulogic;
+        fe_mode   : std_ulogic_vector(1 downto 0);
+        fra       : std_ulogic_vector(63 downto 0);
+        frb       : std_ulogic_vector(63 downto 0);
+        frc       : std_ulogic_vector(63 downto 0);
+        frt       : gspr_index_t;
+        rc        : std_ulogic;
+        m32b      : std_ulogic;
+        out_cr    : std_ulogic;
+        oe        : std_ulogic;
+        xerc      : xer_common_t;
+        stall     : std_ulogic;
     end record;
     constant Execute1ToFPUInit : Execute1ToFPUType := (valid => '0', op => OP_ILLEGAL, nia => (others => '0'),
                                                        itag => instr_tag_init,
-                                                       insn  => (others => '0'), fe_mode => "00", rc => '0',
+                                                       insn => (others => '0'), fe_mode => "00", rc => '0',
                                                        fra => (others => '0'), frb => (others => '0'),
                                                        frc => (others => '0'), frt => (others => '0'),
-                                                       single => '0', out_cr => '0');
+                                                       single => '0', is_signed => '0', out_cr => '0',
+                                                       m32b => '0', oe => '0', xerc => xerc_init,
+                                                       stall => '0');
 
     type FPUToExecute1Type is record
         busy      : std_ulogic;
+        f2stall   : std_ulogic;
         exception : std_ulogic;
     end record;
     constant FPUToExecute1Init : FPUToExecute1Type := (others => '0');
@@ -639,8 +707,9 @@ package common is
         write_cr_enable : std_ulogic;
         write_cr_mask   : std_ulogic_vector(7 downto 0);
         write_cr_data   : std_ulogic_vector(31 downto 0);
+        write_xerc      : std_ulogic;
+        xerc            : xer_common_t;
         intr_vec        : intr_vector_t;
-        srr0            : std_ulogic_vector(63 downto 0);
         srr1            : std_ulogic_vector(15 downto 0);
     end record;
     constant FPUToWritebackInit : FPUToWritebackType :=
@@ -648,6 +717,7 @@ package common is
          write_enable => '0', write_reg => (others => '0'),
          write_cr_enable => '0', write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'),
+         write_xerc => '0', xerc => xerc_init,
          intr_vec => 0, srr1 => (others => '0'),
          others => (others => '0'));
 
@@ -695,6 +765,11 @@ package common is
 							       write_cr_mask => (others => '0'),
 							       write_cr_data => (others => '0'));
 
+    type WritebackToExecute1Type is record
+        intr : std_ulogic;
+        srr1 : std_ulogic_vector(15 downto 0);
+    end record;
+
     type WritebackEventType is record
         instr_complete : std_ulogic;
         fp_complete    : std_ulogic;
@@ -707,49 +782,6 @@ package body common is
     begin
 	return to_integer(unsigned(insn(15 downto 11) & insn(20 downto 16)));
     end;
-    function fast_spr_num(spr: spr_num_t) return gspr_index_t is
-       variable n : integer range 0 to 31;
-       -- tmp variable introduced as workaround for VCS compilation
-       -- simulation was failing with subtype constraint mismatch error
-       -- see GitHub PR #173
-       variable tmp : std_ulogic_vector(4 downto 0);
-    begin
-       case spr is
-       when SPR_LR =>
-           n := 0;              -- N.B. decode2 relies on this specific value
-       when SPR_CTR =>
-           n := 1;              -- N.B. decode2 relies on this specific value
-       when SPR_SRR0 =>
-           n := 2;
-       when SPR_SRR1 =>
-           n := 3;
-       when SPR_HSRR0 =>
-           n := 4;
-       when SPR_HSRR1 =>
-           n := 5;
-       when SPR_SPRG0 =>
-           n := 6;
-       when SPR_SPRG1 =>
-           n := 7;
-       when SPR_SPRG2 =>
-           n := 8;
-       when SPR_SPRG3 | SPR_SPRG3U =>
-           n := 9;
-       when SPR_HSPRG0 =>
-           n := 10;
-       when SPR_HSPRG1 =>
-           n := 11;
-       when SPR_XER =>
-           n := 12;
-       when SPR_TAR =>
-           n := 13;
-       when others =>
-           n := 0;
-           return "0000000";
-       end case;
-       tmp := std_ulogic_vector(to_unsigned(n, 5));
-       return "01" & tmp;
-    end;
 
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t is
     begin
@@ -758,26 +790,12 @@ package body common is
 
     function gpr_to_gspr(i: gpr_index_t) return gspr_index_t is
     begin
-	return "00" & i;
-    end;
-
-    function gpr_or_spr_to_gspr(g: gpr_index_t; s: gspr_index_t) return gspr_index_t is
-    begin
-	if s(5) = '1' then
-	    return s;
-	else
-	    return gpr_to_gspr(g);
-	end if;
-    end;
-
-    function is_fast_spr(s: gspr_index_t) return std_ulogic is
-    begin
-	return s(5);
+	return "0" & i;
     end;
 
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t is
     begin
-        return "10" & f;
+        return "1" & f;
     end;
 
     function tag_match(tag1 : instr_tag_t; tag2 : instr_tag_t) return boolean is

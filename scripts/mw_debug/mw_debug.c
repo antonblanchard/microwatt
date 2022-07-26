@@ -548,7 +548,11 @@ static const char *fast_spr_names[] =
 {
 	"lr", "ctr", "srr0", "srr1", "hsrr0", "hsrr1",
 	"sprg0", "sprg1", "sprg2", "sprg3",
-	"hsprg0", "hsprg1", "xer"
+	"hsprg0", "hsprg1", "xer", "tar",
+};
+
+static const char *ldst_spr_names[] = {
+	"pidr", "ptcr", "dsisr", "dar"
 };
 
 static void gpr_read(uint64_t reg, uint64_t count)
@@ -566,8 +570,10 @@ static void gpr_read(uint64_t reg, uint64_t count)
 			printf("r%"PRId64, reg);
 		else if ((reg - 32) < sizeof(fast_spr_names) / sizeof(fast_spr_names[0]))
 			printf("%s", fast_spr_names[reg - 32]);
-		else if (reg < 64)
+		else if (reg < 60)
 			printf("gspr%"PRId64, reg);
+		else if (reg < 64)
+			printf("%s", ldst_spr_names[reg - 60]);
 		else
 			printf("FPR%"PRId64, reg - 64);
 		printf(":\t%016"PRIx64"\n", data);

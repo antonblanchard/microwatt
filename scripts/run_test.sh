@@ -21,9 +21,9 @@ cd $TMPDIR
 
 cp ${MICROWATT_DIR}/tests/${TEST}.bin main_ram.bin
 
-${MICROWATT_DIR}/core_tb | sed 's/.*: //' | egrep '^(GPR[0-9]|LR |CTR |XER |CR [0-9])' | sort | grep -v GPR31 | grep -v XER > test.out || true
+${MICROWATT_DIR}/core_tb | sed 's/.*: //' | egrep '^(GPR[0-9]|LR |CTR |XER |CR [0-9])' | sort | grep -v GPR31 > test.out || true
 
-grep -v "^$" ${MICROWATT_DIR}/tests/${TEST}.out | sort | grep -v GPR31 | grep -v XER > exp.out
+grep -v "^$" ${MICROWATT_DIR}/tests/${TEST}.out | sort | grep -v GPR31 > exp.out
 
 cp test.out /tmp
 cp exp.out /tmp

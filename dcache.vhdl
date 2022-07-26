@@ -588,7 +588,7 @@ begin
             end if;
             if rst = '1' then
                 r0_full <= '0';
-            elsif (r1.full = '0' and d_in.hold = '0') or r0_full = '0' then
+            elsif r1.full = '0' and d_in.hold = '0' then
                 r0 <= r;
                 r0_full <= r.req.valid;
             elsif r0.d_valid = '0' then
@@ -605,9 +605,9 @@ begin
     m_out.stall <= '0';
 
     -- Hold off the request in r0 when r1 has an uncompleted request
-    r0_stall <= r0_full and (r1.full or d_in.hold);
+    r0_stall <= r1.full or d_in.hold;
     r0_valid <= r0_full and not r1.full and not d_in.hold;
-    stall_out <= r0_stall;
+    stall_out <= r1.full;
 
     events <= ev;
 
