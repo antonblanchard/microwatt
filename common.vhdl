@@ -250,6 +250,8 @@ package common is
         next_predicted: std_ulogic;
         next_pred_ntaken: std_ulogic;
     end record;
+    constant IcacheToDecode1Init : IcacheToDecode1Type :=
+        (nia => (others => '0'), insn => (others => '0'), others => '0');
 
     type IcacheEventType is record
         icache_miss : std_ulogic;
