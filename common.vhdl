@@ -115,28 +115,29 @@ package common is
 
     -- Some SPRs are stored in a pair of small RAMs in execute1
     -- Even half:
-    subtype ramspr_index is natural range 0 to 7;
-    constant RAMSPR_SRR0   : ramspr_index := 0;
-    constant RAMSPR_HSRR0  : ramspr_index := 1;
-    constant RAMSPR_SPRG0  : ramspr_index := 2;
-    constant RAMSPR_SPRG2  : ramspr_index := 3;
-    constant RAMSPR_HSPRG0 : ramspr_index := 4;
-    constant RAMSPR_LR     : ramspr_index := 5;         -- must equal RAMSPR_CTR
-    constant RAMSPR_TAR    : ramspr_index := 6;
+    subtype ramspr_index_range is natural range 0 to 7;
+    subtype ramspr_index is unsigned(2 downto 0);
+    constant RAMSPR_SRR0   : ramspr_index := to_unsigned(0,3);
+    constant RAMSPR_HSRR0  : ramspr_index := to_unsigned(1,3);
+    constant RAMSPR_SPRG0  : ramspr_index := to_unsigned(2,3);
+    constant RAMSPR_SPRG2  : ramspr_index := to_unsigned(3,3);
+    constant RAMSPR_HSPRG0 : ramspr_index := to_unsigned(4,3);
+    constant RAMSPR_LR     : ramspr_index := to_unsigned(5,3);         -- must equal RAMSPR_CTR
+    constant RAMSPR_TAR    : ramspr_index := to_unsigned(6,3);
     -- Odd half:
-    constant RAMSPR_SRR1   : ramspr_index := 0;
-    constant RAMSPR_HSRR1  : ramspr_index := 1;
-    constant RAMSPR_SPRG1  : ramspr_index := 2;
-    constant RAMSPR_SPRG3  : ramspr_index := 3;
-    constant RAMSPR_HSPRG1 : ramspr_index := 4;
-    constant RAMSPR_CTR    : ramspr_index := 5;         -- must equal RAMSPR_LR
+    constant RAMSPR_SRR1   : ramspr_index := to_unsigned(0,3);
+    constant RAMSPR_HSRR1  : ramspr_index := to_unsigned(1,3);
+    constant RAMSPR_SPRG1  : ramspr_index := to_unsigned(2,3);
+    constant RAMSPR_SPRG3  : ramspr_index := to_unsigned(3,3);
+    constant RAMSPR_HSPRG1 : ramspr_index := to_unsigned(4,3);
+    constant RAMSPR_CTR    : ramspr_index := to_unsigned(5,3);         -- must equal RAMSPR_LR
 
     type ram_spr_info is record
         index : ramspr_index;
         isodd : std_ulogic;
         valid : std_ulogic;
     end record;
-    constant ram_spr_info_init: ram_spr_info := (index => 0, others => '0');
+    constant ram_spr_info_init: ram_spr_info := (index => to_unsigned(0,3), others => '0');
 
     subtype spr_selector is std_ulogic_vector(2 downto 0);
     type spr_id is record
@@ -366,8 +367,8 @@ package common is
          result_sel => "000", sub_select => "000",
          repeat => '0', second => '0', spr_select => spr_id_init,
          spr_is_ram => '0',
-         ramspr_even_rdaddr => 0, ramspr_odd_rdaddr => 0, ramspr_rd_odd => '0',
-         ramspr_wraddr => 0, ramspr_write_even => '0', ramspr_write_odd => '0',
+         ramspr_even_rdaddr => (others => '0'), ramspr_odd_rdaddr => (others => '0'), ramspr_rd_odd => '0',
+         ramspr_wraddr => (others => '0'), ramspr_write_even => '0', ramspr_write_odd => '0',
          dbg_spr_access => '0',
          dec_ctr => '0',
          others => (others => '0'));

@@ -530,7 +530,7 @@ architecture behaviour of decode1 is
     function decode_ram_spr(sprn : spr_num_t) return ram_spr_info is
         variable ret : ram_spr_info;
     begin
-        ret := (index => 0, isodd => '0', valid => '1');
+        ret := (index => (others => '0'), isodd => '0', valid => '1');
         case sprn is
             when SPR_LR =>
                 ret.index := RAMSPR_LR;

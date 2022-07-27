@@ -273,7 +273,7 @@ begin
             valid := '1';
             sel := "000";
             isram := '1';
-            raddr := 0;
+            raddr := (others => '0');
             odd := '0';
             case gspr_index(4 downto 0) is
                 when 5x"00" =>
@@ -304,7 +304,7 @@ begin
                 when others =>
                     valid := '0';
             end case;
-            dbg_spr_addr <= isram & sel & std_ulogic_vector(to_unsigned(raddr, 3)) & odd;
+            dbg_spr_addr <= isram & sel & std_ulogic_vector(raddr) & odd;
             spr_index_valid <= valid;
         end if;
     end process;

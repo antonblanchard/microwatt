@@ -147,7 +147,7 @@ architecture behaviour of execute1 is
          taken_branch_event => '0', br_mispredict => '0',
          msr => 64x"0",
          xerc => xerc_init, xerc_valid => '0',
-         ramspr_wraddr => 0, ramspr_odd_data => 64x"0");
+         ramspr_wraddr => (others => '0'), ramspr_odd_data => 64x"0");
 
     type reg_stage2_type is record
 	e : Execute1ToWritebackType;
@@ -221,7 +221,7 @@ architecture behaviour of execute1 is
     signal irq_valid_log : std_ulogic;
 
     -- SPR-related signals
-    type ramspr_half_t is array(ramspr_index) of std_ulogic_vector(63 downto 0);
+    type ramspr_half_t is array(ramspr_index_range) of std_ulogic_vector(63 downto 0);
     signal even_sprs : ramspr_half_t := (others => (others => '0'));
     signal odd_sprs : ramspr_half_t := (others => (others => '0'));
     signal ramspr_even : std_ulogic_vector(63 downto 0);
@@ -510,8 +510,16 @@ begin
         variable doit : std_ulogic;
     begin
         -- Read address mux and async RAM reading
-        even_rd_data := even_sprs(e_in.ramspr_even_rdaddr);
-        odd_rd_data := odd_sprs(e_in.ramspr_odd_rdaddr);
+        if is_X(e_in.ramspr_even_rdaddr) then
+            even_rd_data := (others => 'X');
+        else
+            even_rd_data := even_sprs(to_integer(e_in.ramspr_even_rdaddr));
+        end if;
+        if is_X(e_in.ramspr_even_rdaddr) then
+            odd_rd_data := (others => 'X');
+        else
+            odd_rd_data := odd_sprs(to_integer(e_in.ramspr_odd_rdaddr));
+        end if;
 
         -- Write address and data muxes
         doit := ex1.e.valid and not stage2_stall and not flush_in;
@@ -559,13 +567,15 @@ begin
     begin
         if rising_edge(clk) then
             if ramspr_even_wr_enab = '1' then
-                even_sprs(ramspr_wr_addr) <= ramspr_even_wr_data;
-                report "writing even spr " & integer'image(ramspr_wr_addr) & " data=" &
+		assert not is_X(ramspr_wr_addr) report "Writing to unknown address" severity FAILURE;
+                even_sprs(to_integer(ramspr_wr_addr)) <= ramspr_even_wr_data;
+                report "writing even spr " & integer'image(to_integer(ramspr_wr_addr)) & " data=" &
                     to_hstring(ramspr_even_wr_data);
             end if;
             if ramspr_odd_wr_enab = '1' then
-                odd_sprs(ramspr_wr_addr) <= ramspr_odd_wr_data;
-                report "writing odd spr " & integer'image(ramspr_wr_addr) & " data=" &
+		assert not is_X(ramspr_wr_addr) report "Writing to unknown address" severity FAILURE;
+                odd_sprs(to_integer(ramspr_wr_addr)) <= ramspr_odd_wr_data;
+                report "writing odd spr " & integer'image(to_integer(ramspr_wr_addr)) & " data=" &
                     to_hstring(ramspr_odd_wr_data);
             end if;
         end if;
@@ -1773,8 +1783,8 @@ begin
             variable xer : std_ulogic_vector(63 downto 0);
         begin
             if sim_dump = '1' then
-                report "LR " & to_hstring(even_sprs(RAMSPR_LR));
-                report "CTR " & to_hstring(odd_sprs(RAMSPR_CTR));
+                report "LR " & to_hstring(even_sprs(to_integer(RAMSPR_LR)));
+                report "CTR " & to_hstring(odd_sprs(to_integer(RAMSPR_CTR)));
                 sim_dump_done <= '1';
             else
                 sim_dump_done <= '0';
