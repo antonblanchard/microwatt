@@ -719,7 +719,7 @@ begin
         x_to_divider.flush <= flush_in;
 
         addend := (others => '0');
-        if e_in.insn(26) = '0' then
+        if e_in.reg_valid3 = '1' then
             -- integer multiply-add, major op 4 (if it is a multiply)
             addend(63 downto 0) := c_in;
             if e_in.is_signed = '1' then
@@ -1271,7 +1271,7 @@ begin
 		v.se.icache_inval := '1';
 
 	    when OP_MUL_L64 =>
-                if HAS_SHORT_MULT and e_in.insn(26) = '1' and
+                if HAS_SHORT_MULT and e_in.reg_valid3 = '0' and
                     fits_in_n_bits(a_in, 16) and fits_in_n_bits(b_in, 16) then
                     -- Operands fit into 16 bits, so use short multiplier
                     if e_in.oe = '1' then
@@ -1567,11 +1567,9 @@ begin
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;
         lv.insn := e_in.insn;
-        -- decode l*cix and st*cix instructions here
-        if e_in.insn(31 downto 26) = "011111" and e_in.insn(10 downto 9) = "11" and
-            e_in.insn(5 downto 1) = "10101" then
-            lv.ci := '1';
-        end if;
+        -- invert_a field is overloaded for load/store instructions
+        -- to mark l*cix and st*cix
+        lv.ci := e_in.invert_a;
         lv.virt_mode := ex1.msr(MSR_DR);
         lv.priv_mode := not ex1.msr(MSR_PR);
         lv.mode_32bit := not ex1.msr(MSR_SF);

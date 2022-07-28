@@ -363,7 +363,7 @@ package decode_types is
                            CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, FRB);
     type input_reg_c_t is (NONE, RS, RCR, FRC, FRS);
     type output_reg_a_t is (NONE, RT, RA, FRT);
-    type rc_t is (NONE, ONE, RC);
+    type rc_t is (NONE, ONE, RC, RCOE);
     type carry_in_t is (ZERO, CA, OV, ONE);
 
     constant SH_OFFSET : integer := 0;

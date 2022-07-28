@@ -188,7 +188,7 @@ architecture behaviour of decode2 is
     function decode_rc (t : rc_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic is
     begin
         case t is
-            when RC =>
+            when RC | RCOE =>
                 return insn_rc(insn_in);
             when ONE =>
                 return '1';
@@ -427,8 +427,7 @@ begin
             end if;
             case d_in.decode.insn_type is
                 when OP_ADD | OP_MUL_L64 | OP_DIV | OP_DIVE =>
-                    -- OE field is valid in OP_ADD/OP_MUL_L64 with major opcode 31 only
-                    if d_in.insn(31 downto 26) = "011111" and insn_oe(d_in.insn) = '1' then
+                    if d_in.decode.rc = RCOE and insn_oe(d_in.insn) = '1' then
                         v.e.oe := '1';
                         v.e.output_xer := '1';
                         v.output_ov := '1';
