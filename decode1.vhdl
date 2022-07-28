@@ -527,7 +527,7 @@ architecture behaviour of decode1 is
     --                                        unit   fac   internal         in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
     --                                                           op                                              in   out   A   out  in    out  len        ext                                 pipe
     constant nop_instr      : decode_rom_t := (ALU,  NONE, OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
-    constant fetch_fail_inst: decode_rom_t := (LDST, NONE, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
+    constant fetch_fail_inst: decode_rom_t := (LDST, NONE, OP_FETCH_FAILED, CIA,        NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
 
     function decode_ram_spr(sprn : spr_num_t) return ram_spr_info is
         variable ret : ram_spr_info;

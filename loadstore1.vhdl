@@ -497,7 +497,6 @@ begin
             when OP_FETCH_FAILED =>
                 -- send it to the MMU to do the radix walk
                 v.instr_fault := '1';
-                v.addr := l_in.nia;
                 v.mmu_op := '1';
             when others =>
         end case;

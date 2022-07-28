@@ -1554,7 +1554,6 @@ begin
 
         -- Outputs to loadstore1 (async)
         lv.op := e_in.insn_type;
-        lv.nia := e_in.nia;
         lv.instr_tag := e_in.instr_tag;
         lv.addr1 := a_in;
         lv.addr2 := b_in;

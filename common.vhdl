@@ -476,7 +476,6 @@ package common is
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
         op : insn_type_t;                               -- what ld/st or m[tf]spr or TLB op to do
-        nia : std_ulogic_vector(63 downto 0);
         insn : std_ulogic_vector(31 downto 0);
         instr_tag : instr_tag_t;
 	addr1 : std_ulogic_vector(63 downto 0);
@@ -504,7 +503,7 @@ package common is
         (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
          sign_extend => '0', update => '0', xerc => xerc_init,
          reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
-         nia => (others => '0'), insn => (others => '0'),
+         insn => (others => '0'),
          instr_tag => instr_tag_init,
          addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'),
          write_reg => (others => '0'),
