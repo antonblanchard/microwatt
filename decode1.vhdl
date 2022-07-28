@@ -39,10 +39,6 @@ architecture behaviour of decode1 is
         ov_insn  : insn_code;
         spr_info : spr_id;
         ram_spr  : ram_spr_info;
-        fprs     : std_ulogic;
-        fprabc   : std_ulogic;
-        in3rc    : std_ulogic;
-        maybe_rb : std_ulogic;
     end record;
     constant dc0_t_init : dc0_t :=
         (f_in => IcacheToDecode1Init, ov_insn => INSN_illegal,
@@ -792,7 +788,9 @@ architecture behaviour of decode1 is
         INSN_wait        =>  (ALU,  NONE, OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_xor         =>  (ALU,  NONE, OP_XOR,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE),
         INSN_xori        =>  (ALU,  NONE, OP_XOR,       NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
-        INSN_xoris       =>  (ALU,  NONE, OP_XOR,       NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE)
+        INSN_xoris       =>  (ALU,  NONE, OP_XOR,       NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+
+        others           =>  (NONE, NONE, OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE)
         );
 
     function decode_ram_spr(sprn : spr_num_t) return ram_spr_info is
@@ -959,22 +957,11 @@ begin
         when "000100" => -- 4
             -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
             v.override := not f_in.insn(5);
-            v.in3rc := '1';
-            v.maybe_rb := '1';
-
-        when "010111" => -- 23
-            -- rlwnm[.]
-            v.maybe_rb := '1';
 
         when "011111" => -- 31
             -- major opcode 31, lots of things
+            -- Use the first half of the row table for all columns
             v.use_row := '1';
-            v.maybe_rb := '1';
-
-            if HAS_FPU and std_match(f_in.insn(10 downto 1), "1----10111") then
-                -- lower half of column 23 has FP loads and stores
-                v.fprs := '1';
-            end if;
 
         when "010000" => -- 16
             -- Predict backward branches as taken, forward as untaken
@@ -990,8 +977,9 @@ begin
             -- Columns 8-15 and 24-31 don't have any valid instructions
             -- (where insn(5..1) is the column number).
             -- addpcis (column 2) is in the major table
-            -- Use the row table for columns 0-1 and 16-23 (mapped to 8-15)
-            -- Columns 4-7 in the row table are used for op 59 cols 12-15
+            -- Other valid columns are mapped to columns in the second
+            -- half of the row table: columns 0-1 are mapped to 16-17
+            -- and 16-23 are mapped to 24-31.
             v.override := f_in.insn(4);
             v.use_row := f_in.insn(5) or (not f_in.insn(3) and not f_in.insn(2));
 
@@ -1002,35 +990,26 @@ begin
                 v.ov_insn := INSN_nop;
             end if;
 
-        when "011110" => -- 30
-            v.maybe_rb := f_in.insn(4);
-
-        when "110100" | "110101" | "110110" | "110111" => -- 52, 53, 54, 55
-            -- stfd[u] and stfs[u]
-            if HAS_FPU then
-                v.fprs := '1';
-            end if;
-
         when "111011" => -- 59
             if HAS_FPU then
                 -- floating point operations, mostly single-precision
-                -- Use row table for columns 12-15, major table for 16-31
+                -- Columns 0-11 are illegal; columns 12-15 are mapped
+                -- to columns 20-23 in the second half of the row table,
+                -- and columns 16-31 are in the major table.
                 v.override := not f_in.insn(5) and (not f_in.insn(4) or not f_in.insn(3));
                 v.use_row := not f_in.insn(5);
-                v.in3rc := '1';
-                v.fprabc := '1';
-                v.fprs := '1';
-                v.maybe_rb := '1';
+            else
+                v.override := '1';
             end if;
 
         when "111111" => -- 63
             if HAS_FPU then
                 -- floating point operations, general and double-precision
+                -- Use columns 0-15 of the second half of the row table
+                -- for columns 0-15, and the major table for columns 16-31.
                 v.use_row := not f_in.insn(5);
-                v.in3rc := '1';
-                v.fprabc := '1';
-                v.fprs := '1';
-                v.maybe_rb := '1';
+            else
+                v.override := '1';
             end if;
 
         when others =>
@@ -1097,6 +1076,7 @@ begin
         variable vr : Decode1ToRegisterFileType;
         variable icode : insn_code;
         variable sprn : spr_num_t;
+        variable maybe_rb : std_ulogic;
     begin
         v := Decode1ToDecode2Init;
 
@@ -1124,15 +1104,32 @@ begin
         end if;
 
         -- Work out GPR/FPR read addresses
-        vr.reg_1_addr := dc0.fprabc & insn_ra(dc0.f_in.insn);
-        vr.reg_2_addr := dc0.fprabc & insn_rb(dc0.f_in.insn);
-        if dc0.in3rc = '1' then
-            vr.reg_3_addr := dc0.fprabc & insn_rcreg(dc0.f_in.insn);
-        else
-            vr.reg_3_addr := dc0.fprs & insn_rs(dc0.f_in.insn);
+        maybe_rb := '0';
+        vr.reg_1_addr := '0' & insn_ra(dc0.f_in.insn);
+        vr.reg_2_addr := '0' & insn_rb(dc0.f_in.insn);
+        vr.reg_3_addr := '0' & insn_rs(dc0.f_in.insn);
+        if icode >= INSN_first_rb then
+            maybe_rb := '1';
+            if icode < INSN_first_frs then
+                if icode >= INSN_first_rc then
+                    vr.reg_3_addr := '0' & insn_rcreg(dc0.f_in.insn);
+                end if;
+            else
+                -- access FRS operand
+                vr.reg_3_addr(5) := '1';
+                if icode >= INSN_first_frab then
+                    -- access FRA and/or FRB operands
+                    vr.reg_1_addr(5) := '1';
+                    vr.reg_2_addr(5) := '1';
+                end if;
+                if icode >= INSN_first_frabc then
+                    -- access FRC operand
+                    vr.reg_3_addr := '1' & insn_rcreg(dc0.f_in.insn);
+                end if;
+            end if;
         end if;
         vr.read_1_enable := dc0.f_in.valid and not dc0.f_in.fetch_failed;
-        vr.read_2_enable := dc0.f_in.valid and not dc0.f_in.fetch_failed and dc0.maybe_rb;
+        vr.read_2_enable := dc0.f_in.valid and not dc0.f_in.fetch_failed and maybe_rb;
         vr.read_3_enable := dc0.f_in.valid and not dc0.f_in.fetch_failed;
 
         v.reg_a := vr.reg_1_addr;
