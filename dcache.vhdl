@@ -1004,10 +1004,10 @@ begin
             -- XXX or if r0.req.nc = '1'
             if r0.req.load = '1' then
                 -- load with reservation
-                set_rsrv <= r0.req.atomic_last;
+                set_rsrv <= '1';
             else
                 -- store conditional
-                clear_rsrv <= r0.req.atomic_last;
+                clear_rsrv <= '1';
                 if reservation.valid = '0' or
                     r0.req.addr(63 downto LINE_OFF_BITS) /= reservation.addr then
                     cancel_store <= '1';

@@ -83,8 +83,6 @@ architecture behave of loadstore1 is
 	update       : std_ulogic;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
-        atomic       : std_ulogic;
-        atomic_last  : std_ulogic;
         rc           : std_ulogic;
         nc           : std_ulogic;              -- non-cacheable access
         virt_mode    : std_ulogic;
@@ -108,7 +106,7 @@ architecture behave of loadstore1 is
                                           elt_length => x"0", byte_reverse => '0', brev_mask => "000",
                                           sign_extend => '0', update => '0',
                                           xerc => xerc_init, reserve => '0',
-                                          atomic => '0', atomic_last => '0', rc => '0', nc => '0',
+                                          rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
                                           sprsel => "00", ric => "00", is_slbia => '0', align_intr => '0',
                                           dword_index => '0', two_dwords => '0', incomplete => '0');
@@ -439,15 +437,9 @@ begin
 
         addr := lsu_sum;
         if l_in.second = '1' then
-            if l_in.update = '0' then
-                -- for the second half of a 16-byte transfer,
-                -- use the previous address plus 8.
-                addr := std_ulogic_vector(unsigned(r1.addr0(63 downto 3)) + 1) & r1.addr0(2 downto 0);
-            else
-                -- for an update-form load, use the previous address
-                -- as the value to write back to RA.
-                addr := r1.addr0;
-            end if;
+            -- for an update-form load, use the previous address
+            -- as the value to write back to RA.
+            addr := r1.addr0;
         end if;
         if l_in.mode_32bit = '1' then
             addr(63 downto 32) := (others => '0');
@@ -474,14 +466,12 @@ begin
         misaligned := or (addr_mask and addr(2 downto 0));
         v.align_intr := l_in.reserve and misaligned;
 
-        v.atomic := not misaligned;
-        v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
-
         case l_in.op is
             when OP_STORE =>
                 v.store := '1';
             when OP_LOAD =>
-                if l_in.update = '0' or l_in.second = '0' then
+                -- Note: only RA updates have l_in.second = 1
+                if l_in.second = '0' then
                     v.load := '1';
                     if HAS_FPU and l_in.is_32bit = '1' then
                         -- Allow an extra cycle for SP->DP precision conversion
@@ -953,8 +943,6 @@ begin
             d_out.dcbz <= stage1_req.dcbz;
             d_out.nc <= stage1_req.nc;
             d_out.reserve <= stage1_req.reserve;
-            d_out.atomic <= stage1_req.atomic;
-            d_out.atomic_last <= stage1_req.atomic_last;
             d_out.addr <= stage1_req.addr;
             d_out.byte_sel <= stage1_req.byte_sel;
             d_out.virt_mode <= stage1_req.virt_mode;
@@ -965,8 +953,6 @@ begin
             d_out.dcbz <= r2.req.dcbz;
             d_out.nc <= r2.req.nc;
             d_out.reserve <= r2.req.reserve;
-            d_out.atomic <= r2.req.atomic;
-            d_out.atomic_last <= r2.req.atomic_last;
             d_out.addr <= r2.req.addr;
             d_out.byte_sel <= r2.req.byte_sel;
             d_out.virt_mode <= r2.req.virt_mode;

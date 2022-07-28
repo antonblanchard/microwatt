@@ -525,8 +525,6 @@ package common is
         dcbz : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
-        atomic : std_ulogic;                            -- part of a multi-transfer atomic op
-        atomic_last : std_ulogic;
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);
