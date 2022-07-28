@@ -9,6 +9,7 @@ for i in sc illegal decrementer xics privileged mmu misc modes pmu reservation t
     cd -
     cp $i/$i.bin test_$i.bin
     ln -s test_$i.bin main_ram.bin
-    ../core_tb > /dev/null 2> test_$i.console_out
-    rm main_ram.bin
+    ../core_tb > test_$i.log_out 2> test_$i.console_out
+    grep -c metavalue test_$i.log_out > test_$i.metavalue
+    rm main_ram.bin test_$i.log_out
 done
