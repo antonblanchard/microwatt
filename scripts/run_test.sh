@@ -25,9 +25,6 @@ ${MICROWATT_DIR}/core_tb | sed 's/.*: //' | egrep '^(GPR[0-9]|LR |CTR |XER |CR [
 
 grep -v "^$" ${MICROWATT_DIR}/tests/${TEST}.out | sort | grep -v GPR31 > exp.out
 
-cp test.out /tmp
-cp exp.out /tmp
-
 diff -q test.out exp.out && echo "$TEST PASS" && exit 0
 
 echo "$TEST FAIL ********"

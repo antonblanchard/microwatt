@@ -3,7 +3,7 @@
 # Runs a test and checks the console output against known good output
 
 if [ $# -ne 1 ]; then
-	echo "Usage: run_test.sh <test>"
+	echo "Usage: run_test_console.sh <test>"
 	exit 1
 fi
 
@@ -28,9 +28,6 @@ ${MICROWATT_DIR}/core_tb > /dev/null 2> test1.out || true
 grep -v "Failed to bind debug socket" test1.out > test.out
 
 cp ${MICROWATT_DIR}/tests/${TEST}.console_out exp.out
-
-cp test.out /tmp
-cp exp.out /tmp
 
 diff -q test.out exp.out && echo "$TEST PASS" && exit 0
 
