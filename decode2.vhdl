@@ -389,6 +389,7 @@ begin
         variable v : reg_type;
         variable length : std_ulogic_vector(3 downto 0);
         variable op : insn_type_t;
+        variable unit : unit_t;
         variable valid_in : std_ulogic;
         variable decctr : std_ulogic;
         variable sprs_busy : std_ulogic;
@@ -401,6 +402,7 @@ begin
             v.e := Decode2ToExecute1Init;
 
             sprs_busy := '0';
+            unit := d_in.decode.unit;
 
             if d_in.valid = '1' then
                 v.prev_sgl := dc2.sgl_pipe;
@@ -433,13 +435,27 @@ begin
                         v.input_ov := '1';      -- need SO state if setting OV to 0
                     end if;
                 when OP_MFSPR =>
-                    if decode_spr_num(d_in.insn) = SPR_XER then
-                        v.input_ov := '1';
-                    end if;
+                    case decode_spr_num(d_in.insn) is
+                        when SPR_XER =>
+                            v.input_ov := '1';
+                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                            unit := LDST;
+                        when others =>
+                    end case;
                 when OP_MTSPR =>
-                    if decode_spr_num(d_in.insn) = SPR_XER then
-                        v.e.output_xer := '1';
-                        v.output_ov := '1';
+                    case decode_spr_num(d_in.insn) is
+                        when SPR_XER =>
+                            v.e.output_xer := '1';
+                            v.output_ov := '1';
+                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                            unit := LDST;
+                            if d_in.valid = '1' then
+                                v.sgl_pipe := '1';
+                            end if;
+                        when others =>
+                    end case;
+                    if d_in.spr_info.valid = '1' and d_in.valid = '1' then
+                        v.sgl_pipe := '1';
                     end if;
                 when OP_CMP | OP_MCRXRX =>
                     v.input_ov := '1';
@@ -528,7 +544,7 @@ begin
 
             -- execute unit
             v.e.nia := d_in.nia;
-            v.e.unit := d_in.decode.unit;
+            v.e.unit := unit;
             v.e.fac := d_in.decode.facility;
             v.e.read_reg1 := d_in.reg_a;
             v.e.read_reg2 := d_in.reg_b;

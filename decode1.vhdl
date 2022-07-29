@@ -54,11 +54,9 @@ architecture behaviour of decode1 is
     type reg_internal_t is record
         override : std_ulogic;
         override_decode: decode_rom_t;
-        override_unit: std_ulogic;
-        force_single: std_ulogic;
     end record;
     constant reg_internal_t_init : reg_internal_t :=
-        (override => '0', override_decode => illegal_inst, override_unit => '0', force_single => '0');
+        (override => '0', override_decode => illegal_inst);
 
     signal ri, ri_in : reg_internal_t;
 
@@ -703,31 +701,6 @@ begin
             end if;
             may_read_rb := '1';
 
-            if std_match(f_in.insn(10 downto 1), "01-1010011") then
-                -- mfspr or mtspr
-                -- Make mtspr to slow SPRs single issue
-                if v.spr_info.valid = '1' then
-                    vi.force_single := f_in.insn(8);
-                end if;
-                -- send MMU-related SPRs to loadstore1
-                case sprn is
-                    when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
-                        vi.override_decode.unit := LDST;
-                        vi.override_unit := '1';
-                        -- make mtspr to loadstore SPRs single-issue
-                        if f_in.insn(8) = '1' then
-                            vi.force_single := '1';
-                        end if;
-                    when others =>
-                end case;
-		-- FIXME: This is a bit fragile doing this here but sprn depends
-		-- on f_in.insn
-		if is_X(f_in.insn) then
-		    vi.override_decode.unit := NONE;
-		    vi.override_unit := 'X';
-		    vi.force_single := 'X';
-		end if;
-            end if;
             if HAS_FPU and std_match(f_in.insn(10 downto 1), "1----10111") then
                 -- lower half of column 23 has FP loads and stores
                 fprs := '1';
@@ -880,11 +853,6 @@ begin
         d_out <= r;
         if ri.override = '1' then
             d_out.decode <= ri.override_decode;
-        elsif ri.override_unit = '1' then
-            d_out.decode.unit <= ri.override_decode.unit;
-        end if;
-        if ri.force_single = '1' then
-            d_out.decode.sgl_pipe <= '1';
         end if;
         f_out.redirect <= br.predict;
         f_out.redirect_nia <= br_target & "00";
