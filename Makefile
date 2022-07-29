@@ -56,7 +56,7 @@ all = core_tb icache_tb dcache_tb dmi_dtm_tb \
 all: $(all)
 
 core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
-	utils.vhdl plru.vhdl cache_ram.vhdl icache.vhdl \
+	utils.vhdl plru.vhdl cache_ram.vhdl icache.vhdl predecode.vhdl \
 	decode1.vhdl helpers.vhdl insn_helpers.vhdl \
 	control.vhdl decode2.vhdl register_file.vhdl \
 	cr_file.vhdl crhelpers.vhdl ppc_fx_insns.vhdl rotator.vhdl \

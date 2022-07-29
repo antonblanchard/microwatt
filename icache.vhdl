@@ -23,6 +23,7 @@ use ieee.numeric_std.all;
 library work;
 use work.utils.all;
 use work.common.all;
+use work.decode_types.all;
 use work.wishbone_types.all;
 
 -- 64 bit direct mapped icache. All instructions are 4B aligned.
@@ -30,6 +31,7 @@ use work.wishbone_types.all;
 entity icache is
     generic (
         SIM : boolean := false;
+        HAS_FPU : boolean := true;
         -- Line size in bytes
         LINE_SIZE : positive := 64;
         -- BRAM organisation: We never access more than wishbone_data_bits at
@@ -122,8 +124,20 @@ architecture rtl of icache is
     subtype way_t is integer range 0 to NUM_WAYS-1;
     subtype row_in_line_t is unsigned(ROW_LINEBITS-1 downto 0);
 
+    -- We store a pre-decoded 10-bit insn_code along with the bottom 26 bits of
+    -- each instruction, giving a total of 36 bits per instruction, which
+    -- fits neatly into the block RAMs available on FPGAs.
+    -- For illegal instructions, the top 4 bits are ones and the bottom 6 bits
+    -- are the instruction's primary opcode, so we have the whole instruction
+    -- word available (e.g. to put in HEIR).  For other instructions, the
+    -- primary opcode is not stored but could be determined from the insn_code.
+    constant PREDECODE_BITS : natural := 10;
+    constant INSN_IMAGE_BITS : natural := 26;
+    constant ICWORDLEN : natural := PREDECODE_BITS + INSN_IMAGE_BITS;
+    constant ROW_WIDTH : natural := INSN_PER_ROW * ICWORDLEN;
+
     -- The cache data BRAM organized as described above for each way
-    subtype cache_row_t is std_ulogic_vector(ROW_SIZE_BITS-1 downto 0);
+    subtype cache_row_t is std_ulogic_vector(ROW_WIDTH-1 downto 0);
 
     -- The cache tags LUTRAM has a row per set. Vivado is a pain and will
     -- not handle a clean (commented) definition of the cache tags as a 3d
@@ -184,6 +198,8 @@ architecture rtl of icache is
         wb               : wishbone_master_out;
 	store_way        : way_t;
         store_index      : index_t;
+        recv_row         : row_t;
+        recv_valid       : std_ulogic;
 	store_row        : row_t;
         store_tag        : cache_tag_t;
         store_valid      : std_ulogic;
@@ -214,7 +230,9 @@ architecture rtl of icache is
 
     -- Cache RAM interface
     type cache_ram_out_t is array(way_t) of cache_row_t;
-    signal cache_out   : cache_ram_out_t;
+    signal cache_out     : cache_ram_out_t;
+    signal cache_wr_data : std_ulogic_vector(ROW_WIDTH - 1 downto 0);
+    signal wb_rd_data    : std_ulogic_vector(ROW_SIZE_BITS - 1 downto 0);
 
     -- PLRU output interface
     type plru_out_t is array(index_t) of std_ulogic_vector(WAY_BITS-1 downto 0);
@@ -293,7 +311,7 @@ architecture rtl of icache is
 	variable word: integer range 0 to INSN_PER_ROW-1;
     begin
         word := to_integer(unsigned(addr(INSN_BITS+2-1 downto 2)));
-	return data(31+word*32 downto word*32);
+	return data(word * ICWORDLEN + ICWORDLEN - 1 downto word * ICWORDLEN);
     end;
 
     -- Get the tag value from the address
@@ -326,6 +344,34 @@ architecture rtl of icache is
     end;
 
 begin
+
+    -- byte-swap read data if big endian
+    process(all)
+        variable j: integer;
+    begin
+        if r.store_tag(TAG_BITS - 1) = '0' then
+            wb_rd_data <= wishbone_in.dat;
+        else
+            for ii in 0 to (wishbone_in.dat'length / 8) - 1 loop
+                j := ((ii / 4) * 4) + (3 - (ii mod 4));
+                wb_rd_data(ii * 8 + 7 downto ii * 8) <= wishbone_in.dat(j * 8 + 7 downto j * 8);
+            end loop;
+        end if;
+    end process;
+
+    predecoder_0: entity work.predecoder
+        generic map (
+            HAS_FPU => HAS_FPU,
+            WIDTH => INSN_PER_ROW,
+            ICODE_LEN => PREDECODE_BITS,
+            IMAGE_LEN => INSN_IMAGE_BITS
+            )
+        port map (
+            clk => clk,
+            valid_in => wishbone_in.ack,
+            insns_in => wb_rd_data,
+            icodes_out => cache_wr_data
+            );
 
     assert LINE_SIZE mod ROW_SIZE = 0;
     assert ispow2(LINE_SIZE)    report "LINE_SIZE not power of 2" severity FAILURE;
@@ -367,13 +413,13 @@ begin
 	signal rd_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
 	signal wr_addr  : std_ulogic_vector(ROW_BITS-1 downto 0);
 	signal dout     : cache_row_t;
-	signal wr_sel   : std_ulogic_vector(ROW_SIZE-1 downto 0);
-        signal wr_dat   : std_ulogic_vector(wishbone_in.dat'left downto 0);
+	signal wr_sel   : std_ulogic_vector(0 downto 0);
     begin
 	way: entity work.cache_ram
 	    generic map (
 		ROW_BITS => ROW_BITS,
-		WIDTH => ROW_SIZE_BITS
+		WIDTH => ROW_WIDTH,
+                BYTEWID => ROW_WIDTH
 		)
 	    port map (
 		clk     => clk,
@@ -382,31 +428,19 @@ begin
 		rd_data => dout,
 		wr_sel  => wr_sel,
 		wr_addr => wr_addr,
-		wr_data => wr_dat
+		wr_data => cache_wr_data
 		);
 	process(all)
-            variable j: integer;
 	begin
-            -- byte-swap read data if big endian
-            if r.store_tag(TAG_BITS - 1) = '0' then
-                wr_dat <= wishbone_in.dat;
-            else
-                for ii in 0 to (wishbone_in.dat'length / 8) - 1 loop
-                    j := ((ii / 4) * 4) + (3 - (ii mod 4));
-                    wr_dat(ii * 8 + 7 downto ii * 8) <= wishbone_in.dat(j * 8 + 7 downto j * 8);
-                end loop;
-            end if;
 	    do_read <= not stall_in;
 	    do_write <= '0';
-	    if wishbone_in.ack = '1' and replace_way = i then
+	    if r.recv_valid = '1' and r.store_way = i then
 		do_write <= '1';
 	    end if;
 	    cache_out(i) <= dout;
 	    rd_addr <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
 	    wr_addr <= std_ulogic_vector(to_unsigned(r.store_row, ROW_BITS));
-            for ii in 0 to ROW_SIZE-1 loop
-                wr_sel(ii) <= do_write;
-            end loop;
+            wr_sel(0) <= do_write;
 	end process;
     end generate;
     
@@ -515,6 +549,8 @@ begin
     icache_comb : process(all)
 	variable is_hit  : std_ulogic;
 	variable hit_way : way_t;
+        variable insn    : std_ulogic_vector(ICWORDLEN - 1 downto 0);
+        variable icode   : insn_code;
     begin
 	-- Extract line, row and tag from request
 	if not is_X(i_in.nia) then
@@ -575,11 +611,18 @@ begin
 	--       I prefer not to do just yet as it would force fetch2 to know about
 	--       some of the cache geometry information.
 	--
+        insn := (others => '0');
+        icode := INSN_illegal;
 	if r.hit_valid = '1' then
-	    i_out.insn <= read_insn_word(r.hit_nia, cache_out(r.hit_way));
-	else
-            i_out.insn <= (others => '0');
+            insn := read_insn_word(r.hit_nia, cache_out(r.hit_way));
+            -- Currently we use only the top bit for indicating illegal
+            -- instructions because we know that insn_codes fit into 9 bits.
+            if insn(ICWORDLEN - 1) = '0' then
+                icode := insn_code'val(to_integer(unsigned(insn(ICWORDLEN-1 downto INSN_IMAGE_BITS))));
+            end if;
 	end if;
+        i_out.insn <= insn(31 downto 0);
+        i_out.icode <= icode;
 	i_out.valid <= r.hit_valid;
 	i_out.nia <= r.hit_nia;
 	i_out.stop_mark <= r.hit_smark;
@@ -640,9 +683,11 @@ begin
         variable snoop_addr : real_addr_t;
         variable snoop_tag : cache_tag_t;
         variable snoop_cache_tags : cache_tags_set_t;
+        variable replace_way : way_t;
     begin
         if rising_edge(clk) then
             ev.icache_miss <= '0';
+            r.recv_valid <= '0';
 	    -- On reset, clear all valid bits to force misses
             if rst = '1' then
 		for i in index_t loop
@@ -714,13 +759,13 @@ begin
                             " IR:" & std_ulogic'image(i_in.virt_mode) &
 			    " SM:" & std_ulogic'image(i_in.stop_mark) &
 			    " idx:" & integer'image(req_index) &
-			    " way:" & integer'image(replace_way) &
 			    " tag:" & to_hstring(req_tag) &
                             " RA:" & to_hstring(real_addr);
                         ev.icache_miss <= '1';
 
 			-- Keep track of our index and way for subsequent stores
 			r.store_index <= req_index;
+                        r.recv_row <= get_row(req_raddr);
 			r.store_row <= get_row(req_raddr);
                         r.store_tag <= req_tag;
                         r.store_valid <= '1';
@@ -740,6 +785,7 @@ begin
 		when CLR_TAG | WAIT_ACK =>
                     if r.state = CLR_TAG then
                         -- Get victim way from plru
+                        replace_way := to_integer(unsigned(plru_victim(r.store_index)));
 			r.store_way <= replace_way;
 
 			-- Force misses on that way while reloading that line
@@ -755,6 +801,19 @@ begin
 			end loop;
 
                         r.state <= WAIT_ACK;
+                    end if;
+
+                    -- If we are writing in this cycle, mark row valid and see if we are done
+                    if r.recv_valid = '1' then
+                        r.rows_valid(r.store_row mod ROW_PER_LINE) <= not inval_in;
+			if is_last_row(r.store_row, r.end_row_ix) then
+			    -- Cache line is now valid
+			    cache_valids(r.store_index)(r.store_way) <= r.store_valid and not inval_in;
+			    -- We are done
+			    r.state <= IDLE;
+			end if;
+			-- Increment store row counter
+			r.store_row <= r.recv_row;
                     end if;
 
 		    -- If we are still sending requests, was one accepted ?
@@ -777,33 +836,27 @@ begin
 
 		    -- Incoming acks processing
 		    if wishbone_in.ack = '1' then
-                        r.rows_valid(r.store_row mod ROW_PER_LINE) <= not inval_in;
 			-- Check for completion
-			if is_last_row(r.store_row, r.end_row_ix) then
+			if is_last_row(r.recv_row, r.end_row_ix) then
 			    -- Complete wishbone cycle
 			    r.wb.cyc <= '0';
-
-			    -- Cache line is now valid
-			    cache_valids(r.store_index)(replace_way) <= r.store_valid and not inval_in;
-
-			    -- We are done
-			    r.state <= IDLE;
 			end if;
+                        r.recv_valid <= '1';
 
-			-- Increment store row counter
-			r.store_row <= next_row(r.store_row);
+			-- Increment receive row counter
+			r.recv_row <= next_row(r.recv_row);
 		    end if;
 
                 when STOP_RELOAD =>
                     -- Wait for all outstanding requests to be satisfied, then
                     -- go to IDLE state.
-                    if get_row_of_line(r.store_row) = get_row_of_line(get_row(wb_to_addr(r.wb.adr))) then
+                    if get_row_of_line(r.recv_row) = get_row_of_line(get_row(wb_to_addr(r.wb.adr))) then
                         r.wb.cyc <= '0';
                         r.state <= IDLE;
                     end if;
                     if wishbone_in.ack = '1' then
 			-- Increment store row counter
-			r.store_row <= next_row(r.store_row);
+			r.recv_row <= next_row(r.recv_row);
 		    end if;
 		end case;
 	    end if;

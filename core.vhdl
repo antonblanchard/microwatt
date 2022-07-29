@@ -246,6 +246,7 @@ begin
     icache_0: entity work.icache
         generic map(
             SIM => SIM,
+            HAS_FPU => HAS_FPU,
             LINE_SIZE => 64,
             NUM_LINES => ICACHE_NUM_LINES,
             NUM_WAYS => ICACHE_NUM_WAYS,

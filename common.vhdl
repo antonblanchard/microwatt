@@ -246,12 +246,13 @@ package common is
         fetch_failed: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
+        icode: insn_code;
         big_endian: std_ulogic;
         next_predicted: std_ulogic;
         next_pred_ntaken: std_ulogic;
     end record;
     constant IcacheToDecode1Init : IcacheToDecode1Type :=
-        (nia => (others => '0'), insn => (others => '0'), others => '0');
+        (nia => (others => '0'), insn => (others => '0'), icode => INSN_illegal, others => '0');
 
     type IcacheEventType is record
         icache_miss : std_ulogic;
