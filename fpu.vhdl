@@ -440,6 +440,10 @@ architecture behaviour of fpu is
         variable result: std_ulogic_vector(63 downto 0);
     begin
         result := (others => '0');
+	if is_X(shift) then
+	    result := (others => 'X');
+	    return result;
+	end if;
         for i in 0 to 63 loop
             if i >= shift then
                 result(63 - i) := '1';
@@ -643,7 +647,11 @@ begin
                 addrhi := "00";
             end if;
             addr := addrhi & r.b.mantissa(UNIT_BIT - 1 downto UNIT_BIT - 8);
-            inverse_est <= '1' & inverse_table(to_integer(unsigned(addr)));
+	    if is_X(addr) then
+		inverse_est <= (others => 'X');
+	    else
+		inverse_est <= '1' & inverse_table(to_integer(unsigned(addr)));
+	    end if;
         end if;
     end process;
 
@@ -841,10 +849,14 @@ begin
         new_exp := r.result_exp - r.shift;
         exp_tiny := '0';
         exp_huge := '0';
-        if new_exp < min_exp then
+	if is_X(new_exp) or is_X(min_exp) then
+	    exp_tiny := 'X';
+        elsif new_exp < min_exp then
             exp_tiny := '1';
         end if;
-        if new_exp > max_exp then
+	if is_X(new_exp) or is_X(min_exp) then
+	    exp_huge := 'X';
+	elsif new_exp > max_exp then
             exp_huge := '1';
         end if;
 
@@ -855,7 +867,9 @@ begin
             pcmpb_eq := '1';
         end if;
         pcmpb_lt := '0';
-        if unsigned(r.p(59 downto 4)) < unsigned(r.b.mantissa(UNIT_BIT + 1 downto DP_RBIT)) then
+        if is_X(r.p(59 downto 4)) or is_X(r.b.mantissa(55 downto 0)) then
+	    pcmpb_lt := 'X';
+        elsif unsigned(r.p(59 downto 4)) < unsigned(r.b.mantissa(UNIT_BIT + 1 downto DP_RBIT)) then
             pcmpb_lt := '1';
         end if;
         pcmpc_eq := '0';
@@ -863,7 +877,9 @@ begin
             pcmpc_eq := '1';
         end if;
         pcmpc_lt := '0';
-        if unsigned(r.p) < unsigned(r.c.mantissa) then
+        if is_X(r.p) or is_X(r.c.mantissa) then
+	    pcmpc_lt := 'X';
+        elsif unsigned(r.p) < unsigned(r.c.mantissa) then
             pcmpc_lt := '1';
         end if;
 
@@ -3014,7 +3030,9 @@ begin
         else
             mshift := r.shift;
         end if;
-        if mshift < to_signed(-64, EXP_BITS) then
+	if is_X(mshift) then
+	    mask := (others => 'X');
+        elsif mshift < to_signed(-64, EXP_BITS) then
             mask := (others => '1');
         elsif mshift >= to_signed(0, EXP_BITS) then
             mask := (others => '0');
@@ -3060,7 +3078,9 @@ begin
             in_b0 := not in_b0;
         end if;
         in_b <= in_b0;
-        if r.shift >= to_signed(-64, EXP_BITS) and r.shift <= to_signed(63, EXP_BITS) then
+	if is_X(r.shift) then
+            shift_res := (others => 'X');
+	elsif r.shift >= to_signed(-64, EXP_BITS) and r.shift <= to_signed(63, EXP_BITS) then
             shift_res := shifter_64(r.r(63 downto 1) & (shiftin0 or r.r(0)) &
                                     (shiftin or r.s(55)) & r.s(54 downto 0),
                                     std_ulogic_vector(r.shift(6 downto 0)));
@@ -3224,7 +3244,9 @@ begin
                     v.cr_mask := num_to_fxm(0);
                 elsif r.is_cmp = '0' then
                     v.cr_mask := num_to_fxm(1);
-                else
+                elsif is_X(insn_bf(r.insn)) then
+		    v.cr_mask := (others => 'X');
+		else
                     v.cr_mask := num_to_fxm(to_integer(unsigned(insn_bf(r.insn))));
                 end if;
                 v.writing_cr := r.is_cmp or r.rc;

@@ -217,7 +217,11 @@ begin
 
         -- Check for timebase events
         tbdiff := p_in.tbbits and not prev_tb;
-        tbbit := tbdiff(3 - to_integer(unsigned(mmcr0(MMCR0_TBSEL + 1 downto MMCR0_TBSEL))));
+        if is_X(mmcr0) then
+            tbbit := 'X';
+        else
+            tbbit := tbdiff(3 - to_integer(unsigned(mmcr0(MMCR0_TBSEL + 1 downto MMCR0_TBSEL))));
+        end if;
         if tbbit = '1' and mmcr0(MMCR0_TBEE) = '1' then
             event := '1';
         end if;

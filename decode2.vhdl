@@ -671,8 +671,8 @@ begin
 
         v.e.dbg_spr_access := dbg_spr_req and not v.read_rspr;
         if v.e.dbg_spr_access = '1' then
-            v.e.ramspr_even_rdaddr := to_integer(unsigned(dbg_spr_addr(3 downto 1)));
-            v.e.ramspr_odd_rdaddr := to_integer(unsigned(dbg_spr_addr(3 downto 1)));
+            v.e.ramspr_even_rdaddr := unsigned(dbg_spr_addr(3 downto 1));
+            v.e.ramspr_odd_rdaddr := unsigned(dbg_spr_addr(3 downto 1));
             v.e.ramspr_rd_odd := dbg_spr_addr(0);
         end if;
 
