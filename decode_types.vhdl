@@ -32,7 +32,7 @@ package decode_types is
     -- comparisons of the insn_code for the instruction with a few constants.
     type insn_code is (
         -- The following instructions don't have an RB operand or access FPRs
-        INSN_illegal,
+        INSN_illegal, -- 0
         INSN_fetch_fail,
         INSN_addi,
         INSN_addic,
@@ -42,7 +42,7 @@ package decode_types is
         INSN_addpcis,
         INSN_addze,
         INSN_andi_dot,
-        INSN_andis_dot,
+        INSN_andis_dot, -- 10
         INSN_attn,
         INSN_b,
         INSN_bc,
@@ -52,7 +52,7 @@ package decode_types is
         INSN_cbcdtd,
         INSN_cdtbcd,
         INSN_cmpi,
-        INSN_cmpli,
+        INSN_cmpli, -- 20
         INSN_cntlzw,
         INSN_cntlzd,
         INSN_cnttzw,
@@ -62,7 +62,7 @@ package decode_types is
         INSN_creqv,
         INSN_crnand,
         INSN_crnor,
-        INSN_cror,
+        INSN_cror, -- 30
         INSN_crorc,
         INSN_crxor,
         INSN_darn,
@@ -72,7 +72,7 @@ package decode_types is
         INSN_extsw,
         INSN_extswsli,
         INSN_isync,
-        INSN_lbz,
+        INSN_lbz, -- 40
         INSN_lbzu,
         INSN_ld,
         INSN_ldu,
@@ -82,7 +82,7 @@ package decode_types is
         INSN_lhzu,
         INSN_lwa,
         INSN_lwz,
-        INSN_lwzu,
+        INSN_lwzu, -- 50
         INSN_mcrf,
         INSN_mcrfs,
         INSN_mcrxrx,
@@ -92,7 +92,7 @@ package decode_types is
         INSN_mtcrf,
         INSN_mtfsb,
         INSN_mtfsfi,
-        INSN_mtmsr,
+        INSN_mtmsr, -- 60
         INSN_mtmsrd,
         INSN_mtspr,
         INSN_mulli,
@@ -102,7 +102,7 @@ package decode_types is
         INSN_oris,
         INSN_popcntb,
         INSN_popcntw,
-        INSN_popcntd,
+        INSN_popcntd, -- 70
         INSN_prtyw,
         INSN_prtyd,
         INSN_rfid,
@@ -112,7 +112,7 @@ package decode_types is
         INSN_rldimi,
         INSN_rlwimi,
         INSN_rlwinm,
-        INSN_sc,
+        INSN_sc, -- 80
         INSN_setb,
         INSN_slbia,
         INSN_sradi,
@@ -122,7 +122,7 @@ package decode_types is
         INSN_std,
         INSN_stdu,
         INSN_sth,
-        INSN_sthu,
+        INSN_sthu, -- 90
         INSN_stw,
         INSN_stwu,
         INSN_subfic,
@@ -132,7 +132,7 @@ package decode_types is
         INSN_tdi,
         INSN_tlbsync,
         INSN_twi,
-        INSN_wait,
+        INSN_wait, -- 100
         INSN_xori,
         INSN_xoris,
 
@@ -150,7 +150,7 @@ package decode_types is
         INSN_and,
         INSN_andc,
         INSN_bperm,
-        INSN_cmp,
+        INSN_cmp, -- 120
         INSN_cmpb,
         INSN_cmpeqb,
         INSN_cmpl,
@@ -160,7 +160,7 @@ package decode_types is
         INSN_dcbt,
         INSN_dcbtst,
         INSN_dcbz,
-        INSN_divd,
+        INSN_divd, -- 130
         INSN_divdu,
         INSN_divde,
         INSN_divdeu,
@@ -170,7 +170,7 @@ package decode_types is
         INSN_divweu,
         INSN_eqv,
         INSN_icbi,
-        INSN_icbt,
+        INSN_icbt, -- 140
         INSN_isel,
         INSN_lbarx,
         INSN_lbzcix,
@@ -180,7 +180,7 @@ package decode_types is
         INSN_ldbrx,
         INSN_ldcix,
         INSN_ldx,
-        INSN_ldux,
+        INSN_ldux, -- 150
         INSN_lharx,
         INSN_lhax,
         INSN_lhaux,
@@ -190,7 +190,7 @@ package decode_types is
         INSN_lhzux,
         INSN_lwarx,
         INSN_lwax,
-        INSN_lwaux,
+        INSN_lwaux, -- 160
         INSN_lwbrx,
         INSN_lwzcix,
         INSN_lwzx,
@@ -200,7 +200,7 @@ package decode_types is
         INSN_moduw,
         INSN_modud,
         INSN_mulhw,
-        INSN_mulhwu,
+        INSN_mulhwu, -- 170
         INSN_mulhd,
         INSN_mulhdu,
         INSN_mullw,
@@ -210,7 +210,7 @@ package decode_types is
         INSN_or,
         INSN_orc,
         INSN_rldcl,
-        INSN_rldcr,
+        INSN_rldcr, -- 180
         INSN_rlwnm,
         INSN_slw,
         INSN_sld,
@@ -220,7 +220,7 @@ package decode_types is
         INSN_srd,
         INSN_stbcix,
         INSN_stbcx,
-        INSN_stbx,
+        INSN_stbx, -- 190
         INSN_stbux,
         INSN_stdbrx,
         INSN_stdcix,
@@ -230,7 +230,7 @@ package decode_types is
         INSN_sthbrx,
         INSN_sthcix,
         INSN_sthcx,
-        INSN_sthx,
+        INSN_sthx, -- 200
         INSN_sthux,
         INSN_stwbrx,
         INSN_stwcix,
@@ -240,7 +240,7 @@ package decode_types is
         INSN_subf,
         INSN_subfc,
         INSN_subfe,
-        INSN_td,
+        INSN_td, -- 210
         INSN_tlbie,
         INSN_tlbiel,
         INSN_tw,
@@ -272,7 +272,7 @@ package decode_types is
         INSN_stfdu,
         INSN_stfs,
         INSN_stfsu,
-        INSN_stfdux,
+        INSN_stfdux, -- 260
         INSN_stfdx,
         INSN_stfiwx,
         INSN_stfsux,
@@ -284,7 +284,7 @@ package decode_types is
         INSN_lfs,
         INSN_lfsu,
         INSN_lfdx,
-        INSN_lfdux,
+        INSN_lfdux, -- 270
         INSN_lfiwax,
         INSN_lfiwzx,
         INSN_lfsx,
@@ -296,7 +296,7 @@ package decode_types is
         INSN_fadd,
         INSN_fadds,
         INSN_fcfid,
-        INSN_fcfids,
+        INSN_fcfids, -- 280
         INSN_fcfidu,
         INSN_fcfidus,
         INSN_fcmpo,
@@ -306,7 +306,7 @@ package decode_types is
         INSN_fctidz,
         INSN_fctidu,
         INSN_fctiduz,
-        INSN_fctiw,
+        INSN_fctiw, -- 290
         INSN_fctiwz,
         INSN_fctiwu,
         INSN_fctiwuz,
@@ -316,7 +316,7 @@ package decode_types is
         INSN_fmrgew,
         INSN_fmrgow,
         INSN_fnabs,
-        INSN_fneg,
+        INSN_fneg, -- 300
         INSN_fre,
         INSN_fres,
         INSN_frim,
@@ -326,7 +326,7 @@ package decode_types is
         INSN_frsp,
         INSN_frsqrte,
         INSN_frsqrtes,
-        INSN_fsqrt,
+        INSN_fsqrt, -- 310
         INSN_fsqrts,
         INSN_fsub,
         INSN_fsubs,
@@ -339,7 +339,7 @@ package decode_types is
         INSN_318, INSN_319,
 
         -- The following instructions access FRA, FRB (possibly) and FRC operands
-        INSN_fmul,
+        INSN_fmul, -- 320
         INSN_fmuls,
         INSN_fmadd,
         INSN_fmadds,
@@ -349,7 +349,7 @@ package decode_types is
         INSN_fnmadds,
         INSN_fnmsub,
         INSN_fnmsubs,
-        INSN_fsel
+        INSN_fsel  -- 330
         );
 
     constant INSN_first_rb : insn_code := INSN_add;

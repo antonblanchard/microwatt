@@ -389,6 +389,8 @@ architecture behaviour of predecoder is
         -- fit into 2048 entries, the columns are remapped so that 16-24 are
         -- stored here as 8-15; in other words the address bits are
         -- 1, insn(10..6), 1, insn(5), insn(3..1)
+        -- Columns 16-17 here are opcode 19 columns 0-1
+        -- Columns 24-31 here are opcode 19 columns 16-23
         2#1_10000_11000#  =>  INSN_bcctr,
         2#1_00000_11000#  =>  INSN_bclr,
         2#1_10001_11000#  =>  INSN_bctar,
@@ -405,15 +407,17 @@ architecture behaviour of predecoder is
         2#1_00000_11010#  =>  INSN_rfid,
 
         -- Major opcode 59
+        -- Address bits are 1, insn(10..6), 1, 0, insn(3..1)
         -- Only column 14 is valid here; columns 16-31 are handled in the major table
-        -- Column 14 is mapped to column 6 of the space which is
-        -- mostly used for opcode 19.
+        -- Column 14 is mapped to column 22.
+        -- Columns 20-23 here are opcode 59 columns 12-15
         2#1_11010_10110#  =>  INSN_fcfids,
         2#1_11110_10110#  =>  INSN_fcfidus,
 
         -- Major opcode 63
         -- Columns 0-15 are mapped here; columns 16-31 are in the major table.
         -- Address bits are 1, insn(10:6), 0, insn(4:1)
+        -- Columns 0-15 here are opcode 63 columns 0-15
         2#1_00000_00000#  =>  INSN_fcmpu,
         2#1_00001_00000#  =>  INSN_fcmpo,
         2#1_00010_00000#  =>  INSN_mcrfs,
