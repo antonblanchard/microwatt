@@ -454,26 +454,34 @@ architecture behaviour of predecoder is
 
     type predec_t is record
         image         : std_ulogic_vector(31 downto 0);
-        maj_predecode : insn_code;
-        row_predecode : insn_code;
+        maj_predecode : unsigned(ICODE_LEN - 1 downto 0);
+        row_predecode : unsigned(ICODE_LEN - 1 downto 0);
     end record;
 
     subtype index_t is integer range 0 to WIDTH-1;
     type predec_array is array(index_t) of predec_t;
 
     signal pred : predec_array;
+    signal valid : std_ulogic;
 
 begin
     predecode_0: process(clk)
         variable majaddr  : std_ulogic_vector(10 downto 0);
         variable rowaddr  : std_ulogic_vector(10 downto 0);
         variable iword    : std_ulogic_vector(31 downto 0);
+        variable majcode  : insn_code;
+        variable rowcode  : insn_code;
     begin
         if rising_edge(clk) then
+            valid <= valid_in;
             for i in index_t loop
-                if valid_in = '1' then
-                    iword := insns_in(i * 32 + 31 downto i * 32);
+                iword := insns_in(i * 32 + 31 downto i * 32);
+                pred(i).image <= iword;
 
+                if is_X(iword) then
+                    pred(i).maj_predecode <= (others => 'X');
+                    pred(i).row_predecode <= (others => 'X');
+                else
                     majaddr := iword(31 downto 26) & iword(4 downto 0);
 
                     -- row_predecode_rom is used for op 19, 31, 59, 63
@@ -489,13 +497,10 @@ begin
                     end if;
                     rowaddr(2 downto 0) := iword(3 downto 1);
 
-                    pred(i).image <= iword;
-                    pred(i).maj_predecode <= major_predecode_rom(to_integer(unsigned(majaddr)));
-                    pred(i).row_predecode <= row_predecode_rom(to_integer(unsigned(rowaddr)));
-                else
-                    pred(i).image <= (others => '0');
-                    pred(i).maj_predecode <= INSN_illegal;
-                    pred(i).row_predecode <= INSN_illegal;
+                    majcode := major_predecode_rom(to_integer(unsigned(majaddr)));
+                    pred(i).maj_predecode <= to_unsigned(insn_code'pos(majcode), ICODE_LEN);
+                    rowcode := row_predecode_rom(to_integer(unsigned(rowaddr)));
+                    pred(i).row_predecode <= to_unsigned(insn_code'pos(rowcode), ICODE_LEN);
                 end if;
             end loop;
         end if;
@@ -506,7 +511,7 @@ begin
         variable use_row  : std_ulogic;
         variable illegal  : std_ulogic;
         variable ici      : std_ulogic_vector(IOUT_LEN - 1 downto 0);
-        variable icode    : insn_code;
+        variable icode    : unsigned(ICODE_LEN - 1 downto 0);
     begin
         for i in index_t loop
             iword := pred(i).image;
@@ -532,7 +537,7 @@ begin
                 when "011000" => -- 24
                     -- ori, special-case the standard NOP
                     if std_match(iword, "01100000000000000000000000000000") then
-                        icode := INSN_nop;
+                        icode := to_unsigned(insn_code'pos(INSN_nop), ICODE_LEN);
                     end if;
 
                 when "011111" => -- 31
@@ -561,19 +566,20 @@ begin
             end if;
 
             -- Mark FP instructions as illegal if we don't have an FPU
-            if not HAS_FPU and icode >= INSN_first_frs then
+            if not HAS_FPU and not is_X(icode) and
+                to_integer(icode) >= insn_code'pos(INSN_first_frs) then
                 illegal := '1';
             end if;
 
             ici(31 downto 0) := iword;
             ici(IOUT_LEN - 1 downto 32) := (others => '0');
-            if illegal = '1' or icode = INSN_illegal then
+            if valid = '0' or illegal = '1' or is_X(icode) or
+                icode = to_unsigned(insn_code'pos(INSN_illegal), ICODE_LEN) then
                 -- Since an insn_code currently fits in 9 bits, use just
                 -- the most significant bit of ici to indicate illegal insns.
                 ici(IOUT_LEN - 1) := '1';
             else
-                ici(IOUT_LEN - 1 downto IMAGE_LEN) :=
-                    std_ulogic_vector(to_unsigned(insn_code'pos(icode), ICODE_LEN));
+                ici(IOUT_LEN - 1 downto IMAGE_LEN) := std_ulogic_vector(icode);
             end if;
             icodes_out(i * IOUT_LEN + IOUT_LEN - 1 downto i * IOUT_LEN) <= ici;
         end loop;
