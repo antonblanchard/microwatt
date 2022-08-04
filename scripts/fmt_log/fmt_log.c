@@ -22,7 +22,7 @@ struct log_entry {
 	u64	ic_wb_adr: 3;
 	u64	ic_wb_ack: 1;
 
-	u64	ic_insn: 32;
+	u64	ic_insn: 36;
 	u64	ic_valid: 1;
 	u64	d1_valid: 1;
 	u64	d1_unit: 2;
@@ -39,9 +39,8 @@ struct log_entry {
 	u64	e1_stall_out: 1;
 	u64	e1_redirect: 1;
 	u64	e1_valid: 1;
-	u64	e1_write_enable: 1;
-	u64	e1_unused: 3;
 
+	u64	e1_write_enable: 1;
 	u64	e1_irq_state: 1;
 	u64	e1_irq: 1;
 	u64	e1_exception: 1;
@@ -49,7 +48,7 @@ struct log_entry {
 	u64	e1_msr_ir: 1;
 	u64	e1_msr_pr: 1;
 	u64	e1_msr_ee: 1;
-	u64	pad1: 5;
+	u64	pad1: 4;
 	u64	ls_state: 3;
 	u64	ls_dw_done: 1;
 	u64	ls_min_done: 1;
@@ -134,9 +133,9 @@ int main(int ac, char **av)
 		full_nia[log.nia_lo & 0xf] = (log.nia_hi? 0xc000000000000000: 0) |
 			(log.nia_lo << 2);
 		if (lineno % 20 == 1) {
-			printf("        fetch1 NIA      icache                         decode1       decode2   execute1         loadstore  dcache       CR   GSPR\n");
-			printf("     ----------------   TAHW S -WB-- pN --insn--    pN un op         pN byp    FR IIE MSR  WC   SD MM CE   SRTO DE -WB-- c ms reg val\n");
-			printf("                        LdMy t csnSa IA             IA it            IA abc    le srx EPID em   tw rd mx   tAwp vr csnSa 0 k\n");
+			printf("        fetch1 NIA      icache                             decode1       decode2   execute1         loadstore  dcache       CR   GSPR\n");
+			printf("     ----------------   TAHW S -WB-- pN  ic --insn--    pN un op         pN byp    FR IIE MSR  WC   SD MM CE   SRTO DE -WB-- c ms reg val\n");
+			printf("                        LdMy t csnSa IA                 IA it            IA abc    le srx EPID em   tw rd mx   tAwp vr csnSa 0 k\n");
 		}
 		printf("%4ld %c0000%.11llx %c ", lineno,
 		       (log.nia_hi? 'c': '0'),
@@ -154,12 +153,16 @@ int main(int ac, char **av)
 		       FLAG(ic_wb_stall, 'S'),
 		       FLAG(ic_wb_ack, 'a'),
 		       PNIA(ic_part_nia));
-		if (log.ic_valid)
-			printf("%.8x", log.ic_insn);
-		else if (log.ic_fetch_failed)
-			printf("!!!!!!!!");
+		if (log.ic_valid) {
+			if (log.ic_insn & (1ul << 35))
+				printf("ill %.8lx", log.ic_insn & 0xfffffffful);
+			else
+				printf("%3lu x%.7lx", (long)(log.ic_insn >> 26),
+				       (unsigned long)(log.ic_insn & 0x3ffffff));
+		} else if (log.ic_fetch_failed)
+			printf("    !!!!!!!!");
 		else
-			printf("--------");
+			printf("--- --------");
 		printf(" %c%c %.2llx ",
 		       FLAG(ic_valid, '>'),
 		       FLAG(d2_stall_out, '|'),

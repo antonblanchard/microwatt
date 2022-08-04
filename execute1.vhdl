@@ -65,7 +65,7 @@ entity execute1 is
         sim_dump      : in std_ulogic;
         sim_dump_done : out std_ulogic;
 
-        log_out : out std_ulogic_vector(14 downto 0);
+        log_out : out std_ulogic_vector(11 downto 0);
         log_rd_addr : out std_ulogic_vector(31 downto 0);
         log_rd_data : in std_ulogic_vector(63 downto 0);
         log_wr_addr : in std_ulogic_vector(31 downto 0)
@@ -1802,7 +1802,7 @@ begin
     end generate;
 
     e1_log: if LOG_LENGTH > 0 generate
-        signal log_data : std_ulogic_vector(14 downto 0);
+        signal log_data : std_ulogic_vector(11 downto 0);
     begin
         ex1_log : process(clk)
         begin
@@ -1812,7 +1812,6 @@ begin
                             exception_log &
                             irq_valid_log &
                             interrupt_in.intr &
-                            "000" &
                             ex2.e.write_enable &
                             ex2.e.valid &
                             (ex2.e.redirect or ex2.e.interrupt) &

@@ -71,7 +71,7 @@ entity icache is
         wb_snoop_in  : in wishbone_master_out := wishbone_master_out_init;
 
         events       : out IcacheEventType;
-        log_out      : out std_ulogic_vector(53 downto 0)
+        log_out      : out std_ulogic_vector(57 downto 0)
         );
 end entity icache;
 
@@ -243,6 +243,8 @@ architecture rtl of icache is
     signal snoop_valid : std_ulogic;
     signal snoop_index : index_t;
     signal snoop_hits  : cache_way_valids_t;
+
+    signal log_insn : std_ulogic_vector(35 downto 0);
 
     -- Return the cache line index (tag index) for an address
     function get_index(addr: std_ulogic_vector) return index_t is
@@ -623,6 +625,7 @@ begin
 	end if;
         i_out.insn <= insn(31 downto 0);
         i_out.icode <= icode;
+        log_insn <= cache_wr_data(35 downto 0);
 	i_out.valid <= r.hit_valid;
 	i_out.nia <= r.hit_nia;
 	i_out.stop_mark <= r.hit_smark;
@@ -872,7 +875,7 @@ begin
 
     icache_log: if LOG_LENGTH > 0 generate
         -- Output data to logger
-        signal log_data    : std_ulogic_vector(53 downto 0);
+        signal log_data    : std_ulogic_vector(57 downto 0);
     begin
         data_log: process(clk)
             variable lway: way_t;
@@ -885,7 +888,7 @@ begin
                     wstate := '1';
                 end if;
                 log_data <= i_out.valid &
-                            i_out.insn &
+                            log_insn &
                             wishbone_in.ack &
                             r.wb.adr(2 downto 0) &
                             r.wb.stb & r.wb.cyc &

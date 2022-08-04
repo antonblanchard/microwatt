@@ -267,7 +267,7 @@ begin
             wishbone_in => wishbone_insn_in,
             wb_snoop_in => wb_snoop_in,
             events => icache_events,
-            log_out => log_data(96 downto 43)
+            log_out => log_data(100 downto 43)
             );
 
     icache_stall_in <= decode1_busy;
@@ -288,7 +288,7 @@ begin
             d_out => decode1_to_decode2,
             f_out => decode1_to_fetch1,
             r_out => decode1_to_register_file,
-            log_out => log_data(109 downto 97)
+            log_out => log_data(113 downto 101)
             );
 
     decode1_stall_in <= decode2_stall_out;
@@ -320,7 +320,7 @@ begin
             writeback_bypass => writeback_bypass,
             dbg_spr_req => dbg_spr_req,
             dbg_spr_addr => dbg_spr_addr,
-            log_out => log_data(119 downto 110)
+            log_out => log_data(123 downto 114)
             );
     decode2_busy_in <= ex1_busy_out;
 
@@ -399,7 +399,7 @@ begin
             dbg_spr_data => dbg_spr_data,
             sim_dump => sim_ex_dump,
             sim_dump_done => sim_cr_dump,
-            log_out => log_data(134 downto 120),
+            log_out => log_data(135 downto 124),
             log_rd_addr => log_rd_addr,
             log_rd_data => log_rd_data,
             log_wr_addr => log_wr_addr
@@ -501,7 +501,7 @@ begin
             );
 
     log_data(150) <= '0';
-    log_data(139 downto 135) <= "00000";
+    log_data(139 downto 136) <= "0000";
 
     debug_0: entity work.core_debug
         generic map (
