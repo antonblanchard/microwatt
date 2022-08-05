@@ -389,7 +389,7 @@ architecture behaviour of fpu is
         return std_ulogic_vector is
         variable s1 : std_ulogic_vector(94 downto 0);
         variable s2 : std_ulogic_vector(70 downto 0);
-        variable result : std_ulogic_vector(63 downto 0);
+        variable shift_result : std_ulogic_vector(63 downto 0);
     begin
         case shift(6 downto 5) is
             when "00" =>
@@ -413,23 +413,23 @@ architecture behaviour of fpu is
         end case;
         case shift(2 downto 0) is
             when "000" =>
-                result := s2(70 downto 7);
+                shift_result := s2(70 downto 7);
             when "001" =>
-                result := s2(69 downto 6);
+                shift_result := s2(69 downto 6);
             when "010" =>
-                result := s2(68 downto 5);
+                shift_result := s2(68 downto 5);
             when "011" =>
-                result := s2(67 downto 4);
+                shift_result := s2(67 downto 4);
             when "100" =>
-                result := s2(66 downto 3);
+                shift_result := s2(66 downto 3);
             when "101" =>
-                result := s2(65 downto 2);
+                shift_result := s2(65 downto 2);
             when "110" =>
-                result := s2(64 downto 1);
+                shift_result := s2(64 downto 1);
             when others =>
-                result := s2(63 downto 0);
+                shift_result := s2(63 downto 0);
         end case;
-        return result;
+        return shift_result;
     end;
 
     -- Generate a mask with 0-bits on the left and 1-bits on the right which
@@ -437,105 +437,105 @@ architecture behaviour of fpu is
     -- parameter is the bottom 6 bits of a negative shift count,
     -- indicating a right shift.
     function right_mask(shift: unsigned(5 downto 0)) return std_ulogic_vector is
-        variable result: std_ulogic_vector(63 downto 0);
+        variable mask_result: std_ulogic_vector(63 downto 0);
     begin
-        result := (others => '0');
+        mask_result := (others => '0');
 	if is_X(shift) then
-	    result := (others => 'X');
-	    return result;
+	    mask_result := (others => 'X');
+	    return mask_result;
 	end if;
         for i in 0 to 63 loop
             if i >= shift then
-                result(63 - i) := '1';
+                mask_result(63 - i) := '1';
             end if;
         end loop;
-        return result;
+        return mask_result;
     end;
 
     -- Split a DP floating-point number into components and work out its class.
     -- If is_int = 1, the input is considered an integer
     function decode_dp(fpr: std_ulogic_vector(63 downto 0); is_int: std_ulogic;
                        is_32bint: std_ulogic; is_signed: std_ulogic) return fpu_reg_type is
-        variable r       : fpu_reg_type;
+        variable reg     : fpu_reg_type;
         variable exp_nz  : std_ulogic;
         variable exp_ao  : std_ulogic;
         variable frac_nz : std_ulogic;
         variable low_nz  : std_ulogic;
         variable cls     : std_ulogic_vector(2 downto 0);
     begin
-        r.negative := fpr(63);
+        reg.negative := fpr(63);
         exp_nz := or (fpr(62 downto 52));
         exp_ao := and (fpr(62 downto 52));
         frac_nz := or (fpr(51 downto 0));
         low_nz := or (fpr(31 downto 0));
         if is_int = '0' then
-            r.exponent := signed(resize(unsigned(fpr(62 downto 52)), EXP_BITS)) - to_signed(1023, EXP_BITS);
+            reg.exponent := signed(resize(unsigned(fpr(62 downto 52)), EXP_BITS)) - to_signed(1023, EXP_BITS);
             if exp_nz = '0' then
-                r.exponent := to_signed(-1022, EXP_BITS);
+                reg.exponent := to_signed(-1022, EXP_BITS);
             end if;
-            r.mantissa := std_ulogic_vector(shift_left(resize(unsigned(exp_nz & fpr(51 downto 0)), 64),
-                                                       UNIT_BIT - 52));
+            reg.mantissa := std_ulogic_vector(shift_left(resize(unsigned(exp_nz & fpr(51 downto 0)), 64),
+                                                         UNIT_BIT - 52));
             cls := exp_ao & exp_nz & frac_nz;
             case cls is
-                when "000"  => r.class := ZERO;
-                when "001"  => r.class := FINITE;    -- denormalized
-                when "010"  => r.class := FINITE;
-                when "011"  => r.class := FINITE;
-                when "110"  => r.class := INFINITY;
-                when others => r.class := NAN;
+                when "000"  => reg.class := ZERO;
+                when "001"  => reg.class := FINITE;    -- denormalized
+                when "010"  => reg.class := FINITE;
+                when "011"  => reg.class := FINITE;
+                when "110"  => reg.class := INFINITY;
+                when others => reg.class := NAN;
             end case;
         elsif is_32bint = '1' then
-            r.negative := fpr(31);
-            r.mantissa(31 downto 0) := fpr(31 downto 0);
-            r.mantissa(63 downto 32) := (others => (is_signed and fpr(31)));
-            r.exponent := (others => '0');
+            reg.negative := fpr(31);
+            reg.mantissa(31 downto 0) := fpr(31 downto 0);
+            reg.mantissa(63 downto 32) := (others => (is_signed and fpr(31)));
+            reg.exponent := (others => '0');
             if low_nz = '1' then
-                r.class := FINITE;
+                reg.class := FINITE;
             else
-                r.class := ZERO;
+                reg.class := ZERO;
             end if;
         else
-            r.mantissa := fpr;
-            r.exponent := (others => '0');
+            reg.mantissa := fpr;
+            reg.exponent := (others => '0');
             if (fpr(63) or exp_nz or frac_nz) = '1' then
-                r.class := FINITE;
+                reg.class := FINITE;
             else
-                r.class := ZERO;
+                reg.class := ZERO;
             end if;
         end if;
-        return r;
+        return reg;
     end;
 
     -- Construct a DP floating-point result from components
     function pack_dp(sign: std_ulogic; class: fp_number_class; exp: signed(EXP_BITS-1 downto 0);
                      mantissa: std_ulogic_vector; single_prec: std_ulogic; quieten_nan: std_ulogic)
         return std_ulogic_vector is
-        variable result : std_ulogic_vector(63 downto 0);
+        variable dp_result : std_ulogic_vector(63 downto 0);
     begin
-        result := (others => '0');
-        result(63) := sign;
+        dp_result := (others => '0');
+        dp_result(63) := sign;
         case class is
             when ZERO =>
             when FINITE =>
                 if mantissa(UNIT_BIT) = '1' then
                     -- normalized number
-                    result(62 downto 52) := std_ulogic_vector(resize(exp, 11) + 1023);
+                    dp_result(62 downto 52) := std_ulogic_vector(resize(exp, 11) + 1023);
                 end if;
-                result(51 downto 29) := mantissa(UNIT_BIT - 1 downto SP_LSB);
+                dp_result(51 downto 29) := mantissa(UNIT_BIT - 1 downto SP_LSB);
                 if single_prec = '0' then
-                    result(28 downto 0) := mantissa(SP_LSB - 1 downto DP_LSB);
+                    dp_result(28 downto 0) := mantissa(SP_LSB - 1 downto DP_LSB);
                 end if;
             when INFINITY =>
-                result(62 downto 52) := "11111111111";
+                dp_result(62 downto 52) := "11111111111";
             when NAN =>
-                result(62 downto 52) := "11111111111";
-                result(51) := quieten_nan or mantissa(QNAN_BIT);
-                result(50 downto 29) := mantissa(QNAN_BIT - 1 downto SP_LSB);
+                dp_result(62 downto 52) := "11111111111";
+                dp_result(51) := quieten_nan or mantissa(QNAN_BIT);
+                dp_result(50 downto 29) := mantissa(QNAN_BIT - 1 downto SP_LSB);
                 if single_prec = '0' then
-                    result(28 downto 0) := mantissa(SP_LSB - 1 downto DP_LSB);
+                    dp_result(28 downto 0) := mantissa(SP_LSB - 1 downto DP_LSB);
                 end if;
         end case;
-        return result;
+        return dp_result;
     end;
 
     -- Determine whether to increment when rounding
