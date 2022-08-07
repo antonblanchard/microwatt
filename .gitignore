@@ -14,6 +14,7 @@ tests/*/*.elf
 TAGS
 litedram/build/*
 liteeth/build/*
+litesdcard/build/*
 obj_dir/*
 /scripts/mw_debug/urjtag
 /scripts/mw_debug/mw_debug
