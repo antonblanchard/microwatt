@@ -205,6 +205,19 @@ int trace_test_8(void)
 	return 0;
 }
 
+extern unsigned long test9(unsigned long, unsigned long);
+
+int trace_test_9(void)
+{
+	unsigned long ret;
+	unsigned long regs[2];
+
+	ret = callit(0, 0, test9, mfmsr() | MSR_SE, regs);
+	if (ret != 0xc00)
+		return ret + 1;
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -235,6 +248,7 @@ int main(void)
 	do_test(6, trace_test_6);
 	do_test(7, trace_test_7);
 	do_test(8, trace_test_8);
+	do_test(9, trace_test_9);
 
 	return fail;
 }
