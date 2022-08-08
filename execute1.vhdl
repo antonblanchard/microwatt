@@ -695,7 +695,22 @@ begin
         overflow_32 <= calc_ov(a_inv(31), b_in(31), carry_32, sum_with_carry(31));
         overflow_64 <= calc_ov(a_inv(63), b_in(63), carry_64, sum_with_carry(63));
 
-        -- signals to multiply and divide units
+        -- signals to multiplier
+        addend := (others => '0');
+        if e_in.reg_valid3 = '1' then
+            -- integer multiply-add, major op 4 (if it is a multiply)
+            addend(63 downto 0) := c_in;
+            if e_in.is_signed = '1' then
+                addend(127 downto 64) := (others => c_in(63));
+            end if;
+        end if;
+        x_to_multiply.data1 <= std_ulogic_vector(a_in);
+        x_to_multiply.data2 <= std_ulogic_vector(b_in);
+        x_to_multiply.is_signed <= e_in.is_signed;
+        x_to_multiply.subtract <= '0';
+        x_to_multiply.addend <= addend;
+
+        -- Interface to divide unit
         sign1 := '0';
         sign2 := '0';
         if e_in.is_signed = '1' then
@@ -719,7 +734,6 @@ begin
             abs2 := - signed(b_in);
         end if;
 
-        -- Interface to multiply and divide units
         x_to_divider.is_signed <= e_in.is_signed;
 	x_to_divider.is_32bit <= e_in.is_32bit;
         x_to_divider.is_extended <= '0';
@@ -728,24 +742,6 @@ begin
             x_to_divider.is_modulus <= '1';
         end if;
         x_to_divider.flush <= flush_in;
-
-        addend := (others => '0');
-        if e_in.reg_valid3 = '1' then
-            -- integer multiply-add, major op 4 (if it is a multiply)
-            addend(63 downto 0) := c_in;
-            if e_in.is_signed = '1' then
-                addend(127 downto 64) := (others => c_in(63));
-            end if;
-        end if;
-        if (sign1 xor sign2) = '1' then
-            addend := not addend;
-        end if;
-
-        x_to_multiply.data1 <= std_ulogic_vector(abs1);
-        x_to_multiply.data2 <= std_ulogic_vector(abs2);
-	x_to_multiply.is_32bit <= e_in.is_32bit;
-        x_to_multiply.not_result <= sign1 xor sign2;
-        x_to_multiply.addend <= addend;
         x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
         if e_in.is_32bit = '0' then
             -- 64-bit forms
@@ -766,11 +762,11 @@ begin
         end if;
 
         -- signals to 32-bit multiplier
-        x_to_mult_32s.data1 <= 31x"0" & (a_in(31) and e_in.is_signed) & a_in(31 downto 0);
-        x_to_mult_32s.data2 <= 31x"0" & (b_in(31) and e_in.is_signed) & b_in(31 downto 0);
+        x_to_mult_32s.data1 <= 32x"0" & a_in(31 downto 0);
+        x_to_mult_32s.data2 <= 32x"0" & b_in(31 downto 0);
+        x_to_mult_32s.is_signed <= e_in.is_signed;
         -- The following are unused, but set here to avoid X states
-        x_to_mult_32s.is_32bit <= '1';
-        x_to_mult_32s.not_result <= '0';
+        x_to_mult_32s.subtract <= '0';
         x_to_mult_32s.addend <= (others => '0');
 
         shortmul_result <= std_ulogic_vector(resize(signed(mshort_p), 64));

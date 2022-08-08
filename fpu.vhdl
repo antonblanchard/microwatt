@@ -1071,7 +1071,7 @@ begin
         set_b_mant := '0';
         set_c := '0';
         set_s := '0';
-        f_to_multiply.is_32bit <= '0';
+        f_to_multiply.is_signed <= '0';
         f_to_multiply.valid <= '0';
         msel_1 <= MUL1_A;
         msel_2 <= MUL2_C;
@@ -3227,12 +3227,8 @@ begin
                 maddend(UNIT_BIT - 1 downto 0) := r.s;
             when others =>
         end case;
-        if msel_inv = '1' then
-            f_to_multiply.addend <= not maddend;
-        else
-            f_to_multiply.addend <= maddend;
-        end if;
-        f_to_multiply.not_result <= msel_inv;
+        f_to_multiply.addend <= maddend;
+        f_to_multiply.subtract <= msel_inv;
         if set_y = '1' then
             v.y := f_to_multiply.data2;
         end if;

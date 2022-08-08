@@ -33,9 +33,11 @@ architecture behaviour of multiply_32s is
     signal product_lo : std_ulogic_vector(22 downto 0);
 
 begin
-    -- sign extend
-    data1 <= std_ulogic_vector(resize(signed(m_in.data1(32 downto 0)), 53));
-    data2 <= std_ulogic_vector(resize(signed(m_in.data2(32 downto 0)), 35));
+    -- sign extend if signed
+    data1(31 downto 0)  <= m_in.data1(31 downto 0);
+    data1(52 downto 32) <= (others => m_in.is_signed and m_in.data1(31));
+    data2(31 downto 0)  <= m_in.data2(31 downto 0);
+    data2(34 downto 32) <= (others => m_in.is_signed and m_in.data2(31));
 
     clocken <= m_in.valid and not stall;
 

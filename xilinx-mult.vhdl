@@ -18,6 +18,8 @@ entity multiply is
 end entity multiply;
 
 architecture behaviour of multiply is
+    signal d1sign : std_ulogic_vector(13 downto 0);
+    signal d2sign : std_ulogic_vector(4 downto 0);
     signal m00_p, m01_p, m02_p, m03_p : std_ulogic_vector(47 downto 0);
     signal m00_pc, m02_pc : std_ulogic_vector(47 downto 0);
     signal m10_p, m11_p, m12_p, m13_p : std_ulogic_vector(47 downto 0);
@@ -39,7 +41,9 @@ architecture behaviour of multiply is
     signal overflow : std_ulogic;
 
 begin
-    addend <= m_in.addend;
+    addend <= m_in.addend when m_in.subtract = '0' else not m_in.addend;
+    d1sign <= (others => m_in.data1(63) and m_in.is_signed);
+    d2sign <= (others => m_in.data2(63) and m_in.is_signed);
 
     m00: DSP48E1
         generic map (
@@ -233,7 +237,7 @@ begin
             A => 6x"0" & m_in.data1(23 downto 0),
             ACIN => (others => '0'),
             ALUMODE => "0000",
-            B => "00000" & m_in.data2(63 downto 51),
+            B => d2sign & m_in.data2(63 downto 51),
             BCIN => (others => '0'),
             C => (others => '0'),
             CARRYCASCIN => '0',
@@ -463,7 +467,7 @@ begin
             A => 6x"0" & m_in.data1(47 downto 24),
             ACIN => (others => '0'),
             ALUMODE => "0000",
-            B => "00000" & m_in.data2(63 downto 51),
+            B => d2sign & m_in.data2(63 downto 51),
             BCIN => (others => '0'),
             C => (others => '0'),
             CARRYCASCIN => '0',
@@ -517,7 +521,7 @@ begin
             PREG => 1
             )
         port map (
-            A => 14x"0" & m_in.data1(63 downto 48),
+            A => d1sign & m_in.data1(63 downto 48),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(16 downto 0),
@@ -575,7 +579,7 @@ begin
             PREG => 0
             )
         port map (
-            A => 14x"0" & m_in.data1(63 downto 48),
+            A => d1sign & m_in.data1(63 downto 48),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(33 downto 17),
@@ -632,7 +636,7 @@ begin
             PREG => 1
             )
         port map (
-            A => 14x"0" & m_in.data1(63 downto 48),
+            A => d1sign & m_in.data1(63 downto 48),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(50 downto 34),
@@ -690,10 +694,10 @@ begin
             PREG => 0
             )
         port map (
-            A => 14x"0" & m_in.data1(63 downto 48),
+            A => d1sign & m_in.data1(63 downto 48),
             ACIN => (others => '0'),
             ALUMODE => "0000",
-            B => "00000" & m_in.data2(63 downto 51),
+            B => d2sign & m_in.data2(63 downto 51),
             BCIN => (others => '0'),
             C => (others => '0'),
             CARRYCASCIN => '0',
@@ -996,7 +1000,7 @@ begin
             end if;
             m_out.valid <= valid_1;
             valid_1 <= m_in.valid;
-            rnot_1 <= m_in.not_result;
+            rnot_1 <= m_in.subtract;
             overflow <= not ((p1_pat and p0_pat) or (p1_patb and p0_patb));
         end if;
     end process;

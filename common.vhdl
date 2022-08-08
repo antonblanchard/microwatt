@@ -385,12 +385,11 @@ package common is
 	data1: std_ulogic_vector(63 downto 0);
 	data2: std_ulogic_vector(63 downto 0);
         addend: std_ulogic_vector(127 downto 0);
-	is_32bit: std_ulogic;
-        not_result: std_ulogic;
+        is_signed: std_ulogic;
+        subtract: std_ulogic;   -- 0 => addend + data1 * data2, 1 => addend - data1 * data2
     end record;
-    constant MultiplyInputInit : MultiplyInputType := (valid => '0',
-                                                       is_32bit => '0', not_result => '0',
-                                                       others => (others => '0'));
+    constant MultiplyInputInit : MultiplyInputType := (data1 => 64x"0", data2 => 64x"0",
+                                                       addend => 128x"0", others => '0');
 
     type MultiplyOutputType is record
 	valid: std_ulogic;

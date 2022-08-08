@@ -7,7 +7,7 @@ use work.common.all;
 
 entity multiply is
     generic (
-        PIPELINE_DEPTH : natural := 4
+        PIPELINE_DEPTH : natural := 3
         );
     port (
         clk   : in std_logic;
@@ -23,11 +23,8 @@ architecture behaviour of multiply is
     type multiply_pipeline_stage is record
         valid     : std_ulogic;
         data      : unsigned(127 downto 0);
-	is_32bit  : std_ulogic;
-        not_res   : std_ulogic;
     end record;
     constant MultiplyPipelineStageInit : multiply_pipeline_stage := (valid => '0',
-								     is_32bit => '0', not_res => '0',
 								     data => (others => '0'));
 
     type multiply_pipeline_type is array(0 to PIPELINE_DEPTH-1) of multiply_pipeline_stage;
@@ -52,31 +49,29 @@ begin
 
     multiply_1: process(all)
         variable v : reg_type;
+        variable a, b : std_ulogic_vector(64 downto 0);
+        variable prod : std_ulogic_vector(129 downto 0);
         variable d : std_ulogic_vector(127 downto 0);
         variable d2 : std_ulogic_vector(63 downto 0);
 	variable ov : std_ulogic;
     begin
         v := r;
+        a := (m.is_signed and m.data1(63)) & m.data1;
+        b := (m.is_signed and m.data2(63)) & m.data2;
+        prod := std_ulogic_vector(signed(a) * signed(b));
         v.multiply_pipeline(0).valid := m.valid;
-        v.multiply_pipeline(0).data := (unsigned(m.data1) * unsigned(m.data2)) + unsigned(m.addend);
-        v.multiply_pipeline(0).is_32bit := m.is_32bit;
-        v.multiply_pipeline(0).not_res := m.not_result;
+        if m.subtract = '1' then
+            v.multiply_pipeline(0).data := unsigned(m.addend) - unsigned(prod(127 downto 0));
+        else
+            v.multiply_pipeline(0).data := unsigned(m.addend) + unsigned(prod(127 downto 0));
+        end if;
 
         loop_0: for i in 1 to PIPELINE_DEPTH-1 loop
             v.multiply_pipeline(i) := r.multiply_pipeline(i-1);
         end loop;
 
         d := std_ulogic_vector(v.multiply_pipeline(PIPELINE_DEPTH-1).data);
-        if v.multiply_pipeline(PIPELINE_DEPTH-1).not_res = '1' then
-            d := not d;
-        end if;
-
-        ov := '0';
-        if v.multiply_pipeline(PIPELINE_DEPTH-1).is_32bit = '1' then
-            ov := (or d(63 downto 31)) and not (and d(63 downto 31));
-        else
-            ov := (or d(127 downto 63)) and not (and d(127 downto 63));
-        end if;
+        ov := (or d(127 downto 63)) and not (and d(127 downto 63));
         ovf_in <= ov;
 
         m_out.result <= d;

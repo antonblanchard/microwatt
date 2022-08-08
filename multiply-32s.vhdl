@@ -40,7 +40,8 @@ begin
 	variable ov : std_ulogic;
     begin
         v.valid := m_in.valid;
-        v.data := signed(m_in.data1(32 downto 0)) * signed(m_in.data2(32 downto 0));
+        v.data := signed((m_in.is_signed and m_in.data1(31)) & m_in.data1(31 downto 0)) *
+                  signed((m_in.is_signed and m_in.data2(31)) & m_in.data2(31 downto 0));
 
         d := std_ulogic_vector(r.data(63 downto 0));
 
