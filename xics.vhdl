@@ -80,14 +80,14 @@ begin
         variable v : reg_internal_t;
         variable xirr_accept_rd : std_ulogic;
 
-        function  bswap(v : in std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
-            variable r : std_ulogic_vector(31 downto 0);
+        function  bswap(vec : in std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
+            variable rout : std_ulogic_vector(31 downto 0);
         begin
-            r( 7 downto  0) := v(31 downto 24);
-            r(15 downto  8) := v(23 downto 16);
-            r(23 downto 16) := v(15 downto  8);
-            r(31 downto 24) := v( 7 downto  0);
-            return r;
+            rout( 7 downto  0) := vec(31 downto 24);
+            rout(15 downto  8) := vec(23 downto 16);
+            rout(23 downto 16) := vec(15 downto  8);
+            rout(31 downto 24) := vec( 7 downto  0);
+            return rout;
         end function;
 
         variable be_in  : std_ulogic_vector(31 downto 0);
