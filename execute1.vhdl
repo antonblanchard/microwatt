@@ -94,6 +94,7 @@ architecture behaviour of execute1 is
         complete : std_ulogic;
         exception : std_ulogic;
         trap : std_ulogic;
+        advance_nia : std_ulogic;
         new_msr : std_ulogic_vector(63 downto 0);
         take_branch : std_ulogic;
         direct_branch : std_ulogic;
@@ -1030,8 +1031,8 @@ begin
                 -- 0 would mean scv, so generate an illegal instruction interrupt
                 if e_in.insn(1) = '1' then
                     v.trap := '1';
+                    v.advance_nia := '1';
                     v.e.intr_vec := 16#C00#;
-                    v.e.last_nia := next_nia;
                     if e_in.valid = '1' then
                         report "sc";
                     end if;
@@ -1460,6 +1461,9 @@ begin
             v.div_in_progress := actions.start_div;
             v.br_mispredict := v.e.redirect and actions.direct_branch;
             exception := actions.trap;
+            if actions.advance_nia = '1' then
+                v.e.last_nia := next_nia;
+            end if;
 
             -- Go busy while division is happening because the
             -- divider is not pipelined.  Also go busy while a
