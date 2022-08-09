@@ -841,7 +841,7 @@ begin
     --
     -- Always 16550 if it exists
     --
-    uart1: if HAS_UART1 generate
+    uart1_16550: if HAS_UART1 generate
         signal irq_l : std_ulogic;
     begin
 	uart1: uart_top
