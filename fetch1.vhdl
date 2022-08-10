@@ -53,7 +53,7 @@ architecture behaviour of fetch1 is
     constant BTC_TAG_BITS : integer := 62 - BTC_ADDR_BITS;
     constant BTC_TARGET_BITS : integer := 62;
     constant BTC_SIZE : integer := 2 ** BTC_ADDR_BITS;
-    constant BTC_WIDTH : integer := BTC_TAG_BITS + BTC_TARGET_BITS + 1;
+    constant BTC_WIDTH : integer := BTC_TAG_BITS + BTC_TARGET_BITS + 2;
     type btc_mem_type is array (0 to BTC_SIZE - 1) of std_ulogic_vector(BTC_WIDTH - 1 downto 0);
 
     signal btc_rd_data : std_ulogic_vector(BTC_WIDTH - 1 downto 0) := (others => '0');
@@ -111,6 +111,7 @@ begin
         signal btc_wr_addr : std_ulogic_vector(BTC_ADDR_BITS - 1 downto 0);
     begin
         btc_wr_data <= w_in.br_taken &
+                       r.virt_mode &
                        w_in.br_nia(63 downto BTC_ADDR_BITS + 2) &
                        w_in.redirect_nia(63 downto 2);
         btc_wr_addr <= w_in.br_nia(BTC_ADDR_BITS + 1 downto 2);
@@ -193,7 +194,8 @@ begin
                 v.nia(63 downto 32) := x"00000000";
             end if;
             if btc_rd_valid = '1' and r_int.rd_is_niap4 = '1' and
-                btc_rd_data(BTC_WIDTH - 2 downto BTC_TARGET_BITS)
+                btc_rd_data(BTC_WIDTH - 2) = r.virt_mode and
+                btc_rd_data(BTC_WIDTH - 3 downto BTC_TARGET_BITS)
                 = v.nia(BTC_TAG_BITS + BTC_ADDR_BITS + 1 downto BTC_ADDR_BITS + 2) then
                 v_int.predicted_taken := btc_rd_data(BTC_WIDTH - 1);
                 v_int.pred_not_taken := not btc_rd_data(BTC_WIDTH - 1);
