@@ -58,10 +58,6 @@ architecture behaviour of decode2 is
         busy : std_ulogic;
         sgl_pipe : std_ulogic;
         prev_sgl : std_ulogic;
-        reg_a_valid : std_ulogic;
-        reg_b_valid : std_ulogic;
-        reg_c_valid : std_ulogic;
-        reg_o_valid : std_ulogic;
         input_ov  : std_ulogic;
         output_ov : std_ulogic;
         read_rspr : std_ulogic;
@@ -192,7 +188,7 @@ architecture behaviour of decode2 is
     function decode_rc (t : rc_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic is
     begin
         case t is
-            when RC =>
+            when RC | RCOE =>
                 return insn_rc(insn_in);
             when ONE =>
                 return '1';
@@ -393,6 +389,7 @@ begin
         variable v : reg_type;
         variable length : std_ulogic_vector(3 downto 0);
         variable op : insn_type_t;
+        variable unit : unit_t;
         variable valid_in : std_ulogic;
         variable decctr : std_ulogic;
         variable sprs_busy : std_ulogic;
@@ -405,6 +402,7 @@ begin
             v.e := Decode2ToExecute1Init;
 
             sprs_busy := '0';
+            unit := d_in.decode.unit;
 
             if d_in.valid = '1' then
                 v.prev_sgl := dc2.sgl_pipe;
@@ -429,31 +427,39 @@ begin
             end if;
             case d_in.decode.insn_type is
                 when OP_ADD | OP_MUL_L64 | OP_DIV | OP_DIVE =>
-                    -- OE field is valid in OP_ADD/OP_MUL_L64 with major opcode 31 only
-                    if d_in.insn(31 downto 26) = "011111" and insn_oe(d_in.insn) = '1' then
+                    if d_in.decode.rc = RCOE and insn_oe(d_in.insn) = '1' then
                         v.e.oe := '1';
                         v.e.output_xer := '1';
                         v.output_ov := '1';
                         v.input_ov := '1';      -- need SO state if setting OV to 0
                     end if;
                 when OP_MFSPR =>
-                    if decode_spr_num(d_in.insn) = SPR_XER then
-                        v.input_ov := '1';
-                    end if;
+                    case decode_spr_num(d_in.insn) is
+                        when SPR_XER =>
+                            v.input_ov := '1';
+                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                            unit := LDST;
+                        when others =>
+                    end case;
                 when OP_MTSPR =>
-                    if decode_spr_num(d_in.insn) = SPR_XER then
-                        v.e.output_xer := '1';
-                        v.output_ov := '1';
+                    case decode_spr_num(d_in.insn) is
+                        when SPR_XER =>
+                            v.e.output_xer := '1';
+                            v.output_ov := '1';
+                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                            unit := LDST;
+                            if d_in.valid = '1' then
+                                v.sgl_pipe := '1';
+                            end if;
+                        when others =>
+                    end case;
+                    if d_in.spr_info.valid = '1' and d_in.valid = '1' then
+                        v.sgl_pipe := '1';
                     end if;
                 when OP_CMP | OP_MCRXRX =>
                     v.input_ov := '1';
                 when others =>
             end case;
-
-            v.reg_a_valid := decoded_reg_a.reg_valid;
-            v.reg_b_valid := decoded_reg_b.reg_valid;
-            v.reg_c_valid := decoded_reg_c.reg_valid;
-            v.reg_o_valid := decoded_reg_o.reg_valid;
 
             if d_in.decode.lr = '1' then
                 v.e.lr := insn_lk(d_in.insn);
@@ -537,11 +543,14 @@ begin
 
             -- execute unit
             v.e.nia := d_in.nia;
-            v.e.unit := d_in.decode.unit;
+            v.e.unit := unit;
             v.e.fac := d_in.decode.facility;
             v.e.read_reg1 := d_in.reg_a;
             v.e.read_reg2 := d_in.reg_b;
             v.e.read_reg3 := d_in.reg_c;
+            v.e.reg_valid1 := decoded_reg_a.reg_valid;
+            v.e.reg_valid2 := decoded_reg_b.reg_valid;
+            v.e.reg_valid3 := decoded_reg_c.reg_valid;
             v.e.write_reg := decoded_reg_o.reg;
             v.e.write_reg_enable := decoded_reg_o.reg_valid;
             v.e.invert_a := d_in.decode.invert_a;
@@ -583,16 +592,16 @@ begin
         control_valid_in <= valid_in;
         control_serialize <= v.sgl_pipe or v.prev_sgl;
 
-        gpr_write_valid <= v.reg_o_valid;
+        gpr_write_valid <= v.e.write_reg_enable;
         gpr_write <= v.e.write_reg;
 
-        gpr_a_read_valid <= v.reg_a_valid;
+        gpr_a_read_valid <= v.e.reg_valid1;
         gpr_a_read <= v.e.read_reg1;
 
-        gpr_b_read_valid <= v.reg_b_valid;
+        gpr_b_read_valid <= v.e.reg_valid2;
         gpr_b_read <= v.e.read_reg2;
 
-        gpr_c_read_valid <= v.reg_c_valid;
+        gpr_c_read_valid <= v.e.reg_valid3;
         gpr_c_read <= v.e.read_reg3;
 
         cr_write_valid <= v.e.output_cr or v.e.rc;

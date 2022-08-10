@@ -175,7 +175,8 @@ begin
                 gspr_index <= (others => '0');
             else
                 if do_log_trigger = '1' or log_trigger_delay /= 0 then
-                    if log_trigger_delay = 255 then
+                    if log_trigger_delay = 255 or
+                        (LOG_LENGTH < 1024 and log_trigger_delay = LOG_LENGTH / 4) then
                         log_dmi_trigger(1) <= '1';
                         log_trigger_delay <= 0;
                     else

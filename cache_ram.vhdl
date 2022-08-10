@@ -7,6 +7,7 @@ entity cache_ram is
     generic(
         ROW_BITS : integer := 16;
         WIDTH    : integer := 64;
+        BYTEWID  : integer := 8;
         TRACE    : boolean := false;
         ADD_BUF  : boolean := false
         );
@@ -16,7 +17,7 @@ entity cache_ram is
         rd_en   : in  std_logic;
         rd_addr : in  std_logic_vector(ROW_BITS - 1 downto 0);
         rd_data : out std_logic_vector(WIDTH - 1 downto 0);
-        wr_sel  : in  std_logic_vector(WIDTH/8 - 1 downto 0);
+        wr_sel  : in  std_logic_vector(WIDTH/BYTEWID - 1 downto 0);
         wr_addr : in  std_logic_vector(ROW_BITS - 1 downto 0);
         wr_data : in  std_logic_vector(WIDTH - 1 downto 0)
         );
@@ -38,7 +39,7 @@ begin
         variable lbit : integer range 0 to WIDTH - 1;
         variable mbit : integer range 0 to WIDTH - 1;
         variable widx : integer range 0 to SIZE - 1;
-        constant sel0 : std_logic_vector(WIDTH/8 - 1 downto 0)
+        constant sel0 : std_logic_vector(WIDTH/BYTEWID - 1 downto 0)
             := (others => '0');
     begin
         if rising_edge(clk) then
@@ -49,9 +50,9 @@ begin
                         " dat:" & to_hstring(wr_data);
                 end if;
             end if;
-            for i in 0 to WIDTH/8-1 loop
-                lbit := i * 8;
-                mbit := lbit + 7;
+            for i in 0 to WIDTH/BYTEWID-1 loop
+                lbit := i * BYTEWID;
+                mbit := lbit + BYTEWID - 1;
                 widx := to_integer(unsigned(wr_addr));
                 if wr_sel(i) = '1' then
                     ram(widx)(mbit downto lbit) <= wr_data(mbit downto lbit);

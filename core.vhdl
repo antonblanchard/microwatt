@@ -13,7 +13,6 @@ entity core is
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
         HAS_BTC : boolean := true;
-        HAS_SHORT_MULT : boolean := false;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512;
         ICACHE_NUM_LINES : natural := 64;
@@ -246,6 +245,7 @@ begin
     icache_0: entity work.icache
         generic map(
             SIM => SIM,
+            HAS_FPU => HAS_FPU,
             LINE_SIZE => 64,
             NUM_LINES => ICACHE_NUM_LINES,
             NUM_WAYS => ICACHE_NUM_WAYS,
@@ -266,7 +266,7 @@ begin
             wishbone_in => wishbone_insn_in,
             wb_snoop_in => wb_snoop_in,
             events => icache_events,
-            log_out => log_data(96 downto 43)
+            log_out => log_data(100 downto 43)
             );
 
     icache_stall_in <= decode1_busy;
@@ -287,7 +287,7 @@ begin
             d_out => decode1_to_decode2,
             f_out => decode1_to_fetch1,
             r_out => decode1_to_register_file,
-            log_out => log_data(109 downto 97)
+            log_out => log_data(113 downto 101)
             );
 
     decode1_stall_in <= decode2_stall_out;
@@ -319,7 +319,7 @@ begin
             writeback_bypass => writeback_bypass,
             dbg_spr_req => dbg_spr_req,
             dbg_spr_addr => dbg_spr_addr,
-            log_out => log_data(119 downto 110)
+            log_out => log_data(123 downto 114)
             );
     decode2_busy_in <= ex1_busy_out;
 
@@ -365,7 +365,6 @@ begin
             SIM => SIM,
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
-            HAS_SHORT_MULT => HAS_SHORT_MULT,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -398,7 +397,7 @@ begin
             dbg_spr_data => dbg_spr_data,
             sim_dump => sim_ex_dump,
             sim_dump_done => sim_cr_dump,
-            log_out => log_data(134 downto 120),
+            log_out => log_data(135 downto 124),
             log_rd_addr => log_rd_addr,
             log_rd_data => log_rd_data,
             log_wr_addr => log_wr_addr
@@ -500,7 +499,7 @@ begin
             );
 
     log_data(150) <= '0';
-    log_data(139 downto 135) <= "00000";
+    log_data(139 downto 136) <= "0000";
 
     debug_0: entity work.core_debug
         generic map (

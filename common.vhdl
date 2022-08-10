@@ -246,10 +246,13 @@ package common is
         fetch_failed: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
+        icode: insn_code;
         big_endian: std_ulogic;
         next_predicted: std_ulogic;
         next_pred_ntaken: std_ulogic;
     end record;
+    constant IcacheToDecode1Init : IcacheToDecode1Type :=
+        (nia => (others => '0'), insn => (others => '0'), icode => INSN_illegal, others => '0');
 
     type IcacheEventType is record
         icache_miss : std_ulogic;
@@ -317,6 +320,9 @@ package common is
 	read_data1: std_ulogic_vector(63 downto 0);
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
+        reg_valid1: std_ulogic;
+        reg_valid2: std_ulogic;
+        reg_valid3: std_ulogic;
 	cr: std_ulogic_vector(31 downto 0);
 	xerc: xer_common_t;
 	lr: std_ulogic;
@@ -363,6 +369,7 @@ package common is
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
+         reg_valid1 => '0', reg_valid2 => '0', reg_valid3 => '0',
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
          result_sel => "000", sub_select => "000",
          repeat => '0', second => '0', spr_select => spr_id_init,
@@ -378,12 +385,11 @@ package common is
 	data1: std_ulogic_vector(63 downto 0);
 	data2: std_ulogic_vector(63 downto 0);
         addend: std_ulogic_vector(127 downto 0);
-	is_32bit: std_ulogic;
-        not_result: std_ulogic;
+        is_signed: std_ulogic;
+        subtract: std_ulogic;   -- 0 => addend + data1 * data2, 1 => addend - data1 * data2
     end record;
-    constant MultiplyInputInit : MultiplyInputType := (valid => '0',
-                                                       is_32bit => '0', not_result => '0',
-                                                       others => (others => '0'));
+    constant MultiplyInputInit : MultiplyInputType := (data1 => 64x"0", data2 => 64x"0",
+                                                       addend => 128x"0", others => '0');
 
     type MultiplyOutputType is record
 	valid: std_ulogic;
@@ -476,7 +482,6 @@ package common is
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
         op : insn_type_t;                               -- what ld/st or m[tf]spr or TLB op to do
-        nia : std_ulogic_vector(63 downto 0);
         insn : std_ulogic_vector(31 downto 0);
         instr_tag : instr_tag_t;
 	addr1 : std_ulogic_vector(63 downto 0);
@@ -504,7 +509,7 @@ package common is
         (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
          sign_extend => '0', update => '0', xerc => xerc_init,
          reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
-         nia => (others => '0'), insn => (others => '0'),
+         insn => (others => '0'),
          instr_tag => instr_tag_init,
          addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'),
          write_reg => (others => '0'),
@@ -525,8 +530,6 @@ package common is
         dcbz : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
-        atomic : std_ulogic;                            -- part of a multi-transfer atomic op
-        atomic_last : std_ulogic;
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);
@@ -674,6 +677,9 @@ package common is
         fra       : std_ulogic_vector(63 downto 0);
         frb       : std_ulogic_vector(63 downto 0);
         frc       : std_ulogic_vector(63 downto 0);
+        valid_a   : std_ulogic;
+        valid_b   : std_ulogic;
+        valid_c   : std_ulogic;
         frt       : gspr_index_t;
         rc        : std_ulogic;
         m32b      : std_ulogic;
@@ -687,6 +693,7 @@ package common is
                                                        insn => (others => '0'), fe_mode => "00", rc => '0',
                                                        fra => (others => '0'), frb => (others => '0'),
                                                        frc => (others => '0'), frt => (others => '0'),
+                                                       valid_a => '0', valid_b => '0', valid_c => '0',
                                                        single => '0', is_signed => '0', out_cr => '0',
                                                        m32b => '0', oe => '0', xerc => xerc_init,
                                                        stall => '0');

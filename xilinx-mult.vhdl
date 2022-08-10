@@ -18,26 +18,32 @@ entity multiply is
 end entity multiply;
 
 architecture behaviour of multiply is
+    signal d1sign : std_ulogic_vector(13 downto 0);
+    signal d2sign : std_ulogic_vector(4 downto 0);
     signal m00_p, m01_p, m02_p, m03_p : std_ulogic_vector(47 downto 0);
-    signal m00_pc : std_ulogic_vector(47 downto 0);
+    signal m00_pc, m02_pc : std_ulogic_vector(47 downto 0);
     signal m10_p, m11_p, m12_p, m13_p : std_ulogic_vector(47 downto 0);
-    signal m11_pc, m12_pc, m13_pc : std_ulogic_vector(47 downto 0);
+    signal m10_pc, m12_pc : std_ulogic_vector(47 downto 0);
     signal m20_p, m21_p, m22_p, m23_p : std_ulogic_vector(47 downto 0);
+    signal m20_pc, m22_pc : std_ulogic_vector(47 downto 0);
+    signal pp0, pp1 : std_ulogic_vector(127 downto 0);
+    signal pp23 : std_ulogic_vector(127 downto 0);
+    signal sumlo : std_ulogic_vector(8 downto 0);
     signal s0_pc, s1_pc : std_ulogic_vector(47 downto 0);
+    signal s0_carry, p0_carry : std_ulogic_vector(3 downto 0);
     signal product : std_ulogic_vector(127 downto 0);
     signal addend : std_ulogic_vector(127 downto 0);
-    signal s0_carry, p0_carry : std_ulogic_vector(3 downto 0);
-    signal p0_mask : std_ulogic_vector(47 downto 0);
     signal p0_pat, p0_patb : std_ulogic;
     signal p1_pat, p1_patb : std_ulogic;
 
-    signal req_32bit, r32_1 : std_ulogic;
     signal rnot_1 : std_ulogic;
     signal valid_1 : std_ulogic;
-    signal overflow, ovf_in : std_ulogic;
+    signal overflow : std_ulogic;
 
 begin
-    addend <= m_in.addend;
+    addend <= m_in.addend when m_in.subtract = '0' else not m_in.addend;
+    d1sign <= (others => m_in.data1(63) and m_in.is_signed);
+    d2sign <= (others => m_in.data2(63) and m_in.is_signed);
 
     m00: DSP48E1
         generic map (
@@ -55,12 +61,12 @@ begin
             PREG => 1
             )
         port map (
-            A => "0000000" & m_in.data1(22 downto 0),
+            A => 6x"0" & m_in.data1(23 downto 0),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(16 downto 0),
             BCIN => (others => '0'),
-            C => "00000000000000" & addend(33 downto 0),
+            C => 14x"0" & addend(33 downto 0),
             CARRYCASCIN => '0',
             CARRYIN => '0',
             CARRYINSEL => "000",
@@ -106,12 +112,14 @@ begin
             BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
+            CREG => 0,
             INMODEREG => 0,
+            MREG => 1,
             OPMODEREG => 0,
             PREG => 0
             )
         port map (
-            A => "0000000" & m_in.data1(22 downto 0),
+            A => 6x"0" & m_in.data1(23 downto 0),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(33 downto 17),
@@ -126,7 +134,7 @@ begin
             CEALUMODE => '0',
             CEB1 => '0',
             CEB2 => '0',
-            CEC => '1',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
@@ -168,12 +176,12 @@ begin
             PREG => 1
             )
         port map (
-            A => "0000000" & m_in.data1(22 downto 0),
+            A => 6x"0" & m_in.data1(23 downto 0),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(50 downto 34),
             BCIN => (others => '0'),
-            C => x"0000000" & "000" & addend(50 downto 34),
+            C => 24x"0" & addend(57 downto 34),
             CARRYCASCIN => '0',
             CARRYIN => '0',
             CARRYINSEL => "000",
@@ -197,6 +205,7 @@ begin
             OPMODE => "0110101",
             P => m02_p,
             PCIN => (others => '0'),
+            PCOUT => m02_pc,
             RSTA => '0',
             RSTALLCARRYIN => '0',
             RSTALUMODE => '0',
@@ -220,17 +229,17 @@ begin
             CARRYINSELREG => 0,
             CREG => 0,
             INMODEREG => 0,
-            MREG => 0,
+            MREG => 1,
             OPMODEREG => 0,
-            PREG => 1
+            PREG => 0
             )
         port map (
-            A => "0000000" & m_in.data1(22 downto 0),
+            A => 6x"0" & m_in.data1(23 downto 0),
             ACIN => (others => '0'),
             ALUMODE => "0000",
-            B => "00000" & m_in.data2(63 downto 51),
+            B => d2sign & m_in.data2(63 downto 51),
             BCIN => (others => '0'),
-            C => x"000000" & '0' & addend(73 downto 51),
+            C => (others => '0'),
             CARRYCASCIN => '0',
             CARRYIN => '0',
             CARRYINSEL => "000",
@@ -245,15 +254,15 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => '0',
-            CEP => m_in.valid,
+            CEM => m_in.valid,
+            CEP => '0',
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
             MULTSIGNIN => '0',
-            OPMODE => "0110101",
+            OPMODE => "1010101",
             P => m03_p,
-            PCIN => (others => '0'),
+            PCIN => m02_pc,
             RSTA => '0',
             RSTALLCARRYIN => '0',
             RSTALUMODE => '0',
@@ -277,16 +286,17 @@ begin
             CARRYINSELREG => 0,
             CREG => 0,
             INMODEREG => 0,
+            MREG => 0,
             OPMODEREG => 0,
-            PREG => 0
+            PREG => 1
             )
         port map (
-            A => "0000000000000" & m_in.data1(39 downto 23),
+            A => 6x"0" & m_in.data1(47 downto 24),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(16 downto 0),
             BCIN => (others => '0'),
-            C => x"000" & "00" & m01_p(39 downto 6),
+            C => (others => '0'),
             CARRYCASCIN => '0',
             CARRYIN => '0',
             CARRYINSEL => "000",
@@ -301,15 +311,16 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => m_in.valid,
-            CEP => '0',
+            CEM => '0',
+            CEP => m_in.valid,
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
             MULTSIGNIN => '0',
-            OPMODE => "0110101",
+            OPMODE => "0000101",
             P => m10_p,
             PCIN => (others => '0'),
+            PCOUT => m10_pc,
             RSTA => '0',
             RSTALLCARRYIN => '0',
             RSTALUMODE => '0',
@@ -333,16 +344,17 @@ begin
             CARRYINSELREG => 0,
             CREG => 0,
             INMODEREG => 0,
+            MREG => 1,
             OPMODEREG => 0,
             PREG => 0
             )
         port map (
-            A => "0000000000000" & m_in.data1(39 downto 23),
+            A => 6x"0" & m_in.data1(47 downto 24),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(33 downto 17),
             BCIN => (others => '0'),
-            C => x"000" & "00" & m02_p(39 downto 6),
+            C => (others => '0'),
             CARRYCASCIN => '0',
             CARRYIN => '0',
             CARRYINSEL => "000",
@@ -363,10 +375,9 @@ begin
             D => (others => '0'),
             INMODE => "00000",
             MULTSIGNIN => '0',
-            OPMODE => "0110101",
+            OPMODE => "1010101",
             P => m11_p,
-            PCIN => (others => '0'),
-            PCOUT => m11_pc,
+            PCIN => m10_pc,
             RSTA => '0',
             RSTALLCARRYIN => '0',
             RSTALUMODE => '0',
@@ -390,16 +401,17 @@ begin
             CARRYINSELREG => 0,
             CREG => 0,
             INMODEREG => 0,
+            MREG => 0,
             OPMODEREG => 0,
-            PREG => 0
+            PREG => 1
             )
         port map (
-            A => "0000000000000" & m_in.data1(39 downto 23),
+            A => 6x"0" & m_in.data1(47 downto 24),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(50 downto 34),
             BCIN => (others => '0'),
-            C => x"0000" & '0' & m03_p(36 downto 6),
+            C => 24x"0" & addend(81 downto 58),
             CARRYCASCIN => '0',
             CARRYIN => '0',
             CARRYINSEL => "000",
@@ -414,8 +426,8 @@ begin
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => m_in.valid,
-            CEP => '0',
+            CEM => '0',
+            CEP => m_in.valid,
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
@@ -445,17 +457,19 @@ begin
             BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
+            CREG => 0,
             INMODEREG => 0,
+            MREG => 1,
             OPMODEREG => 0,
             PREG => 0
             )
         port map (
-            A => "0000000000000" & m_in.data1(39 downto 23),
+            A => 6x"0" & m_in.data1(47 downto 24),
             ACIN => (others => '0'),
             ALUMODE => "0000",
-            B => "00000" & m_in.data2(63 downto 51),
+            B => d2sign & m_in.data2(63 downto 51),
             BCIN => (others => '0'),
-            C => x"0000000" & "000" & addend(90 downto 74),
+            C => (others => '0'),
             CARRYCASCIN => '0',
             CARRYIN => '0',
             CARRYINSEL => "000",
@@ -465,7 +479,7 @@ begin
             CEALUMODE => '0',
             CEB1 => '0',
             CEB2 => '0',
-            CEC => '1',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
@@ -476,10 +490,9 @@ begin
             D => (others => '0'),
             INMODE => "00000",
             MULTSIGNIN => '0',
-            OPMODE => "0110101",
+            OPMODE => "1010101",
             P => m13_p,
-            PCIN => (others => '0'),
-            PCOUT => m13_pc,
+            PCIN => m12_pc,
             RSTA => '0',
             RSTALLCARRYIN => '0',
             RSTALUMODE => '0',
@@ -501,12 +514,14 @@ begin
             BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
+            CREG => 0,
             INMODEREG => 0,
+            MREG => 0,
             OPMODEREG => 0,
-            PREG => 0
+            PREG => 1
             )
         port map (
-            A => "000000" & m_in.data1(63 downto 40),
+            A => d1sign & m_in.data1(63 downto 48),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(16 downto 0),
@@ -521,20 +536,21 @@ begin
             CEALUMODE => '0',
             CEB1 => '0',
             CEB2 => '0',
-            CEC => '1',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => m_in.valid,
-            CEP => '0',
+            CEM => '0',
+            CEP => m_in.valid,
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
             MULTSIGNIN => '0',
-            OPMODE => "0010101",
+            OPMODE => "0000101",
             P => m20_p,
-            PCIN => m11_pc,
+            PCIN => (others => '0'),
+            PCOUT => m20_pc,
             RSTA => '0',
             RSTALLCARRYIN => '0',
             RSTALUMODE => '0',
@@ -556,12 +572,14 @@ begin
             BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
+            CREG => 0,
             INMODEREG => 0,
+            MREG => 1,
             OPMODEREG => 0,
             PREG => 0
             )
         port map (
-            A => "000000" & m_in.data1(63 downto 40),
+            A => d1sign & m_in.data1(63 downto 48),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(33 downto 17),
@@ -576,7 +594,7 @@ begin
             CEALUMODE => '0',
             CEB1 => '0',
             CEB2 => '0',
-            CEC => '1',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
@@ -587,9 +605,9 @@ begin
             D => (others => '0'),
             INMODE => "00000",
             MULTSIGNIN => '0',
-            OPMODE => "0010101",
+            OPMODE => "1010101",
             P => m21_p,
-            PCIN => m12_pc,
+            PCIN => m20_pc,
             RSTA => '0',
             RSTALLCARRYIN => '0',
             RSTALUMODE => '0',
@@ -611,17 +629,19 @@ begin
             BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
+            CREG => 0,
             INMODEREG => 0,
+            MREG => 0,
             OPMODEREG => 0,
-            PREG => 0
+            PREG => 1
             )
         port map (
-            A => "000000" & m_in.data1(63 downto 40),
+            A => d1sign & m_in.data1(63 downto 48),
             ACIN => (others => '0'),
             ALUMODE => "0000",
             B => '0' & m_in.data2(50 downto 34),
             BCIN => (others => '0'),
-            C => (others => '0'),
+            C => "00" & addend(127 downto 82),
             CARRYCASCIN => '0',
             CARRYIN => '0',
             CARRYINSEL => "000",
@@ -631,20 +651,21 @@ begin
             CEALUMODE => '0',
             CEB1 => '0',
             CEB2 => '0',
-            CEC => '1',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
-            CEM => m_in.valid,
-            CEP => '0',
+            CEM => '0',
+            CEP => m_in.valid,
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
             MULTSIGNIN => '0',
-            OPMODE => "0010101",
+            OPMODE => "0110101",
             P => m22_p,
-            PCIN => m13_pc,
+            PCIN => (others => '0'),
+            PCOUT => m22_pc,
             RSTA => '0',
             RSTALLCARRYIN => '0',
             RSTALUMODE => '0',
@@ -666,17 +687,19 @@ begin
             BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
+            CREG => 0,
             INMODEREG => 0,
+            MREG => 1,
             OPMODEREG => 0,
             PREG => 0
             )
         port map (
-            A => "000000" & m_in.data1(63 downto 40),
+            A => d1sign & m_in.data1(63 downto 48),
             ACIN => (others => '0'),
             ALUMODE => "0000",
-            B => "00000" & m_in.data2(63 downto 51),
+            B => d2sign & m_in.data2(63 downto 51),
             BCIN => (others => '0'),
-            C => x"00" & "000" & addend(127 downto 91),
+            C => (others => '0'),
             CARRYCASCIN => '0',
             CARRYIN => '0',
             CARRYINSEL => "000",
@@ -686,7 +709,7 @@ begin
             CEALUMODE => '0',
             CEB1 => '0',
             CEB2 => '0',
-            CEC => '1',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
@@ -697,9 +720,9 @@ begin
             D => (others => '0'),
             INMODE => "00000",
             MULTSIGNIN => '0',
-            OPMODE => "0110101",
+            OPMODE => "1010101",
             P => m23_p,
-            PCIN => (others => '0'),
+            PCIN => m22_pc,
             RSTA => '0',
             RSTALLCARRYIN => '0',
             RSTALUMODE => '0',
@@ -711,6 +734,17 @@ begin
             RSTM => '0',
             RSTP => '0'
             );
+
+    pp0 <= std_ulogic_vector(resize(signed(m13_p(37 downto 0) & m12_p(16 downto 0) &
+                                           m01_p(40 downto 0) & m00_p(16 downto 0)), 128));
+    pp1 <= m23_p(28 downto 0) & m22_p(16 downto 0) & m11_p(40 downto 0) & m10_p(16 downto 0) & 24x"0";
+    -- pp2 <= std_ulogic_vector(resize(signed(m03_p(37 downto 0) & m02_p(16 downto 0) & 34x"0"), 128));
+    -- pp3 <= std_ulogic_vector(resize(signed(m21_p(34 downto 0) & m20_p(16 downto 0) & 48x"0"), 128));
+
+    pp23 <= std_ulogic_vector(resize(resize(signed(m03_p(37 downto 0) & m02_p(16 downto 0) & 34x"0"), 100) +
+                                     signed(m21_p(34 downto 0) & m20_p(16 downto 0) & 48x"0"), 128));
+
+    sumlo <= std_ulogic_vector(unsigned('0' & pp0(31 downto 24)) + unsigned('0' & pp1(31 downto 24)));
 
     s0: DSP48E1
         generic map (
@@ -725,16 +759,16 @@ begin
             INMODEREG => 0,
             MREG => 0,
             OPMODEREG => 0,
-            PREG => 1,
+            PREG => 0,
             USE_MULT => "none"
             )
         port map (
-            A => m22_p(5 downto 0) & x"0000" & m10_p(34 downto 27),
+            A => pp0(79 downto 50),
             ACIN => (others => '0'),
             ALUMODE => "0000",
-            B => m10_p(26 downto 9),
+            B => pp0(49 downto 32),
             BCIN => (others => '0'),
-            C => m20_p(39 downto 0) & m02_p(5 downto 0) & "00",
+            C => pp1(79 downto 32),
             CARRYCASCIN => '0',
             CARRYIN => '0',
             CARRYINSEL => "000",
@@ -751,7 +785,7 @@ begin
             CED => '0',
             CEINMODE => '0',
             CEM => '0',
-            CEP => valid_1,
+            CEP => '0',
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
@@ -773,43 +807,43 @@ begin
 
     s1: DSP48E1
         generic map (
-            ACASCREG => 1,
+            ACASCREG => 0,
             ALUMODEREG => 0,
-            AREG => 1,
-            BCASCREG => 1,
-            BREG => 1,
+            AREG => 0,
+            BCASCREG => 0,
+            BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
-            CREG => 1,
+            CREG => 0,
             INMODEREG => 0,
             MREG => 0,
             OPMODEREG => 0,
-            PREG => 0,
+            PREG => 1,
             USE_MULT => "none"
             )
         port map (
-            A => x"000" & m22_p(41 downto 24),
+            A => pp0(127 downto 98),
             ACIN => (others => '0'),
             ALUMODE => "0000",
-            B => m22_p(23 downto 6),
+            B => pp0(97 downto 80),
             BCIN => (others => '0'),
-            C => m23_p(36 downto 0) & x"00" & "0" & m20_p(41 downto 40),
+            C => pp1(127 downto 80),
             CARRYCASCIN => '0',
             CARRYIN => s0_carry(3),
             CARRYINSEL => "000",
             CEA1 => '0',
-            CEA2 => valid_1,
+            CEA2 => '0',
             CEAD => '0',
             CEALUMODE => '0',
             CEB1 => '0',
-            CEB2 => valid_1,
-            CEC => valid_1,
+            CEB2 => '0',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
             CEM => '0',
-            CEP => '0',
+            CEP => valid_1,
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
@@ -829,52 +863,48 @@ begin
             RSTP => '0'
             );
 
-    -- mask is 0 for 32-bit ops, 0x0000ffffffff for 64-bit
-    p0_mask(47 downto 31) <= (others => '0');
-    p0_mask(30 downto 0) <= (others => not r32_1);
-
     p0: DSP48E1
         generic map (
-            ACASCREG => 1,
-            ALUMODEREG => 1,
-            AREG => 1,
-            BCASCREG => 1,
-            BREG => 1,
+            ACASCREG => 0,
+            ALUMODEREG => 0,
+            AREG => 0,
+            BCASCREG => 0,
+            BREG => 0,
             CARRYINREG => 0,
             CARRYINSELREG => 0,
-            CREG => 1,
+            CREG => 0,
             INMODEREG => 0,
+            MASK => x"00007fffffff",
             MREG => 0,
             OPMODEREG => 0,
-            PREG => 0,
-            SEL_MASK => "C",
+            PREG => 1,
             USE_MULT => "none",
             USE_PATTERN_DETECT => "PATDET"
             )
         port map (
-            A => m21_p(22 downto 0) & m03_p(5 downto 0) & '0',
+            A => pp23(79 downto 50),
             ACIN => (others => '0'),
             ALUMODE => "00" & rnot_1 & '0',
-            B => (others => '0'),
+            B => pp23(49 downto 32),
             BCIN => (others => '0'),
-            C => p0_mask,
+            C => (others => '0'),
             CARRYCASCIN => '0',
-            CARRYIN => '0',
+            CARRYIN => sumlo(8),
             CARRYINSEL => "000",
             CARRYOUT => p0_carry,
             CEA1 => '0',
-            CEA2 => valid_1,
+            CEA2 => '0',
             CEAD => '0',
-            CEALUMODE => valid_1,
+            CEALUMODE => '0',
             CEB1 => '0',
-            CEB2 => valid_1,
-            CEC => valid_1,
+            CEB2 => '0',
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
             CEINMODE => '0',
             CEM => '0',
-            CEP => '0',
+            CEP => valid_1,
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
@@ -915,10 +945,10 @@ begin
             USE_PATTERN_DETECT => "PATDET"
             )
         port map (
-            A => x"0000000" & '0' & m21_p(41),
+            A => pp23(127 downto 98),
             ACIN => (others => '0'),
             ALUMODE => "00" & rnot_1 & '0',
-            B => m21_p(40 downto 23),
+            B => pp23(97 downto 80),
             BCIN => (others => '0'),
             C => (others => '0'),
             CARRYCASCIN => '0',
@@ -930,7 +960,7 @@ begin
             CEALUMODE => valid_1,
             CEB1 => '0',
             CEB2 => valid_1,
-            CEC => '0',
+            CEC => valid_1,
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
@@ -958,38 +988,25 @@ begin
             RSTP => '0'
             );
 
-    mult_out: process(all)
-        variable ov : std_ulogic;
-    begin
-        -- set overflow if the high bits are neither all zeroes nor all ones
-        if req_32bit = '0' then
-            ov := not ((p1_pat and p0_pat) or (p1_patb and p0_patb));
-        else
-            ov := not ((p1_pat and p0_pat and not product(31)) or
-                       (p1_patb and p0_patb and product(31)));
-        end if;
-        ovf_in <= ov;
-
-        m_out.result <= product;
-        m_out.overflow <= overflow;
-    end process;
-
     process(clk)
     begin
         if rising_edge(clk) then
-            if rnot_1 = '0' then
-                product(31 downto 0) <= m10_p(8 downto 0) & m01_p(5 downto 0) & m00_p(16 downto 0);
-            else
-                product(31 downto 0) <= not (m10_p(8 downto 0) & m01_p(5 downto 0) & m00_p(16 downto 0));
+            if valid_1 = '1' then
+                if rnot_1 = '0' then
+                    product(31 downto 0) <= sumlo(7 downto 0) & pp0(23 downto 0);
+                else
+                    product(31 downto 0) <= not (sumlo(7 downto 0) & pp0(23 downto 0));
+                end if;
             end if;
             m_out.valid <= valid_1;
             valid_1 <= m_in.valid;
-            req_32bit <= r32_1;
-            r32_1 <= m_in.is_32bit;
-            rnot_1 <= m_in.not_result;
-            overflow <= ovf_in;
+            rnot_1 <= m_in.subtract;
+            overflow <= not ((p1_pat and p0_pat) or (p1_patb and p0_patb));
         end if;
     end process;
+
+    m_out.result <= product;
+    m_out.overflow <= overflow;
 
 end architecture behaviour;
 

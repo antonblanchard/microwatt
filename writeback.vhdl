@@ -92,21 +92,20 @@ begin
         intr := e_in.interrupt or l_in.interrupt or fp_in.interrupt;
         interrupt_out.intr <= intr;
 
-        if intr = '1' then
-            srr1 := (others => '0');
-            if e_in.interrupt = '1' then
-                vec := e_in.intr_vec;
-                srr1 := e_in.srr1;
-            elsif l_in.interrupt = '1' then
-                vec := l_in.intr_vec;
-                srr1 := l_in.srr1;
-            elsif fp_in.interrupt = '1' then
-                vec := fp_in.intr_vec;
-                srr1 := fp_in.srr1;
-            end if;
-            interrupt_out.srr1 <= srr1;
+        srr1 := (others => '0');
+        if e_in.interrupt = '1' then
+            vec := e_in.intr_vec;
+            srr1 := e_in.srr1;
+        elsif l_in.interrupt = '1' then
+            vec := l_in.intr_vec;
+            srr1 := l_in.srr1;
+        elsif fp_in.interrupt = '1' then
+            vec := fp_in.intr_vec;
+            srr1 := fp_in.srr1;
+        end if;
+        interrupt_out.srr1 <= srr1;
 
-        else
+        if intr = '0' then
             if e_in.write_enable = '1' then
                 w_out.write_reg <= e_in.write_reg;
                 w_out.write_data <= e_in.write_data;
