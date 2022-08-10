@@ -219,3 +219,8 @@ test7:
 test8:
 	lfd	%f0,0(%r3)
 	blr
+
+	.global	test9
+test9:
+	sc
+	blr
