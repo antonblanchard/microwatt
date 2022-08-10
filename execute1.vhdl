@@ -699,54 +699,56 @@ begin
         x_to_multiply.addend <= addend;
 
         -- Interface to divide unit
-        sign1 := '0';
-        sign2 := '0';
-        if e_in.is_signed = '1' then
-            if e_in.is_32bit = '1' then
-                sign1 := a_in(31);
-                sign2 := b_in(31);
-            else
-                sign1 := a_in(63);
-                sign2 := b_in(63);
+        if not HAS_FPU then
+            sign1 := '0';
+            sign2 := '0';
+            if e_in.is_signed = '1' then
+                if e_in.is_32bit = '1' then
+                    sign1 := a_in(31);
+                    sign2 := b_in(31);
+                else
+                    sign1 := a_in(63);
+                    sign2 := b_in(63);
+                end if;
             end if;
-        end if;
-        -- take absolute values
-        if sign1 = '0' then
-            abs1 := signed(a_in);
-        else
-            abs1 := - signed(a_in);
-        end if;
-        if sign2 = '0' then
-            abs2 := signed(b_in);
-        else
-            abs2 := - signed(b_in);
-        end if;
+            -- take absolute values
+            if sign1 = '0' then
+                abs1 := signed(a_in);
+            else
+                abs1 := - signed(a_in);
+            end if;
+            if sign2 = '0' then
+                abs2 := signed(b_in);
+            else
+                abs2 := - signed(b_in);
+            end if;
 
-        x_to_divider.is_signed <= e_in.is_signed;
-	x_to_divider.is_32bit <= e_in.is_32bit;
-        x_to_divider.is_extended <= '0';
-        x_to_divider.is_modulus <= '0';
-        if e_in.insn_type = OP_MOD then
-            x_to_divider.is_modulus <= '1';
-        end if;
-        x_to_divider.flush <= flush_in;
-        x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
-        if e_in.is_32bit = '0' then
-            -- 64-bit forms
-            if e_in.insn_type = OP_DIVE then
-                x_to_divider.is_extended <= '1';
-            end if;
-            x_to_divider.dividend <= std_ulogic_vector(abs1);
-            x_to_divider.divisor <= std_ulogic_vector(abs2);
-        else
-            -- 32-bit forms
+            x_to_divider.is_signed <= e_in.is_signed;
+            x_to_divider.is_32bit <= e_in.is_32bit;
             x_to_divider.is_extended <= '0';
-            if e_in.insn_type = OP_DIVE then   -- extended forms
-                x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
-            else
-                x_to_divider.dividend <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
+            x_to_divider.is_modulus <= '0';
+            if e_in.insn_type = OP_MOD then
+                x_to_divider.is_modulus <= '1';
             end if;
-            x_to_divider.divisor <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
+            x_to_divider.flush <= flush_in;
+            x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
+            if e_in.is_32bit = '0' then
+                -- 64-bit forms
+                if e_in.insn_type = OP_DIVE then
+                    x_to_divider.is_extended <= '1';
+                end if;
+                x_to_divider.dividend <= std_ulogic_vector(abs1);
+                x_to_divider.divisor <= std_ulogic_vector(abs2);
+            else
+                -- 32-bit forms
+                x_to_divider.is_extended <= '0';
+                if e_in.insn_type = OP_DIVE then   -- extended forms
+                    x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
+                else
+                    x_to_divider.dividend <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
+                end if;
+                x_to_divider.divisor <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
+            end if;
         end if;
 
         -- signals to 32-bit multiplier
@@ -1486,7 +1488,7 @@ begin
             end if;
         end if;
 
-        if ex1.div_in_progress = '1' then
+        if not HAS_FPU and ex1.div_in_progress = '1' then
             v.div_in_progress := not divider_to_x.valid;
             v.busy := not divider_to_x.valid;
             if divider_to_x.valid = '1' and ex1.oe = '1' then
