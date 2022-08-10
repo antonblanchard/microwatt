@@ -26,15 +26,6 @@ architecture behave of multiply_tb is
     signal m1               : MultiplyInputType := MultiplyInputInit;
     signal m2               : MultiplyOutputType;
 
-    function absval(x: std_ulogic_vector) return std_ulogic_vector is
-    begin
-        if x(x'left) = '1' then
-            return std_ulogic_vector(- signed(x));
-        else
-            return x;
-        end if;
-    end;
-
 begin
     multiply_0: entity work.multiply
         generic map (PIPELINE_DEPTH => pipeline_depth)
@@ -51,7 +42,6 @@ begin
     stim_process: process
         variable ra, rb, rt, behave_rt: std_ulogic_vector(63 downto 0);
         variable si: std_ulogic_vector(15 downto 0);
-        variable sign: std_ulogic;
         variable rnd : RandomPType;
     begin
         rnd.InitSeed(stim_process'path_name);
@@ -102,11 +92,11 @@ begin
 
                     behave_rt := ppc_mulld(ra, rb);
 
-                    m1.data1 <= absval(ra);
-                    m1.data2 <= absval(rb);
-                    sign := ra(63) xor rb(63);
-                    m1.not_result <= sign;
-                    m1.addend <= (others => sign);
+                    m1.data1 <= ra;
+                    m1.data2 <= rb;
+                    m1.is_signed <= '1';
+                    m1.subtract <= '0';
+                    m1.addend <= (others => '0');
                     m1.valid <= '1';
 
                     wait for clk_period;
@@ -128,7 +118,8 @@ begin
 
                     m1.data1 <= ra;
                     m1.data2 <= rb;
-                    m1.not_result <= '0';
+                    m1.is_signed <= '0';
+                    m1.subtract <= '0';
                     m1.addend <= (others => '0');
                     m1.valid <= '1';
 
@@ -149,11 +140,11 @@ begin
 
                     behave_rt := ppc_mulhd(ra, rb);
 
-                    m1.data1 <= absval(ra);
-                    m1.data2 <= absval(rb);
-                    sign := ra(63) xor rb(63);
-                    m1.not_result <= sign;
-                    m1.addend <= (others => sign);
+                    m1.data1 <= ra;
+                    m1.data2 <= rb;
+                    m1.is_signed <= '1';
+                    m1.subtract <= '0';
+                    m1.addend <= (others => '0');
                     m1.valid <= '1';
 
                     wait for clk_period;
@@ -173,13 +164,13 @@ begin
 
                     behave_rt := ppc_mullw(ra, rb);
 
-                    m1.data1 <= (others => '0');
-                    m1.data1(31 downto 0) <= absval(ra(31 downto 0));
-                    m1.data2 <= (others => '0');
-                    m1.data2(31 downto 0) <= absval(rb(31 downto 0));
-                    sign := ra(31) xor rb(31);
-                    m1.not_result <= sign;
-                    m1.addend <= (others => sign);
+                    m1.data1 <= (others => ra(31));
+                    m1.data1(31 downto 0) <= ra(31 downto 0);
+                    m1.data2 <= (others => rb(31));
+                    m1.data2(31 downto 0) <= rb(31 downto 0);
+                    m1.is_signed <= '1';
+                    m1.subtract <= '0';
+                    m1.addend <= (others => '0');
                     m1.valid <= '1';
 
                     wait for clk_period;
@@ -199,13 +190,13 @@ begin
 
                     behave_rt := ppc_mulhw(ra, rb);
 
-                    m1.data1 <= (others => '0');
-                    m1.data1(31 downto 0) <= absval(ra(31 downto 0));
-                    m1.data2 <= (others => '0');
-                    m1.data2(31 downto 0) <= absval(rb(31 downto 0));
-                    sign := ra(31) xor rb(31);
-                    m1.not_result <= sign;
-                    m1.addend <= (others => sign);
+                    m1.data1 <= (others => ra(31));
+                    m1.data1(31 downto 0) <= ra(31 downto 0);
+                    m1.data2 <= (others => rb(31));
+                    m1.data2(31 downto 0) <= rb(31 downto 0);
+                    m1.is_signed <= '1';
+                    m1.subtract <= '0';
+                    m1.addend <= (others => '0');
                     m1.valid <= '1';
 
                     wait for clk_period;
@@ -229,7 +220,8 @@ begin
                     m1.data1(31 downto 0) <= ra(31 downto 0);
                     m1.data2 <= (others => '0');
                     m1.data2(31 downto 0) <= rb(31 downto 0);
-                    m1.not_result <= '0';
+                    m1.is_signed <= '0';
+                    m1.subtract <= '0';
                     m1.addend <= (others => '0');
                     m1.valid <= '1';
 
@@ -250,12 +242,12 @@ begin
 
                     behave_rt := ppc_mulli(ra, si);
 
-                    m1.data1 <= absval(ra);
-                    m1.data2 <= (others => '0');
-                    m1.data2(15 downto 0) <= absval(si);
-                    sign := ra(63) xor si(15);
-                    m1.not_result <= sign;
-                    m1.addend <= (others => sign);
+                    m1.data1 <= ra;
+                    m1.data2 <= (others => si(15));
+                    m1.data2(15 downto 0) <= si;
+                    m1.is_signed <= '1';
+                    m1.subtract <= '0';
+                    m1.addend <= (others => '0');
                     m1.valid <= '1';
 
                     wait for clk_period;
