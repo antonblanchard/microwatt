@@ -434,27 +434,37 @@ begin
                         v.input_ov := '1';      -- need SO state if setting OV to 0
                     end if;
                 when OP_MFSPR =>
-                    case decode_spr_num(d_in.insn) is
-                        when SPR_XER =>
-                            v.input_ov := '1';
-                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
-                            unit := LDST;
-                        when others =>
-                    end case;
+                    if is_X(d_in.insn) then
+                        v.input_ov := 'X';
+                    else
+                        case decode_spr_num(d_in.insn) is
+                            when SPR_XER =>
+                                v.input_ov := '1';
+                            when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                                unit := LDST;
+                            when others =>
+                        end case;
+                    end if;
                 when OP_MTSPR =>
-                    case decode_spr_num(d_in.insn) is
-                        when SPR_XER =>
-                            v.e.output_xer := '1';
-                            v.output_ov := '1';
-                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
-                            unit := LDST;
-                            if d_in.valid = '1' then
-                                v.sgl_pipe := '1';
-                            end if;
-                        when others =>
-                    end case;
-                    if d_in.spr_info.valid = '1' and d_in.valid = '1' then
-                        v.sgl_pipe := '1';
+                    if is_X(d_in.insn) then
+                        v.e.output_xer := 'X';
+                        v.output_ov := 'X';
+                        v.sgl_pipe := 'X';
+                    else
+                        case decode_spr_num(d_in.insn) is
+                            when SPR_XER =>
+                                v.e.output_xer := '1';
+                                v.output_ov := '1';
+                            when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                                unit := LDST;
+                                if d_in.valid = '1' then
+                                    v.sgl_pipe := '1';
+                                end if;
+                            when others =>
+                        end case;
+                        if d_in.spr_info.valid = '1' and d_in.valid = '1' then
+                            v.sgl_pipe := '1';
+                        end if;
                     end if;
                 when OP_CMP | OP_MCRXRX =>
                     v.input_ov := '1';
