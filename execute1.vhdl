@@ -863,11 +863,16 @@ begin
         else
             a_lt_lo := '0';
             a_lt_hi := '0';
-            if unsigned(a_in(30 downto 0)) < unsigned(b_in(30 downto 0)) then
-                a_lt_lo := '1';
-            end if;
-            if unsigned(a_in(62 downto 31)) < unsigned(b_in(62 downto 31)) then
-                a_lt_hi := '1';
+            if is_X(a_in) or is_X(b_in) then
+                a_lt_lo := 'X';
+                a_lt_hi := 'X';
+            else
+                if unsigned(a_in(30 downto 0)) < unsigned(b_in(30 downto 0)) then
+                    a_lt_lo := '1';
+                end if;
+                if unsigned(a_in(62 downto 31)) < unsigned(b_in(62 downto 31)) then
+                    a_lt_hi := '1';
+                end if;
             end if;
             if l = '1' then
                 -- 64-bit comparison
@@ -893,7 +898,6 @@ begin
 
         -- CR result mux
         bf := insn_bf(e_in.insn);
-        crnum := to_integer(unsigned(bf));
         newcrf := (others => '0');
         case e_in.sub_select is
             when "000" =>
@@ -908,8 +912,11 @@ begin
             when "010" =>
                 newcrf := ppc_cmpeqb(a_in, b_in);
             when "011" =>
-                if e_in.insn(1) = '1' then
+                if is_X(e_in.insn) then
+                    newcrf := (others => 'X');
+                elsif e_in.insn(1) = '1' then
                     -- CR logical instructions
+                    crnum := to_integer(unsigned(bf));
                     j := (7 - crnum) * 4;
                     newcrf := cr_in(j + 3 downto j);
                     bt := insn_bt(e_in.insn);
@@ -948,7 +955,8 @@ begin
                 crnum := fxm_to_num(insn_fxm(e_in.insn));
                 write_cr_mask <= num_to_fxm(crnum);
             end if;
-        elsif e_in.output_cr = '1' then
+        elsif e_in.output_cr = '1' and not is_X(bf) then
+            crnum := to_integer(unsigned(bf));
             write_cr_mask <= num_to_fxm(crnum);
         else
             write_cr_mask <= (others => '0');
