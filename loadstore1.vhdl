@@ -199,9 +199,14 @@ architecture behave of loadstore1 is
 	return std_ulogic_vector is
         variable longsel : std_ulogic_vector(15 downto 0);
     begin
-        longsel := "00000000" & length_to_sel(size);
-        return std_ulogic_vector(shift_left(unsigned(longsel),
-					    to_integer(unsigned(address))));
+        if is_X(address) then
+            longsel := (others => 'X');
+            return longsel;
+        else
+            longsel := "00000000" & length_to_sel(size);
+            return std_ulogic_vector(shift_left(unsigned(longsel),
+                                                to_integer(unsigned(address))));
+        end if;
     end function xfer_data_sel;
 
     -- 23-bit right shifter for DP -> SP float conversions
@@ -401,7 +406,7 @@ begin
         variable addr_mask : std_ulogic_vector(2 downto 0);
     begin
         v := request_init;
-        sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
+        sprn := l_in.insn(15 downto 11) & l_in.insn(20 downto 16);
 
         v.valid := l_in.valid;
         v.instr_tag := l_in.instr_tag;

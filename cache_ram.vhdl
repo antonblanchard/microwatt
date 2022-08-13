@@ -53,12 +53,14 @@ begin
             for i in 0 to WIDTH/BYTEWID-1 loop
                 lbit := i * BYTEWID;
                 mbit := lbit + BYTEWID - 1;
-                widx := to_integer(unsigned(wr_addr));
                 if wr_sel(i) = '1' then
+                    assert not is_X(wr_addr);
+                    widx := to_integer(unsigned(wr_addr));
                     ram(widx)(mbit downto lbit) <= wr_data(mbit downto lbit);
                 end if;
             end loop;
             if rd_en = '1' then
+                assert not is_X(rd_addr);
                 rd_data0 <= ram(to_integer(unsigned(rd_addr)));
                 if TRACE then
                     report "read a:" & to_hstring(rd_addr) &

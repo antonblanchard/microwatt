@@ -4,9 +4,7 @@
 -- TODO (in no specific order):
 --
 --   * Add debug interface to inspect cache content
---   * Add snoop/invalidate path
 --   * Add multi-hit error detection
---   * Pipelined bus interface (wb or axi)
 --   * Maybe add parity ? There's a few bits free in each BRAM row on Xilinx
 --   * Add optimization: service hits on partially loaded lines
 --   * Add optimization: (maybe) interrupt reload on fluch/redirect
@@ -119,9 +117,11 @@ architecture rtl of icache is
     -- ..         |-----|        | INDEX_BITS    (5)
     -- .. --------|              | TAG_BITS      (53)
 
-    subtype row_t is integer range 0 to BRAM_ROWS-1;
+    subtype row_t is unsigned(ROW_BITS-1 downto 0);
     subtype index_t is integer range 0 to NUM_LINES-1;
+    subtype index_sig_t is unsigned(INDEX_BITS-1 downto 0);
     subtype way_t is integer range 0 to NUM_WAYS-1;
+    subtype way_sig_t is unsigned(WAY_BITS-1 downto 0);
     subtype row_in_line_t is unsigned(ROW_LINEBITS-1 downto 0);
 
     -- We store a pre-decoded 10-bit insn_code along with the bottom 26 bits of
@@ -187,7 +187,7 @@ architecture rtl of icache is
 
     type reg_internal_t is record
 	-- Cache hit state (Latches for 1 cycle BRAM access)
-	hit_way   : way_t;
+	hit_way   : way_sig_t;
 	hit_nia   : std_ulogic_vector(63 downto 0);
 	hit_smark : std_ulogic;
 	hit_valid : std_ulogic;
@@ -196,8 +196,8 @@ architecture rtl of icache is
 	-- Cache miss state (reload state machine)
         state            : state_t;
         wb               : wishbone_master_out;
-	store_way        : way_t;
-        store_index      : index_t;
+	store_way        : way_sig_t;
+        store_index      : index_sig_t;
         recv_row         : row_t;
         recv_valid       : std_ulogic;
 	store_row        : row_t;
@@ -215,9 +215,9 @@ architecture rtl of icache is
     signal ev : IcacheEventType;
 
     -- Async signals on incoming request
-    signal req_index   : index_t;
+    signal req_index   : index_sig_t;
     signal req_row     : row_t;
-    signal req_hit_way : way_t;
+    signal req_hit_way : way_sig_t;
     signal req_tag     : cache_tag_t;
     signal req_is_hit  : std_ulogic;
     signal req_is_miss : std_ulogic;
@@ -237,33 +237,30 @@ architecture rtl of icache is
     -- PLRU output interface
     type plru_out_t is array(index_t) of std_ulogic_vector(WAY_BITS-1 downto 0);
     signal plru_victim : plru_out_t;
-    signal replace_way : way_t;
 
     -- Memory write snoop signals
     signal snoop_valid : std_ulogic;
-    signal snoop_index : index_t;
+    signal snoop_index : index_sig_t;
     signal snoop_hits  : cache_way_valids_t;
 
     signal log_insn : std_ulogic_vector(35 downto 0);
 
     -- Return the cache line index (tag index) for an address
-    function get_index(addr: std_ulogic_vector) return index_t is
+    function get_index(addr: std_ulogic_vector) return index_sig_t is
     begin
-        return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto LINE_OFF_BITS)));
+        return unsigned(addr(SET_SIZE_BITS - 1 downto LINE_OFF_BITS));
     end;
 
     -- Return the cache row index (data memory) for an address
     function get_row(addr: std_ulogic_vector) return row_t is
     begin
-        return to_integer(unsigned(addr(SET_SIZE_BITS - 1 downto ROW_OFF_BITS)));
+        return unsigned(addr(SET_SIZE_BITS - 1 downto ROW_OFF_BITS));
     end;
 
     -- Return the index of a row within a line
     function get_row_of_line(row: row_t) return row_in_line_t is
-	variable row_v : unsigned(ROW_BITS-1 downto 0);
     begin
-	row_v := to_unsigned(row, ROW_BITS);
-        return row_v(ROW_LINEBITS-1 downto 0);
+        return row(ROW_LINEBITS-1 downto 0);
     end;
 
     -- Returns whether this is the last row of a line
@@ -298,13 +295,13 @@ architecture rtl of icache is
     --
     function next_row(row: row_t) return row_t is
 	variable row_v   : std_ulogic_vector(ROW_BITS-1 downto 0);
-	variable row_idx : std_ulogic_vector(ROW_LINEBITS-1 downto 0);
+	variable row_idx : unsigned(ROW_LINEBITS-1 downto 0);
 	variable result  : std_ulogic_vector(ROW_BITS-1 downto 0);
     begin
-	row_v := std_ulogic_vector(to_unsigned(row, ROW_BITS));
-	row_idx := row_v(ROW_LINEBITS-1 downto 0);
-	row_v(ROW_LINEBITS-1 downto 0) := std_ulogic_vector(unsigned(row_idx) + 1);
-	return to_integer(unsigned(row_v));
+	row_v := std_ulogic_vector(row);
+	row_idx := row(ROW_LINEBITS-1 downto 0);
+	row_v(ROW_LINEBITS-1 downto 0) := std_ulogic_vector(row_idx + 1);
+	return unsigned(row_v);
     end;
 
     -- Read the instruction word for the given address in the current cache row
@@ -312,6 +309,7 @@ architecture rtl of icache is
 			    data: cache_row_t) return std_ulogic_vector is
 	variable word: integer range 0 to INSN_PER_ROW-1;
     begin
+        assert not is_X(addr) severity failure;
         word := to_integer(unsigned(addr(INSN_BITS+2-1 downto 2)));
 	return data(word * ICWORDLEN + ICWORDLEN - 1 downto word * ICWORDLEN);
     end;
@@ -436,12 +434,12 @@ begin
 	begin
 	    do_read <= not stall_in;
 	    do_write <= '0';
-	    if r.recv_valid = '1' and r.store_way = i then
+	    if r.recv_valid = '1' and r.store_way = to_unsigned(i, WAY_BITS) then
 		do_write <= '1';
 	    end if;
 	    cache_out(i) <= dout;
-	    rd_addr <= std_ulogic_vector(to_unsigned(req_row, ROW_BITS));
-	    wr_addr <= std_ulogic_vector(to_unsigned(r.store_row, ROW_BITS));
+	    rd_addr <= std_ulogic_vector(req_row);
+	    wr_addr <= std_ulogic_vector(r.store_row);
             wr_sel(0) <= do_write;
 	end process;
     end generate;
@@ -478,7 +476,7 @@ begin
 		else
 		    plru_acc_en <= '0';
 		end if;
-		plru_acc <= std_ulogic_vector(to_unsigned(r.hit_way, WAY_BITS));
+		plru_acc <= std_ulogic_vector(r.hit_way);
 		plru_victim(i) <= plru_out;
 	    end process;
 	end generate;
@@ -550,15 +548,13 @@ begin
     -- Cache hit detection, output to fetch2 and other misc logic
     icache_comb : process(all)
 	variable is_hit  : std_ulogic;
-	variable hit_way : way_t;
+	variable hit_way : way_sig_t;
         variable insn    : std_ulogic_vector(ICWORDLEN - 1 downto 0);
         variable icode   : insn_code;
     begin
 	-- Extract line, row and tag from request
-	if not is_X(i_in.nia) then
-	    req_index <= get_index(i_in.nia);
-	    req_row <= get_row(i_in.nia);
-	end if;
+        req_index <= get_index(i_in.nia);
+        req_row <= get_row(i_in.nia);
 	req_tag <= get_tag(real_addr, i_in.big_endian);
 
 	-- Calculate address of beginning of cache row, will be
@@ -568,21 +564,20 @@ begin
 		     (ROW_OFF_BITS-1 downto 0 => '0');
 
 	-- Test if pending request is a hit on any way
-	hit_way := 0;
+	hit_way := to_unsigned(0, WAY_BITS);
 	is_hit := '0';
+        if i_in.req = '1' then
+            assert not is_X(req_index) and not is_X(req_row) severity failure;
+        end if;
 	for i in way_t loop
-	    if is_X(i_in.nia) then
-		-- FIXME: This is fragile
-		-- req_index or req_row could be a metavalue
-		is_hit := 'X';
-	    elsif i_in.req = '1' and
-                (cache_valids(req_index)(i) = '1' or
+	    if i_in.req = '1' and
+                (cache_valids(to_integer(req_index))(i) = '1' or
                  (r.state = WAIT_ACK and
                   req_index = r.store_index and
-                  i = r.store_way and
-                  r.rows_valid(req_row mod ROW_PER_LINE) = '1')) then
-		if read_tag(i, cache_tags(req_index)) = req_tag then
-		    hit_way := i;
+                  to_unsigned(i, WAY_BITS) = r.store_way and
+                  r.rows_valid(to_integer(req_row(ROW_LINEBITS-1 downto 0))) = '1')) then
+		if read_tag(i, cache_tags(to_integer(req_index))) = req_tag then
+		    hit_way := to_unsigned(i, WAY_BITS);
 		    is_hit := '1';
 		end if;
 	    end if;
@@ -598,13 +593,6 @@ begin
         end if;
 	req_hit_way <= hit_way;
 
-        -- The way to replace on a miss
-        if r.state = CLR_TAG then
-            replace_way <= to_integer(unsigned(plru_victim(r.store_index)));
-        else
-            replace_way <= r.store_way;
-        end if;
-
 	-- Output instruction from current cache row
 	--
 	-- Note: This is a mild violation of our design principle of having pipeline
@@ -616,10 +604,13 @@ begin
         insn := (others => '0');
         icode := INSN_illegal;
 	if r.hit_valid = '1' then
-            insn := read_insn_word(r.hit_nia, cache_out(r.hit_way));
+            assert not is_X(r.hit_way) severity failure;
+            insn := read_insn_word(r.hit_nia, cache_out(to_integer(r.hit_way)));
             -- Currently we use only the top bit for indicating illegal
             -- instructions because we know that insn_codes fit into 9 bits.
-            if insn(ICWORDLEN - 1) = '0' then
+            if is_X(insn) then
+                insn := (others => '0');
+            elsif insn(ICWORDLEN - 1) = '0' then
                 icode := insn_code'val(to_integer(unsigned(insn(ICWORDLEN-1 downto INSN_IMAGE_BITS))));
             end if;
 	end if;
@@ -664,9 +655,9 @@ begin
                     report "cache hit nia:" & to_hstring(i_in.nia) &
                         " IR:" & std_ulogic'image(i_in.virt_mode) &
                         " SM:" & std_ulogic'image(i_in.stop_mark) &
-                        " idx:" & integer'image(req_index) &
+                        " idx:" & to_hstring(req_index) &
                         " tag:" & to_hstring(req_tag) &
-                        " way:" & integer'image(req_hit_way) &
+                        " way:" & to_hstring(req_hit_way) &
                         " RA:" & to_hstring(real_addr);
                 end if;
 	    end if;
@@ -675,6 +666,9 @@ begin
                 r.hit_smark <= i_in.stop_mark;
                 r.hit_nia <= i_in.nia;
                 r.big_endian <= i_in.big_endian;
+            end if;
+            if i_out.valid = '1' then
+                assert not is_X(i_out.insn) severity failure;
             end if;
 	end if;
     end process;
@@ -686,7 +680,7 @@ begin
         variable snoop_addr : real_addr_t;
         variable snoop_tag : cache_tag_t;
         variable snoop_cache_tags : cache_tags_set_t;
-        variable replace_way : way_t;
+        variable replace_way : way_sig_t;
     begin
         if rising_edge(clk) then
             ev.icache_miss <= '0';
@@ -709,7 +703,7 @@ begin
 		r.wb.adr <= (others => '0');
 
                 snoop_valid <= '0';
-                snoop_index <= 0;
+                snoop_index <= to_unsigned(0, INDEX_BITS);
                 snoop_hits <= (others => '0');
             else
                 -- Detect snooped writes and decode address into index and tag
@@ -717,20 +711,22 @@ begin
                 snoop_valid <= wb_snoop_in.cyc and wb_snoop_in.stb and wb_snoop_in.we;
                 snoop_addr := addr_to_real(wb_to_addr(wb_snoop_in.adr));
                 snoop_index <= get_index(snoop_addr);
-                snoop_cache_tags := cache_tags(get_index(snoop_addr));
-		if snoop_valid = '1' and is_X(snoop_addr) then
-		    report "metavalue in snoop_addr" severity FAILURE;
-		end if;
                 snoop_tag := get_tag(snoop_addr, '0');
                 snoop_hits <= (others => '0');
-                for i in way_t loop
-                    tag := read_tag(i, snoop_cache_tags);
-                    -- Ignore endian bit in comparison
-                    tag(TAG_BITS - 1) := '0';
-                    if tag = snoop_tag then
-                        snoop_hits(i) <= '1';
+                if snoop_valid = '1' then
+                    if is_X(snoop_addr) then
+                        report "metavalue in snoop_addr" severity FAILURE;
                     end if;
-                end loop;
+                    snoop_cache_tags := cache_tags(to_integer(get_index(snoop_addr)));
+                    for i in way_t loop
+                        tag := read_tag(i, snoop_cache_tags);
+                        -- Ignore endian bit in comparison
+                        tag(TAG_BITS - 1) := '0';
+                        if tag = snoop_tag then
+                            snoop_hits(i) <= '1';
+                        end if;
+                    end loop;
+                end if;
 
                 -- Process cache invalidations
                 if inval_in = '1' then
@@ -742,8 +738,9 @@ begin
                     -- Do invalidations from snooped stores to memory, one
                     -- cycle after the address appears on wb_snoop_in.
                     for i in way_t loop
-                        if snoop_valid = '1' and snoop_hits(i) = '1' then
-                            cache_valids(snoop_index)(i) <= '0';
+                        if snoop_hits(i) = '1' then
+                            assert not is_X(snoop_index) severity failure;
+                            cache_valids(to_integer(snoop_index))(i) <= '0';
                         end if;
                     end loop;
                 end if;
@@ -761,7 +758,7 @@ begin
 			report "cache miss nia:" & to_hstring(i_in.nia) &
                             " IR:" & std_ulogic'image(i_in.virt_mode) &
 			    " SM:" & std_ulogic'image(i_in.stop_mark) &
-			    " idx:" & integer'image(req_index) &
+			    " idx:" & to_hstring(req_index) &
 			    " tag:" & to_hstring(req_tag) &
                             " RA:" & to_hstring(real_addr);
                         ev.icache_miss <= '1';
@@ -786,20 +783,24 @@ begin
 		    end if;
 
 		when CLR_TAG | WAIT_ACK =>
+                    assert not is_X(r.store_index) severity failure;
+                    assert not is_X(r.store_row) severity failure;
+                    assert not is_X(r.recv_row) severity failure;
                     if r.state = CLR_TAG then
                         -- Get victim way from plru
-                        replace_way := to_integer(unsigned(plru_victim(r.store_index)));
+                        replace_way := unsigned(plru_victim(to_integer(r.store_index)));
 			r.store_way <= replace_way;
 
 			-- Force misses on that way while reloading that line
-			cache_valids(req_index)(replace_way) <= '0';
+                        assert not is_X(replace_way) severity failure;
+                        cache_valids(to_integer(r.store_index))(to_integer(replace_way)) <= '0';
 
 			-- Store new tag in selected way
 			for i in 0 to NUM_WAYS-1 loop
-			    if i = replace_way then
-				tagset := cache_tags(r.store_index);
+			    if to_unsigned(i, WAY_BITS) = replace_way then
+				tagset := cache_tags(to_integer(r.store_index));
 				write_tag(i, tagset, r.store_tag);
-				cache_tags(r.store_index) <= tagset;
+				cache_tags(to_integer(r.store_index)) <= tagset;
 			    end if;
 			end loop;
 
@@ -808,10 +809,11 @@ begin
 
                     -- If we are writing in this cycle, mark row valid and see if we are done
                     if r.recv_valid = '1' then
-                        r.rows_valid(r.store_row mod ROW_PER_LINE) <= not inval_in;
+                        r.rows_valid(to_integer(r.store_row(ROW_LINEBITS-1 downto 0))) <= not inval_in;
 			if is_last_row(r.store_row, r.end_row_ix) then
 			    -- Cache line is now valid
-			    cache_valids(r.store_index)(r.store_way) <= r.store_valid and not inval_in;
+			    cache_valids(to_integer(r.store_index))(to_integer(r.store_way)) <=
+                                r.store_valid and not inval_in;
 			    -- We are done
 			    r.state <= IDLE;
 			end if;
@@ -878,7 +880,7 @@ begin
         signal log_data    : std_ulogic_vector(57 downto 0);
     begin
         data_log: process(clk)
-            variable lway: way_t;
+            variable lway: way_sig_t;
             variable wstate: std_ulogic;
         begin
             if rising_edge(clk) then
@@ -897,7 +899,7 @@ begin
                             r.fetch_failed &
                             r.hit_nia(5 downto 2) &
                             wstate &
-                            std_ulogic_vector(to_unsigned(lway, 3)) &
+                            std_ulogic_vector(resize(lway, 3)) &
                             req_is_hit & req_is_miss &
                             access_ok &
                             ra_valid;
