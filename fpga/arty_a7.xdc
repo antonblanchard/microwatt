@@ -13,18 +13,18 @@ set_property -dict { PACKAGE_PIN A9  IOSTANDARD LVCMOS33 } [get_ports { uart_mai
 # RGB LEDs
 ################################################################################
 
-set_property -dict { PACKAGE_PIN E1  IOSTANDARD LVCMOS33 } [get_ports { led0_b }];
-set_property -dict { PACKAGE_PIN F6  IOSTANDARD LVCMOS33 } [get_ports { led0_g }];
-set_property -dict { PACKAGE_PIN G6  IOSTANDARD LVCMOS33 } [get_ports { led0_r }];
-#set_property -dict { PACKAGE_PIN G4  IOSTANDARD LVCMOS33 } [get_ports { led1_b }];
-#set_property -dict { PACKAGE_PIN J4  IOSTANDARD LVCMOS33 } [get_ports { led1_g }];
-#set_property -dict { PACKAGE_PIN G3  IOSTANDARD LVCMOS33 } [get_ports { led1_r }];
-#set_property -dict { PACKAGE_PIN H4  IOSTANDARD LVCMOS33 } [get_ports { led2_b }];
-#set_property -dict { PACKAGE_PIN J2  IOSTANDARD LVCMOS33 } [get_ports { led2_g }];
-#set_property -dict { PACKAGE_PIN J3  IOSTANDARD LVCMOS33 } [get_ports { led2_r }];
-#set_property -dict { PACKAGE_PIN K2  IOSTANDARD LVCMOS33 } [get_ports { led3_b }];
-#set_property -dict { PACKAGE_PIN H6  IOSTANDARD LVCMOS33 } [get_ports { led3_g }];
-#set_property -dict { PACKAGE_PIN K1  IOSTANDARD LVCMOS33 } [get_ports { led3_r }];
+set_property -dict { PACKAGE_PIN E1  IOSTANDARD LVCMOS33 } [get_ports { led_b[0] }];
+set_property -dict { PACKAGE_PIN F6  IOSTANDARD LVCMOS33 } [get_ports { led_g[0] }];
+set_property -dict { PACKAGE_PIN G6  IOSTANDARD LVCMOS33 } [get_ports { led_r[0] }];
+set_property -dict { PACKAGE_PIN G4  IOSTANDARD LVCMOS33 } [get_ports { led_b[1] }];
+set_property -dict { PACKAGE_PIN J4  IOSTANDARD LVCMOS33 } [get_ports { led_g[1] }];
+set_property -dict { PACKAGE_PIN G3  IOSTANDARD LVCMOS33 } [get_ports { led_r[1] }];
+set_property -dict { PACKAGE_PIN H4  IOSTANDARD LVCMOS33 } [get_ports { led_b[2] }];
+set_property -dict { PACKAGE_PIN J2  IOSTANDARD LVCMOS33 } [get_ports { led_g[2] }];
+set_property -dict { PACKAGE_PIN J3  IOSTANDARD LVCMOS33 } [get_ports { led_r[2] }];
+set_property -dict { PACKAGE_PIN K2  IOSTANDARD LVCMOS33 } [get_ports { led_b[3] }];
+set_property -dict { PACKAGE_PIN H6  IOSTANDARD LVCMOS33 } [get_ports { led_g[3] }];
+set_property -dict { PACKAGE_PIN K1  IOSTANDARD LVCMOS33 } [get_ports { led_r[3] }];
 
 ################################################################################
 # Normal LEDs
