@@ -56,6 +56,16 @@ entity toplevel is
         spi_flash_wp_n   : inout std_ulogic;
         spi_flash_hold_n : inout std_ulogic;
 
+        -- Switches and buttons
+        btn0        : in std_ulogic;
+        btn1        : in std_ulogic;
+        btn2        : in std_ulogic;
+        btn3        : in std_ulogic;
+        sw0         : in std_ulogic;
+        sw1         : in std_ulogic;
+        sw2         : in std_ulogic;
+        sw3         : in std_ulogic;
+
         -- GPIO
         shield_io        : inout std_ulogic_vector(44 downto 0);
 
@@ -699,24 +709,33 @@ begin
     led6 <= not soc_rst;
 
     -- GPIO
-    gpio_in(0) <= shield_io(0);
-    gpio_in(1) <= shield_io(1);
-    gpio_in(2) <= shield_io(2);
-    gpio_in(3) <= shield_io(3);
-    gpio_in(4) <= shield_io(4);
-    gpio_in(5) <= shield_io(5);
-    gpio_in(6) <= shield_io(6);
-    gpio_in(7) <= shield_io(7);
+    gpio_in(10) <= btn0;
+    gpio_in(11) <= btn1;
+    gpio_in(12) <= btn2;
+    gpio_in(13) <= btn3;
+    gpio_in(14) <= sw0;
+    gpio_in(15) <= sw1;
+    gpio_in(16) <= sw2;
+    gpio_in(17) <= sw3;
+
+    gpio_in(0) <= shield_io(10);
+    gpio_in(1) <= shield_io(11);
+    gpio_in(2) <= shield_io(12);
+    gpio_in(3) <= shield_io(13);
+    gpio_in(4) <= shield_io(26);
+    gpio_in(5) <= shield_io(27);
+    gpio_in(6) <= shield_io(28);
+    gpio_in(7) <= shield_io(29);
     gpio_in(8) <= shield_io(8);
     gpio_in(9) <= shield_io(9);
-    gpio_in(10) <= shield_io(10);
-    gpio_in(11) <= shield_io(11);
-    gpio_in(12) <= shield_io(12);
-    gpio_in(13) <= shield_io(13);
-    gpio_in(14) <= shield_io(26);
-    gpio_in(15) <= shield_io(27);
-    gpio_in(16) <= shield_io(28);
-    gpio_in(17) <= shield_io(29);
+    --gpio_in(10) <= shield_io(10);
+    --gpio_in(11) <= shield_io(11);
+    --gpio_in(12) <= shield_io(12);
+    --gpio_in(13) <= shield_io(13);
+    --gpio_in(14) <= shield_io(26);
+    --gpio_in(15) <= shield_io(27);
+    --gpio_in(16) <= shield_io(28);
+    --gpio_in(17) <= shield_io(29);
     gpio_in(18) <= shield_io(30);
     gpio_in(19) <= shield_io(31);
     gpio_in(20) <= shield_io(32);
