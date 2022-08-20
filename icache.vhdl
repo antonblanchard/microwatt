@@ -192,6 +192,8 @@ architecture rtl of icache is
 	hit_smark : std_ulogic;
 	hit_valid : std_ulogic;
         big_endian: std_ulogic;
+        predicted  : std_ulogic;
+        pred_ntaken: std_ulogic;
 
 	-- Cache miss state (reload state machine)
         state            : state_t;
@@ -629,8 +631,8 @@ begin
 	i_out.stop_mark <= r.hit_smark;
         i_out.fetch_failed <= r.fetch_failed;
         i_out.big_endian <= r.big_endian;
-        i_out.next_predicted <= i_in.predicted;
-        i_out.next_pred_ntaken <= i_in.pred_ntaken;
+        i_out.next_predicted <= r.predicted;
+        i_out.next_pred_ntaken <= r.pred_ntaken;
 
 	-- Stall fetch1 if we have a miss on cache or TLB or a protection fault
 	stall_out <= not (is_hit and access_ok);
@@ -673,6 +675,8 @@ begin
                 r.hit_smark <= i_in.stop_mark;
                 r.hit_nia <= i_in.nia;
                 r.big_endian <= i_in.big_endian;
+                r.predicted <= i_in.predicted;
+                r.pred_ntaken <= i_in.pred_ntaken;
             end if;
             if i_out.valid = '1' then
                 assert not is_X(i_out.insn) severity failure;
