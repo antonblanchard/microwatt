@@ -18,7 +18,7 @@ mv ${FILE_OUT}.tmp2 ${FILE_OUT}
 rm ${FILE_OUT}.tmp1
 
 # Add defines
-sed -i '1 a\
+sed -i '1 i\
 \
 /* JTAG */\
 `include "tap_top.v"\
