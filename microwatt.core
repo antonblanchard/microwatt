@@ -355,11 +355,12 @@ targets:
 
   antmicro-artix-dc-scm:
     default_tool: vivado
-    filesets: [core, antmicro-artix-dc-scm, soc, fpga, debug_xilinx, litedram, uart16550, xilinx_specific]
+    filesets: [core, antmicro-artix-dc-scm, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
       - use_litedram=true
+      - use_liteeth=true
       - clk_input
       - clk_frequency
       - disable_flatten_core
@@ -369,7 +370,7 @@ targets:
       - has_uart1
       - has_fpu
       - has_btc
-    generate: [litedram_nexys_video, git_hash]
+    generate: [litedram_nexys_video, liteeth_nexys_video, git_hash]
     tools:
       vivado: {part : xc7a100tfgg484-1}
     toplevel : toplevel
