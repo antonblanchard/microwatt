@@ -34,29 +34,30 @@ entity toplevel is
     port(
         ext_clk   : in  std_ulogic;
 
+        -- UART0 signals:
+        uart_main_tx : out std_ulogic;
+        uart_main_rx : in  std_ulogic;
+
+        -- LEDs
         d11_led : out std_ulogic;
         d12_led : out std_ulogic;
         d13_led : out std_ulogic;
 
-        -- UART0 signals:
-        uart_main_tx : out std_ulogic;
-        uart_main_rx : in  std_ulogic;
-	
         -- DRAM wires
-	ddram_a       : out std_logic_vector(14 downto 0);
-	ddram_ba      : out std_logic_vector(2 downto 0);
-	ddram_ras_n   : out std_logic;
-	ddram_cas_n   : out std_logic;
-	ddram_we_n    : out std_logic;
-	ddram_dm      : out std_logic_vector(1 downto 0);
-	ddram_dq      : inout std_logic_vector(15 downto 0);
-	ddram_dqs_p   : inout std_logic_vector(1 downto 0);
-	ddram_dqs_n   : inout std_logic_vector(1 downto 0);
-	ddram_clk_p   : out std_logic;
-	ddram_clk_n   : out std_logic;
-	ddram_cke     : out std_logic;
-	ddram_odt     : out std_logic;
-	ddram_reset_n : out std_logic
+        ddram_a       : out std_ulogic_vector(14 downto 0);
+        ddram_ba      : out std_ulogic_vector(2 downto 0);
+        ddram_ras_n   : out std_ulogic;
+        ddram_cas_n   : out std_ulogic;
+        ddram_we_n    : out std_ulogic;
+        ddram_dm      : out std_ulogic_vector(1 downto 0);
+        ddram_dq      : inout std_ulogic_vector(15 downto 0);
+        ddram_dqs_p   : inout std_ulogic_vector(1 downto 0);
+        ddram_dqs_n   : inout std_ulogic_vector(1 downto 0);
+        ddram_clk_p   : out std_ulogic;
+        ddram_clk_n   : out std_ulogic;
+        ddram_cke     : out std_ulogic;
+        ddram_odt     : out std_ulogic;
+        ddram_reset_n : out std_ulogic
         );
 end entity toplevel;
 
@@ -117,14 +118,14 @@ architecture behaviour of toplevel is
     signal spi_sdat_oe : std_ulogic_vector(3 downto 0);
     signal spi_sdat_i  : std_ulogic_vector(3 downto 0);
 
-    -- ddram clock signals as vectors
-    signal ddram_clk_p_vec : std_logic_vector(0 downto 0);
-    signal ddram_clk_n_vec : std_logic_vector(0 downto 0);
-
     -- GPIO
     signal gpio_in     : std_ulogic_vector(NGPIO - 1 downto 0);
     signal gpio_out    : std_ulogic_vector(NGPIO - 1 downto 0);
     signal gpio_dir    : std_ulogic_vector(NGPIO - 1 downto 0);
+
+    -- ddram clock signals as vectors
+    signal ddram_clk_p_vec : std_logic_vector(0 downto 0);
+    signal ddram_clk_n_vec : std_logic_vector(0 downto 0);
 
     -- Fixup various memory sizes based on generics
     function get_bram_size return natural is
@@ -148,6 +149,7 @@ architecture behaviour of toplevel is
     constant BRAM_SIZE    : natural := get_bram_size;
     constant PAYLOAD_SIZE : natural := get_payload_size;
 begin
+
     -- Main SoC
     soc0: entity work.soc
         generic map(
@@ -270,29 +272,30 @@ begin
     end generate;
 
     has_dram: if USE_LITEDRAM generate
-	signal dram_init_done  : std_ulogic;
-	signal dram_init_error : std_ulogic;
-	signal dram_sys_rst    : std_ulogic;
+        signal dram_init_done  : std_ulogic;
+        signal dram_init_error : std_ulogic;
+        signal dram_sys_rst    : std_ulogic;
+        signal rst_gen_rst     : std_ulogic;
     begin
 
-	-- Eventually dig out the frequency from the generator
-	-- but for now, assert it's 100Mhz
-	assert CLK_FREQUENCY = 100000000;
+        -- Eventually dig out the frequency from the generator
+        -- but for now, assert it's 100Mhz
+        assert CLK_FREQUENCY = 100000000;
 
-	reset_controller: entity work.soc_reset
-	    generic map(
-		RESET_LOW => RESET_LOW,
+        reset_controller: entity work.soc_reset
+            generic map(
+                RESET_LOW => RESET_LOW,
                 PLL_RESET_BITS => 18,
                 SOC_RESET_BITS => 1
-		)
-	    port map(
-		ext_clk => ext_clk,
-		pll_clk => system_clk,
+                )
+            port map(
+                ext_clk => ext_clk,
+                pll_clk => system_clk,
                 pll_locked_in => '1',
                 ext_rst_in => ext_rst_n,
-		pll_rst_out => pll_rst,
+                pll_rst_out => pll_rst,
                 rst_out => open
-		);
+                );
 
         -- Generate SoC reset
         soc_rst_gen: process(system_clk)
@@ -307,50 +310,50 @@ begin
 	ddram_clk_p_vec <= (others => ddram_clk_p);
 	ddram_clk_n_vec <= (others => ddram_clk_n);
 
-	dram: entity work.litedram_wrapper
-	    generic map(
-		DRAM_ABITS => 25,
-		DRAM_ALINES => 15,
+        dram: entity work.litedram_wrapper
+            generic map(
+                DRAM_ABITS => 25,
+                DRAM_ALINES => 15,
                 DRAM_DLINES => 16,
                 DRAM_CKLINES => 1,
                 DRAM_PORT_WIDTH => 128,
                 PAYLOAD_FILE => RAM_INIT_FILE,
                 PAYLOAD_SIZE => PAYLOAD_SIZE
-		)
-	    port map(
-		clk_in		=> ext_clk,
-		rst             => pll_rst,
-		system_clk	=> system_clk,
-                system_reset	=> dram_sys_rst,
+                )
+            port map(
+                clk_in          => ext_clk,
+                rst             => pll_rst,
+                system_clk      => system_clk,
+                system_reset    => dram_sys_rst,
                 core_alt_reset  => core_alt_reset,
 		pll_locked	=> system_clk_locked,
 
-		wb_in		=> wb_dram_in,
-		wb_out		=> wb_dram_out,
-		wb_ctrl_in	=> wb_ext_io_in,
-                wb_ctrl_out	=> wb_dram_ctrl_out,
-		wb_ctrl_is_csr  => wb_ext_is_dram_csr,
-		wb_ctrl_is_init => wb_ext_is_dram_init,
+                wb_in           => wb_dram_in,
+                wb_out          => wb_dram_out,
+                wb_ctrl_in      => wb_ext_io_in,
+                wb_ctrl_out     => wb_dram_ctrl_out,
+                wb_ctrl_is_csr  => wb_ext_is_dram_csr,
+                wb_ctrl_is_init => wb_ext_is_dram_init,
 
-		init_done 	=> dram_init_done,
-		init_error	=> dram_init_error,
+                init_done       => dram_init_done,
+                init_error      => dram_init_error,
 
-		ddram_a		=> ddram_a,
-		ddram_ba	=> ddram_ba,
-		ddram_ras_n	=> ddram_ras_n,
-		ddram_cas_n	=> ddram_cas_n,
-		ddram_we_n	=> ddram_we_n,
-		ddram_cs_n	=> open,
-		ddram_dm	=> ddram_dm,
-		ddram_dq	=> ddram_dq,
-		ddram_dqs_p	=> ddram_dqs_p,
-		ddram_dqs_n	=> ddram_dqs_n,
-		ddram_clk_p	=> ddram_clk_p_vec,
-		ddram_clk_n	=> ddram_clk_n_vec,
-		ddram_cke	=> ddram_cke,
-		ddram_odt	=> ddram_odt,
-		ddram_reset_n	=> ddram_reset_n
-		);
+                ddram_a         => ddram_a,
+                ddram_ba        => ddram_ba,
+                ddram_ras_n     => ddram_ras_n,
+                ddram_cas_n     => ddram_cas_n,
+                ddram_we_n      => ddram_we_n,
+                ddram_cs_n      => open,
+                ddram_dm        => ddram_dm,
+                ddram_dq        => ddram_dq,
+                ddram_dqs_p     => ddram_dqs_p,
+                ddram_dqs_n     => ddram_dqs_n,
+                ddram_clk_p     => ddram_clk_p_vec,
+                ddram_clk_n     => ddram_clk_n_vec,
+                ddram_cke       => ddram_cke,
+                ddram_odt       => ddram_odt,
+                ddram_reset_n   => ddram_reset_n
+                );
 
         d11_led <= not dram_init_done;
         d12_led <= soc_rst;
