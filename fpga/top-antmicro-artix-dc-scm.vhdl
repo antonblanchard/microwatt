@@ -20,7 +20,7 @@ entity toplevel is
         NO_BRAM            : boolean  := false;
         DISABLE_FLATTEN_CORE : boolean := false;
         SCLK_STARTUPE2     : boolean := false;
-        SPI_FLASH_OFFSET   : integer := 4194304;
+        SPI_FLASH_OFFSET   : integer := 3145728;
         SPI_FLASH_DEF_CKDV : natural := 1;
         SPI_FLASH_DEF_QUAD : boolean := true;
         LOG_LENGTH         : natural := 512;
@@ -42,6 +42,15 @@ entity toplevel is
         d11_led : out std_ulogic;
         d12_led : out std_ulogic;
         d13_led : out std_ulogic;
+
+
+        -- SPI
+        spi_flash_cs_n   : out std_ulogic;
+        spi_flash_mosi   : inout std_ulogic;
+        spi_flash_miso   : inout std_ulogic;
+        spi_flash_wp_n   : inout std_ulogic;
+        spi_flash_hold_n : inout std_ulogic;
+
 
         -- DRAM wires
         ddram_a       : out std_ulogic_vector(14 downto 0);
@@ -163,7 +172,7 @@ begin
             DRAM_SIZE          => 512 * 1024 * 1024,
             DRAM_INIT_SIZE     => PAYLOAD_SIZE,
             DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
-            HAS_SPI_FLASH      => false,
+            HAS_SPI_FLASH      => true,
             SPI_FLASH_DLINES   => 4,
             SPI_FLASH_OFFSET   => SPI_FLASH_OFFSET,
             SPI_FLASH_DEF_CKDV => SPI_FLASH_DEF_CKDV,
@@ -190,8 +199,8 @@ begin
 	    --uart1_rxd         => uart_pmod_rx,
 
             -- SPI signals
---            spi_flash_sck     => spi_sck,
---            spi_flash_cs_n    => spi_cs_n,
+            spi_flash_sck     => spi_sck,
+            spi_flash_cs_n    => spi_cs_n,
             spi_flash_sdat_o  => spi_sdat_o,
             spi_flash_sdat_oe => spi_sdat_oe,
             spi_flash_sdat_i  => spi_sdat_i,
@@ -222,6 +231,36 @@ begin
             wishbone_dma_out     => wb_sddma_out,
 
             alt_reset            => core_alt_reset
+            );
+
+
+    -- SPI Flash
+    --
+    -- Note: Unlike many other boards, the SPI flash on the Arty has
+    -- an actual pin to generate the clock and doesn't require to use
+    -- the STARTUPE2 primitive.
+    --
+    spi_flash_cs_n   <= spi_cs_n;
+    spi_flash_mosi   <= spi_sdat_o(0) when spi_sdat_oe(0) = '1' else 'Z';
+    spi_flash_miso   <= spi_sdat_o(1) when spi_sdat_oe(1) = '1' else 'Z';
+    spi_flash_wp_n   <= spi_sdat_o(2) when spi_sdat_oe(2) = '1' else 'Z';
+    spi_flash_hold_n <= spi_sdat_o(3) when spi_sdat_oe(3) = '1' else 'Z';
+    spi_sdat_i(0)    <= spi_flash_mosi;
+    spi_sdat_i(1)    <= spi_flash_miso;
+    spi_sdat_i(2)    <= spi_flash_wp_n;
+    spi_sdat_i(3)    <= spi_flash_hold_n;
+
+    STARTUPE2_INST: STARTUPE2
+        port map (
+            CLK => '0',
+            GSR => '0',
+            GTS => '0',
+            KEYCLEARB => '0',
+            PACK => '0',
+            USRCCLKO => spi_sck,
+            USRCCLKTS => '0',
+            USRDONEO => '1',
+            USRDONETS => '0'
             );
 
     nodram: if not USE_LITEDRAM generate
