@@ -56,59 +56,75 @@ begin
     begin
         test_runner_setup(runner, runner_cfg);
 
-        wait for 4*clk_period;
+        wait for 8*clk_period;
+
+        info("reset state:" & to_hstring(lru));
+        check_equal(lru, 0, result("LRU"));
 
         info("accessing 1:");
         acc <= "001";
         acc_en <= '1';
         wait for clk_period;
         info("lru:" & to_hstring(lru));
+        check_equal(lru, 4, result("LRU"));
 
         info("accessing 2:");
         acc <= "010";
         wait for clk_period;
         info("lru:" & to_hstring(lru));
+        check_equal(lru, 4, result("LRU"));
 
         info("accessing 7:");
         acc <= "111";
         wait for clk_period;
         info("lru:" & to_hstring(lru));
+        check_equal(lru, 0, result("LRU"));
 
         info("accessing 4:");
         acc <= "100";
         wait for clk_period;
         info("lru:" & to_hstring(lru));
+        check_equal(lru, 0, result("LRU"));
 
         info("accessing 3:");
         acc <= "011";
         wait for clk_period;
         info("lru:" & to_hstring(lru));
+        check_equal(lru, 6, result("LRU"));
 
         info("accessing 5:");
         acc <= "101";
         wait for clk_period;
         info("lru:" & to_hstring(lru));
+        check_equal(lru, 0, result("LRU"));
 
         info("accessing 3:");
         acc <= "011";
         wait for clk_period;
         info("lru:" & to_hstring(lru));
+        check_equal(lru, 6, result("LRU"));
 
         info("accessing 5:");
         acc <= "101";
         wait for clk_period;
         info("lru:" & to_hstring(lru));
+        check_equal(lru, 0, result("LRU"));
 
         info("accessing 6:");
         acc <= "110";
         wait for clk_period;
         info("lru:" & to_hstring(lru));
+        check_equal(lru, 0, result("LRU"));
 
         info("accessing 0:");
         acc <= "000";
         wait for clk_period;
         info("lru:" & to_hstring(lru));
+        check_equal(lru, 4, result("LRU"));
 
+        wait for clk_period;
+        wait for clk_period;
+        
         test_runner_cleanup(runner);
     end process;
 end;

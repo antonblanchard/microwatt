@@ -19,8 +19,12 @@ entity plru is
 end entity plru;
 
 architecture rtl of plru is
+    -- Each level of the tree (from leaf to root) has half the number of nodes
+    -- of the previous level. So for a 2^N bits LRU, we have a level of N/2 bits
+    -- one of N/4 bits etc.. down to 1. This gives us 2^N-1 nodes. Ie, 2 bits
+    -- LRU has 3 nodes (2 + 1), 4 bits LRU has 15 nodes (8 + 4 + 2 + 1) etc...
     constant count : positive := 2 ** BITS - 1;
-    subtype node_t is integer range 0 to count;
+    subtype node_t is integer range 0 to count - 1;
     type tree_t is array(node_t) of std_ulogic;
 
     signal tree: tree_t;
@@ -31,14 +35,16 @@ begin
     -- in term of FPGA resource usage...
     get_lru: process(tree)
         variable node : node_t;
+        variable abit : std_ulogic;
     begin
         node := 0;
         for i in 0 to BITS-1 loop
 --          report "GET: i:" & integer'image(i) & " node:" & integer'image(node) & " val:" & std_ulogic'image(tree(node));
-            lru(BITS-1-i) <= tree(node);
+            abit := tree(node);
+            lru(BITS-1-i) <= abit;
             if i /= BITS-1 then
                 node := node * 2;
-                if tree(node) = '1' then
+                if abit = '1' then
                     node := node + 2;
                 else
                     node := node + 1;
@@ -69,7 +75,12 @@ begin
                         end if;
                     end if;
                 end loop;
-            end if;            
+            end if;
         end if;
+--        if falling_edge(clk) then
+--            if acc_en = '1' then
+--                report "UPD: tree:" & to_string(tree);
+--            end if;
+--        end if;
     end process;
 end;
