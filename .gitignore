@@ -19,3 +19,4 @@ obj_dir/*
 /scripts/mw_debug/urjtag
 /scripts/mw_debug/mw_debug
 git.vhdl
+vunit_out/
