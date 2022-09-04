@@ -2,7 +2,14 @@ GHDL ?= ghdl
 GHDLFLAGS=--std=08
 CFLAGS=-O3 -Wall
 # Need to investigate why yosys is hitting verilator warnings, and eventually turn on -Wall
-VERILATOR_FLAGS=-O3 -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT #--trace
+VERILATOR_FLAGS=-O3 -Wno-fatal -Wno-CASEOVERLAP -Wno-UNOPTFLAT
+VERILATOR_TRACE=0
+
+ifeq ($(VERILATOR_TRACE),1)
+VERILATOR_FLAGS += --trace
+verilator_extra_link =  -Wl,obj_dir/verilated_vcd_c.o
+endif
+
 # It takes forever to build with optimisation, so disable by default
 #VERILATOR_CFLAGS=-O3
 
@@ -135,14 +142,14 @@ verilated_dram: litedram/generated/sim/litedram_core.v
 	make -C obj_dir -f ../litedram/extras/sim_dram_verilate.mk VERILATOR_ROOT=$(VERILATOR_ROOT)
 
 SIM_DRAM_CFLAGS  = -I. -Iobj_dir -Ilitedram/generated/sim -I$(VERILATOR_ROOT)/include -I$(VERILATOR_ROOT)/include/vltstd
-SIM_DRAM_CFLAGS += -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=1 -DVL_PRINTF=printf -faligned-new
+SIM_DRAM_CFLAGS += -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=$(VERILATOR_TRACE) -DVL_PRINTF=printf -faligned-new
 sim_litedram_c.o: litedram/extras/sim_litedram_c.cpp verilated_dram
 	$(CC)  $(CPPFLAGS) $(SIM_DRAM_CFLAGS) $(CFLAGS) -c $< -o $@
 
 soc_dram_files = $(core_files) $(soc_files) litedram/extras/litedram-wrapper-l2.vhdl litedram/generated/sim/litedram-initmem.vhdl
 soc_dram_sim_files = $(soc_sim_files) litedram/extras/sim_litedram.vhdl
 soc_dram_sim_obj_files = $(soc_sim_obj_files) sim_litedram_c.o
-dram_link_files=-Wl,obj_dir/Vlitedram_core__ALL.a -Wl,obj_dir/verilated.o -Wl,obj_dir/verilated_vcd_c.o -Wl,-lstdc++
+dram_link_files=-Wl,obj_dir/Vlitedram_core__ALL.a -Wl,obj_dir/verilated.o $(verilator_extra_link) -Wl,-lstdc++
 soc_dram_sim_link=$(patsubst %,-Wl$(comma)%,$(soc_dram_sim_obj_files)) $(dram_link_files)
 
 $(soc_dram_tbs): %: $(soc_dram_files) $(soc_dram_sim_files) $(soc_dram_sim_obj_files) $(flash_model_files) $(unisim_lib) $(fmf_lib) %.vhdl

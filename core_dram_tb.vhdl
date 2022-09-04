@@ -12,7 +12,9 @@ entity core_dram_tb is
         MEMORY_SIZE    : natural := (384*1024);
         MAIN_RAM_FILE  : string  := "main_ram.bin";
         DRAM_INIT_FILE : string  := "";
-        DRAM_INIT_SIZE : natural := 16#c000#
+        DRAM_INIT_SIZE : natural := 16#c000#;
+        L2_TRACE : boolean := false;
+        LITEDRAM_TRACE : boolean := false
         );
 end core_dram_tb;
 
@@ -124,7 +126,9 @@ begin
             DRAM_CKLINES => 1,
             DRAM_PORT_WIDTH => 128,
             PAYLOAD_FILE => DRAM_INIT_FILE,
-            PAYLOAD_SIZE => ROM_SIZE
+            PAYLOAD_SIZE => ROM_SIZE,
+            TRACE => L2_TRACE,
+            LITEDRAM_TRACE => LITEDRAM_TRACE
             )
         port map(
             clk_in          => clk,
