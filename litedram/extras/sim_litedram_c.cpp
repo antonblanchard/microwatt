@@ -102,6 +102,7 @@ static void do_eval(void)
 	if (tfp)
 		tfp->dump((double) main_time);
 #endif
+	main_time++;
 }
 
 extern "C" void litedram_set_wb(unsigned char *req)
@@ -184,10 +185,8 @@ extern "C" void litedram_clock(void)
 
 	v->clk = 1;
 	do_eval();
-	main_time++;
 	v->clk = 0;
 	do_eval();
-	main_time++;
 }
 
 extern "C" void litedram_init(int trace_on)
