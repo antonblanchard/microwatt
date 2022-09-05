@@ -549,8 +549,8 @@ begin
             -- Mask write selects with do_write since BRAM doesn't always
             -- have a global write-enable (Vivado generates TDP instead
             -- of SDP when using one, thus doubling cache BRAM usage).
-            for i in 0 to ROW_SIZE-1 loop
-                wr_sel_m(i) <= wr_sel(i) and do_write;
+            for j in 0 to ROW_SIZE-1 loop
+                wr_sel_m(j) <= wr_sel(j) and do_write;
             end loop;
 
             if TRACE and rising_edge(system_clk) then
@@ -796,7 +796,9 @@ begin
         -- Store signals (hard wired for 64-bit wishbone at the moment)
         req_wsl <= wb_req.adr(WB_WSEL_BITS-1 downto 0);
         for i in 0 to WB_WORD_COUNT-1 loop
-            if to_integer(unsigned(req_wsl)) = i then
+            if is_X(req_wsl) then
+                req_we(WBSL*(i+1)-1 downto WBSL*i) <= x"XX";
+            elsif to_integer(unsigned(req_wsl)) = i then
                 req_we(WBSL*(i+1)-1 downto WBSL*i) <= wb_req.sel;
             else
                 req_we(WBSL*(i+1)-1 downto WBSL*i) <= x"00";
@@ -916,7 +918,9 @@ begin
         stq_sel  := storeq_rd_data(WBSL+WB_WSEL_BITS-1 downto WB_WSEL_BITS);
         stq_wsl  := storeq_rd_data(WB_WSEL_BITS-1      downto 0);
         for i in 0 to WB_WORD_COUNT-1 loop
-            if to_integer(unsigned(stq_wsl)) = i then
+            if is_X(stq_wsl) then
+                user_port0_wdata_we(WBSL*(i+1)-1 downto WBSL*i) <= x"XX";
+            elsif to_integer(unsigned(stq_wsl)) = i then
                 user_port0_wdata_we(WBSL*(i+1)-1 downto WBSL*i) <= stq_sel;
             else
                 user_port0_wdata_we(WBSL*(i+1)-1 downto WBSL*i) <= x"00";
@@ -1122,7 +1126,7 @@ begin
         component litedram_trace_stub
         end component;
     begin
-        litedram_trace: litedram_trace_stub;
+        litedram_trace_s: litedram_trace_stub;
     end generate;
     
     litedram: litedram_core
