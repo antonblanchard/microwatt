@@ -102,7 +102,8 @@ architecture rtl of icache is
     -- the +1 is to allow the endianness to be stored in the tag
     constant TAG_BITS      : natural := REAL_ADDR_BITS - SET_SIZE_BITS + 1;
     -- WAY_BITS is the number of bits to select a way
-    constant WAY_BITS     : natural := log2(NUM_WAYS);
+    -- Make sure this is at least 1, to avoid 0-element vectors
+    constant WAY_BITS     : natural := maximum(log2(NUM_WAYS), 1);
 
     -- Example of layout for 32 lines of 64 bytes:
     --
@@ -787,8 +788,11 @@ begin
                     assert not is_X(r.store_row) severity failure;
                     assert not is_X(r.recv_row) severity failure;
                     if r.state = CLR_TAG then
-                        -- Get victim way from plru
-                        replace_way := unsigned(plru_victim(to_integer(r.store_index)));
+                        replace_way := to_unsigned(0, WAY_BITS);
+                        if NUM_WAYS > 1 then
+                            -- Get victim way from plru
+                            replace_way := unsigned(plru_victim(to_integer(r.store_index)));
+                        end if;
 			r.store_way <= replace_way;
 
 			-- Force misses on that way while reloading that line
