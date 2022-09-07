@@ -84,7 +84,8 @@ architecture rtl of dcache is
     -- TAG_WIDTH is the width in bits of each way of the tag RAM
     constant TAG_WIDTH     : natural := TAG_BITS + 7 - ((TAG_BITS + 7) mod 8);
     -- WAY_BITS is the number of bits to select a way
-    constant WAY_BITS     : natural := log2(NUM_WAYS);
+    -- Make sure this is at least 1, to avoid 0-element vectors
+    constant WAY_BITS     : natural := maximum(log2(NUM_WAYS), 1);
 
     -- Example of layout for 32 lines of 64 bytes:
     --
@@ -130,7 +131,7 @@ architecture rtl of dcache is
 
     -- L1 TLB.
     constant TLB_SET_BITS : natural := log2(TLB_SET_SIZE);
-    constant TLB_WAY_BITS : natural := log2(TLB_NUM_WAYS);
+    constant TLB_WAY_BITS : natural := maximum(log2(TLB_NUM_WAYS), 1);
     constant TLB_EA_TAG_BITS : natural := 64 - (TLB_LG_PGSZ + TLB_SET_BITS);
     constant TLB_TAG_WAY_BITS : natural := TLB_NUM_WAYS * TLB_EA_TAG_BITS;
     constant TLB_PTE_BITS : natural := 64;
@@ -747,13 +748,15 @@ begin
                 end if;
             elsif tlbwe = '1' then
                 assert not is_X(tlb_req_index);
-                if tlb_hit = '1' then
-                    repl_way := tlb_hit_way;
-                else
-                    assert not is_X(tlb_plru_victim(to_integer(tlb_req_index)));
-                    repl_way := unsigned(tlb_plru_victim(to_integer(tlb_req_index)));
+                repl_way := to_unsigned(0, TLB_WAY_BITS);
+                if TLB_NUM_WAYS > 1 then
+                    if tlb_hit = '1' then
+                        repl_way := tlb_hit_way;
+                    else
+                        repl_way := unsigned(tlb_plru_victim(to_integer(tlb_req_index)));
+                    end if;
+                    assert not is_X(repl_way);
                 end if;
-                assert not is_X(repl_way);
                 eatag := r0.req.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
                 tagset := tlb_tag_way;
                 write_tlb_tag(to_integer(repl_way), tagset, eatag);
@@ -974,11 +977,14 @@ begin
         end if;
 
         -- The way to replace on a miss
-        if r1.write_tag = '1' then
-            assert not is_X(r1.store_index);
-            replace_way <= unsigned(plru_victim(to_integer(r1.store_index)));
-        else
-            replace_way <= r1.store_way;
+        replace_way <= to_unsigned(0, WAY_BITS);
+        if NUM_WAYS > 1 then
+            if r1.write_tag = '1' then
+                assert not is_X(r1.store_index);
+                replace_way <= unsigned(plru_victim(to_integer(r1.store_index)));
+            else
+                replace_way <= r1.store_way;
+            end if;
         end if;
 
         -- See if the request matches the line currently being reloaded
