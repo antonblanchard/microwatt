@@ -26,6 +26,9 @@
  */
 #define IRQ_UART0       0
 #define IRQ_ETHERNET    1
+#define IRQ_UART1       2
+#define IRQ_SDCARD      3
+#define IRQ_GPIO        4
 
 /*
  * Register definitions for the syscon registers
