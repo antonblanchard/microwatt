@@ -14,6 +14,7 @@
 #define XICS_ICP_BASE   0xc0004000  /* Interrupt controller */
 #define XICS_ICS_BASE   0xc0005000  /* Interrupt controller */
 #define SPI_FCTRL_BASE  0xc0006000  /* SPI flash controller registers */
+#define GPIO_BASE       0xc0007000  /* GPIO registers */
 #define DRAM_CTRL_BASE	0xc8000000  /* LiteDRAM control registers */
 #define LETH_CSR_BASE	0xc8020000  /* LiteEth CSR registers */
 #define LETH_SRAM_BASE	0xc8030000  /* LiteEth MMIO space */
@@ -158,5 +159,20 @@
 #define   SPI_REG_AUTO_CFG_CSTOUT_SHIFT         24    /* CS timeout */
 #define   SPI_REG_AUTO_CFG_CSTOUT_MASK          (0x3f << SPI_REG_AUTO_CFG_CSTOUT_SHIFT)
 
+/*
+ * Register definitions for GPIO
+ */
+#define GPIO_REG_DATA_OUT  0x00
+#define GPIO_REG_DATA_IN   0x04
+#define GPIO_REG_DIR       0x08
+#define GPIO_REG_DATA_SET  0x10
+#define GPIO_REG_DATA_CLR  0x14
+
+#define GPIO_REG_INT_EN    0x20
+#define GPIO_REG_INT_STAT  0x24
+#define GPIO_REG_INT_CLR   0x30
+#define GPIO_REG_INT_TYPE  0x34
+#define GPIO_REG_INT_BOTH_EDGE 0x38
+#define GPIO_REG_INT_LEVEL 0x3C
 
 #endif /* __MICROWATT_SOC_H */
