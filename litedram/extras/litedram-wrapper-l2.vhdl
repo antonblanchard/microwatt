@@ -305,8 +305,7 @@ architecture behaviour of litedram_wrapper is
     signal cache_out   : cache_ram_out_t;
 
     -- PLRU output interface
-    type plru_out_t is array(index_t) of std_ulogic_vector(WAY_BITS-1 downto 0);
-    signal plru_victim : plru_out_t;
+    signal plru_victim : way_t;
 
     --
     -- Helper functions to decode incoming requests
@@ -565,39 +564,44 @@ begin
     end generate;
 
     -- Generate PLRUs
-    maybe_plrus: if NUM_WAYS > 1 generate
+    maybe_plrus : if NUM_WAYS > 1 generate
+        type plru_array is array(index_t) of std_ulogic_vector(NUM_WAYS - 2 downto 0);
+        signal plru_ram    : plru_array;
+        signal plru_cur    : std_ulogic_vector(NUM_WAYS - 2 downto 0);
+        signal plru_upd    : std_ulogic_vector(NUM_WAYS - 2 downto 0);
+        signal plru_acc    : std_ulogic_vector(WAY_BITS-1 downto 0);
+        signal plru_out    : std_ulogic_vector(WAY_BITS-1 downto 0);
     begin
-        plrus: for i in 0 to NUM_LINES-1 generate
-            -- PLRU interface
-            signal plru_acc    : std_ulogic_vector(WAY_BITS-1 downto 0);
-            signal plru_acc_en : std_ulogic;
-            signal plru_out    : std_ulogic_vector(WAY_BITS-1 downto 0);
-        begin
-            plru : entity work.plru
-                generic map (
-                    BITS => WAY_BITS
-                    )
-                port map (
-                    clk => system_clk,
-                    rst => system_reset,
-                    acc => plru_acc,
-                    acc_en => plru_acc_en,
-                    lru => plru_out
-                    );
+        plru : entity work.plrufn
+            generic map (
+                BITS => WAY_BITS
+                )
+            port map (
+                acc      => plru_acc,
+                tree_in  => plru_cur,
+                tree_out => plru_upd,
+                lru      => plru_out
+                );
 
-            process(req_index, req_op, req_hit_way, plru_out)
-            begin
-                -- PLRU interface
-                if (req_op = OP_LOAD_HIT or
-                    req_op = OP_STORE_HIT) and req_index = i then
-                    plru_acc_en <= '1';
-                else
-                    plru_acc_en <= '0';
+        process(all)
+        begin
+            -- Read PLRU bits from array
+            plru_cur <= plru_ram(req_index);
+
+            -- PLRU interface
+            plru_acc <= std_ulogic_vector(to_unsigned(req_hit_way, WAY_BITS));
+            plru_victim <= to_integer(unsigned(plru_out));
+        end process;
+
+        -- synchronous writes to PLRU array
+        process(system_clk)
+        begin
+            if rising_edge(system_clk) then
+                if (req_op = OP_LOAD_HIT or req_op = OP_STORE_HIT) then
+                    plru_ram(req_index) <= plru_upd;
                 end if;
-                plru_acc <= std_ulogic_vector(to_unsigned(req_hit_way, WAY_BITS));
-                plru_victim(i) <= plru_out;
-            end process;
-        end generate;
+            end if;
+        end process;
     end generate;
 
     --
@@ -1019,7 +1023,7 @@ begin
                     -- We need to read a cache line
                     if req_op = OP_LOAD_MISS and not wait_qdrain then
                         -- Grab way to replace
-                        refill_way <= to_integer(unsigned(plru_victim(req_index)));
+                        refill_way <= plru_victim;
 
                         -- Keep track of our index and way for subsequent stores
                         refill_index   <= req_index;
