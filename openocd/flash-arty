@@ -27,6 +27,8 @@ def get_version():
         return ""
     if a.stderr.count(b"0.11"):
         return "_openocd_v0.11"
+    if a.stderr.count(b"0.12"):
+        return "_openocd_v0.11"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("file", help="file to write to flash")
