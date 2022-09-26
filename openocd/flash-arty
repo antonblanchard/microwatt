@@ -46,8 +46,10 @@ elif args.fpga.lower() == "a100":
         proxy = "bscan_spi_xc7a100t{}.bit".format(version)
 elif args.fpga.lower() == "a200":
         proxy = "bscan_spi_xc7a200t{}.bit".format(version)
+elif args.fpga.lower() == "k325":
+        proxy = "bscan_spi_xc7k325t{}.bit".format(version)
 else:
-    print("error: specify a35, a100 or a200 when flashing")
+    print("error: specify a35, a100, a200 or k325 when flashing")
     sys.exit()
 
 proxy = os.path.join(BASE, proxy)
