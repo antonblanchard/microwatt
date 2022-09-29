@@ -12,7 +12,6 @@
 --     efficient use of distributed RAM and less logic/muxes. Currently we
 --     write TAG_BITS width which may not match full ram blocks and might
 --     cause muxes to be inferred for "partial writes".
---   * Check if making the read size of PLRU a ROM helps utilization
 --
 library ieee;
 use ieee.std_logic_1164.all;
@@ -102,7 +101,8 @@ architecture rtl of icache is
     -- the +1 is to allow the endianness to be stored in the tag
     constant TAG_BITS      : natural := REAL_ADDR_BITS - SET_SIZE_BITS + 1;
     -- WAY_BITS is the number of bits to select a way
-    constant WAY_BITS     : natural := log2(NUM_WAYS);
+    -- Make sure this is at least 1, to avoid 0-element vectors
+    constant WAY_BITS     : natural := maximum(log2(NUM_WAYS), 1);
 
     -- Example of layout for 32 lines of 64 bytes:
     --
@@ -235,8 +235,7 @@ architecture rtl of icache is
     signal wb_rd_data    : std_ulogic_vector(ROW_SIZE_BITS - 1 downto 0);
 
     -- PLRU output interface
-    type plru_out_t is array(index_t) of std_ulogic_vector(WAY_BITS-1 downto 0);
-    signal plru_victim : plru_out_t;
+    signal plru_victim : way_sig_t;
 
     -- Memory write snoop signals
     signal snoop_valid : std_ulogic;
@@ -446,40 +445,48 @@ begin
     
     -- Generate PLRUs
     maybe_plrus: if NUM_WAYS > 1 generate
+        type plru_array is array(index_t) of std_ulogic_vector(NUM_WAYS - 2 downto 0);
+        signal plru_ram    : plru_array;
+        signal plru_cur    : std_ulogic_vector(NUM_WAYS - 2 downto 0);
+        signal plru_upd    : std_ulogic_vector(NUM_WAYS - 2 downto 0);
+        signal plru_acc    : std_ulogic_vector(WAY_BITS-1 downto 0);
+        signal plru_out    : std_ulogic_vector(WAY_BITS-1 downto 0);
     begin
-	plrus: for i in 0 to NUM_LINES-1 generate
-	    -- PLRU interface
-	    signal plru_acc    : std_ulogic_vector(WAY_BITS-1 downto 0);
-	    signal plru_acc_en : std_ulogic;
-	    signal plru_out    : std_ulogic_vector(WAY_BITS-1 downto 0);
-	    
-	begin
-	    plru : entity work.plru
-		generic map (
-		    BITS => WAY_BITS
-		    )
-		port map (
-		    clk => clk,
-		    rst => rst,
-		    acc => plru_acc,
-		    acc_en => plru_acc_en,
-		    lru => plru_out
-		    );
+        plru : entity work.plrufn
+            generic map (
+                BITS => WAY_BITS
+                )
+            port map (
+                acc => plru_acc,
+                tree_in => plru_cur,
+                tree_out => plru_upd,
+                lru => plru_out
+                );
 
-	    process(all)
-	    begin
-		-- PLRU interface
-		if is_X(r.hit_nia) then
-		    plru_acc_en <= 'X';
-		elsif get_index(r.hit_nia) = i then
-		    plru_acc_en <= r.hit_valid;
-		else
-		    plru_acc_en <= '0';
-		end if;
-		plru_acc <= std_ulogic_vector(r.hit_way);
-		plru_victim(i) <= plru_out;
-	    end process;
-	end generate;
+        process(all)
+        begin
+            -- Read PLRU bits from array
+            if is_X(r.hit_nia) then
+                plru_cur <= (others => 'X');
+            else
+                plru_cur <= plru_ram(to_integer(get_index(r.hit_nia)));
+            end if;
+
+            -- PLRU interface
+            plru_acc <= std_ulogic_vector(r.hit_way);
+            plru_victim <= unsigned(plru_out);
+        end process;
+
+        -- synchronous writes to PLRU array
+        process(clk)
+        begin
+            if rising_edge(clk) then
+                if r.hit_valid = '1' then
+                    assert not is_X(r.hit_nia) severity failure;
+                    plru_ram(to_integer(get_index(r.hit_nia))) <= plru_upd;
+                end if;
+            end if;
+        end process;
     end generate;
 
     -- TLB hit detection and real address generation
@@ -787,8 +794,11 @@ begin
                     assert not is_X(r.store_row) severity failure;
                     assert not is_X(r.recv_row) severity failure;
                     if r.state = CLR_TAG then
-                        -- Get victim way from plru
-                        replace_way := unsigned(plru_victim(to_integer(r.store_index)));
+                        replace_way := to_unsigned(0, WAY_BITS);
+                        if NUM_WAYS > 1 then
+                            -- Get victim way from plru
+                            replace_way := plru_victim;
+                        end if;
 			r.store_way <= replace_way;
 
 			-- Force misses on that way while reloading that line

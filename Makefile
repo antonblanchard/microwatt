@@ -68,8 +68,8 @@ all: $(all)
 $(shell scripts/make_version.sh git.vhdl)
 
 core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
-	utils.vhdl plru.vhdl cache_ram.vhdl icache.vhdl predecode.vhdl \
-	decode1.vhdl helpers.vhdl insn_helpers.vhdl \
+	utils.vhdl plru.vhdl plrufn.vhdl cache_ram.vhdl icache.vhdl \
+	predecode.vhdl decode1.vhdl helpers.vhdl insn_helpers.vhdl \
 	control.vhdl decode2.vhdl register_file.vhdl \
 	cr_file.vhdl crhelpers.vhdl ppc_fx_insns.vhdl rotator.vhdl \
 	logical.vhdl countbits.vhdl multiply.vhdl multiply-32s.vhdl divider.vhdl \

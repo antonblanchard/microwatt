@@ -34,6 +34,7 @@ filesets:
       - core.vhdl
       - icache.vhdl
       - plru.vhdl
+      - plrufn.vhdl
       - cache_ram.vhdl
       - core_debug.vhdl
       - utils.vhdl

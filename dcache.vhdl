@@ -84,7 +84,8 @@ architecture rtl of dcache is
     -- TAG_WIDTH is the width in bits of each way of the tag RAM
     constant TAG_WIDTH     : natural := TAG_BITS + 7 - ((TAG_BITS + 7) mod 8);
     -- WAY_BITS is the number of bits to select a way
-    constant WAY_BITS     : natural := log2(NUM_WAYS);
+    -- Make sure this is at least 1, to avoid 0-element vectors
+    constant WAY_BITS     : natural := maximum(log2(NUM_WAYS), 1);
 
     -- Example of layout for 32 lines of 64 bytes:
     --
@@ -130,7 +131,7 @@ architecture rtl of dcache is
 
     -- L1 TLB.
     constant TLB_SET_BITS : natural := log2(TLB_SET_SIZE);
-    constant TLB_WAY_BITS : natural := log2(TLB_NUM_WAYS);
+    constant TLB_WAY_BITS : natural := maximum(log2(TLB_NUM_WAYS), 1);
     constant TLB_EA_TAG_BITS : natural := 64 - (TLB_LG_PGSZ + TLB_SET_BITS);
     constant TLB_TAG_WAY_BITS : natural := TLB_NUM_WAYS * TLB_EA_TAG_BITS;
     constant TLB_PTE_BITS : natural := 64;
@@ -316,6 +317,7 @@ architecture rtl of dcache is
         tlb_hit          : std_ulogic;
         tlb_hit_way      : tlb_way_sig_t;
         tlb_hit_index    : tlb_index_sig_t;
+        tlb_victim       : tlb_way_sig_t;
 
 	-- data buffer for data forwarded from writes to reads
 	forward_data     : std_ulogic_vector(63 downto 0);
@@ -341,6 +343,8 @@ architecture rtl of dcache is
         acks_pending     : unsigned(2 downto 0);
         inc_acks         : std_ulogic;
         dec_acks         : std_ulogic;
+        choose_victim    : std_ulogic;
+        victim_way       : way_t;
 
         -- Signals to complete (possibly with error)
         ls_valid         : std_ulogic;
@@ -397,8 +401,7 @@ architecture rtl of dcache is
     signal ram_wr_select : std_ulogic_vector(ROW_SIZE - 1 downto 0);
 
     -- PLRU output interface
-    type plru_out_t is array(0 to NUM_LINES-1) of std_ulogic_vector(WAY_BITS-1 downto 0);
-    signal plru_victim : plru_out_t;
+    signal plru_victim : way_t;
     signal replace_way : way_t;
 
     -- Wishbone read/write/cache write formatting signals
@@ -422,8 +425,7 @@ architecture rtl of dcache is
     signal tlb_miss : std_ulogic;
 
     -- TLB PLRU output interface
-    type tlb_plru_out_t is array(tlb_index_t) of std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
-    signal tlb_plru_victim : tlb_plru_out_t;
+    signal tlb_plru_victim : std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
 
     signal snoop_tag_set : cache_tags_set_t;
     signal snoop_valid   : std_ulogic;
@@ -649,39 +651,49 @@ begin
     end process;
 
     -- Generate TLB PLRUs
-    maybe_tlb_plrus: if TLB_NUM_WAYS > 1 generate
+    maybe_tlb_plrus : if TLB_NUM_WAYS > 1 generate
+        type tlb_plru_array is array(tlb_index_t) of std_ulogic_vector(TLB_NUM_WAYS - 2 downto 0);
+        signal tlb_plru_ram    : tlb_plru_array;
+        signal tlb_plru_cur    : std_ulogic_vector(TLB_NUM_WAYS - 2 downto 0);
+        signal tlb_plru_upd    : std_ulogic_vector(TLB_NUM_WAYS - 2 downto 0);
+        signal tlb_plru_acc    : std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
+        signal tlb_plru_out    : std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
     begin
-	tlb_plrus: for i in 0 to TLB_SET_SIZE - 1 generate
-	    -- TLB PLRU interface
-	    signal tlb_plru_acc    : std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
-	    signal tlb_plru_acc_en : std_ulogic;
-	    signal tlb_plru_out    : std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
-	begin
-	    tlb_plru : entity work.plru
-		generic map (
-		    BITS => TLB_WAY_BITS
-		    )
-		port map (
-		    clk => clk,
-		    rst => rst,
-		    acc => tlb_plru_acc,
-		    acc_en => tlb_plru_acc_en,
-		    lru => tlb_plru_out
-		    );
+        tlb_plru : entity work.plrufn
+            generic map (
+                BITS => TLB_WAY_BITS
+                )
+            port map (
+                acc      => tlb_plru_acc,
+                tree_in  => tlb_plru_cur,
+                tree_out => tlb_plru_upd,
+                lru      => tlb_plru_out
+                );
 
-	    process(all)
-	    begin
-		-- PLRU interface
-		if not is_X(r1.tlb_hit_index) and r1.tlb_hit_index = i then
-		    tlb_plru_acc_en <= r1.tlb_hit;
-                    assert not is_X(r1.tlb_hit_way);
-		else
-		    tlb_plru_acc_en <= '0';
-		end if;
-		tlb_plru_acc <= std_ulogic_vector(r1.tlb_hit_way);
-		tlb_plru_victim(i) <= tlb_plru_out;
-	    end process;
-	end generate;
+        process(all)
+        begin
+            -- Read PLRU bits from array
+            if is_X(r1.tlb_hit_index) then
+                tlb_plru_cur <= (others => 'X');
+            else
+                tlb_plru_cur <= tlb_plru_ram(to_integer(r1.tlb_hit_index));
+            end if;
+
+            -- PLRU interface
+            tlb_plru_acc <= std_ulogic_vector(r1.tlb_hit_way);
+            tlb_plru_victim <= tlb_plru_out;
+        end process;
+
+        -- synchronous writes to TLB PLRU array
+        process(clk)
+        begin
+            if rising_edge(clk) then
+                if r1.tlb_hit = '1' then
+                    assert not is_X(r1.tlb_hit_index) severity failure;
+                    tlb_plru_ram(to_integer(r1.tlb_hit_index)) <= tlb_plru_upd;
+                end if;
+            end if;
+        end process;
     end generate;
 
     tlb_search : process(all)
@@ -747,13 +759,15 @@ begin
                 end if;
             elsif tlbwe = '1' then
                 assert not is_X(tlb_req_index);
-                if tlb_hit = '1' then
-                    repl_way := tlb_hit_way;
-                else
-                    assert not is_X(tlb_plru_victim(to_integer(tlb_req_index)));
-                    repl_way := unsigned(tlb_plru_victim(to_integer(tlb_req_index)));
+                repl_way := to_unsigned(0, TLB_WAY_BITS);
+                if TLB_NUM_WAYS > 1 then
+                    if tlb_hit = '1' then
+                        repl_way := tlb_hit_way;
+                    else
+                        repl_way := unsigned(r1.tlb_victim);
+                    end if;
+                    assert not is_X(repl_way);
                 end if;
-                assert not is_X(repl_way);
                 eatag := r0.req.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
                 tagset := tlb_tag_way;
                 write_tlb_tag(to_integer(repl_way), tagset, eatag);
@@ -767,39 +781,49 @@ begin
     end process;
 
     -- Generate PLRUs
-    maybe_plrus: if NUM_WAYS > 1 generate
+    maybe_plrus : if NUM_WAYS > 1 generate
+        type plru_array is array(0 to NUM_LINES-1) of std_ulogic_vector(NUM_WAYS - 2 downto 0);
+        signal plru_ram    : plru_array;
+        signal plru_cur    : std_ulogic_vector(NUM_WAYS - 2 downto 0);
+        signal plru_upd    : std_ulogic_vector(NUM_WAYS - 2 downto 0);
+        signal plru_acc    : std_ulogic_vector(WAY_BITS-1 downto 0);
+        signal plru_out    : std_ulogic_vector(WAY_BITS-1 downto 0);
     begin
-	plrus: for i in 0 to NUM_LINES-1 generate
-	    -- PLRU interface
-	    signal plru_acc    : std_ulogic_vector(WAY_BITS-1 downto 0);
-	    signal plru_acc_en : std_ulogic;
-	    signal plru_out    : std_ulogic_vector(WAY_BITS-1 downto 0);
-	    
-	begin
-	    plru : entity work.plru
-		generic map (
-		    BITS => WAY_BITS
-		    )
-		port map (
-		    clk => clk,
-		    rst => rst,
-		    acc => plru_acc,
-		    acc_en => plru_acc_en,
-		    lru => plru_out
-		    );
+        plru : entity work.plrufn
+            generic map (
+                BITS => WAY_BITS
+                )
+            port map (
+                acc      => plru_acc,
+                tree_in  => plru_cur,
+                tree_out => plru_upd,
+                lru      => plru_out
+                );
 
-	    process(all)
-	    begin
-		-- PLRU interface
-		if not is_X(r1.hit_index) and r1.hit_index = to_unsigned(i, INDEX_BITS) then
-		    plru_acc_en <= r1.cache_hit;
-		else
-		    plru_acc_en <= '0';
-		end if;
-		plru_acc <= std_ulogic_vector(r1.hit_way);
-		plru_victim(i) <= plru_out;
-	    end process;
-	end generate;
+        process(all)
+        begin
+            -- Read PLRU bits from array
+            if is_X(r1.hit_index) then
+                plru_cur <= (others => 'X');
+            else
+                plru_cur <= plru_ram(to_integer(r1.hit_index));
+            end if;
+
+            -- PLRU interface
+            plru_acc <= std_ulogic_vector(r1.hit_way);
+            plru_victim <= unsigned(plru_out);
+        end process;
+
+        -- synchronous writes to PLRU array
+        process(clk)
+        begin
+            if rising_edge(clk) then
+                if r1.cache_hit = '1' then
+                    assert not is_X(r1.hit_index) severity failure;
+                    plru_ram(to_integer(r1.hit_index)) <= plru_upd;
+                end if;
+            end if;
+        end process;
     end generate;
 
     -- Cache tag RAM read port
@@ -974,11 +998,19 @@ begin
         end if;
 
         -- The way to replace on a miss
-        if r1.write_tag = '1' then
-            assert not is_X(r1.store_index);
-            replace_way <= unsigned(plru_victim(to_integer(r1.store_index)));
-        else
-            replace_way <= r1.store_way;
+        replace_way <= to_unsigned(0, WAY_BITS);
+        if NUM_WAYS > 1 then
+            if r1.write_tag = '1' then
+                if r1.choose_victim = '1' then
+                    replace_way <= plru_victim;
+                else
+                    -- Cache victim way was chosen earlier,
+                    -- in the cycle after the miss was detected.
+                    replace_way <= r1.victim_way;
+                end if;
+            else
+                replace_way <= r1.store_way;
+            end if;
         end if;
 
         -- See if the request matches the line currently being reloaded
@@ -1299,8 +1331,6 @@ begin
             end if;
 
             -- Fast path for load/store hits. Set signals for the writeback controls.
-            r1.hit_way <= req_hit_way;
-            r1.hit_index <= req_index;
 	    if req_op = OP_LOAD_HIT then
 		r1.hit_load_valid <= '1';
 	    else
@@ -1334,6 +1364,11 @@ begin
             r1.tlb_hit <= tlb_hit;
             r1.tlb_hit_way <= tlb_hit_way;
             r1.tlb_hit_index <= tlb_req_index;
+            -- determine victim way in the TLB in the cycle after
+            -- we detect the TLB miss
+            if r1.ls_error = '1' then
+                r1.tlb_victim <= unsigned(tlb_plru_victim);
+            end if;
 
 	end if;
     end process;
@@ -1358,6 +1393,7 @@ begin
             ev.load_miss <= '0';
             ev.store_miss <= '0';
             ev.dtlb_miss <= tlb_miss;
+            r1.choose_victim <= '0';
 
 	    -- On reset, clear all valid bits to force misses
             if rst = '1' then
@@ -1452,6 +1488,17 @@ begin
                         r1.req <= req;
                         r1.full <= '1';
                     end if;
+                end if;
+
+                -- Signals for PLRU update and victim selection
+                r1.hit_way <= req_hit_way;
+                r1.hit_index <= req_index;
+                -- Record victim way in the cycle after we see a load or dcbz miss
+                if r1.choose_victim = '1' then
+                    r1.victim_way <= plru_victim;
+                end if;
+                if req_op = OP_LOAD_MISS or (req_op = OP_STORE_MISS and r0.req.dcbz = '1') then
+                    r1.choose_victim <= '1';
                 end if;
 
 		-- Main state machine
