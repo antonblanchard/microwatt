@@ -1496,6 +1496,7 @@ begin
                 -- Record victim way in the cycle after we see a load or dcbz miss
                 if r1.choose_victim = '1' then
                     r1.victim_way <= plru_victim;
+                    report "victim way:" & to_hstring(plru_victim);
                 end if;
                 if req_op = OP_LOAD_MISS or (req_op = OP_STORE_MISS and r0.req.dcbz = '1') then
                     r1.choose_victim <= '1';
