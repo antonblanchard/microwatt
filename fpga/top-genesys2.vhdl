@@ -17,7 +17,7 @@ entity toplevel is
 	USE_LITEDRAM  : boolean  := false;
 	NO_BRAM       : boolean  := false;
 	DISABLE_FLATTEN_CORE : boolean := false;
-        SPI_FLASH_OFFSET   : integer := 10485760;
+        SPI_FLASH_OFFSET   : integer := 12582912;
         SPI_FLASH_DEF_CKDV : natural := 1;
         SPI_FLASH_DEF_QUAD : boolean := true;
         LOG_LENGTH         : natural := 2048;
