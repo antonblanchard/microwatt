@@ -818,7 +818,12 @@ begin
         process(clk)
         begin
             if rising_edge(clk) then
-                if r1.cache_hit = '1' then
+                -- We update the PLRU when hitting the cache or when replacing
+                -- an entry. The PLRU update will be "visible" on the next cycle
+                -- so the victim selection will correctly see the *old* value.
+                if r1.cache_hit = '1' or r1.choose_victim = '1' then
+                    report "PLRU update, index=" & to_hstring(r1.hit_index) &
+                        " way=" & to_hstring(r1.hit_way);
                     assert not is_X(r1.hit_index) severity failure;
                     plru_ram(to_integer(r1.hit_index)) <= plru_upd;
                 end if;
@@ -1336,6 +1341,8 @@ begin
 	    else
 		r1.hit_load_valid <= '0';
 	    end if;
+
+            -- The cache hit indication is used for PLRU updates
             if req_op = OP_LOAD_HIT or req_op = OP_STORE_HIT then
                 r1.cache_hit <= '1';
             else
