@@ -191,7 +191,7 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=12582912
       - log_length=2048
-      - uart_is_16550=false
+      - uart_is_16550
     generate: [git_hash]
     tools:
       vivado: {part : xc7k325tffg900-2}
@@ -228,7 +228,7 @@ targets:
       - no_bram
       - spi_flash_offset=12582912
       - log_length=2048
-      - uart_is_16550=false
+      - uart_is_16550
     generate: [litedram_genesys2, git_hash]
     tools:
       vivado: {part : xc7k325tffg900-2}
