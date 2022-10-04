@@ -6,7 +6,7 @@ set_property -dict { PACKAGE_PIN AD12  IOSTANDARD LVDS     } [get_ports { clk200
 create_clock -period 5.000 -name tc_clk100_p [get_ports clk200_p]
 create_clock -period 5.000 -name tc_clk100_n [get_ports clk200_n]
 
-set_property -dict { PACKAGE_PIN R19   IOSTANDARD LVCMOS33 } [get_ports { ext_rst }]
+set_property -dict { PACKAGE_PIN R19   IOSTANDARD LVCMOS33 } [get_ports { ext_rst_n }]
 
 ## UART
 set_property -dict { PACKAGE_PIN Y20   IOSTANDARD LVCMOS33 } [get_ports { uart_main_rx }]
