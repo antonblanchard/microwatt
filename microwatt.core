@@ -33,7 +33,6 @@ filesets:
       - insn_helpers.vhdl
       - core.vhdl
       - icache.vhdl
-      - plru.vhdl
       - plrufn.vhdl
       - cache_ram.vhdl
       - core_debug.vhdl

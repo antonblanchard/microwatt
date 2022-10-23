@@ -3,6 +3,7 @@ context vunit_lib.vunit_context;
 
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 library work;
 use work.common.all;
@@ -17,22 +18,25 @@ architecture behave of plru_tb is
     signal rst          : std_ulogic;
 
     constant clk_period : time := 10 ns;
+    constant plru_bits  : integer := 3;
 
-    signal acc_en : std_ulogic;
-    signal acc : std_ulogic_vector(2 downto 0);
-    signal lru : std_ulogic_vector(2 downto 0);
+    subtype plru_val_t  is std_ulogic_vector(plru_bits - 1 downto 0);
+    subtype plru_tree_t is std_ulogic_vector(2 ** plru_bits - 2 downto 0);
+    signal do_update : std_ulogic := '0';
+    signal acc : plru_val_t;
+    signal lru : plru_val_t;
+    signal state : plru_tree_t;
+    signal state_upd : plru_tree_t;
 
 begin
-    plru0: entity work.plru
+    plrufn0: entity work.plrufn
         generic map(
-            BITS => 3
+            BITS => plru_bits
             )
         port map(
-            clk => clk,
-            rst => rst,
-
             acc => acc,
-            acc_en => acc_en,
+            tree_in => state,
+            tree_out => state_upd,
             lru => lru
             );
 
@@ -52,75 +56,59 @@ begin
         wait;
     end process;
 
-    stim: process
+    plru_process: process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' then
+                state <= (others => '0');
+            elsif do_update = '1' then
+                state <= state_upd;
+            end if;
+        end if;
+    end process;
+
+    stim_process: process
+        procedure test_access(acc_val: integer; expected: integer) is
+        begin
+            acc <= std_ulogic_vector(to_unsigned(acc_val, acc'length));
+            do_update <= '1';
+            wait for clk_period;
+            info("accessed " & integer'image(acc_val) & " LRU=" & to_hstring(lru));
+            check_equal(lru, expected, result("LRU ACC=" & integer'image(acc_val)));
+        end procedure;
     begin
         test_runner_setup(runner, runner_cfg);
 
         wait for 8*clk_period;
 
         info("reset state:" & to_hstring(lru));
-        check_equal(lru, 0, result("LRU"));
+        check_equal(lru, 0, result("LRU "));
 
-        info("accessing 1:");
-        acc <= "001";
-        acc_en <= '1';
-        wait for clk_period;
-        info("lru:" & to_hstring(lru));
-        check_equal(lru, 4, result("LRU"));
+        test_access(1, 4);
+        test_access(2, 4);
+        test_access(7, 0);
+        test_access(4, 0);
+        test_access(3, 6);
+        test_access(5, 0);
+        test_access(3, 6);
+        test_access(5, 0);
+        test_access(6, 0);
+        test_access(0, 4);
+        test_access(1, 4);
+        test_access(2, 4);
+        test_access(3, 4);
+        test_access(4, 0);
+        test_access(5, 0);
+        test_access(6, 0);
+        test_access(7, 0);
+        test_access(6, 0);
+        test_access(5, 0);
+        test_access(4, 0);
+        test_access(3, 7);
+        test_access(2, 7);
+        test_access(1, 7);
+        test_access(0, 7);
 
-        info("accessing 2:");
-        acc <= "010";
-        wait for clk_period;
-        info("lru:" & to_hstring(lru));
-        check_equal(lru, 4, result("LRU"));
-
-        info("accessing 7:");
-        acc <= "111";
-        wait for clk_period;
-        info("lru:" & to_hstring(lru));
-        check_equal(lru, 0, result("LRU"));
-
-        info("accessing 4:");
-        acc <= "100";
-        wait for clk_period;
-        info("lru:" & to_hstring(lru));
-        check_equal(lru, 0, result("LRU"));
-
-        info("accessing 3:");
-        acc <= "011";
-        wait for clk_period;
-        info("lru:" & to_hstring(lru));
-        check_equal(lru, 6, result("LRU"));
-
-        info("accessing 5:");
-        acc <= "101";
-        wait for clk_period;
-        info("lru:" & to_hstring(lru));
-        check_equal(lru, 0, result("LRU"));
-
-        info("accessing 3:");
-        acc <= "011";
-        wait for clk_period;
-        info("lru:" & to_hstring(lru));
-        check_equal(lru, 6, result("LRU"));
-
-        info("accessing 5:");
-        acc <= "101";
-        wait for clk_period;
-        info("lru:" & to_hstring(lru));
-        check_equal(lru, 0, result("LRU"));
-
-        info("accessing 6:");
-        acc <= "110";
-        wait for clk_period;
-        info("lru:" & to_hstring(lru));
-        check_equal(lru, 0, result("LRU"));
-
-        info("accessing 0:");
-        acc <= "000";
-        wait for clk_period;
-        info("lru:" & to_hstring(lru));
-        check_equal(lru, 4, result("LRU"));
 
         wait for clk_period;
         wait for clk_period;
