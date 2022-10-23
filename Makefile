@@ -337,7 +337,8 @@ _clean:
 	rm -f microwatt.bin microwatt.json microwatt.svf microwatt_out.config
 	rm -f microwatt.v microwatt-verilator
 	rm -f git.vhdl
-	rm -rf obj_dir/
+	rm -rf obj_dir
+	rm -rf vunit_out
 
 clean: _clean
 	make -f scripts/mw_debug/Makefile clean
