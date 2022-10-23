@@ -476,6 +476,8 @@ begin
         variable end_cyc : std_ulogic;
         variable slave_io : slave_io_type;
         variable match   : std_ulogic_vector(31 downto 12);
+        variable dat_latch : std_ulogic_vector(31 downto 0);
+        variable sel_latch : std_ulogic_vector(3 downto 0);
     begin
         if rising_edge(system_clk) then
             do_cyc := '0';
@@ -488,6 +490,8 @@ begin
                 end_cyc := '1';
                 has_top := false;
                 has_bot := false;
+                dat_latch := (others => '0');
+                sel_latch := (others => '0');
             else
                 case state is
                 when IDLE =>
@@ -497,7 +501,11 @@ begin
                     -- Do we have a cycle ?
                     if wb_io_in.cyc = '1' and wb_io_in.stb = '1' then
                         -- Stall master until we are done, we are't (yet) pipelining
-                        -- this, it's all slow IOs.
+                        -- this, it's all slow IOs. Note: The current cycle has
+                        -- already been accepted as "stall" was 0, this only blocks
+                        -- the next one. This means that we must latch
+                        -- everything we need from wb_io_in in *this* cycle.
+                        --
                         wb_io_out.stall <= '1';
 
                         -- Start cycle downstream
@@ -512,21 +520,22 @@ begin
                         has_top := wb_io_in.sel(7 downto 4) /= "0000";
                         has_bot := wb_io_in.sel(3 downto 0) /= "0000";
 
+                        -- Remember the top word as it might be needed later
+                        dat_latch := wb_io_in.dat(63 downto 32);
+                        sel_latch := wb_io_in.sel(7 downto 4);
+
                         -- If we have a bottom word, handle it first, otherwise
-                        -- send the top word down. XXX Split the actual mux out
-                        -- and only generate a control signal.
+                        -- send the top word down.
                         if has_bot then
-                            if wb_io_in.we = '1' then
-                                wb_sio_out.dat <= wb_io_in.dat(31 downto 0);
-                            end if;
+                            -- Always update out.dat, it doesn't matter if we
+                            -- update it on reads and it saves  mux
+                            wb_sio_out.dat <= wb_io_in.dat(31 downto 0);
                             wb_sio_out.sel <= wb_io_in.sel(3 downto 0);
 
                             -- Wait for ack
                             state := WAIT_ACK_BOT;
                         else
-                            if wb_io_in.we = '1' then
-                                wb_sio_out.dat <= wb_io_in.dat(63 downto 32);
-                            end if;
+                            wb_sio_out.dat <= wb_io_in.dat(63 downto 32);
                             wb_sio_out.sel <= wb_io_in.sel(7 downto 4);
 
                             -- Bump address
@@ -544,18 +553,14 @@ begin
 
                     -- Handle ack
                     if wb_sio_in.ack = '1' then
-                        -- If it's a read, latch the data
-                        if wb_sio_out.we = '0' then
-                            wb_io_out.dat(31 downto 0) <= wb_sio_in.dat;
-                        end if;
+                         -- Always latch the data, it doesn't matter if it was
+                         -- a write and it saves a mux
+                        wb_io_out.dat(31 downto 0) <= wb_sio_in.dat;
 
                         -- Do we have a "top" part as well ?
                         if has_top then
-                            -- Latch data & sel
-                            if wb_io_in.we = '1' then
-                                wb_sio_out.dat <= wb_io_in.dat(63 downto 32);
-                            end if;
-                            wb_sio_out.sel <= wb_io_in.sel(7 downto 4);
+                            wb_sio_out.dat <= dat_latch;
+                            wb_sio_out.sel <= sel_latch;
 
                             -- Bump address and set STB
                             wb_sio_out.adr(0) <= '1';
@@ -583,10 +588,9 @@ begin
 
                     -- Handle ack
                     if wb_sio_in.ack = '1' then
-                        -- If it's a read, latch the data
-                        if wb_sio_out.we = '0' then
-                            wb_io_out.dat(63 downto 32) <= wb_sio_in.dat;
-                        end if;
+                         -- Always latch the data, it doesn't matter if it was
+                         -- a write and it saves a mux
+                        wb_io_out.dat(63 downto 32) <= wb_sio_in.dat;
 
                         -- We are done, ack up, clear cyc downstram
                         end_cyc := '1';
@@ -603,6 +607,13 @@ begin
 
             -- Create individual registered cycle signals for the wishbones
             -- going to the various peripherals
+            --
+            -- Note: This needs to happen on the cycle matching state = IDLE,
+            -- as wb_io_in content can only be relied upon on that one cycle.
+            -- This works here because do_cyc is a variable, not a signal, and
+            -- thus here we observe the value set above in the state machine
+            -- on the same cycle rather than the next one.
+            --
             if do_cyc = '1' or end_cyc = '1' then
                 io_cycle_none      <= '0';
                 io_cycle_syscon    <= '0';
