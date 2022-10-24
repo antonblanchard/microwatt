@@ -68,7 +68,7 @@ all: $(all)
 $(shell scripts/make_version.sh git.vhdl)
 
 core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
-	utils.vhdl plru.vhdl plrufn.vhdl cache_ram.vhdl icache.vhdl \
+	utils.vhdl plrufn.vhdl cache_ram.vhdl icache.vhdl \
 	predecode.vhdl decode1.vhdl helpers.vhdl insn_helpers.vhdl \
 	control.vhdl decode2.vhdl register_file.vhdl \
 	cr_file.vhdl crhelpers.vhdl ppc_fx_insns.vhdl rotator.vhdl \
@@ -337,7 +337,8 @@ _clean:
 	rm -f microwatt.bin microwatt.json microwatt.svf microwatt_out.config
 	rm -f microwatt.v microwatt-verilator
 	rm -f git.vhdl
-	rm -rf obj_dir/
+	rm -rf obj_dir
+	rm -rf vunit_out
 
 clean: _clean
 	make -f scripts/mw_debug/Makefile clean
