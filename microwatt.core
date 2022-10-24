@@ -138,7 +138,7 @@ filesets:
       depend : [":microwatt:litesdcard"]
 
   uart16550:
-      depend : ["::uart16550"]
+      depend : [":microwatt:uart16550"]
 
 targets:
   nexys_a7:
