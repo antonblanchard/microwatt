@@ -1,0 +1,28 @@
+CAPI=2:
+name : :microwatt:uart16550:1.5.5-r1
+description : UART 16550 transceiver
+
+filesets:
+  rtl:
+    files:
+      - uart_defines.v: {is_include_file: true}
+      - raminfr.v
+      - uart_receiver.v
+      - uart_regs.v
+      - uart_rfifo.v
+      - uart_sync_flops.v
+      - uart_tfifo.v
+      - uart_top.v
+      - uart_transmitter.v
+      - uart_wb.v
+    file_type: verilogSource
+
+targets:
+  default:
+    filesets: [rtl]
+
+provider:
+  name    : github
+  user    : olofk
+  repo    : uart16550
+  version : v1.5.5
