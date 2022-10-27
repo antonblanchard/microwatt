@@ -104,6 +104,8 @@ architecture behaviour of toplevel is
     -- Reset signals:
     signal soc_rst : std_ulogic;
     signal pll_rst : std_ulogic;
+    signal sw_rst  : std_ulogic;
+    signal periph_rst : std_ulogic;
 
     -- Internal clock signals:
     signal system_clk        : std_ulogic;
@@ -216,6 +218,7 @@ begin
             -- System signals
             system_clk        => system_clk,
             rst               => soc_rst,
+            sw_soc_reset      => sw_rst,
 
             -- UART signals
             uart0_txd         => uart_main_tx,
@@ -299,6 +302,7 @@ begin
 
     nodram: if not USE_LITEDRAM generate
         signal ddram_clk_dummy : std_ulogic;
+        signal gen_rst         : std_ulogic;
     begin
         reset_controller: entity work.soc_reset
             generic map(
@@ -310,8 +314,10 @@ begin
                 pll_locked_in => system_clk_locked and eth_clk_locked,
                 ext_rst_in => ext_rst_n,
                 pll_rst_out => pll_rst,
-                rst_out => soc_rst
+                rst_out => gen_rst
                 );
+
+        soc_rst <= gen_rst;
 
         clkgen: entity work.clock_generator
             generic map(
@@ -345,8 +351,7 @@ begin
     has_dram: if USE_LITEDRAM generate
         signal dram_init_done  : std_ulogic;
         signal dram_init_error : std_ulogic;
-        signal dram_sys_rst    : std_ulogic;
-        signal rst_gen_rst     : std_ulogic;
+        signal gen_rst         : std_ulogic;
     begin
 
         -- Eventually dig out the frequency from the generator
@@ -365,7 +370,7 @@ begin
                 pll_locked_in => eth_clk_locked,
                 ext_rst_in => ext_rst_n,
                 pll_rst_out => pll_rst,
-                rst_out => rst_gen_rst
+                rst_out => open
                 );
 
         -- Generate SoC reset
@@ -374,7 +379,7 @@ begin
             if ext_rst_n = '0' then
                 soc_rst <= '1';
             elsif rising_edge(system_clk) then
-                soc_rst <= dram_sys_rst or not eth_clk_locked or not system_clk_locked;
+                soc_rst <= gen_rst or not eth_clk_locked or not system_clk_locked;
             end if;
         end process;
 
@@ -395,7 +400,7 @@ begin
                 clk_in          => ext_clk,
                 rst             => pll_rst,
                 system_clk      => system_clk,
-                system_reset    => dram_sys_rst,
+                system_reset    => gen_rst,
                 pll_locked      => system_clk_locked,
 
                 wb_in           => wb_dram_in,
@@ -430,6 +435,8 @@ begin
         led0_g_pwm <= dram_init_done and not dram_init_error;
 
     end generate;
+
+    periph_rst <= soc_rst or sw_rst;
 
     has_liteeth : if USE_LITEETH generate
 
@@ -520,7 +527,7 @@ begin
         liteeth :  liteeth_core
             port map(
                 sys_clock         => system_clk,
-                sys_reset         => soc_rst,
+                sys_reset         => periph_rst,
                 mii_eth_clocks_tx => eth_clocks_tx,
                 mii_eth_clocks_rx => eth_clocks_rx,
                 mii_eth_rst_n     => eth_rst_n,
@@ -608,7 +615,7 @@ begin
         litesdcard : litesdcard_core
             port map (
                 clk           => system_clk,
-                rst           => soc_rst,
+                rst           => periph_rst,
                 wb_ctrl_adr   => wb_sdcard_adr,
                 wb_ctrl_dat_w => wb_ext_io_in.dat,
                 wb_ctrl_dat_r => wb_sdcard_out.dat,
