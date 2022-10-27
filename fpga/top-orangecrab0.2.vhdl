@@ -110,9 +110,6 @@ architecture behaviour of toplevel is
     -- for conversion from non-pipelined wishbone to pipelined
     signal wb_sddma_stb_sent   : std_ulogic;
 
-    -- Control/status
-    signal core_alt_reset : std_ulogic;
-
     -- Status LED
     signal led0_b_pwm : std_ulogic;
     signal led0_r_pwm : std_ulogic;
@@ -231,9 +228,7 @@ begin
 
             -- DMA wishbone
             wishbone_dma_in      => wb_sddma_in,
-            wishbone_dma_out     => wb_sddma_out,
-
-            alt_reset            => core_alt_reset
+            wishbone_dma_out     => wb_sddma_out
             );
 
     -- SPI Flash
@@ -284,7 +279,6 @@ begin
         led0_b_pwm <= '1';
         led0_r_pwm <= '1';
         led0_g_pwm <= '0';
-        core_alt_reset <= '0';
 
     end generate;
 
@@ -341,7 +335,6 @@ begin
                 rst             => pll_rst,
                 system_clk      => system_clk,
                 system_reset    => dram_sys_rst,
-                core_alt_reset  => core_alt_reset,
                 pll_locked      => system_clk_locked,
 
                 wb_in           => wb_dram_in,

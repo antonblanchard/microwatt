@@ -52,6 +52,7 @@
 #define   SYS_REG_CTRL_DRAM_AT_0		(1ull << 0)
 #define   SYS_REG_CTRL_CORE_RESET		(1ull << 1)
 #define   SYS_REG_CTRL_SOC_RESET		(1ull << 2)
+#define   SYS_REG_CTRL_ALT_RESET		(1ull << 3)
 #define SYS_REG_DRAMINITINFO		0x30
 #define SYS_REG_SPI_INFO		0x38
 #define   SYS_REG_SPI_INFO_FLASH_OFF_MASK	0xffffffff

@@ -87,9 +87,6 @@ architecture behaviour of toplevel is
     signal wb_ext_is_dram_csr  : std_ulogic;
     signal wb_ext_is_dram_init : std_ulogic;
 
-    -- Control/status
-    signal core_alt_reset : std_ulogic;
-
     -- SPI flash
     signal spi_sck     : std_ulogic;
     signal spi_cs_n    : std_ulogic;
@@ -165,8 +162,7 @@ begin
 	    wb_ext_io_in        => wb_ext_io_in,
 	    wb_ext_io_out       => wb_ext_io_out,
 	    wb_ext_is_dram_csr  => wb_ext_is_dram_csr,
-	    wb_ext_is_dram_init => wb_ext_is_dram_init,
-	    alt_reset           => core_alt_reset
+	    wb_ext_is_dram_init => wb_ext_is_dram_init
 	    );
 
     -- SPI Flash. The SPI clk needs to be fed through the STARTUPE2
@@ -234,7 +230,6 @@ begin
 	led1 <= pll_rst;
         led2 <= not system_clk_locked;
 	led3 <= '0';
-	core_alt_reset <= '0';
 
         -- Vivado barfs on those differential signals if left
         -- unconnected. So instanciate a diff. buffer and feed
@@ -292,7 +287,6 @@ begin
 		rst             => pll_rst,
 		system_clk	=> system_clk,
 		system_reset	=> soc_rst,
-                core_alt_reset  => core_alt_reset,
 		pll_locked	=> system_clk_locked,
 
 		wb_in		=> wb_dram_in,

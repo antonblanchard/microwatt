@@ -127,10 +127,7 @@ entity soc is
         -- GPIO signals
         gpio_out : out std_ulogic_vector(NGPIO - 1 downto 0);
         gpio_dir : out std_ulogic_vector(NGPIO - 1 downto 0);
-        gpio_in  : in  std_ulogic_vector(NGPIO - 1 downto 0) := (others => '0');
-
-	-- DRAM controller signals
-	alt_reset    : in std_ulogic := '0'
+        gpio_in  : in  std_ulogic_vector(NGPIO - 1 downto 0) := (others => '0')
 	);
 end entity soc;
 
@@ -166,6 +163,7 @@ architecture behaviour of soc is
     -- Syscon signals
     signal dram_at_0     : std_ulogic;
     signal do_core_reset    : std_ulogic;
+    signal alt_reset     : std_ulogic;
     signal wb_syscon_in  : wb_io_master_out;
     signal wb_syscon_out : wb_io_slave_out;
 
@@ -768,7 +766,8 @@ begin
 	    wishbone_out => wb_syscon_out,
 	    dram_at_0 => dram_at_0,
 	    core_reset => do_core_reset,
-	    soc_reset => open -- XXX TODO
+	    soc_reset => open, -- XXX TODO
+	    alt_reset => alt_reset
 	    );
 
     --

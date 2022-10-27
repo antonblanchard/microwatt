@@ -34,7 +34,8 @@ entity syscon is
 	-- System control ports
 	dram_at_0  : out std_ulogic;
 	core_reset : out std_ulogic;
-	soc_reset  : out std_ulogic
+	soc_reset  : out std_ulogic;
+	alt_reset  : out std_ulogic
 	);
 end entity syscon;
 
@@ -76,10 +77,11 @@ architecture behaviour of syscon is
     -- CLKINFO contains the CLK frequency is HZ in the bottom 40 bits
 
     -- CTRL register bits
-    constant SYS_REG_CTRL_BITS       : positive := 3;
+    constant SYS_REG_CTRL_BITS       : positive := 4;
     constant SYS_REG_CTRL_DRAM_AT_0  : integer := 0;
     constant SYS_REG_CTRL_CORE_RESET : integer := 1;
     constant SYS_REG_CTRL_SOC_RESET  : integer := 2;
+    constant SYS_REG_CTRL_ALT_RESET  : integer := 3;
 
     -- SPI Info register bits
     --
@@ -102,6 +104,7 @@ architecture behaviour of syscon is
     -- Ctrl register
     signal reg_ctrl	: std_ulogic_vector(SYS_REG_CTRL_BITS-1 downto 0);
     signal reg_ctrl_out	: std_ulogic_vector(63 downto 0);
+    signal ctrl_init_alt_reset : std_ulogic;
 
     -- Others
     signal reg_info      : std_ulogic_vector(63 downto 0);
@@ -128,11 +131,12 @@ architecture behaviour of syscon is
     -- Wishbone response latch
     signal wb_rsp        : wb_io_slave_out;
 begin
-
     -- Generated output signals
     dram_at_0 <= '1' when BRAM_SIZE = 0 else reg_ctrl(SYS_REG_CTRL_DRAM_AT_0);
     soc_reset <= reg_ctrl(SYS_REG_CTRL_SOC_RESET);
     core_reset <= reg_ctrl(SYS_REG_CTRL_CORE_RESET);
+    alt_reset <= reg_ctrl(SYS_REG_CTRL_ALT_RESET);
+
 
     -- Info register is hard wired
     info_has_uart <= '1' when HAS_UART       else '0';
@@ -211,12 +215,16 @@ begin
         end if;
     end process;
 
+    -- Initial state
+    ctrl_init_alt_reset <= '1' when HAS_DRAM else '0';
+
     -- Register writes
     regs_write: process(clk)
     begin
 	if rising_edge(clk) then
 	    if (rst) then
-		reg_ctrl <= (others => '0');
+		reg_ctrl <= (SYS_REG_CTRL_ALT_RESET => ctrl_init_alt_reset,
+                        others => '0');
 	    else
 		if wishbone_in.cyc and wishbone_in.stb and wishbone_in.we then
                     -- Change this if CTRL ever has more than 32 bits
