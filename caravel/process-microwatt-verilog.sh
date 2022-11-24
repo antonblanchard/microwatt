@@ -16,22 +16,3 @@ caravel/insert_power.py --verilog=${FILE_OUT}.tmp1 --parent-power=vccd1 --parent
 
 mv ${FILE_OUT}.tmp2 ${FILE_OUT}
 rm ${FILE_OUT}.tmp1
-
-# Add defines
-sed -i '1 i\
-\
-/* JTAG */\
-`include "tap_top.v"\
-\
-/* UART */\
-`include "raminfr.v"\
-`include "uart_receiver.v"\
-`include "uart_rfifo.v"\
-`include "uart_tfifo.v"\
-`include "uart_transmitter.v"\
-`include "uart_defines.v"\
-`include "uart_regs.v"\
-`include "uart_sync_flops.v"\
-`include "uart_wb.v"\
-`include "uart_top.v"\
-`include "simplebus_host.v"' $FILE_OUT
