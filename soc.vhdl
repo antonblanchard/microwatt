@@ -51,6 +51,16 @@ use work.wishbone_types.all;
 --   3  : SD card
 --   4  : GPIO
 
+-- Resets:
+-- The soc can be reset externally by its parent top- entity (via rst port),
+-- or can be reset by software via syscon. In the software reset case
+-- the reset signal will also be exposed via sw_soc_reset port - toplevels
+-- can use that to reset other peripherals if required.
+--
+-- When using DRAM the alt_reset signal will be high after soc reset, to
+-- run sdram init routines. After startup software will switch alt_reset to
+-- low, so a core reset will use the non-alt reset address.
+
 entity soc is
     generic (
 	MEMORY_SIZE        : natural;
@@ -129,12 +139,15 @@ entity soc is
         gpio_dir : out std_ulogic_vector(NGPIO - 1 downto 0);
         gpio_in  : in  std_ulogic_vector(NGPIO - 1 downto 0) := (others => '0');
 
-	-- DRAM controller signals
-	alt_reset    : in std_ulogic := '0'
+        -- SOC reset trigger from syscon
+        sw_soc_reset : out std_ulogic
 	);
 end entity soc;
 
 architecture behaviour of soc is
+
+    -- internal reset
+    signal soc_reset : std_ulogic;
 
     -- Wishbone master signals:
     signal wishbone_dcore_in  : wishbone_slave_out;
@@ -166,6 +179,7 @@ architecture behaviour of soc is
     -- Syscon signals
     signal dram_at_0     : std_ulogic;
     signal do_core_reset    : std_ulogic;
+    signal alt_reset     : std_ulogic;
     signal wb_syscon_in  : wb_io_master_out;
     signal wb_syscon_out : wb_io_slave_out;
 
@@ -312,18 +326,21 @@ architecture behaviour of soc is
 
 begin
 
+    -- either external reset, or from syscon
+    soc_reset <= rst or sw_soc_reset;
+
     resets: process(system_clk)
     begin
         if rising_edge(system_clk) then
-            rst_core    <= rst or do_core_reset;
-            rst_uart    <= rst;
-            rst_spi     <= rst;
-            rst_xics    <= rst;
-            rst_gpio    <= rst;
-            rst_bram    <= rst;
-            rst_dtm     <= rst;
-            rst_wbar    <= rst;
-            rst_wbdb    <= rst;
+            rst_core    <= soc_reset or do_core_reset;
+            rst_uart    <= soc_reset;
+            rst_spi     <= soc_reset;
+            rst_xics    <= soc_reset;
+            rst_gpio    <= soc_reset;
+            rst_bram    <= soc_reset;
+            rst_dtm     <= soc_reset;
+            rst_wbar    <= soc_reset;
+            rst_wbdb    <= soc_reset;
             alt_reset_d <= alt_reset;
         end if;
     end process;
@@ -482,7 +499,7 @@ begin
         if rising_edge(system_clk) then
             do_cyc := '0';
             end_cyc := '0';
-            if (rst) then
+            if (soc_reset) then
                 state := IDLE;
                 wb_io_out.ack <= '0';
                 wb_io_out.stall <= '0';
@@ -774,12 +791,13 @@ begin
 	)
 	port map(
 	    clk => system_clk,
-	    rst => rst,
+	    rst => soc_reset,
 	    wishbone_in => wb_syscon_in,
 	    wishbone_out => wb_syscon_out,
 	    dram_at_0 => dram_at_0,
 	    core_reset => do_core_reset,
-	    soc_reset => open -- XXX TODO
+	    soc_reset => sw_soc_reset,
+	    alt_reset => alt_reset
 	    );
 
     --
@@ -1075,7 +1093,7 @@ begin
     wb_x_state: process(system_clk)
     begin
         if rising_edge(system_clk) then
-            if not rst then
+            if not soc_reset then
                 -- Wishbone arbiter
                 assert not(is_x(wb_masters_out(0).cyc)) and not(is_x(wb_masters_out(0).stb)) severity failure;
                 assert not(is_x(wb_masters_out(1).cyc)) and not(is_x(wb_masters_out(1).stb)) severity failure;

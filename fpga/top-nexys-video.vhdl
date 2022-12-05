@@ -128,9 +128,6 @@ architecture behaviour of toplevel is
     -- for conversion from non-pipelined wishbone to pipelined
     signal wb_sddma_stb_sent   : std_ulogic;
 
-    -- Control/status
-    signal core_alt_reset : std_ulogic;
-
     -- SPI flash
     signal spi_sck     : std_ulogic;
     signal spi_cs_n    : std_ulogic;
@@ -220,9 +217,7 @@ begin
 
             -- DMA wishbone
             wishbone_dma_in     => wb_sddma_in,
-            wishbone_dma_out    => wb_sddma_out,
-
-	    alt_reset           => core_alt_reset
+            wishbone_dma_out    => wb_sddma_out
 	    );
 
     -- SPI Flash. The SPI clk needs to be fed through the STARTUPE2
@@ -282,7 +277,6 @@ begin
 	led0 <= '1';
 	led1 <= not soc_rst;
         led2 <= '0';
-	core_alt_reset <= '0';
 
         -- Vivado barfs on those differential signals if left
         -- unconnected. So instanciate a diff. buffer and feed
@@ -350,7 +344,6 @@ begin
 		rst             => pll_rst,
 		system_clk	=> system_clk,
                 system_reset	=> dram_sys_rst,
-                core_alt_reset  => core_alt_reset,
 		pll_locked	=> system_clk_locked,
 
 		wb_in		=> wb_dram_in,

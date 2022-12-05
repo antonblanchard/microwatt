@@ -58,7 +58,6 @@ begin
             rst                 => rst,
             system_clk          => clk,
             system_reset        => soc_rst,
-            core_alt_reset      => open,
             pll_locked          => open,
 
             wb_in               => wb_in,

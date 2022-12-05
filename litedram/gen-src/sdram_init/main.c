@@ -285,10 +285,14 @@ uint64_t main(void)
 		try_flash = true;
 	}
 	printf("\n");
-	if (ftr & SYS_REG_INFO_HAS_DRAM) {
+	if (ftr & SYS_REG_INFO_HAS_DRAM && !ddrctrl_init_done_read()) {
 		printf("LiteDRAM built from LiteX %s\n", LITEX_GIT_SHA1);
 		sdram_init();
 	}
+
+	val = readq(SYSCON_BASE + SYS_REG_CTRL);
+	writeq(val & ~SYS_REG_CTRL_ALT_RESET, SYSCON_BASE + SYS_REG_CTRL);
+
 	if (ftr & SYS_REG_INFO_HAS_BRAM) {
 		printf("Booting from BRAM...\n");
 		return 0;

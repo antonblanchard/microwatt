@@ -44,7 +44,6 @@ entity litedram_wrapper is
         rst             : in std_ulogic;
         system_clk      : out std_ulogic;
         system_reset    : out std_ulogic;
-        core_alt_reset  : out std_ulogic;
         pll_locked      : out std_ulogic;
 
         -- Wishbone ports:
@@ -419,9 +418,6 @@ begin
         report "geometry bits don't add up" severity FAILURE;
     assert (REAL_ADDR_BITS = TAG_BITS + ROW_BITS + ROW_OFF_BITS)
         report "geometry bits don't add up" severity FAILURE;
-
-    -- alternate core reset address set when DRAM is not initialized.
-    core_alt_reset <= not init_done;
 
     -- Init code BRAM memory slave 
     init_ram_0: entity work.dram_init_mem

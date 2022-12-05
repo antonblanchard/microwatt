@@ -32,7 +32,6 @@ architecture behave of core_dram_tb is
     signal wb_ext_io_out : wb_io_slave_out;
     signal wb_ext_is_dram_csr : std_ulogic;
     signal wb_ext_is_dram_init : std_ulogic;
-    signal core_alt_reset : std_ulogic;
 
     -- SPI
     signal spi_sck     : std_ulogic;
@@ -84,8 +83,7 @@ begin
             spi_flash_cs_n    => spi_cs_n,
             spi_flash_sdat_o  => spi_sdat_o,
             spi_flash_sdat_oe => spi_sdat_oe,
-            spi_flash_sdat_i  => spi_sdat_i,
-            alt_reset => core_alt_reset
+            spi_flash_sdat_i  => spi_sdat_i
             );
 
         flash: entity work.s25fl128s
@@ -135,7 +133,6 @@ begin
             rst             => rst,
             system_clk      => system_clk,
             system_reset    => soc_rst,
-            core_alt_reset  => core_alt_reset,
 
             wb_in           => wb_dram_in,
             wb_out          => wb_dram_out,
