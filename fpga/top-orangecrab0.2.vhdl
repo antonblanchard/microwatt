@@ -23,6 +23,7 @@ entity toplevel is
         LOG_LENGTH         : natural := 0;
         UART_IS_16550      : boolean  := true;
         HAS_UART1          : boolean  := false;
+        HAS_UARTUSB        : boolean  := true;
         USE_LITESDCARD     : boolean := true;
         ICACHE_NUM_LINES   : natural := 64;
         NGPIO              : natural := 0
@@ -34,6 +35,11 @@ entity toplevel is
         -- UART0 signals:
         pin_gpio_0 : out std_ulogic;
         pin_gpio_1 : in  std_ulogic;
+
+        -- USB signals:
+        usb_d_p    : in std_ulogic;
+        usb_d_n    : in std_ulogic;
+        usb_pullup : out std_ulogic;
 
         -- LEDs
         led0_b  : out std_ulogic;
@@ -183,6 +189,7 @@ begin
             LOG_LENGTH         => LOG_LENGTH,
             UART0_IS_16550     => UART_IS_16550,
             HAS_UART1          => HAS_UART1,
+            HAS_UARTUSB        => HAS_UARTUSB,
             HAS_SD_CARD        => USE_LITESDCARD,
             ICACHE_NUM_LINES   => ICACHE_NUM_LINES,
             NGPIO              => NGPIO
@@ -190,11 +197,16 @@ begin
         port map (
             -- System signals
             system_clk        => system_clk,
+            clk_48            => ext_clk,
             rst               => soc_rst,
 
             -- UART signals
             uart0_txd         => pin_gpio_0,
             uart0_rxd         => pin_gpio_1,
+
+            usb_d_p           => usb_d_p,
+            usb_d_n           => usb_d_n,
+            usb_pullup        => usb_pullup,
 
 	    -- UART1 signals
 	    --uart1_txd         => uart_pmod_tx,

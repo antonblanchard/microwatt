@@ -10,10 +10,13 @@
 #define BRAM_BASE       0x80000000  /* Internal BRAM */
 
 #define SYSCON_BASE	0xc0000000  /* System control regs */
-#define UART_BASE	0xc0002000  /* UART */
+#define UART0_BASE      0xc0002000  /* UART */
+#define UART_BASE       UART0_BASE
+#define UART1_BASE      0xc0003000  /* UART */
 #define XICS_ICP_BASE   0xc0004000  /* Interrupt controller */
 #define XICS_ICS_BASE   0xc0005000  /* Interrupt controller */
 #define SPI_FCTRL_BASE  0xc0006000  /* SPI flash controller registers */
+#define UARTUSB_BASE    0xc0008000  /* ValentyUSB UART */
 #define DRAM_CTRL_BASE	0xc8000000  /* LiteDRAM control registers */
 #define LETH_CSR_BASE	0xc8020000  /* LiteEth CSR registers */
 #define LETH_SRAM_BASE	0xc8030000  /* LiteEth MMIO space */
@@ -26,6 +29,7 @@
  */
 #define IRQ_UART0       0
 #define IRQ_ETHERNET    1
+#define IRQ_UARTUSB     5
 
 /*
  * Register definitions for the syscon registers
@@ -42,6 +46,7 @@
 #define   SYS_REG_INFO_HAS_UART1 		(1ull << 6)
 #define   SYS_REG_INFO_HAS_ARTB                 (1ull << 7)
 #define   SYS_REG_INFO_HAS_LITESDCARD 		(1ull << 8)
+#define   SYS_REG_INFO_HAS_UARTUSB              (1ull << 9)
 #define SYS_REG_BRAMINFO		0x10
 #define   SYS_REG_BRAMINFO_SIZE_MASK		0xfffffffffffffull
 #define SYS_REG_DRAMINFO		0x18
