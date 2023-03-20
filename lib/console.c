@@ -148,6 +148,13 @@ int getchar(void)
 	}
 }
 
+bool console_havechar(void) {
+	if (uart_is_std)
+		return !std_uart_rx_empty();
+	else
+		return !potato_uart_rx_empty();
+}
+
 int putchar(int c)
 {
 	if (uart_is_std) {
