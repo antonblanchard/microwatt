@@ -7,6 +7,7 @@ from vunit import VUnit
 ROOT = Path(__file__).parent
 
 PRJ = VUnit.from_argv()
+PRJ.add_vhdl_builtins()
 PRJ.add_osvvm()
 
 PRJ.add_library("lib").add_source_files([
