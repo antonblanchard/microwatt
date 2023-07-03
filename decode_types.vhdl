@@ -84,60 +84,57 @@ package decode_types is
         INSN_lwz,
         INSN_lwzu, -- 50
         INSN_mcrf,
-        INSN_mcrfs,
         INSN_mcrxrx,
         INSN_mfcr,
         INSN_mfmsr,
         INSN_mfspr,
         INSN_mtcrf,
-        INSN_mtfsb,
-        INSN_mtfsfi,
-        INSN_mtmsr, -- 60
+        INSN_mtmsr,
         INSN_mtmsrd,
         INSN_mtspr,
-        INSN_mulli,
+        INSN_mulli, -- 60
         INSN_neg,
         INSN_nop,
         INSN_ori,
         INSN_oris,
         INSN_popcntb,
         INSN_popcntw,
-        INSN_popcntd, -- 70
+        INSN_popcntd,
         INSN_prtyw,
         INSN_prtyd,
-        INSN_rfid,
+        INSN_rfid, -- 70
         INSN_rldic,
         INSN_rldicl,
         INSN_rldicr,
         INSN_rldimi,
         INSN_rlwimi,
         INSN_rlwinm,
-        INSN_sc, -- 80
+        INSN_sc,
         INSN_setb,
         INSN_slbia,
-        INSN_sradi,
+        INSN_sradi, -- 80
         INSN_srawi,
         INSN_stb,
         INSN_stbu,
         INSN_std,
         INSN_stdu,
         INSN_sth,
-        INSN_sthu, -- 90
+        INSN_sthu,
         INSN_stw,
         INSN_stwu,
-        INSN_subfic,
+        INSN_subfic, -- 90
         INSN_subfme,
         INSN_subfze,
         INSN_sync,
         INSN_tdi,
         INSN_tlbsync,
         INSN_twi,
-        INSN_wait, -- 100
+        INSN_wait,
         INSN_xori,
         INSN_xoris,
 
         -- pad to 112 to simplify comparison logic
-        INSN_103,
+        INSN_100, INSN_101, INSN_102, INSN_103,
         INSN_104, INSN_105, INSN_106, INSN_107,
         INSN_108, INSN_109, INSN_110, INSN_111,
 
@@ -289,59 +286,64 @@ package decode_types is
         INSN_lfiwzx,
         INSN_lfsx,
         INSN_lfsux,
-        INSN_275, -- padding
+        -- These are here in order to keep the FP instructions together
+        INSN_mcrfs,
+        INSN_mtfsb,
+        INSN_mtfsfi,
+        INSN_278, -- padding
+        INSN_279,
 
         -- The following instructions access FRA and/or FRB operands
-        INSN_fabs,
+        INSN_fabs, -- 280
         INSN_fadd,
         INSN_fadds,
         INSN_fcfid,
-        INSN_fcfids, -- 280
+        INSN_fcfids,
         INSN_fcfidu,
         INSN_fcfidus,
         INSN_fcmpo,
         INSN_fcmpu,
         INSN_fcpsgn,
-        INSN_fctid,
+        INSN_fctid, -- 290
         INSN_fctidz,
         INSN_fctidu,
         INSN_fctiduz,
-        INSN_fctiw, -- 290
+        INSN_fctiw,
         INSN_fctiwz,
         INSN_fctiwu,
         INSN_fctiwuz,
         INSN_fdiv,
         INSN_fdivs,
-        INSN_fmr,
+        INSN_fmr, -- 300
         INSN_fmrgew,
         INSN_fmrgow,
         INSN_fnabs,
-        INSN_fneg, -- 300
+        INSN_fneg,
         INSN_fre,
         INSN_fres,
         INSN_frim,
         INSN_frin,
         INSN_frip,
-        INSN_friz,
+        INSN_friz, -- 310
         INSN_frsp,
         INSN_frsqrte,
         INSN_frsqrtes,
-        INSN_fsqrt, -- 310
+        INSN_fsqrt,
         INSN_fsqrts,
         INSN_fsub,
         INSN_fsubs,
         INSN_ftdiv,
         INSN_ftsqrt,
-        INSN_mffs,
+        INSN_mffs, -- 320
         INSN_mtfsf,
 
-        -- pad to 320
-        INSN_318, INSN_319,
+        -- pad to 328
+        INSN_322, INSN_323, INSN_324, INSN_325, INSN_326, INSN_327,
 
         -- The following instructions access FRA, FRB (possibly) and FRC operands
-        INSN_fmul, -- 320
+        INSN_fmul,
         INSN_fmuls,
-        INSN_fmadd,
+        INSN_fmadd, -- 330
         INSN_fmadds,
         INSN_fmsub,
         INSN_fmsubs,
@@ -349,7 +351,7 @@ package decode_types is
         INSN_fnmadds,
         INSN_fnmsub,
         INSN_fnmsubs,
-        INSN_fsel  -- 330
+        INSN_fsel
         );
 
     constant INSN_first_rb : insn_code := INSN_add;
@@ -384,7 +386,7 @@ package decode_types is
 
     constant TOO_OFFSET : integer := 0;
 
-    type unit_t is (NONE, ALU, LDST, FPU);
+    type unit_t is (ALU, LDST, FPU);
     type facility_t is (NONE, FPU);
     type length_t is (NONE, is1B, is2B, is4B, is8B);
 
@@ -425,7 +427,7 @@ package decode_types is
 	sgl_pipe     : std_ulogic;
         repeat       : repeat_t;
     end record;
-    constant decode_rom_init : decode_rom_t := (unit => NONE, facility => NONE,
+    constant decode_rom_init : decode_rom_t := (unit => ALU, facility => NONE,
 						insn_type => OP_ILLEGAL, input_reg_a => NONE,
 						input_reg_b => NONE, input_reg_c => NONE,
 						output_reg_a => NONE, input_cr => '0', output_cr => '0',

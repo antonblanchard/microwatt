@@ -1028,11 +1028,6 @@ begin
             privileged := '1';
         end if;
 
-        if (not HAS_FPU and e_in.fac = FPU) or e_in.unit = NONE then
-            -- make lfd/stfd/lfs/stfs etc. illegal in no-FPU implementations
-            illegal := '1';
-        end if;
-
         v.do_trace := ex1.msr(MSR_SE);
         case_0: case e_in.insn_type is
 	    when OP_ILLEGAL =>
