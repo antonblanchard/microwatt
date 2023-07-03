@@ -118,6 +118,7 @@ architecture behaviour of execute1 is
         fp_exception_next : std_ulogic;
         trace_next : std_ulogic;
         prev_op : insn_type_t;
+        prev_prefixed : std_ulogic;
         oe : std_ulogic;
         mul_select : std_ulogic_vector(1 downto 0);
         res2_sel : std_ulogic_vector(1 downto 0);
@@ -141,6 +142,7 @@ architecture behaviour of execute1 is
         (e => Execute1ToWritebackInit, se => side_effect_init,
          busy => '0',
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
+         prev_prefixed => '0',
          oe => '0', mul_select => "00", res2_sel => "00",
          spr_select => spr_id_init, pmu_spr_num => 5x"0",
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0',
@@ -978,6 +980,7 @@ begin
 	variable bo, bi : std_ulogic_vector(4 downto 0);
         variable illegal : std_ulogic;
         variable privileged : std_ulogic;
+        variable misaligned : std_ulogic;
         variable slow_op : std_ulogic;
         variable owait : std_ulogic;
         variable srr1 : std_ulogic_vector(63 downto 0);
@@ -1021,10 +1024,13 @@ begin
 
         illegal := '0';
         privileged := '0';
+        misaligned := e_in.misaligned_prefix;
         slow_op := '0';
         owait := '0';
 
-        if ex1.msr(MSR_PR) = '1' and instr_is_privileged(e_in.insn_type, e_in.insn) then
+        if e_in.illegal_suffix = '1' then
+            illegal := '1';
+        elsif ex1.msr(MSR_PR) = '1' and instr_is_privileged(e_in.insn_type, e_in.insn) then
             privileged := '1';
         end if;
 
@@ -1315,9 +1321,22 @@ begin
                 end if;
         end case;
 
-        if privileged = '1' then
+        if misaligned = '1' then
+            -- generate an alignment interrupt
+            -- This is higher priority than illegal because a misaligned
+            -- prefix will come down as an OP_ILLEGAL instruction.
+            v.exception := '1';
+            v.e.intr_vec := 16#600#;
+            v.e.srr1(47 - 35) := '1';
+            v.e.srr1(47 - 34) := '1';
+            if e_in.valid = '1' then
+                report "misaligned prefixed instruction interrupt";
+            end if;
+
+        elsif privileged = '1' then
             -- generate a program interrupt
             v.exception := '1';
+            v.e.srr1(47 - 34) := e_in.prefixed;
             -- set bit 45 to indicate privileged instruction type interrupt
             v.e.srr1(47 - 45) := '1';
             if e_in.valid = '1' then
@@ -1326,6 +1345,7 @@ begin
 
         elsif illegal = '1' then
             v.exception := '1';
+            v.e.srr1(47 - 34) := e_in.prefixed;
             -- Since we aren't doing Hypervisor emulation assist (0xe40) we
             -- set bit 44 to indicate we have an illegal
             v.e.srr1(47 - 44) := '1';
@@ -1336,6 +1356,7 @@ begin
         elsif HAS_FPU and ex1.msr(MSR_FP) = '0' and e_in.fac = FPU then
             -- generate a floating-point unavailable interrupt
             v.exception := '1';
+            v.e.srr1(47 - 34) := e_in.prefixed;
             v.e.intr_vec := 16#800#;
             if e_in.valid = '1' then
                 report "FP unavailable interrupt";
@@ -1401,6 +1422,7 @@ begin
 
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
+            v.prev_prefixed := e_in.prefixed;
         end if;
 
         -- Determine if there is any interrupt to be taken
@@ -1422,6 +1444,7 @@ begin
                 v.e.intr_vec := 16#d00#;
                 v.e.srr1 := (others => '0');
                 v.e.srr1(47 - 33) := '1';
+                v.e.srr1(47 - 34) := ex1.prev_prefixed;
                 if ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or ex1.prev_op = OP_ICBT or
                     ex1.prev_op = OP_DCBT or ex1.prev_op = OP_DCBST or ex1.prev_op = OP_DCBF then
                     v.e.srr1(47 - 35) := '1';
@@ -1584,6 +1607,7 @@ begin
         lv.priv_mode := not ex1.msr(MSR_PR);
         lv.mode_32bit := not ex1.msr(MSR_SF);
         lv.is_32bit := e_in.is_32bit;
+        lv.prefixed := e_in.prefixed;
         lv.repeat := e_in.repeat;
         lv.second := e_in.second;
         lv.e2stall := fp_in.f2stall;

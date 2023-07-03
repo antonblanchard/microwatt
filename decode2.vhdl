@@ -371,21 +371,27 @@ begin
     c_out.read <= d_in.decode.input_cr;
 
     decode2_addrs: process(all)
+        variable dec_a, dec_b, dec_c : decode_input_reg_t;
+        variable dec_o : decode_output_reg_t;
     begin
-        decoded_reg_a <= decode_input_reg_init;
-        decoded_reg_b <= decode_input_reg_init;
-        decoded_reg_c <= decode_input_reg_init;
-        decoded_reg_o <= decode_output_reg_init;
-        if d_in.valid = '1' then
-            decoded_reg_a <= decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.prefix, d_in.nia);
-            decoded_reg_b <= decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, d_in.prefix);
-            decoded_reg_c <= decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn);
-            decoded_reg_o <= decode_output_reg (d_in.decode.output_reg_a, d_in.insn);
+        dec_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.prefix, d_in.nia);
+        dec_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, d_in.prefix);
+        dec_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn);
+        dec_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn);
+        if d_in.valid = '0' or d_in.illegal_suffix = '1' then
+            dec_a.reg_valid := '0';
+            dec_b.reg_valid := '0';
+            dec_c.reg_valid := '0';
+            dec_o.reg_valid := '0';
         end if;
 
-        r_out.read1_enable <= decoded_reg_a.reg_valid;
-        r_out.read2_enable <= decoded_reg_b.reg_valid;
-        r_out.read3_enable <= decoded_reg_c.reg_valid;
+        decoded_reg_a <= dec_a;
+        decoded_reg_b <= dec_b;
+        decoded_reg_c <= dec_c;
+        decoded_reg_o <= dec_o;
+        r_out.read1_enable <= dec_a.reg_valid;
+        r_out.read2_enable <= dec_b.reg_valid;
+        r_out.read3_enable <= dec_c.reg_valid;
 
     end process;
 
@@ -592,6 +598,9 @@ begin
                     v.e.result_sel := "001";        -- logical_result
                 end if;
             end if;
+            v.e.prefixed := d_in.prefixed;
+            v.e.illegal_suffix := d_in.illegal_suffix;
+            v.e.misaligned_prefix := d_in.misaligned_prefix;
 
         elsif dc2.e.valid = '1' then
             -- dc2.busy = 1 and dc2.e.valid = 1, thus this must be a repeated instruction.

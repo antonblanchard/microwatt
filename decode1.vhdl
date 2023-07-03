@@ -572,7 +572,13 @@ begin
             pv.prefixed := '1';
             pv.pref_ia := f_in.nia(5 downto 2);
             pv.prefix := f_in.insn(25 downto 0);
-            v.valid := '0';
+            -- Check if the address of the prefix mod 64 is 60;
+            -- if so we need to arrange to generate an alignment interrupt
+            if f_in.nia(5 downto 2) = "1111" then
+                v.misaligned_prefix := '1';
+            else
+                v.valid := '0';
+            end if;
 
         end if;
         decode_rom_addr <= insn_code'val(to_integer(unsigned(icode_bits)));
