@@ -83,12 +83,13 @@ architecture behaviour of decode2 is
     constant decode_output_reg_init : decode_output_reg_t := ('0', (others => '0'));
 
     function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
+                                 prefix : std_ulogic_vector(25 downto 0);
                                  instr_addr : std_ulogic_vector(63 downto 0))
         return decode_input_reg_t is
     begin
-        if t = RA or (t = RA_OR_ZERO and insn_ra(insn_in) /= "00000") then
+        if t = RA or ((t = RA_OR_ZERO or t = RA0_OR_CIA) and insn_ra(insn_in) /= "00000") then
             return ('1', gpr_to_gspr(insn_ra(insn_in)), (others => '0'));
-        elsif t = CIA then
+        elsif t = CIA or (t = RA0_OR_CIA and insn_prefix_r(prefix) = '1') then
             return ('0', (others => '0'), instr_addr);
         elsif HAS_FPU and t = FRA then
             return ('1', fpr_to_gspr(insn_fra(insn_in)), (others => '0'));
@@ -97,7 +98,8 @@ architecture behaviour of decode2 is
         end if;
     end;
 
-    function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0))
+    function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0);
+                                 prefix : std_ulogic_vector(25 downto 0))
         return decode_input_reg_t is
         variable ret : decode_input_reg_t;
     begin
@@ -114,6 +116,8 @@ architecture behaviour of decode2 is
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
             when CONST_SI =>
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_si(insn_in)), 64)));
+            when CONST_PSI =>
+                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_prefixed_si(prefix, insn_in)), 64)));
             when CONST_SI_HI =>
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_si(insn_in)) & x"0000", 64)));
             when CONST_UI_HI =>
@@ -373,8 +377,8 @@ begin
         decoded_reg_c <= decode_input_reg_init;
         decoded_reg_o <= decode_output_reg_init;
         if d_in.valid = '1' then
-            decoded_reg_a <= decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.nia);
-            decoded_reg_b <= decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn);
+            decoded_reg_a <= decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.prefix, d_in.nia);
+            decoded_reg_b <= decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, d_in.prefix);
             decoded_reg_c <= decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn);
             decoded_reg_o <= decode_output_reg (d_in.decode.output_reg_a, d_in.insn);
         end if;

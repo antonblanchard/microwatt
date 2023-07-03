@@ -158,6 +158,11 @@ architecture behaviour of predecoder is
         2#111111_11010# to 2#111111_11011# =>  INSN_fmadd,
         2#111111_11100# to 2#111111_11101# =>  INSN_fnmsub,
         2#111111_11110# to 2#111111_11111# =>  INSN_fnmadd,
+        -- prefix word, PO1
+        2#000001_00000# to 2#000001_11111# =>  INSN_prefix,
+        -- Major opcodes 57 and 61 are SFFS load/store instructions when prefixed
+        2#111001_00000# to 2#111001_11111# =>  INSN_op57,
+        2#111101_00000# to 2#111101_11111# =>  INSN_op61,
         others                             =>  INSN_illegal
         );
 

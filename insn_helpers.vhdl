@@ -43,6 +43,9 @@ package insn_helpers is
     function insn_frb (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_frc (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_u (insn_in : std_ulogic_vector) return std_ulogic_vector;
+    function insn_prefix_r(prefix : std_ulogic_vector) return std_ulogic;
+    function insn_prefixed_si(prefix : std_ulogic_vector; suffix : std_ulogic_vector)
+        return std_ulogic_vector;
 end package insn_helpers;
 
 package body insn_helpers is
@@ -250,4 +253,16 @@ package body insn_helpers is
     begin
         return insn_in(15 downto 12);
     end;
+
+    function insn_prefix_r(prefix : std_ulogic_vector) return std_ulogic is
+    begin
+        return prefix(20);
+    end;
+
+    function insn_prefixed_si(prefix : std_ulogic_vector; suffix : std_ulogic_vector)
+        return std_ulogic_vector is
+    begin
+        return prefix(17 downto 0) & suffix(15 downto 0);
+    end;
+
 end package body insn_helpers;

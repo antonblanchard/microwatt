@@ -45,6 +45,16 @@ architecture behaviour of decode1 is
     signal decode_rom_addr : insn_code;
     signal decode : decode_rom_t;
 
+    type prefix_state_t is record
+        prefixed : std_ulogic;
+        prefix   : std_ulogic_vector(25 downto 0);
+        pref_ia  : std_ulogic_vector(3 downto 0);
+    end record;
+    constant prefix_state_init : prefix_state_t := (prefixed => '0', prefix => (others => '0'),
+                                                    pref_ia => (others => '0'));
+
+    signal pr, pr_in : prefix_state_t;
+
     signal fetch_failed : std_ulogic;
 
     -- If we have an FPU, then it is used for integer divisions,
@@ -266,6 +276,22 @@ architecture behaviour of decode1 is
         INSN_orc         =>  (ALU,  NONE, OP_OR,        NONE,       RB,          RS,   RA,   '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE),
         INSN_ori         =>  (ALU,  NONE, OP_OR,        NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_oris        =>  (ALU,  NONE, OP_OR,        NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_paddi       =>  (ALU,  NONE, OP_ADD,       RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_plbz        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_pld         =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_plfd        =>  (LDST, FPU,  OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, FRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_plfs        =>  (LDST, FPU,  OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, FRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE),
+        INSN_plha        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_plhz        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_plwa        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_plwz        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_pnop        =>  (ALU,  NONE, OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_pstb        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, CONST_PSI,   RS,   NONE, '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_pstd        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, CONST_PSI,   RS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_pstfd       =>  (LDST, FPU,  OP_STORE,     RA0_OR_CIA, CONST_PSI,   FRS,  NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_pstfs       =>  (LDST, FPU,  OP_STORE,     RA0_OR_CIA, CONST_PSI,   FRS,  NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE),
+        INSN_psth        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, CONST_PSI,   RS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_pstw        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, CONST_PSI,   RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_popcntb     =>  (ALU,  NONE, OP_POPCNT,    NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_popcntd     =>  (ALU,  NONE, OP_POPCNT,    NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_popcntw     =>  (ALU,  NONE, OP_POPCNT,    NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
@@ -434,12 +460,17 @@ begin
             if rst = '1' then
                 r <= Decode1ToDecode2Init;
                 fetch_failed <= '0';
+                pr <= prefix_state_init;
             elsif flush_in = '1' then
                 r.valid <= '0';
                 fetch_failed <= '0';
+                pr <= prefix_state_init;
             elsif stall_in = '0' then
                 r <= rin;
                 fetch_failed <= f_in.fetch_failed;
+                if f_in.valid = '1' then
+                    pr <= pr_in;
+                end if;
             end if;
             if rst = '1' then
                 br.br_nia <= (others => '0');
@@ -471,12 +502,18 @@ begin
         variable icode : insn_code;
         variable sprn : spr_num_t;
         variable maybe_rb : std_ulogic;
+        variable pv : prefix_state_t;
+        variable icode_bits : std_ulogic_vector(9 downto 0);
+        variable valid_suffix : std_ulogic;
     begin
         v := Decode1ToDecode2Init;
+        pv := pr;
 
         v.valid := f_in.valid;
         v.nia  := f_in.nia;
         v.insn := f_in.insn;
+        v.prefix := pr.prefix;
+        v.prefixed := pr.prefixed;
         v.stop_mark := f_in.stop_mark;
         v.big_endian := f_in.big_endian;
 
@@ -490,17 +527,59 @@ begin
         end if;
 
         icode := f_in.icode;
+        icode_bits := std_ulogic_vector(to_unsigned(insn_code'pos(icode), 10));
 
         if f_in.fetch_failed = '1' then
-            icode := INSN_fetch_fail;
+            icode_bits := std_ulogic_vector(to_unsigned(insn_code'pos(INSN_fetch_fail), 10));
             -- Only send down a single OP_FETCH_FAILED
             v.valid := not fetch_failed;
+            pv := prefix_state_init;
+
+        elsif pr.prefixed = '1' then
+            -- Check suffix value and convert to the prefixed instruction code
+            if pr.prefix(24) = '1' then
+                -- either pnop or illegal
+                icode_bits := std_ulogic_vector(to_unsigned(insn_code'pos(INSN_pnop), 10));
+            else
+                -- various load/store instructions
+                icode_bits(0) := '1';
+            end if;
+            valid_suffix := '0';
+            case pr.prefix(25 downto 23) is
+                when "000" =>    -- 8LS
+                    if icode >= INSN_first_8ls and icode < INSN_first_rb then
+                        valid_suffix := '1';
+                    end if;
+                when "100" =>   -- MLS
+                    if icode >= INSN_first_mls and icode < INSN_first_8ls then
+                        valid_suffix := '1';
+                    elsif icode >= INSN_first_fp_mls and icode < INSN_first_fp_nonmls then
+                        valid_suffix := '1';
+                    end if;
+                when "110" =>   -- MRR, i.e. pnop
+                    if pr.prefix(22 downto 20) = "000" then
+                        valid_suffix := '1';
+                    end if;
+                when others =>
+            end case;
+            v.nia(5 downto 2) := pr.pref_ia;
+            v.prefixed := '1';
+            v.prefix := pr.prefix;
+            v.illegal_suffix := not valid_suffix;
+            pv := prefix_state_init;
+
+        elsif icode = INSN_prefix then
+            pv.prefixed := '1';
+            pv.pref_ia := f_in.nia(5 downto 2);
+            pv.prefix := f_in.insn(25 downto 0);
+            v.valid := '0';
+
         end if;
-        decode_rom_addr <= icode;
+        decode_rom_addr <= insn_code'val(to_integer(unsigned(icode_bits)));
 
         if f_in.valid = '1' then
-            report "Decode " & insn_code'image(icode) & " " & to_hstring(f_in.insn) &
-                " at " & to_hstring(f_in.nia);
+            report "Decode " & insn_code'image(insn_code'val(to_integer(unsigned(icode_bits)))) & " " &
+                to_hstring(f_in.insn) & " at " & to_hstring(f_in.nia);
         end if;
 
         -- Branch predictor
@@ -533,6 +612,8 @@ begin
         br_target := std_ulogic_vector(signed(br.br_nia) + br.br_offset);
 
         -- Work out GPR/FPR read addresses
+        -- Note that for prefixed instructions we are working this out based
+        -- only on the suffix.
         maybe_rb := '0';
         vr.reg_1_addr := '0' & insn_ra(f_in.insn);
         vr.reg_2_addr := '0' & insn_rb(f_in.insn);
@@ -568,6 +649,7 @@ begin
         -- Update registers
         rin <= v;
         br_in <= bv;
+        pr_in <= pv;
 
         -- Update outputs
         d_out <= r;
