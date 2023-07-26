@@ -633,14 +633,20 @@ begin
                 addrbits := d_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1 downto TLB_LG_PGSZ);
                 valid := d_in.valid;
             end if;
-            -- If we have any op and the previous op isn't finished,
+            -- If the previous op isn't finished,
             -- then keep the same output for next cycle.
-            if r0_stall = '0' and valid = '1' then
-                assert not is_X(addrbits);
-                index := to_integer(unsigned(addrbits));
-                tlb_valid_way <= dtlb_valids(index);
-                tlb_tag_way <= dtlb_tags(index);
-                tlb_pte_way <= dtlb_ptes(index);
+            if r0_stall = '0' then
+                assert not (valid = '1' and is_X(addrbits));
+                if is_X(addrbits) then
+                    tlb_valid_way <= (others => 'X');
+                    tlb_tag_way <= (others => 'X');
+                    tlb_pte_way <= (others => 'X');
+                else
+                    index := to_integer(unsigned(addrbits));
+                    tlb_valid_way <= dtlb_valids(index);
+                    tlb_tag_way <= dtlb_tags(index);
+                    tlb_pte_way <= dtlb_ptes(index);
+                end if;
             end if;
             if rst = '1' then
                 tlb_read_valid <= '0';
