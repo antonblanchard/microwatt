@@ -174,11 +174,7 @@ begin
             f.big_endian := '0';
             f.mode_32bit := '0';
         else
-            if e_in.abs_br = '1' then
-                f.redirect_nia := e_in.br_offset;
-            else
-                f.redirect_nia := std_ulogic_vector(unsigned(e_in.last_nia) + unsigned(e_in.br_offset));
-            end if;
+            f.redirect_nia := e_in.write_data;
             -- send MSR[IR], ~MSR[PR], ~MSR[LE] and ~MSR[SF] up to fetch1
             f.virt_mode := e_in.redir_mode(3);
             f.priv_mode := e_in.redir_mode(2);

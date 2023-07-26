@@ -94,8 +94,10 @@ architecture behaviour of decode1 is
         INSN_andi_dot    =>  (ALU,  NONE, OP_LOGIC,     NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0', NONE),
         INSN_andis_dot   =>  (ALU,  NONE, OP_LOGIC,     NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0', NONE),
         INSN_attn        =>  (ALU,  NONE, OP_ATTN,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE),
-        INSN_b           =>  (ALU,  NONE, OP_B,         NONE,       CONST_LI,    NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
-        INSN_bc          =>  (ALU,  NONE, OP_BC,        NONE,       CONST_BD,    NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
+        INSN_brel        =>  (ALU,  NONE, OP_B,         CIA,        CONST_LI,    NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
+        INSN_babs        =>  (ALU,  NONE, OP_B,         NONE,       CONST_LI,    NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
+        INSN_bcrel       =>  (ALU,  NONE, OP_BC,        CIA,        CONST_BD,    NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
+        INSN_bcabs       =>  (ALU,  NONE, OP_BC,        NONE,       CONST_BD,    NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
         INSN_bcctr       =>  (ALU,  NONE, OP_BCREG,     NONE,       NONE,        NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
         INSN_bclr        =>  (ALU,  NONE, OP_BCREG,     NONE,       NONE,        NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
         INSN_bctar       =>  (ALU,  NONE, OP_BCREG,     NONE,       NONE,        NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
@@ -597,11 +599,11 @@ begin
         -- count cache or link stack.
         br_offset := (others => '0');
         case icode is
-            when INSN_b =>
+            when INSN_brel | INSN_babs =>
                 -- Unconditional branches are always taken
                 v.br_pred := '1';
                 br_offset := signed(f_in.insn(25 downto 2));
-            when INSN_bc =>
+            when INSN_bcrel | INSN_bcabs =>
                 -- Predict backward branches as taken, forward as untaken
                 v.br_pred := f_in.insn(15);
                 br_offset := resize(signed(f_in.insn(15 downto 2)), 24);

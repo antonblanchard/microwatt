@@ -658,7 +658,6 @@ package common is
 	redirect: std_ulogic;
         redir_mode: std_ulogic_vector(3 downto 0);
         last_nia: std_ulogic_vector(63 downto 0);
-        br_offset: std_ulogic_vector(63 downto 0);
         br_last: std_ulogic;
         br_taken: std_ulogic;
         abs_br: std_ulogic;
@@ -672,7 +671,7 @@ package common is
          write_data => (others => '0'), write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'), write_reg => (others => '0'),
          interrupt => '0', intr_vec => 0, redirect => '0', redir_mode => "0000",
-         last_nia => (others => '0'), br_offset => (others => '0'),
+         last_nia => (others => '0'),
          br_last => '0', br_taken => '0', abs_br => '0',
          srr1 => (others => '0'), msr => (others => '0'));
 

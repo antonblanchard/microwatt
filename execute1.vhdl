@@ -95,6 +95,7 @@ architecture behaviour of execute1 is
         exception : std_ulogic;
         trap : std_ulogic;
         advance_nia : std_ulogic;
+        redir_to_next : std_ulogic;
         new_msr : std_ulogic_vector(63 downto 0);
         take_branch : std_ulogic;
         direct_branch : std_ulogic;
@@ -124,6 +125,9 @@ architecture behaviour of execute1 is
         res2_sel : std_ulogic_vector(1 downto 0);
         spr_select : spr_id;
         pmu_spr_num : std_ulogic_vector(4 downto 0);
+        redir_to_next : std_ulogic;
+        advance_nia : std_ulogic;
+        lr_from_next : std_ulogic;
 	mul_in_progress : std_ulogic;
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
@@ -145,6 +149,7 @@ architecture behaviour of execute1 is
          prev_prefixed => '0',
          oe => '0', mul_select => "00", res2_sel => "00",
          spr_select => spr_id_init, pmu_spr_num => 5x"0",
+         redir_to_next => '0', advance_nia => '0', lr_from_next => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0',
          no_instr_avail => '0', instr_dispatch => '0', ext_interrupt => '0',
          taken_branch_event => '0', br_mispredict => '0',
@@ -510,6 +515,7 @@ begin
         variable wr_addr : ramspr_index;
         variable even_wr_enab, odd_wr_enab : std_ulogic;
         variable even_wr_data, odd_wr_data : std_ulogic_vector(63 downto 0);
+        variable ramspr_even_data : std_ulogic_vector(63 downto 0);
         variable doit : std_ulogic;
     begin
         -- Read address mux and async RAM reading
@@ -533,11 +539,16 @@ begin
         else
             wr_addr := ex1.ramspr_wraddr;
         end if;
+        if ex1.lr_from_next = '1' then
+            ramspr_even_data := next_nia;
+        else
+            ramspr_even_data := ex1.e.write_data;
+        end if;
         if interrupt_in.intr = '1' then
             even_wr_data := ex2.e.last_nia;
             odd_wr_data := intr_srr1(ctrl.msr, interrupt_in.srr1);
         else
-            even_wr_data := ex1.e.write_data;
+            even_wr_data := ramspr_even_data;
             odd_wr_data := ex1.ramspr_odd_data;
         end if;
         ramspr_wr_addr <= wr_addr;
@@ -550,7 +561,7 @@ begin
         -- We assume no instruction executes in the cycle immediately following
         -- an interrupt, so we don't need to bypass interrupt data
         if ex1.se.ramspr_write_even = '1' and e_in.ramspr_even_rdaddr = ex1.ramspr_wraddr then
-            ramspr_even <= ex1.e.write_data;
+            ramspr_even <= ramspr_even_data;
         else
             ramspr_even <= even_rd_data;
         end if;
@@ -593,7 +604,6 @@ begin
         shortmul_result    when "011",
         muldiv_result      when "100",
         ramspr_result      when "101",
-        next_nia           when "110",
         misc_result        when others;
 
     execute1_0: process(clk)
@@ -1016,7 +1026,6 @@ begin
         v.e.mode_32bit := not ex1.msr(MSR_SF);
         v.e.instr_tag := e_in.instr_tag;
         v.e.last_nia := e_in.nia;
-        v.e.br_offset := 64x"4";
 
         v.se.ramspr_write_even := e_in.ramspr_write_even;
         v.se.ramspr_write_odd := e_in.ramspr_write_odd;
@@ -1114,8 +1123,6 @@ begin
                 v.direct_branch := '1';
                 v.e.br_last := '1';
                 v.e.br_taken := '1';
-                v.e.br_offset := b_in;
-                v.e.abs_br := insn_aa(e_in.insn);
                 if e_in.br_pred = '0' then
                     -- should never happen
                     v.e.redirect := '1';
@@ -1129,13 +1136,12 @@ begin
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
                 v.take_branch := ppc_bc_taken(bo, bi, cr_in, ramspr_odd);
-                if v.take_branch = '1' then
-                    v.e.br_offset := b_in;
-                    v.e.abs_br := insn_aa(e_in.insn);
-                end if;
                 -- Mispredicted branches cause a redirect
                 if v.take_branch /= e_in.br_pred then
                     v.e.redirect := '1';
+                end if;
+                if v.take_branch = '0' then
+                    v.redir_to_next := '1';
                 end if;
                 v.direct_branch := '1';
                 v.e.br_last := '1';
@@ -1150,10 +1156,6 @@ begin
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
                 v.take_branch := ppc_bc_taken(bo, bi, cr_in, ramspr_odd);
-                if v.take_branch = '1' then
-                    v.e.br_offset := ramspr_result;
-                    v.e.abs_br := '1';
-                end if;
                 -- Indirect branches are never predicted taken
                 v.e.redirect := v.take_branch;
                 v.e.br_taken := v.take_branch;
@@ -1177,8 +1179,6 @@ begin
                     v.new_msr(MSR_DR) := '1';
                 end if;
                 v.se.write_msr := '1';
-                v.e.br_offset := ramspr_result;
-                v.e.abs_br := '1';
                 v.e.redirect := '1';
                 v.se.write_cfar := '1';
                 if HAS_FPU then
@@ -1292,6 +1292,7 @@ begin
 
 	    when OP_ISYNC =>
 		v.e.redirect := '1';
+                v.redir_to_next := '1';
 
 	    when OP_ICBI =>
 		v.se.icache_inval := '1';
@@ -1406,6 +1407,7 @@ begin
             v.mul_select := e_in.sub_select(1 downto 0);
             v.se := side_effect_init;
             v.ramspr_wraddr := e_in.ramspr_wraddr;
+            v.lr_from_next := e_in.lr;
             v.ramspr_odd_data := actions.ramspr_odd_data;
         end if;
 
@@ -1422,9 +1424,6 @@ begin
         bypass_valid := '0';
 
         irq_valid := ex1.msr(MSR_EE) and (pmu_to_x.intr or ctrl.dec(63) or ext_irq_in);
-
-	-- Next insn adder used in a couple of places
-	next_nia <= std_ulogic_vector(unsigned(e_in.nia) + 4);
 
 	-- rotator control signals
 	right_shift <= '1' when e_in.insn_type = OP_SHR else '0';
@@ -1507,10 +1506,9 @@ begin
             x_to_divider.valid <= actions.start_div;
             v.div_in_progress := actions.start_div;
             v.br_mispredict := v.e.redirect and actions.direct_branch;
+            v.advance_nia := actions.advance_nia;
+            v.redir_to_next := actions.redir_to_next;
             exception := actions.trap;
-            if actions.advance_nia = '1' then
-                v.e.last_nia := next_nia;
-            end if;
 
             -- Go busy while division is happening because the
             -- divider is not pipelined.  Also go busy while a
@@ -1681,6 +1679,9 @@ begin
         variable sign, zero : std_ulogic;
         variable rcnz_hi, rcnz_lo : std_ulogic;
     begin
+	-- Next insn adder used in a couple of places
+	next_nia <= std_ulogic_vector(unsigned(ex1.e.last_nia) + 4);
+
 	v := ex2;
         if stage2_stall = '0' then
             v.e := ex1.e;
@@ -1688,6 +1689,9 @@ begin
             v.ext_interrupt := ex1.ext_interrupt;
             v.taken_branch_event := ex1.taken_branch_event;
             v.br_mispredict := ex1.br_mispredict;
+            if ex1.advance_nia = '1' then
+                v.e.last_nia := next_nia;
+            end if;
         end if;
 
         if ex1.se.mult_32s = '1' and ex1.oe = '1' then
@@ -1748,10 +1752,12 @@ begin
         else
             sprres := pmu_to_x.spr_val;
         end if;
-        if ex1.res2_sel(1) = '0' then
-            ex_result := rcresult;
-        else
+        if ex1.res2_sel(1) = '1' then
             ex_result := sprres;
+        elsif ex1.redir_to_next = '1' then
+            ex_result := next_nia;
+        else
+            ex_result := rcresult;
         end if;
 
         cr_res := ex1.e.write_cr_data;
