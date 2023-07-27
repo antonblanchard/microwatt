@@ -35,8 +35,7 @@ architecture behaviour of decode1 is
     signal f, fin : Decode1ToFetch1Type;
 
     type br_predictor_t is record
-        br_nia    : std_ulogic_vector(61 downto 0);
-        br_offset : signed(23 downto 0);
+        br_target : signed(61 downto 0);
         predict   : std_ulogic;
     end record;
 
@@ -479,8 +478,6 @@ begin
                 end if;
             end if;
             if rst = '1' then
-                br.br_nia <= (others => '0');
-                br.br_offset <= (others => '0');
                 br.predict <= '0';
             else
                 br <= br_in;
@@ -502,8 +499,8 @@ begin
     decode1_1: process(all)
         variable v : Decode1ToDecode2Type;
         variable vr : Decode1ToRegisterFileType;
-        variable br_target : std_ulogic_vector(61 downto 0);
-        variable br_offset : signed(23 downto 0);
+        variable br_nia    : std_ulogic_vector(61 downto 0);
+        variable br_offset : std_ulogic_vector(23 downto 0);
         variable bv : br_predictor_t;
         variable icode : insn_code;
         variable sprn : spr_num_t;
@@ -597,31 +594,28 @@ begin
         -- Branch predictor
         -- Note bclr, bcctr and bctar not predicted as we have no
         -- count cache or link stack.
-        br_offset := (others => '0');
+        br_offset := f_in.insn(25 downto 2);
         case icode is
             when INSN_brel | INSN_babs =>
                 -- Unconditional branches are always taken
                 v.br_pred := '1';
-                br_offset := signed(f_in.insn(25 downto 2));
-            when INSN_bcrel | INSN_bcabs =>
-                -- Predict backward branches as taken, forward as untaken
+            when INSN_bcrel =>
+                -- Predict backward relative branches as taken, others as untaken
                 v.br_pred := f_in.insn(15);
-                br_offset := resize(signed(f_in.insn(15 downto 2)), 24);
+                br_offset(23 downto 14) := (others => '1');
             when others =>
         end case;
-        bv.br_nia := f_in.nia(63 downto 2);
+        br_nia := f_in.nia(63 downto 2);
         if f_in.insn(1) = '1' then
-            bv.br_nia := (others => '0');
+            br_nia := (others => '0');
         end if;
-        bv.br_offset := br_offset;
+        bv.br_target := signed(br_nia) + signed(br_offset);
         if f_in.next_predicted = '1' then
             v.br_pred := '1';
         elsif f_in.next_pred_ntaken = '1' then
             v.br_pred := '0';
         end if;
         bv.predict := v.br_pred and f_in.valid and not flush_in and not busy_out and not f_in.next_predicted;
-        -- after a clock edge...
-        br_target := std_ulogic_vector(signed(br.br_nia) + br.br_offset);
 
         -- Work out GPR/FPR read addresses
         -- Note that for prefixed instructions we are working this out based
@@ -668,7 +662,7 @@ begin
         d_out.decode <= decode;
         r_out <= vr;
         f_out.redirect <= br.predict;
-        f_out.redirect_nia <= br_target & "00";
+        f_out.redirect_nia <= std_ulogic_vector(br.br_target) & "00";
         flush_out <= bv.predict or br.predict;
     end process;
 
