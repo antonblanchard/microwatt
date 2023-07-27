@@ -836,14 +836,27 @@ begin
 		end if;
                 misc_result <= mfcr_result;
             when "110" =>
-                -- setb
-                bfa := insn_bfa(e_in.insn);
-                crbit := to_integer(unsigned(bfa)) * 4;
+                -- setb and set[n]bc[r]
                 setb_result := (others => '0');
-                if cr_in(31 - crbit) = '1' then
-                    setb_result := (others => '1');
-                elsif cr_in(30 - crbit) = '1' then
-                    setb_result(0) := '1';
+                if e_in.insn(9) = '0' then
+                    -- setb
+                    bfa := insn_bfa(e_in.insn);
+                    crbit := to_integer(unsigned(bfa)) * 4;
+                    if cr_in(31 - crbit) = '1' then
+                        setb_result := (others => '1');
+                    elsif cr_in(30 - crbit) = '1' then
+                        setb_result(0) := '1';
+                    end if;
+                else
+                    -- set[n]bc[r]
+                    crbit := to_integer(unsigned(insn_bi(e_in.insn)));
+                    if (cr_in(31 - crbit) xor e_in.insn(6)) = '1' then
+                        if e_in.insn(7) = '0' then
+                            setb_result(0) := '1';
+                        else
+                            setb_result := (others => '1');
+                        end if;
+                    end if;
                 end if;
                 misc_result <= setb_result;
             when others =>

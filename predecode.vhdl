@@ -336,6 +336,10 @@ architecture behaviour of predecoder is
         2#0_00101_11010#  =>  INSN_prtyd,
         2#0_00100_11010#  =>  INSN_prtyw,
         2#0_00100_00000#  =>  INSN_setb,
+        2#0_01100_00000#  =>  INSN_setb, -- setbc
+        2#0_01101_00000#  =>  INSN_setb, -- setbcr
+        2#0_01110_00000#  =>  INSN_setb, -- setnbc
+        2#0_01111_00000#  =>  INSN_setb, -- setnbcr
         2#0_01111_10010#  =>  INSN_slbia,
         2#0_00000_11011#  =>  INSN_sld,
         2#0_00000_11000#  =>  INSN_slw,
