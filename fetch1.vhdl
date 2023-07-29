@@ -70,6 +70,7 @@ begin
                     " P:" & std_ulogic'image(r_next.priv_mode) &
                     " E:" & std_ulogic'image(r_next.big_endian) &
                     " 32:" & std_ulogic'image(r_next_int.mode_32bit) &
+                    " I:" & std_ulogic'image(w_in.interrupt) &
 		    " R:" & std_ulogic'image(w_in.redirect) & std_ulogic'image(d_in.redirect) &
 		    " S:" & std_ulogic'image(stall_in) &
 		    " T:" & std_ulogic'image(stop_in) &
@@ -143,7 +144,7 @@ begin
 	v_int := r_int;
         v.predicted := '0';
         v.pred_ntaken := '0';
-        v.req := not (rst or stop_in);
+        v.req := not (rst or w_in.interrupt or stop_in);
         -- reduce metavalue warnings in sim
         if is_X(rst) then
             v.req := '0';
@@ -175,8 +176,8 @@ begin
         v_int.next_nia := std_ulogic_vector(unsigned(next_nia) + 4);
 
         -- Use v_int.next_nia as the BTC read address before it gets possibly
-        -- overridden with the reset address or the predicted branch target
-        -- address, in order to improve timing.  If it gets overridden then
+        -- overridden with the reset or interrupt address or the predicted branch
+        -- target address, in order to improve timing.  If it gets overridden then
         -- rd_is_niap4 gets cleared to indicate that the BTC data doesn't apply.
         btc_rd_addr <= unsigned(v_int.next_nia(BTC_ADDR_BITS + 1 downto 2));
         v_int.rd_is_niap4 := '1';
@@ -187,6 +188,10 @@ begin
 	    else
 		v_int.next_nia :=  RESET_ADDRESS;
 	    end if;
+        elsif w_in.interrupt = '1' then
+            v_int.next_nia := 52x"0" & w_in.intr_vec(11 downto 2) & "00";
+        end if;
+	if rst /= '0' or w_in.interrupt = '1' then
             v.virt_mode := '0';
             v.priv_mode := '1';
             v.big_endian := '0';
@@ -196,7 +201,7 @@ begin
 
         -- If there is a valid entry in the BTC which corresponds to the next instruction,
         -- use that to predict the address of the instruction after that.
-	if rst = '0' and w_in.redirect = '0' and d_in.redirect = '0' and
+	if rst = '0' and w_in.interrupt = '0' and w_in.redirect = '0' and d_in.redirect = '0' and
                 btc_rd_valid = '1' and r_int.rd_is_niap4 = '1' and
                 btc_rd_data(BTC_WIDTH - 2) = r.virt_mode and
                 btc_rd_data(BTC_WIDTH - 3 downto BTC_TARGET_BITS)
@@ -211,7 +216,8 @@ begin
 
         -- If the last NIA value went down with a stop mark, it didn't get
         -- executed, and hence we shouldn't increment NIA.
-        advance_nia <= rst or w_in.redirect or d_in.redirect or (not r.stop_mark and not stall_in);
+        advance_nia <= rst or w_in.interrupt or w_in.redirect or d_in.redirect or
+                       (not r.stop_mark and not stall_in);
         -- reduce metavalue warnings in sim
         if is_X(rst) then
             advance_nia <= '1';

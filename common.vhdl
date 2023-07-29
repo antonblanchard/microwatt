@@ -758,11 +758,14 @@ package common is
         br_nia : std_ulogic_vector(63 downto 0);
         br_last : std_ulogic;
         br_taken : std_ulogic;
+        interrupt : std_ulogic;
+        intr_vec : std_ulogic_vector(11 downto 0);
     end record;
     constant WritebackToFetch1Init : WritebackToFetch1Type :=
         (redirect => '0', virt_mode => '0', priv_mode => '0', big_endian => '0',
          mode_32bit => '0', redirect_nia => (others => '0'),
-         br_last => '0', br_taken => '0', br_nia => (others => '0'));
+         br_last => '0', br_taken => '0', br_nia => (others => '0'),
+         interrupt => '0', intr_vec => x"000");
 
     type WritebackToRegisterFileType is record
 	write_reg : gspr_index_t;
