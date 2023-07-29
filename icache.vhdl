@@ -636,7 +636,7 @@ begin
         i_out.next_pred_ntaken <= r.pred_ntaken;
 
 	-- Stall fetch1 if we have a miss on cache or TLB or a protection fault
-	stall_out <= not (is_hit and access_ok);
+	stall_out <= i_in.req and not (is_hit and access_ok);
 
 	-- Wishbone requests output (from the cache miss reload machine)
 	wishbone_out <= r.wb;

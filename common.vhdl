@@ -238,6 +238,7 @@ package common is
         predicted : std_ulogic;
         pred_ntaken : std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
+        next_nia: std_ulogic_vector(63 downto 0);
     end record;
 
     type IcacheToDecode1Type is record

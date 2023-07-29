@@ -40,8 +40,7 @@ architecture behaviour of fetch1 is
     type reg_internal_t is record
         mode_32bit: std_ulogic;
         rd_is_niap4: std_ulogic;
-        predicted_taken: std_ulogic;
-        predicted_nia: std_ulogic_vector(63 downto 0);
+        next_nia: std_ulogic_vector(63 downto 0);
     end record;
     signal r, r_next : Fetch1ToIcacheType;
     signal r_int, r_next_int : reg_internal_t;
@@ -55,6 +54,7 @@ architecture behaviour of fetch1 is
     constant BTC_WIDTH : integer := BTC_TAG_BITS + BTC_TARGET_BITS + 2;
     type btc_mem_type is array (0 to BTC_SIZE - 1) of std_ulogic_vector(BTC_WIDTH - 1 downto 0);
 
+    signal btc_rd_addr : unsigned(BTC_ADDR_BITS - 1 downto 0);
     signal btc_rd_data : std_ulogic_vector(BTC_WIDTH - 1 downto 0) := (others => '0');
     signal btc_rd_valid : std_ulogic := '0';
 
@@ -64,7 +64,7 @@ begin
     begin
 	if rising_edge(clk) then
             log_nia <= r.nia(63) & r.nia(43 downto 2);
-	    if r /= r_next then
+	    if r /= r_next and advance_nia = '1' then
 		report "fetch1 rst:" & std_ulogic'image(rst) &
                     " IR:" & std_ulogic'image(r_next.virt_mode) &
                     " P:" & std_ulogic'image(r_next.priv_mode) &
@@ -73,25 +73,16 @@ begin
 		    " R:" & std_ulogic'image(w_in.redirect) & std_ulogic'image(d_in.redirect) &
 		    " S:" & std_ulogic'image(stall_in) &
 		    " T:" & std_ulogic'image(stop_in) &
-		    " nia:" & to_hstring(r_next.nia);
+		    " nia:" & to_hstring(r_next.nia) &
+                    " req:" & std_ulogic'image(r_next.req);
 	    end if;
-            if rst = '1' or w_in.redirect = '1' or d_in.redirect = '1' or stall_in = '0' then
-                r.virt_mode <= r_next.virt_mode;
-                r.priv_mode <= r_next.priv_mode;
-                r.big_endian <= r_next.big_endian;
-                r_int.mode_32bit <= r_next_int.mode_32bit;
-            end if;
             if advance_nia = '1' then
-                r.predicted <= r_next.predicted;
-                r.pred_ntaken <= r_next.pred_ntaken;
-                r.nia <= r_next.nia;
-                r_int.predicted_taken <= r_next_int.predicted_taken;
-                r_int.predicted_nia <= r_next_int.predicted_nia;
-                r_int.rd_is_niap4 <= r_next_int.rd_is_niap4;
+                r <= r_next;
+                r_int <= r_next_int;
             end if;
             -- always send the up-to-date stop mark and req
             r.stop_mark <= stop_in;
-            r.req <= not rst and not stop_in;
+            r.req <= r_next.req;
 	end if;
     end process;
     log_out <= log_nia;
@@ -119,15 +110,13 @@ begin
             variable raddr : unsigned(BTC_ADDR_BITS - 1 downto 0);
         begin
             if rising_edge(clk) then
-                raddr := unsigned(r.nia(BTC_ADDR_BITS + 1 downto 2)) +
-                         to_unsigned(2, BTC_ADDR_BITS);
                 if advance_nia = '1' then
-		    if is_X(raddr) then
+		    if is_X(btc_rd_addr) then
 			btc_rd_data <= (others => 'X');
 			btc_rd_valid <= 'X';
 		    else
-			btc_rd_data <= btc_memory(to_integer(raddr));
-			btc_rd_valid <= btc_valids(to_integer(raddr));
+			btc_rd_data <= btc_memory(to_integer(btc_rd_addr));
+			btc_rd_valid <= btc_valids(to_integer(btc_rd_addr));
 		    end if;
                 end if;
                 if btc_wr = '1' then
@@ -147,67 +136,93 @@ begin
     comb : process(all)
 	variable v : Fetch1ToIcacheType;
 	variable v_int : reg_internal_t;
+        variable next_nia : std_ulogic_vector(63 downto 0);
+        variable m32 : std_ulogic;
     begin
 	v := r;
 	v_int := r_int;
         v.predicted := '0';
         v.pred_ntaken := '0';
-        v_int.predicted_taken := '0';
-        v_int.rd_is_niap4 := '0';
+        v.req := not (rst or stop_in);
+        -- reduce metavalue warnings in sim
+        if is_X(rst) then
+            v.req := '0';
+        end if;
 
-	if rst = '1' then
-	    if alt_reset_in = '1' then
-		v.nia :=  ALT_RESET_ADDRESS;
-	    else
-		v.nia :=  RESET_ADDRESS;
-	    end if;
-            v.virt_mode := '0';
-            v.priv_mode := '1';
-            v.big_endian := '0';
-            v_int.mode_32bit := '0';
-            v_int.predicted_nia := (others => '0');
-	elsif w_in.redirect = '1' then
-	    v.nia := w_in.redirect_nia(63 downto 2) & "00";
-            if w_in.mode_32bit = '1' then
-                v.nia(63 downto 32) := (others => '0');
-            end if;
+        -- Combinatorial computation of the CIA for the next cycle.
+        -- Needs to be simple so the result can be used for RAM
+        -- and TLB access in the icache.
+        -- If we are stalled, this still advances, and the assumption
+        -- is that it will not be used.
+        m32 := r_int.mode_32bit;
+        if w_in.redirect = '1' then
+            next_nia := w_in.redirect_nia(63 downto 2) & "00";
+            m32 := w_in.mode_32bit;
             v.virt_mode := w_in.virt_mode;
             v.priv_mode := w_in.priv_mode;
             v.big_endian := w_in.big_endian;
             v_int.mode_32bit := w_in.mode_32bit;
         elsif d_in.redirect = '1' then
-            v.nia := d_in.redirect_nia(63 downto 2) & "00";
-            if r_int.mode_32bit = '1' then
-                v.nia(63 downto 32) := (others => '0');
-            end if;
-        elsif r_int.predicted_taken = '1' then
-            v.nia := r_int.predicted_nia;
-        elsif r.req = '1' then
-            v_int.rd_is_niap4 := '1';
-            v.nia := std_ulogic_vector(unsigned(r.nia) + 4);
-            if r_int.mode_32bit = '1' then
-                v.nia(63 downto 32) := x"00000000";
-            end if;
-            if btc_rd_valid = '1' and r_int.rd_is_niap4 = '1' and
+            next_nia := d_in.redirect_nia(63 downto 2) & "00";
+        else
+            next_nia := r_int.next_nia;
+        end if;
+        if m32 = '1' then
+            next_nia(63 downto 32) := (others => '0');
+        end if;
+        v.nia := next_nia;
+
+        v_int.next_nia := std_ulogic_vector(unsigned(next_nia) + 4);
+
+        -- Use v_int.next_nia as the BTC read address before it gets possibly
+        -- overridden with the reset address or the predicted branch target
+        -- address, in order to improve timing.  If it gets overridden then
+        -- rd_is_niap4 gets cleared to indicate that the BTC data doesn't apply.
+        btc_rd_addr <= unsigned(v_int.next_nia(BTC_ADDR_BITS + 1 downto 2));
+        v_int.rd_is_niap4 := '1';
+
+	if rst /= '0' then
+	    if alt_reset_in = '1' then
+		v_int.next_nia :=  ALT_RESET_ADDRESS;
+	    else
+		v_int.next_nia :=  RESET_ADDRESS;
+	    end if;
+            v.virt_mode := '0';
+            v.priv_mode := '1';
+            v.big_endian := '0';
+            v_int.mode_32bit := '0';
+            v_int.rd_is_niap4 := '0';
+        end if;
+
+        -- If there is a valid entry in the BTC which corresponds to the next instruction,
+        -- use that to predict the address of the instruction after that.
+	if rst = '0' and w_in.redirect = '0' and d_in.redirect = '0' and
+                btc_rd_valid = '1' and r_int.rd_is_niap4 = '1' and
                 btc_rd_data(BTC_WIDTH - 2) = r.virt_mode and
                 btc_rd_data(BTC_WIDTH - 3 downto BTC_TARGET_BITS)
-                = v.nia(BTC_TAG_BITS + BTC_ADDR_BITS + 1 downto BTC_ADDR_BITS + 2) then
-                v_int.predicted_taken := btc_rd_data(BTC_WIDTH - 1);
-                v.predicted := btc_rd_data(BTC_WIDTH - 1);
-                v.pred_ntaken := not btc_rd_data(BTC_WIDTH - 1);
+                    = r_int.next_nia(BTC_TAG_BITS + BTC_ADDR_BITS + 1 downto BTC_ADDR_BITS + 2) then
+            v.predicted := btc_rd_data(BTC_WIDTH - 1);
+            v.pred_ntaken := not btc_rd_data(BTC_WIDTH - 1);
+            if btc_rd_data(BTC_WIDTH - 1) = '1' then
+                v_int.next_nia := btc_rd_data(BTC_TARGET_BITS - 1 downto 0) & "00";
+                v_int.rd_is_niap4 := '0';
             end if;
         end if;
-        v_int.predicted_nia := btc_rd_data(BTC_TARGET_BITS - 1 downto 0) & "00";
 
         -- If the last NIA value went down with a stop mark, it didn't get
         -- executed, and hence we shouldn't increment NIA.
         advance_nia <= rst or w_in.redirect or d_in.redirect or (not r.stop_mark and not stall_in);
+        -- reduce metavalue warnings in sim
+        if is_X(rst) then
+            advance_nia <= '1';
+        end if;
 
 	r_next <= v;
 	r_next_int <= v_int;
 
 	-- Update outputs to the icache
 	i_out <= r;
+        i_out.next_nia <= next_nia;
 
     end process;
 
