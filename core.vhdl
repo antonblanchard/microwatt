@@ -57,7 +57,7 @@ architecture behave of core is
     signal fetch1_to_icache : Fetch1ToIcacheType;
     signal writeback_to_fetch1: WritebackToFetch1Type;
     signal icache_to_decode1 : IcacheToDecode1Type;
-    signal mmu_to_icache : MmuToIcacheType;
+    signal mmu_to_itlb : MmuToITLBType;
 
     -- decode signals
     signal decode1_to_decode2: Decode1ToDecode2Type;
@@ -223,6 +223,7 @@ begin
         generic map (
             RESET_ADDRESS => (others => '0'),
 	    ALT_RESET_ADDRESS => ALT_RESET_ADDRESS,
+            TLB_SIZE => ICACHE_TLB_SIZE,
             HAS_BTC => HAS_BTC
             )
         port map (
@@ -231,8 +232,9 @@ begin
 	    alt_reset_in => alt_reset_d,
             stall_in => fetch1_stall_in,
             flush_in => fetch1_flush,
-            inval_btc => ex1_icache_inval or mmu_to_icache.tlbie,
+            inval_btc => ex1_icache_inval or mmu_to_itlb.tlbie,
 	    stop_in => dbg_core_stop,
+            m_in => mmu_to_itlb,
             d_in => decode1_to_fetch1,
             w_in => writeback_to_fetch1,
             i_out => fetch1_to_icache,
@@ -249,7 +251,6 @@ begin
             LINE_SIZE => 64,
             NUM_LINES => ICACHE_NUM_LINES,
             NUM_WAYS => ICACHE_NUM_WAYS,
-            TLB_SIZE => ICACHE_TLB_SIZE,
             LOG_LENGTH => LOG_LENGTH
             )
         port map(
@@ -257,7 +258,6 @@ begin
             rst => rst_icache,
             i_in => fetch1_to_icache,
             i_out => icache_to_decode1,
-            m_in => mmu_to_icache,
             flush_in => fetch1_flush,
             inval_in => dbg_icache_rst or ex1_icache_inval,
             stall_in => icache_stall_in,
@@ -454,7 +454,7 @@ begin
             l_out => mmu_to_loadstore1,
             d_out => mmu_to_dcache,
             d_in => dcache_to_mmu,
-            i_out => mmu_to_icache
+            i_out => mmu_to_itlb
             );
 
     dcache_0: entity work.dcache

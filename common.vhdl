@@ -194,6 +194,10 @@ package common is
     subtype real_addr_t is std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
     function addr_to_real(addr: std_ulogic_vector(63 downto 0)) return real_addr_t;
 
+    -- Minimum page size
+    constant MIN_LG_PGSZ : positive := 12;
+    constant MIN_PAGESZ  : positive := 2 ** MIN_LG_PGSZ;
+
     -- Used for tracking instruction completion and pending register writes
     constant TAG_COUNT : positive := 4;
     constant TAG_NUMBER_BITS : natural := log2(TAG_COUNT);
@@ -231,6 +235,7 @@ package common is
 
     type Fetch1ToIcacheType is record
 	req: std_ulogic;
+        fetch_fail : std_ulogic;
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
         big_endian : std_ulogic;
@@ -239,6 +244,7 @@ package common is
         pred_ntaken : std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
         next_nia: std_ulogic_vector(63 downto 0);
+        rpn: std_ulogic_vector(REAL_ADDR_BITS - MIN_LG_PGSZ - 1 downto 0);
     end record;
 
     type IcacheToDecode1Type is record
@@ -607,7 +613,7 @@ package common is
         data  : std_ulogic_vector(63 downto 0);
     end record;
 
-    type MmuToIcacheType is record
+    type MmuToITLBType is record
         tlbld : std_ulogic;
         tlbie : std_ulogic;
         doall : std_ulogic;

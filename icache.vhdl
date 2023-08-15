@@ -41,10 +41,6 @@ entity icache is
         NUM_LINES : positive := 32;
         -- Number of ways
         NUM_WAYS  : positive := 4;
-        -- L1 ITLB number of entries (direct mapped)
-        TLB_SIZE : positive := 64;
-        -- L1 ITLB log_2(page_size)
-        TLB_LG_PGSZ : positive := 12;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -54,8 +50,6 @@ entity icache is
 
         i_in         : in Fetch1ToIcacheType;
         i_out        : out IcacheToDecode1Type;
-
-        m_in         : in MmuToIcacheType;
 
         stall_in     : in std_ulogic;
 	stall_out    : out std_ulogic;
@@ -157,35 +151,6 @@ architecture rtl of icache is
     type row_per_line_valid_t is array(0 to ROW_PER_LINE - 1) of std_ulogic;
     signal cache_valids : cache_valids_t;
 
-    -- L1 ITLB.
-    constant TLB_BITS : natural := log2(TLB_SIZE);
-    constant TLB_EA_TAG_BITS : natural := 64 - (TLB_LG_PGSZ + TLB_BITS);
-    constant TLB_PTE_BITS : natural := 64;
-
-    subtype tlb_index_t is integer range 0 to TLB_SIZE - 1;
-    type tlb_valids_t is array(tlb_index_t) of std_ulogic;
-    subtype tlb_tag_t is std_ulogic_vector(TLB_EA_TAG_BITS - 1 downto 0);
-    type tlb_tags_t is array(tlb_index_t) of tlb_tag_t;
-    subtype tlb_pte_t is std_ulogic_vector(TLB_PTE_BITS - 1 downto 0);
-    type tlb_ptes_t is array(tlb_index_t) of tlb_pte_t;
-
-    signal itlb_valids : tlb_valids_t;
-    signal itlb_tags : tlb_tags_t;
-    signal itlb_ptes : tlb_ptes_t;
-
-    -- Values read from above arrays on a clock edge
-    signal itlb_valid : std_ulogic;
-    signal itlb_ttag : tlb_tag_t;
-    signal itlb_pte : tlb_pte_t;
-
-    -- Values captured from a write to a TLB
-    signal itlb_bypass_valid : std_ulogic;
-    signal itlb_bypass_ra    : std_ulogic_vector(REAL_ADDR_BITS - TLB_LG_PGSZ - 1 downto 0);
-    signal itlb_bypass_priv  : std_ulogic;
-
-    -- Privilege bit from PTE EAA field
-    signal eaa_priv  : std_ulogic;
-
     -- Cache reload state machine
     type state_t is (IDLE, STOP_RELOAD, CLR_TAG, WAIT_ACK);
 
@@ -233,9 +198,6 @@ architecture rtl of icache is
     signal req_raddr   : real_addr_t;
 
     signal real_addr     : real_addr_t;
-    signal ra_valid      : std_ulogic;
-    signal priv_fault    : std_ulogic;
-    signal access_ok     : std_ulogic;
 
     -- Cache RAM interface
     type cache_ram_out_t is array(way_t) of cache_row_t;
@@ -328,16 +290,6 @@ architecture rtl of icache is
     function get_tag(addr: real_addr_t; endian: std_ulogic) return cache_tag_t is
     begin
         return endian & addr(addr'left downto SET_SIZE_BITS);
-    end;
-
-    -- Simple hash for direct-mapped TLB index
-    function hash_ea(addr: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
-        variable hash : std_ulogic_vector(TLB_BITS - 1 downto 0);
-    begin
-        hash := addr(TLB_LG_PGSZ + TLB_BITS - 1 downto TLB_LG_PGSZ)
-                xor addr(TLB_LG_PGSZ + 2 * TLB_BITS - 1 downto TLB_LG_PGSZ + TLB_BITS)
-                xor addr(TLB_LG_PGSZ + 3 * TLB_BITS - 1 downto TLB_LG_PGSZ + 2 * TLB_BITS);
-        return hash;
     end;
 
 begin
@@ -530,95 +482,10 @@ begin
         end process;
     end generate;
 
-    -- Read TLB using the NIA for the next cycle
-    itlb_read : process(clk)
-	variable tlb_req_index : std_ulogic_vector(TLB_BITS - 1 downto 0);
-    begin
-        if rising_edge(clk) then
-            if flush_in = '1' or i_in.req = '0' or (stall_in = '0' and stall_out = '0') then
-                tlb_req_index := hash_ea(i_in.next_nia);
-                if is_X(tlb_req_index) then
-                    itlb_pte <= (others => 'X');
-                    itlb_ttag <= (others => 'X');
-		    itlb_valid <= 'X';
-                else
-                    itlb_pte <= itlb_ptes(to_integer(unsigned(tlb_req_index)));
-                    itlb_ttag <= itlb_tags(to_integer(unsigned(tlb_req_index)));
-		    itlb_valid <= itlb_valids(to_integer(unsigned(tlb_req_index)));
-                end if;
-            end if;
-        end if;
-    end process;
-
-    -- Store TLB data being written for use in servicing the current request
-    itlb_bypass: process(clk)
-    begin
-        if rising_edge(clk) then
-            if rst = '1' then
-                itlb_bypass_valid <= '0';
-                itlb_bypass_ra <= (others => '0');
-                itlb_bypass_priv <= '0';
-            elsif flush_in = '1' or i_in.req = '0' or stall_out = '0' then
-                itlb_bypass_valid <= '0';
-            elsif m_in.tlbld = '1' then
-                assert i_in.nia(63 downto TLB_LG_PGSZ) = m_in.addr(63 downto TLB_LG_PGSZ);
-                itlb_bypass_valid <= '1';
-                itlb_bypass_ra <= m_in.pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ);
-                itlb_bypass_priv <= m_in.pte(3);
-            end if;
-        end if;
-    end process;
-
     -- TLB hit detection and real address generation
     itlb_lookup : process(all)
     begin
-        if itlb_bypass_valid = '1' then
-            real_addr <= itlb_bypass_ra & i_in.nia(TLB_LG_PGSZ - 1 downto 0);
-            ra_valid <= '1';
-            eaa_priv <= itlb_bypass_priv;
-        elsif i_in.virt_mode = '1' then
-            real_addr <= itlb_pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
-                         i_in.nia(TLB_LG_PGSZ - 1 downto 0);
-            if itlb_ttag = i_in.nia(63 downto TLB_LG_PGSZ + TLB_BITS) then
-                ra_valid <= itlb_valid;
-            else
-                ra_valid <= '0';
-            end if;
-            eaa_priv <= itlb_pte(3);
-        else
-            real_addr <= addr_to_real(i_in.nia);
-            ra_valid <= '1';
-            eaa_priv <= '1';
-        end if;
-
-        -- no IAMR, so no KUEP support for now
-        priv_fault <= eaa_priv and not i_in.priv_mode;
-        access_ok <= ra_valid and not priv_fault;
-    end process;
-
-    -- iTLB update
-    itlb_update: process(clk)
-	variable wr_index : std_ulogic_vector(TLB_BITS - 1 downto 0);
-    begin
-        if rising_edge(clk) then
-            wr_index := hash_ea(m_in.addr);
-            if rst = '1' or (m_in.tlbie = '1' and m_in.doall = '1') then
-                -- clear all valid bits
-                for i in tlb_index_t loop
-                    itlb_valids(i) <= '0';
-                end loop;
-            elsif m_in.tlbie = '1' then
-		assert not is_X(wr_index) report "icache index invalid on write" severity FAILURE;
-                -- clear entry regardless of hit or miss
-                itlb_valids(to_integer(unsigned(wr_index))) <= '0';
-            elsif m_in.tlbld = '1' then
-		assert not is_X(wr_index) report "icache index invalid on write" severity FAILURE;
-                itlb_tags(to_integer(unsigned(wr_index))) <= m_in.addr(63 downto TLB_LG_PGSZ + TLB_BITS);
-                itlb_ptes(to_integer(unsigned(wr_index))) <= m_in.pte;
-                itlb_valids(to_integer(unsigned(wr_index))) <= '1';
-            end if;
-            ev.itlb_miss_resolved <= m_in.tlbld and not rst;
-        end if;
+        real_addr <= i_in.rpn & i_in.nia(MIN_LG_PGSZ - 1 downto 0);
     end process;
 
     -- Cache hit detection, output to fetch2 and other misc logic
@@ -667,7 +534,7 @@ begin
         end if;
 
 	-- Generate the "hit" and "miss" signals for the synchronous blocks
-        if i_in.req = '1' and access_ok = '1' and flush_in = '0' and rst = '0' then
+        if i_in.req = '1' and flush_in = '0' and rst = '0' then
             req_is_hit  <= is_hit;
             req_is_miss <= not is_hit;
         else
@@ -711,8 +578,8 @@ begin
         i_out.next_predicted <= r.predicted;
         i_out.next_pred_ntaken <= r.pred_ntaken;
 
-	-- Stall fetch1 if we have a miss on cache or TLB or a protection fault
-	stall_out <= i_in.req and not (is_hit and access_ok) and not flush_in;
+	-- Stall fetch1 if we have a cache miss
+	stall_out <= i_in.req and not is_hit and not flush_in;
 
 	-- Wishbone requests output (from the cache miss reload machine)
 	wishbone_out <= r.wb;
@@ -763,6 +630,7 @@ begin
                 r.big_endian <= i_in.big_endian;
                 r.predicted <= i_in.predicted;
                 r.pred_ntaken <= i_in.pred_ntaken;
+                r.fetch_failed <= i_in.fetch_fail and not flush_in;
             end if;
             if i_out.valid = '1' then
                 assert not is_X(i_out.insn) severity failure;
@@ -955,13 +823,6 @@ begin
 		    end if;
 		end case;
 	    end if;
-
-            -- TLB miss and protection fault processing
-            if rst = '1' or flush_in = '1' or m_in.tlbld = '1' then
-                r.fetch_failed <= '0';
-            elsif i_in.req = '1' and access_ok = '0' and stall_in = '0' then
-                r.fetch_failed <= '1';
-            end if;
 	end if;
     end process;
 
@@ -991,8 +852,8 @@ begin
                             wstate &
                             std_ulogic_vector(resize(lway, 3)) &
                             req_is_hit & req_is_miss &
-                            access_ok &
-                            ra_valid;
+                            '1' & -- was access_ok
+                            '1';  -- was ra_valid
             end if;
         end process;
         log_out <= log_data;
