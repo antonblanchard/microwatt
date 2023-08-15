@@ -158,6 +158,7 @@ architecture rtl of icache is
 	-- Cache hit state (Latches for 1 cycle BRAM access)
 	hit_way   : way_sig_t;
 	hit_nia   : std_ulogic_vector(63 downto 0);
+        hit_ra    : real_addr_t;
 	hit_smark : std_ulogic;
 	hit_valid : std_ulogic;
         big_endian: std_ulogic;
@@ -218,7 +219,7 @@ architecture rtl of icache is
     signal log_insn : std_ulogic_vector(35 downto 0);
 
     -- Return the cache line index (tag index) for an address
-    function get_index(addr: std_ulogic_vector) return index_sig_t is
+    function get_index(addr: real_addr_t) return index_sig_t is
     begin
         return unsigned(addr(SET_SIZE_BITS - 1 downto LINE_OFF_BITS));
     end;
@@ -400,6 +401,7 @@ begin
         process(clk)
             variable replace_way : way_sig_t;
             variable snoop_addr : real_addr_t;
+            variable next_raddr : real_addr_t;
         begin
             replace_way := to_unsigned(0, WAY_BITS);
             if NUM_WAYS > 1 then
@@ -409,10 +411,11 @@ begin
             if rising_edge(clk) then
                 -- Read tags using NIA for next cycle
                 if flush_in = '1' or i_in.req = '0' or (stall_in = '0' and stall_out = '0') then
-                    cache_tags_set(i) <= ic_tags(to_integer(get_index(i_in.next_nia)));
+                    next_raddr := i_in.next_rpn & i_in.next_nia(MIN_LG_PGSZ - 1 downto 0);
+                    cache_tags_set(i) <= ic_tags(to_integer(get_index(next_raddr)));
                     -- Check for simultaneous write to the same location
                     tag_overwrite(i) <= '0';
-                    if r.state = CLR_TAG and r.store_index = get_index(i_in.next_nia) and
+                    if r.state = CLR_TAG and r.store_index = get_index(next_raddr) and
                         to_unsigned(i, WAY_BITS) = replace_way then
                         tag_overwrite(i) <= '1';
                     end if;
@@ -459,10 +462,10 @@ begin
         process(all)
         begin
             -- Read PLRU bits from array
-            if is_X(r.hit_nia) then
+            if is_X(r.hit_ra) then
                 plru_cur <= (others => 'X');
             else
-                plru_cur <= plru_ram(to_integer(get_index(r.hit_nia)));
+                plru_cur <= plru_ram(to_integer(get_index(r.hit_ra)));
             end if;
 
             -- PLRU interface
@@ -475,18 +478,12 @@ begin
         begin
             if rising_edge(clk) then
                 if r.hit_valid = '1' then
-                    assert not is_X(r.hit_nia) severity failure;
-                    plru_ram(to_integer(get_index(r.hit_nia))) <= plru_upd;
+                    assert not is_X(r.hit_ra) severity failure;
+                    plru_ram(to_integer(get_index(r.hit_ra))) <= plru_upd;
                 end if;
             end if;
         end process;
     end generate;
-
-    -- TLB hit detection and real address generation
-    itlb_lookup : process(all)
-    begin
-        real_addr <= i_in.rpn & i_in.nia(MIN_LG_PGSZ - 1 downto 0);
-    end process;
 
     -- Cache hit detection, output to fetch2 and other misc logic
     icache_comb : process(all)
@@ -494,16 +491,19 @@ begin
 	variable hit_way : way_sig_t;
         variable insn    : std_ulogic_vector(ICWORDLEN - 1 downto 0);
         variable icode   : insn_code;
+        variable ra      : real_addr_t;
     begin
 	-- Extract line, row and tag from request
-        req_index <= get_index(i_in.nia);
-        req_row <= get_row(i_in.nia);
-	req_tag <= get_tag(real_addr, i_in.big_endian);
+        ra := i_in.rpn & i_in.nia(MIN_LG_PGSZ - 1 downto 0);
+        real_addr <= ra;
+        req_index <= get_index(ra);
+        req_row <= get_row(ra);
+	req_tag <= get_tag(ra, i_in.big_endian);
 
 	-- Calculate address of beginning of cache row, will be
 	-- used for cache miss processing if needed
 	--
-	req_raddr <= real_addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
+	req_raddr <= ra(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
 		     (ROW_OFF_BITS-1 downto 0 => '0');
 
 	-- Test if pending request is a hit on any way
@@ -627,6 +627,7 @@ begin
                 -- Send stop marks and NIA down regardless of validity
                 r.hit_smark <= i_in.stop_mark;
                 r.hit_nia <= i_in.nia;
+                r.hit_ra <= real_addr;
                 r.big_endian <= i_in.big_endian;
                 r.predicted <= i_in.predicted;
                 r.pred_ntaken <= i_in.pred_ntaken;

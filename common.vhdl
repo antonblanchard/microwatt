@@ -245,6 +245,7 @@ package common is
 	nia: std_ulogic_vector(63 downto 0);
         next_nia: std_ulogic_vector(63 downto 0);
         rpn: std_ulogic_vector(REAL_ADDR_BITS - MIN_LG_PGSZ - 1 downto 0);
+        next_rpn: std_ulogic_vector(REAL_ADDR_BITS - MIN_LG_PGSZ - 1 downto 0);
     end record;
 
     type IcacheToDecode1Type is record

@@ -438,6 +438,7 @@ begin
 	-- Update outputs to the icache
 	i_out <= r;
         i_out.next_nia <= next_nia;
+        i_out.next_rpn <= v.rpn;
 
     end process;
 
