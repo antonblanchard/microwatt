@@ -7,6 +7,7 @@
 #define MSR_LE	0x1
 #define MSR_DR	0x10
 #define MSR_IR	0x20
+#define MSR_HV	0x1000000000000000ul
 #define MSR_SF	0x8000000000000000ul
 
 #define DSISR	18
@@ -103,7 +104,7 @@ long int prefix_test_2(void)
 		return 1;
 	if (mfspr(SRR0) != (unsigned long)&test_paddi_mis + 8)
 		return 2;
-	if (mfspr(SRR1) != (MSR_SF | MSR_LE | (1ul << (63 - 35)) | (1ul << (63 - 34))))
+	if (mfspr(SRR1) != (MSR_SF | MSR_HV | MSR_LE | (1ul << (63 - 35)) | (1ul << (63 - 34))))
 		return 3;
 
 	ret = trapit((long)&x, test_plfd);
@@ -111,7 +112,7 @@ long int prefix_test_2(void)
 		return ret;
 	if (mfspr(SRR0) != (unsigned long)&test_plfd + 8)
 		return 6;
-	if (mfspr(SRR1) != (MSR_SF | MSR_LE | (1ul << (63 - 34))))
+	if (mfspr(SRR1) != (MSR_SF | MSR_HV | MSR_LE | (1ul << (63 - 34))))
 		return 7;
 	return 0;
 }

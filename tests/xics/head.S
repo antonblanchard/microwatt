@@ -115,7 +115,7 @@ __isr:
 	std	%r29, 29*8(%r1)
 	std	%r30, 30*8(%r1)
 	std	%r31, 31*8(%r1)
-	mfsrr0	%r0
+	mfhsrr0	%r0
 	std	%r0,  SAVE_NIA*8(%r1)
 	mflr	%r0
 	std	%r0,  SAVE_LR*8(%r1)
@@ -123,7 +123,7 @@ __isr:
 	std	%r0,  SAVE_CTR*8(%r1)
 	mfcr	%r0
 	std	%r0,  SAVE_CR*8(%r1)
-	mfsrr1	%r0
+	mfhsrr1	%r0
 	std	%r0,  SAVE_SRR1*8(%r1)
 
 	stdu	%r1,-STACK_FRAME_C_MINIMAL(%r1)

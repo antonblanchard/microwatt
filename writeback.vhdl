@@ -72,11 +72,13 @@ begin
         variable vec  : integer range 0 to 16#fff#;
         variable srr1 : std_ulogic_vector(15 downto 0);
         variable intr : std_ulogic;
+        variable hvi  : std_ulogic;
     begin
         w_out <= WritebackToRegisterFileInit;
         c_out <= WritebackToCrFileInit;
         f := WritebackToFetch1Init;
         vec := 0;
+        hvi := '0';
 
         complete_out <= instr_tag_init;
         if e_in.valid = '1' then
@@ -96,6 +98,7 @@ begin
         if e_in.interrupt = '1' then
             vec := e_in.intr_vec;
             srr1 := e_in.srr1;
+            hvi := e_in.hv_intr;
         elsif l_in.interrupt = '1' then
             vec := l_in.intr_vec;
             srr1 := l_in.srr1;
@@ -103,6 +106,7 @@ begin
             vec := fp_in.intr_vec;
             srr1 := fp_in.srr1;
         end if;
+        interrupt_out.hv_intr <= hvi;
         interrupt_out.srr1 <= srr1;
 
         if intr = '0' then

@@ -12,6 +12,7 @@ package common is
 
     -- MSR bit numbers
     constant MSR_SF  : integer := (63 - 0);     -- Sixty-Four bit mode
+    constant MSR_HV  : integer := (63 - 3);     -- Hypervisor mode (always 1)
     constant MSR_EE  : integer := (63 - 48);    -- External interrupt Enable
     constant MSR_PR  : integer := (63 - 49);    -- PRoblem state
     constant MSR_FP  : integer := (63 - 50);    -- Floating Point available
@@ -662,6 +663,7 @@ package common is
 	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
         interrupt : std_ulogic;
+        hv_intr : std_ulogic;
         intr_vec : intr_vector_t;
 	redirect: std_ulogic;
         redir_mode: std_ulogic_vector(3 downto 0);
@@ -678,7 +680,8 @@ package common is
          write_xerc_enable => '0', xerc => xerc_init,
          write_data => (others => '0'), write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'), write_reg => (others => '0'),
-         interrupt => '0', intr_vec => 0, redirect => '0', redir_mode => "0000",
+         interrupt => '0', hv_intr => '0', intr_vec => 0,
+         redirect => '0', redir_mode => "0000",
          last_nia => (others => '0'),
          br_last => '0', br_taken => '0', abs_br => '0',
          srr1 => (others => '0'), msr => (others => '0'));
@@ -795,8 +798,9 @@ package common is
 							       write_cr_data => (others => '0'));
 
     type WritebackToExecute1Type is record
-        intr : std_ulogic;
-        srr1 : std_ulogic_vector(15 downto 0);
+        intr    : std_ulogic;
+        hv_intr : std_ulogic;
+        srr1    : std_ulogic_vector(15 downto 0);
     end record;
 
     type WritebackEventType is record

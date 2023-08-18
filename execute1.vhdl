@@ -322,6 +322,7 @@ architecture behaviour of execute1 is
 	--  48:63, and partial function MSR bits lie in the range
 	--  33:36 and 42:47. (Note this is IBM bit numbering).
 	msr_out := (others => '0');
+        msr_out(MSR_HV) := '1';         -- HV is always set
 	msr_out(63 downto 31) := msr(63 downto 31);
 	msr_out(26 downto 22) := msr(26 downto 22);
 	msr_out(15 downto 0)  := msr(15 downto 0);
@@ -332,6 +333,9 @@ architecture behaviour of execute1 is
         return std_ulogic_vector is
         variable srr1: std_ulogic_vector(63 downto 0);
     begin
+        srr1(63 downto 61) := msr(63 downto 61);
+        srr1(MSR_HV)       := '1';
+        srr1(59 downto 31) := msr(59 downto 31);
         srr1(63 downto 31) := msr(63 downto 31);
         srr1(30 downto 27) := flags(14 downto 11);
         srr1(26 downto 22) := msr(26 downto 22);
@@ -533,7 +537,11 @@ begin
         even_wr_enab := (ex1.se.ramspr_write_even and doit) or interrupt_in.intr;
         odd_wr_enab  := (ex1.se.ramspr_write_odd and doit) or interrupt_in.intr;
         if interrupt_in.intr = '1' then
-            wr_addr := RAMSPR_SRR0;
+            if interrupt_in.hv_intr = '0' then
+                wr_addr := RAMSPR_SRR0;
+            else
+                wr_addr := RAMSPR_HSRR0;
+            end if;
         else
             wr_addr := ex1.ramspr_wraddr;
         end if;
@@ -610,8 +618,8 @@ begin
                 ex1 <= reg_stage1_type_init;
                 ex2 <= reg_stage2_type_init;
                 ctrl <= ctrl_t_init;
-                ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
-                ex1.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
+                ctrl.msr <= (MSR_SF => '1', MSR_HV => '1', MSR_LE => '1', others => '0');
+                ex1.msr <= (MSR_SF => '1', MSR_HV => '1', MSR_LE => '1', others => '0');
             else
                 ex1 <= ex1in;
                 ex2 <= ex2in;
@@ -1166,7 +1174,9 @@ begin
                                   not srr1(MSR_LE) & not srr1(MSR_SF);
                 -- Can't use msr_copy here because the partial function MSR
                 -- bits should be left unchanged, not zeroed.
-                v.new_msr(63 downto 31) := srr1(63 downto 31);
+                v.new_msr(63 downto 61) := srr1(63 downto 61);
+                v.new_msr(MSR_HV)       := '1';
+                v.new_msr(59 downto 31) := srr1(59 downto 31);
                 v.new_msr(26 downto 22) := srr1(26 downto 22);
                 v.new_msr(15 downto 0)  := srr1(15 downto 0);
                 if srr1(MSR_PR) = '1' then
@@ -1474,6 +1484,7 @@ begin
                     v.e.intr_vec := 16#500#;
                     report "IRQ valid: External";
                     v.ext_interrupt := '1';
+                    v.e.hv_intr := '1';
                 end if;
                 v.e.srr1 := (others => '0');
                 exception := '1';

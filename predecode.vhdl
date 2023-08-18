@@ -447,6 +447,7 @@ architecture behaviour of predecoder is
         2#1_00100_11110#  =>  INSN_isync,
         2#1_00000_10000#  =>  INSN_mcrf,
         2#1_00000_11010#  =>  INSN_rfid,
+        2#1_01000_11010#  =>  INSN_rfid, -- hrfid
 
         -- Major opcode 59
         -- Address bits are 1, insn(10..6), 1, 0, insn(3..1)
