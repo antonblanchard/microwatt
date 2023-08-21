@@ -427,7 +427,7 @@ architecture behaviour of decode1 is
     function map_spr(sprn : spr_num_t) return spr_id is
         variable i : spr_id;
     begin
-        i.sel := "000";
+        i.sel := "0000";
         i.valid := '1';
         i.ispmu := '0';
         case sprn is
@@ -452,6 +452,10 @@ architecture behaviour of decode1 is
                 i.sel := SPRSEL_CFAR;
             when SPR_XER =>
                 i.sel := SPRSEL_XER;
+            when SPR_FSCR =>
+                i.sel := SPRSEL_FSCR;
+            when SPR_HFSCR =>
+                i.sel := SPRSEL_HFSCR;
             when others =>
                 i.valid := '0';
         end case;
@@ -521,7 +525,7 @@ begin
         v.big_endian := f_in.big_endian;
 
 	if is_X(f_in.insn) then
-	    v.spr_info := (sel => "XXX", others => 'X');
+	    v.spr_info := (sel => "XXXX", others => 'X');
 	    v.ram_spr := (index => (others => 'X'), others => 'X');
 	else
             sprn := decode_spr_num(f_in.insn);

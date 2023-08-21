@@ -450,6 +450,8 @@ begin
                                 v.input_ov := '1';
                             when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
                                 unit := LDST;
+                            when SPR_TAR =>
+                                v.e.uses_tar := '1';
                             when others =>
                         end case;
                     end if;
@@ -468,6 +470,8 @@ begin
                                 if d_in.valid = '1' then
                                     v.sgl_pipe := '1';
                                 end if;
+                            when SPR_TAR =>
+                                v.e.uses_tar := '1';
                             when others =>
                         end case;
                         if d_in.spr_info.valid = '1' and d_in.valid = '1' then
@@ -525,6 +529,7 @@ begin
                         v.e.ramspr_rd_odd := '1';
                     else
                         v.e.ramspr_even_rdaddr := RAMSPR_TAR;
+                        v.e.uses_tar := '1';
                     end if;
                     sprs_busy := '1';
                 when OP_MFSPR =>

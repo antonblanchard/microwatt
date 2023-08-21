@@ -294,7 +294,7 @@ begin
 
             -- For SPRs, use the same mapping as when the fast SPRs were in the GPR file
             valid := '1';
-            sel := "000";
+            sel := "0000";
             isram := '1';
             raddr := (others => '0');
             odd := '0';
@@ -324,10 +324,20 @@ begin
                     sel := SPRSEL_XER;
                 when 5x"0d" =>
                     raddr := RAMSPR_TAR;
+                when 5x"0e" =>
+                    isram := '0';
+                    sel := SPRSEL_FSCR;
+                when 5x"0f" =>
+                    isram := '0';
+                    sel := SPRSEL_HFSCR;
                 when others =>
                     valid := '0';
             end case;
-            dbg_spr_addr <= isram & sel & std_ulogic_vector(raddr) & odd;
+            if isram = '1' then
+                dbg_spr_addr <= "1000" & std_ulogic_vector(raddr) & odd;
+            else
+                dbg_spr_addr <= "0000" & sel;
+            end if;
             spr_index_valid <= valid;
         end if;
     end process;

@@ -85,6 +85,10 @@ architecture behaviour of execute1 is
         ramspr_write_even : std_ulogic;
         ramspr_write_odd : std_ulogic;
         mult_32s : std_ulogic;
+        write_fscr : std_ulogic;
+        write_ic : std_ulogic;
+        write_hfscr : std_ulogic;
+        write_hic : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -106,11 +110,12 @@ architecture behaviour of execute1 is
         res2_sel : std_ulogic_vector(1 downto 0);
         bypass_valid : std_ulogic;
         ramspr_odd_data : std_ulogic_vector(63 downto 0);
+        ic : std_ulogic_vector(3 downto 0);
     end record;
     constant actions_type_init : actions_type :=
         (e => Execute1ToWritebackInit, se => side_effect_init,
          new_msr => (others => '0'), res2_sel => "00",
-         ramspr_odd_data => 64x"0", others => '0');
+         ramspr_odd_data => 64x"0", ic => x"0", others => '0');
 
     type reg_stage1_type is record
 	e : Execute1ToWritebackType;
@@ -141,6 +146,7 @@ architecture behaviour of execute1 is
         xerc_valid : std_ulogic;
         ramspr_wraddr : ramspr_index;
         ramspr_odd_data : std_ulogic_vector(63 downto 0);
+        ic : std_ulogic_vector(3 downto 0);
     end record;
     constant reg_stage1_type_init : reg_stage1_type :=
         (e => Execute1ToWritebackInit, se => side_effect_init,
@@ -155,7 +161,8 @@ architecture behaviour of execute1 is
          taken_branch_event => '0', br_mispredict => '0',
          msr => 64x"0",
          xerc => xerc_init, xerc_valid => '0',
-         ramspr_wraddr => (others => '0'), ramspr_odd_data => 64x"0");
+         ramspr_wraddr => (others => '0'), ramspr_odd_data => 64x"0",
+         ic => x"0");
 
     type reg_stage2_type is record
 	e : Execute1ToWritebackType;
@@ -367,6 +374,27 @@ architecture behaviour of execute1 is
     begin
         return 32x"0" & xerc.so & xerc.ov & xerc.ca & "000000000" &
             xerc.ov32 & xerc.ca32 & xer_low(17 downto 0);
+    end;
+
+    function assemble_fscr(c: ctrl_t) return std_ulogic_vector is
+        variable ret : std_ulogic_vector(63 downto 0);
+    begin
+        ret := (others => '0');
+        ret(59 downto 56) := c.fscr_ic;
+        ret(FSCR_PREFIX) := c.fscr_pref;
+        ret(FSCR_TAR) := c.fscr_tar;
+        return ret;
+    end;
+
+    function assemble_hfscr(c: ctrl_t) return std_ulogic_vector is
+        variable ret : std_ulogic_vector(63 downto 0);
+    begin
+        ret := (others => '0');
+        ret(59 downto 56) := c.hfscr_ic;
+        ret(HFSCR_PREFIX) := c.hfscr_pref;
+        ret(HFSCR_TAR) := c.hfscr_tar;
+        ret(HFSCR_FP) := c.hfscr_fp;
+        return ret;
     end;
 
     -- Tell vivado to keep the hierarchy for the random module so that the
@@ -646,7 +674,14 @@ begin
                     if dbg_spr_addr(7) = '1' then
                         dbg_spr_data <= ramspr_result;
                     else
-                        dbg_spr_data <= assemble_xer(xerc_in, ctrl.xer_low);
+                        case dbg_spr_addr(3 downto 0) is
+                            when SPRSEL_FSCR =>
+                                dbg_spr_data <= assemble_fscr(ctrl);
+                            when SPRSEL_HFSCR =>
+                                dbg_spr_data <= assemble_hfscr(ctrl);
+                            when others =>
+                                dbg_spr_data <= assemble_xer(xerc_in, ctrl.xer_low);
+                        end case;
                     end if;
                     dbg_spr_ack <= '1';
                 end if;
@@ -1280,6 +1315,10 @@ begin
                             v.se.write_dec := '1';
                         when SPRSEL_LOGA =>
                             v.se.write_loga := '1';
+                        when SPRSEL_FSCR =>
+                            v.se.write_fscr := '1';
+                        when SPRSEL_HFSCR =>
+                            v.se.write_hfscr := '1';
                         when others =>
                     end case;
                 end if;
@@ -1341,7 +1380,25 @@ begin
                 end if;
         end case;
 
-        if misaligned = '1' then
+        if ex1.msr(MSR_PR) = '1' and e_in.prefixed = '1' and
+            (ctrl.hfscr_pref = '0' or ctrl.fscr_pref = '0') then
+            -- [Hypervisor] facility unavailable for prefixed instructions,
+            -- which has higher priority than the alignment interrupt for
+            -- misaligned prefixed instructions, which has higher priority than
+            -- other [hypervisor] facility unavailable interrupts (e.g. for
+            -- plfs with HFSCR[FP] = 0).
+            v.exception := '1';
+            v.ic := x"b";
+            if ctrl.hfscr_pref = '0' then
+                v.e.hv_intr := '1';
+                v.e.intr_vec := 16#f80#;
+                v.se.write_hic := '1';
+            else
+                v.e.intr_vec := 16#f60#;
+                v.se.write_ic := '1';
+            end if;
+
+        elsif misaligned = '1' then
             -- generate an alignment interrupt
             -- This is higher priority than illegal because a misaligned
             -- prefix will come down as an OP_ILLEGAL instruction.
@@ -1372,6 +1429,29 @@ begin
             if e_in.valid = '1' then
                 report "illegal instruction";
             end if;
+
+        elsif ex1.msr(MSR_PR) = '1' and e_in.uses_tar = '1' and
+            (ctrl.hfscr_tar = '0' or ctrl.fscr_tar = '0') then
+            -- [Hypervisor] facility unavailable for TAR access
+            v.exception := '1';
+            v.ic := x"8";
+            if ctrl.hfscr_tar = '0' then
+                v.e.hv_intr := '1';
+                v.e.intr_vec := 16#f80#;
+                v.se.write_hic := '1';
+            else
+                v.e.intr_vec := 16#f60#;
+                v.se.write_ic := '1';
+            end if;
+
+        elsif HAS_FPU and ex1.msr(MSR_PR) = '1' and e_in.fac = FPU and
+            ctrl.hfscr_fp = '0' then
+            -- Hypervisor facility unavailable for FP instructions
+            v.exception := '1';
+            v.ic := x"0";
+            v.e.hv_intr := '1';
+            v.e.intr_vec := 16#f80#;
+            v.se.write_hic := '1';
 
         elsif HAS_FPU and ex1.msr(MSR_FP) = '0' and e_in.fac = FPU then
             -- generate a floating-point unavailable interrupt
@@ -1414,6 +1494,7 @@ begin
             v.ramspr_wraddr := e_in.ramspr_wraddr;
             v.lr_from_next := e_in.lr;
             v.ramspr_odd_data := actions.ramspr_odd_data;
+            v.ic := actions.ic;
         end if;
 
         lv := Execute1ToLoadstore1Init;
@@ -1669,6 +1750,8 @@ begin
         log_wr_addr & ex2.log_addr_spr when SPRSEL_LOGA,
         log_rd_data when SPRSEL_LOGD,
         ctrl.cfar when SPRSEL_CFAR,
+        assemble_fscr(ctrl) when SPRSEL_FSCR,
+        assemble_hfscr(ctrl) when SPRSEL_HFSCR,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
     stage2_stall <= l_in.l2stall or fp_in.f2stall;
@@ -1811,6 +1894,21 @@ begin
                 v.log_addr_spr := std_ulogic_vector(unsigned(ex2.log_addr_spr) + 1);
             end if;
             x_to_pmu.mtspr <= ex1.se.write_pmuspr;
+            if ex1.se.write_hfscr = '1' then
+                ctrl_tmp.hfscr_ic <= ex1.e.write_data(59 downto 56);
+                ctrl_tmp.hfscr_pref <= ex1.e.write_data(HFSCR_PREFIX);
+                ctrl_tmp.hfscr_tar <= ex1.e.write_data(HFSCR_TAR);
+                ctrl_tmp.hfscr_fp <= ex1.e.write_data(HFSCR_FP);
+            elsif ex1.se.write_hic = '1' then
+                ctrl_tmp.hfscr_ic <= ex1.ic;
+            end if;
+            if ex1.se.write_fscr = '1' then
+                ctrl_tmp.fscr_ic <= ex1.e.write_data(59 downto 56);
+                ctrl_tmp.fscr_pref <= ex1.e.write_data(FSCR_PREFIX);
+                ctrl_tmp.fscr_tar <= ex1.e.write_data(FSCR_TAR);
+            elsif ex1.se.write_ic = '1' then
+                ctrl_tmp.fscr_ic <= ex1.ic;
+            end if;
         end if;
 
  	if interrupt_in.intr = '1' then
