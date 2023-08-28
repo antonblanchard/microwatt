@@ -5,6 +5,7 @@ use ieee.numeric_std.all;
 library work;
 use work.utils.all;
 use work.common.all;
+use work.wishbone_types.all;
 
 entity core_debug is
     generic (
@@ -32,6 +33,7 @@ entity core_debug is
         core_stopped    : in std_ulogic;
         nia             : in std_ulogic_vector(63 downto 0);
         msr             : in std_ulogic_vector(63 downto 0);
+        wb_snoop_in     : in wishbone_master_out := wishbone_master_out_init;
 
         -- GPR/FPR register read port
         dbg_gpr_req     : out std_ulogic;
@@ -104,6 +106,7 @@ architecture behave of core_debug is
     constant DBG_CORE_LOG_ADDR       : std_ulogic_vector(3 downto 0) := "0110";
     constant DBG_CORE_LOG_DATA       : std_ulogic_vector(3 downto 0) := "0111";
     constant DBG_CORE_LOG_TRIGGER    : std_ulogic_vector(3 downto 0) := "1000";
+    constant DBG_CORE_LOG_MTRIGGER   : std_ulogic_vector(3 downto 0) := "1001";
 
     constant LOG_INDEX_BITS : natural := log2(LOG_LENGTH);
 
@@ -125,7 +128,11 @@ architecture behave of core_debug is
     signal log_dmi_addr        : std_ulogic_vector(31 downto 0) := (others => '0');
     signal log_dmi_data        : std_ulogic_vector(63 downto 0) := (others => '0');
     signal log_dmi_trigger     : std_ulogic_vector(63 downto 0) := (others => '0');
+    signal log_mem_trigger     : std_ulogic_vector(63 downto 0) := (others => '0');
     signal do_log_trigger      : std_ulogic := '0';
+    signal do_log_mtrigger     : std_ulogic := '0';
+    signal trigger_was_log     : std_ulogic := '0';
+    signal trigger_was_mem     : std_ulogic := '0';
     signal do_dmi_log_rd       : std_ulogic;
     signal dmi_read_log_data   : std_ulogic;
     signal dmi_read_log_data_1 : std_ulogic;
@@ -156,6 +163,7 @@ begin
         log_write_addr & log_dmi_addr when DBG_CORE_LOG_ADDR,
         log_dmi_data    when DBG_CORE_LOG_DATA,
         log_dmi_trigger when DBG_CORE_LOG_TRIGGER,
+        log_mem_trigger when DBG_CORE_LOG_MTRIGGER,
         (others => '0') when others;
 
     -- DMI writes
@@ -174,15 +182,26 @@ begin
                 log_trigger_delay <= 0;
                 gspr_index <= (others => '0');
                 log_dmi_addr <= (others => '0');
+                trigger_was_log <= '0';
+                trigger_was_mem <= '0';
             else
-                if do_log_trigger = '1' or log_trigger_delay /= 0 then
+                if do_log_trigger = '1' or do_log_mtrigger = '1' or log_trigger_delay /= 0 then
                     if log_trigger_delay = 255 or
                         (LOG_LENGTH < 1024 and log_trigger_delay = LOG_LENGTH / 4) then
-                        log_dmi_trigger(1) <= '1';
+                        log_dmi_trigger(1) <= trigger_was_log;
+                        log_mem_trigger(1) <= trigger_was_mem;
                         log_trigger_delay <= 0;
+                        trigger_was_log <= '0';
+                        trigger_was_mem <= '0';
                     else
                         log_trigger_delay <= log_trigger_delay + 1;
                     end if;
+                end if;
+                if do_log_trigger = '1' then
+                    trigger_was_log <= '1';
+                end if;
+                if do_log_mtrigger = '1' then
+                    trigger_was_mem <= '1';
                 end if;
                 -- Edge detect on dmi_req for 1-shot pulses
                 dmi_req_1 <= dmi_req;
@@ -217,6 +236,8 @@ begin
                             do_dmi_log_rd <= '1';
                         elsif dmi_addr = DBG_CORE_LOG_TRIGGER then
                             log_dmi_trigger <= dmi_din;
+                        elsif dmi_addr = DBG_CORE_LOG_MTRIGGER then
+                            log_mem_trigger <= dmi_din;
                         end if;
                     else
                         report("DMI read from " & to_string(dmi_addr));
@@ -347,7 +368,7 @@ begin
 
     begin
         -- Use MSB of read addresses to stop the logging
-        log_wr_enable <= not (log_read_addr(31) or log_dmi_addr(31) or log_dmi_trigger(1));
+        log_wr_enable <= not (log_read_addr(31) or log_dmi_addr(31) or log_dmi_trigger(1) or log_mem_trigger(1));
 
         log_ram: process(clk)
         begin
@@ -397,6 +418,13 @@ begin
                     log_data(41 downto 0) = log_dmi_trigger(43 downto 2) and
                     log_dmi_trigger(0) = '1' then
                     do_log_trigger <= '1';
+                end if;
+                do_log_mtrigger <= '0';
+                if (wb_snoop_in.cyc and wb_snoop_in.stb and wb_snoop_in.we) = '1' and
+                    wb_snoop_in.adr = log_mem_trigger(wishbone_addr_bits + wishbone_log2_width - 1
+                                                      downto wishbone_log2_width) and
+                    log_mem_trigger(0) = '1' then
+                    do_log_mtrigger <= '1';
                 end if;
             end if;
         end process;
