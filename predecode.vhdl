@@ -220,9 +220,9 @@ architecture behaviour of predecoder is
         2#0_11111_01001#  =>  INSN_divd, -- divdo
         2#0_01111_01011#  =>  INSN_divw,
         2#0_11111_01011#  =>  INSN_divw, -- divwo
-        2#0_11001_10110#  =>  INSN_nop, -- dss
-        2#0_01010_10110#  =>  INSN_nop, -- dst
-        2#0_01011_10110#  =>  INSN_nop, -- dstst
+        2#0_11001_10110#  =>  INSN_rnop, -- dss
+        2#0_01010_10110#  =>  INSN_rnop, -- dst
+        2#0_01011_10110#  =>  INSN_rnop, -- dstst
         2#0_11010_10110#  =>  INSN_eieio,
         2#0_01000_11100#  =>  INSN_eqv,
         2#0_11101_11010#  =>  INSN_extsb,
@@ -322,14 +322,14 @@ architecture behaviour of predecoder is
         2#0_00011_01000#  =>  INSN_neg,
         2#0_10011_01000#  =>  INSN_neg, -- nego
         -- next 8 are reserved no-op instructions
-        2#0_10000_10010#  =>  INSN_nop,
-        2#0_10001_10010#  =>  INSN_nop,
-        2#0_10010_10010#  =>  INSN_nop,
-        2#0_10011_10010#  =>  INSN_nop,
-        2#0_10100_10010#  =>  INSN_nop,
-        2#0_10101_10010#  =>  INSN_nop,
-        2#0_10110_10010#  =>  INSN_nop,
-        2#0_10111_10010#  =>  INSN_nop,
+        2#0_10000_10010#  =>  INSN_rnop,
+        2#0_10001_10010#  =>  INSN_rnop,
+        2#0_10010_10010#  =>  INSN_rnop,
+        2#0_10011_10010#  =>  INSN_rnop,
+        2#0_10100_10010#  =>  INSN_rnop,
+        2#0_10101_10010#  =>  INSN_rnop,
+        2#0_10110_10010#  =>  INSN_rnop,
+        2#0_10111_10010#  =>  INSN_rnop,
         2#0_00011_11100#  =>  INSN_nor,
         2#0_01101_11100#  =>  INSN_or,
         2#0_01100_11100#  =>  INSN_orc,

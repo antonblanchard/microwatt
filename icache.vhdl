@@ -621,6 +621,7 @@ begin
                 insn := (others => '0');
             elsif insn(ICWORDLEN - 1) = '0' then
                 icode := insn_code'val(to_integer(unsigned(insn(ICWORDLEN-1 downto INSN_IMAGE_BITS))));
+                insn(31 downto 26) := recode_primary_opcode(icode);
             end if;
 	end if;
         i_out.insn <= insn(31 downto 0);
