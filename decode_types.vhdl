@@ -3,8 +3,9 @@ use ieee.std_logic_1164.all;
 
 package decode_types is
     type insn_type_t is (OP_ILLEGAL, OP_NOP, OP_ADD,
-			 OP_AND, OP_ATTN, OP_B, OP_BC, OP_BCREG,
-			 OP_BCD, OP_BPERM, OP_CMP, OP_CMPB, OP_CMPEQB, OP_CMPRB,
+			 OP_ATTN, OP_B, OP_BC, OP_BCREG,
+			 OP_BCD, OP_BPERM, OP_BREV,
+                         OP_CMP, OP_CMPB, OP_CMPEQB, OP_CMPRB,
 			 OP_CNTZ, OP_CROP,
 			 OP_DARN, OP_DCBF, OP_DCBST, OP_DCBT, OP_DCBTST,
 			 OP_DCBZ, OP_ICBI, OP_ICBT,
@@ -12,10 +13,11 @@ package decode_types is
                          OP_DIV, OP_DIVE, OP_MOD,
                          OP_EXTS, OP_EXTSWSLI,
                          OP_ISEL, OP_ISYNC,
+                         OP_LOGIC,
 			 OP_LOAD, OP_STORE,
 			 OP_MCRXRX, OP_MFCR, OP_MFMSR, OP_MFSPR,
 			 OP_MTCRF, OP_MTMSRD, OP_MTSPR, OP_MUL_L64,
-			 OP_MUL_H64, OP_MUL_H32, OP_OR,
+			 OP_MUL_H64, OP_MUL_H32,
 			 OP_POPCNT, OP_PRTY, OP_RFID,
 			 OP_RLC, OP_RLCL, OP_RLCR, OP_SC, OP_SETB,
 			 OP_SHL, OP_SHR,
@@ -50,84 +52,84 @@ package decode_types is
         INSN_bcctr,
         INSN_bclr,
         INSN_bctar,
+        INSN_brh,
+        INSN_brw,
+        INSN_brd, -- 20
         INSN_cbcdtd,
         INSN_cdtbcd,
-        INSN_cmpi, -- 20
+        INSN_cmpi,
         INSN_cmpli,
         INSN_cntlzw,
         INSN_cntlzd,
         INSN_cnttzw,
         INSN_cnttzd,
         INSN_crand,
-        INSN_crandc,
+        INSN_crandc, -- 30
         INSN_creqv,
         INSN_crnand,
-        INSN_crnor, -- 30
+        INSN_crnor,
         INSN_cror,
         INSN_crorc,
         INSN_crxor,
         INSN_darn,
         INSN_eieio,
         INSN_extsb,
-        INSN_extsh,
+        INSN_extsh, -- 40
         INSN_extsw,
         INSN_extswsli,
-        INSN_isync, -- 40
+        INSN_isync,
         INSN_lbzu,
         INSN_ld,
         INSN_ldu,
         INSN_lhau,
         INSN_lwa,
         INSN_lwzu,
-        INSN_mcrf,
+        INSN_mcrf, -- 50
         INSN_mcrxrx,
         INSN_mfcr,
-        INSN_mfmsr, -- 50
+        INSN_mfmsr,
         INSN_mfspr,
         INSN_mtcrf,
         INSN_mtmsr,
         INSN_mtmsrd,
         INSN_mtspr,
         INSN_mulli,
-        INSN_neg,
+        INSN_neg, -- 60
         INSN_nop,
         INSN_ori,
-        INSN_oris, -- 60
+        INSN_oris,
         INSN_popcntb,
         INSN_popcntw,
         INSN_popcntd,
         INSN_prtyw,
         INSN_prtyd,
         INSN_rfid,
-        INSN_rldic,
+        INSN_rldic, -- 70
         INSN_rldicl,
         INSN_rldicr,
-        INSN_rldimi, -- 70
+        INSN_rldimi,
         INSN_rlwimi,
         INSN_rlwinm,
         INSN_sc,
         INSN_setb,
         INSN_slbia,
         INSN_sradi,
-        INSN_srawi,
+        INSN_srawi, -- 80
         INSN_stbu,
         INSN_std,
-        INSN_stdu, -- 80
+        INSN_stdu,
         INSN_sthu,
         INSN_stwu,
         INSN_subfic,
         INSN_subfme,
         INSN_subfze,
         INSN_sync,
-        INSN_tdi,
+        INSN_tdi, -- 90
         INSN_tlbsync,
         INSN_twi,
-        INSN_wait, -- 90
+        INSN_wait,
         INSN_xori,
         INSN_xoris,
-        INSN_93, -- padding
-        INSN_94,
-        INSN_95,
 
         -- Non-prefixed instructions that have a MLS:D prefixed form and
         -- their corresponding prefixed instructions.

@@ -205,13 +205,13 @@ architecture behaviour of decode2 is
     type mux_select_array_t is array(insn_type_t) of std_ulogic_vector(2 downto 0);
 
     constant result_select : mux_select_array_t := (
-        OP_AND      => "001",           -- logical_result
-        OP_OR       => "001",
+        OP_LOGIC    => "001",           -- logical_result
         OP_XOR      => "001",
         OP_PRTY     => "001",
         OP_CMPB     => "001",
         OP_EXTS     => "001",
         OP_BPERM    => "001",
+        OP_BREV     => "001",
         OP_BCD      => "001",
         OP_MTSPR    => "001",
         OP_RLC      => "010",           -- rotator_result

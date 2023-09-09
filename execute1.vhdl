@@ -392,6 +392,7 @@ begin
 	    op => e_in.insn_type,
 	    invert_in => e_in.invert_a,
 	    invert_out => e_in.invert_out,
+            is_signed => e_in.is_signed,
 	    result => logical_result,
             datalen => e_in.data_len
 	    );
@@ -1105,8 +1106,8 @@ begin
             when OP_ADDG6S =>
             when OP_CMPRB =>
             when OP_CMPEQB =>
-            when OP_AND | OP_OR | OP_XOR | OP_PRTY | OP_CMPB | OP_EXTS |
-                OP_BPERM | OP_BCD =>
+            when OP_LOGIC | OP_XOR | OP_PRTY | OP_CMPB | OP_EXTS |
+                OP_BPERM | OP_BREV | OP_BCD =>
 
 	    when OP_B =>
                 v.take_branch := '1';

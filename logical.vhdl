@@ -13,6 +13,7 @@ entity logical is
         op         : in insn_type_t;
         invert_in  : in std_ulogic;
         invert_out : in std_ulogic;
+        is_signed  : in std_ulogic;
         result     : out std_ulogic_vector(63 downto 0);
         datalen    : in std_logic_vector(3 downto 0)
         );
@@ -92,7 +93,8 @@ architecture behaviour of logical is
 
 begin
     logical_0: process(all)
-        variable rb_adj, tmp : std_ulogic_vector(63 downto 0);
+        variable rb_adj, rs_adj : std_ulogic_vector(63 downto 0);
+        variable tmp : std_ulogic_vector(63 downto 0);
         variable negative : std_ulogic;
         variable j : integer;
     begin
@@ -123,17 +125,32 @@ begin
         end if;
 
         case op is
-            when OP_AND | OP_OR | OP_XOR =>
-                case op is
-                    when OP_AND =>
-                        tmp := rs and rb_adj;
-                    when OP_OR =>
-                        tmp := rs or rb_adj;
-                    when others =>
-                        tmp := rs xor rb_adj;
-                end case;
+            when OP_LOGIC =>
+                -- for now, abuse the 'is_signed' field to indicate inversion of RS
+                rs_adj := rs;
+                if is_signed = '1' then
+                    rs_adj := not rs;
+                end if;
+                tmp := rs_adj and rb_adj;
                 if invert_out = '1' then
                     tmp := not tmp;
+                end if;
+            when OP_XOR =>
+                tmp := rs xor rb;
+                if invert_out = '1' then
+                    tmp := not tmp;
+                end if;
+
+            when OP_BREV =>
+                if datalen(3) = '1' then
+                    tmp := rs( 7 downto  0) & rs(15 downto  8) & rs(23 downto 16) & rs(31 downto 24) & 
+                           rs(39 downto 32) & rs(47 downto 40) & rs(55 downto 48) & rs(63 downto 56);
+                elsif datalen(2) = '1' then
+                    tmp := rs(39 downto 32) & rs(47 downto 40) & rs(55 downto 48) & rs(63 downto 56) &
+                           rs( 7 downto  0) & rs(15 downto  8) & rs(23 downto 16) & rs(31 downto 24);
+                else
+                    tmp := rs(55 downto 48) & rs(63 downto 56) & rs(39 downto 32) & rs(47 downto 40) &
+                           rs(23 downto 16) & rs(31 downto 24) & rs( 7 downto  0) & rs(15 downto  8);
                 end if;
 
             when OP_PRTY =>
