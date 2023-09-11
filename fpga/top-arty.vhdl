@@ -90,8 +90,8 @@ entity toplevel is
         shield_io31      : inout std_ulogic;
         shield_io32      : inout std_ulogic;
         shield_io33      : inout std_ulogic;
-        shield_io34      : inout std_ulogic;
-        shield_io35      : inout std_ulogic;
+        --shield_io34      : inout std_ulogic;
+        --shield_io35      : inout std_ulogic;
         shield_io36      : inout std_ulogic;
         shield_io37      : inout std_ulogic;
         shield_io38      : inout std_ulogic;
@@ -127,6 +127,10 @@ entity toplevel is
         sdcard2_cmd   : inout std_ulogic;
         sdcard2_clk   : out   std_ulogic;
         sdcard2_cd    : in    std_ulogic;
+
+        -- I2C RTC chip
+        i2c_rtc_d : inout std_ulogic;
+        i2c_rtc_c : inout std_ulogic;
 
         -- DRAM wires
         ddram_a       : out std_ulogic_vector(13 downto 0);
@@ -844,8 +848,8 @@ begin
     gpio_in(19) <= shield_io31;
     gpio_in(20) <= shield_io32;
     gpio_in(21) <= shield_io33;
-    gpio_in(22) <= shield_io34;
-    gpio_in(23) <= shield_io35;
+    gpio_in(22) <= i2c_rtc_d;
+    gpio_in(23) <= i2c_rtc_c;
     gpio_in(24) <= shield_io36;
     gpio_in(25) <= shield_io37;
     gpio_in(26) <= shield_io38;
@@ -872,8 +876,8 @@ begin
     shield_io31 <= gpio_out(19) when gpio_dir(19) = '1' else 'Z';
     shield_io32 <= gpio_out(20) when gpio_dir(20) = '1' else 'Z';
     shield_io33 <= gpio_out(21) when gpio_dir(21) = '1' else 'Z';
-    shield_io34 <= gpio_out(22) when gpio_dir(22) = '1' else 'Z';
-    shield_io35 <= gpio_out(23) when gpio_dir(23) = '1' else 'Z';
+    i2c_rtc_d <= gpio_out(22) when gpio_dir(22) = '1' else 'Z';
+    i2c_rtc_c <= gpio_out(23) when gpio_dir(23) = '1' else 'Z';
     shield_io36 <= gpio_out(24) when gpio_dir(24) = '1' else 'Z';
     shield_io37 <= gpio_out(25) when gpio_dir(25) = '1' else 'Z';
     shield_io38 <= gpio_out(26) when gpio_dir(26) = '1' else 'Z';

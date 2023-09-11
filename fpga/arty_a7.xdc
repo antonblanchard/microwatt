@@ -162,6 +162,10 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard2/sdp
 #set_property -dict { PACKAGE_PIN H2 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_9 }];
 #set_property -dict { PACKAGE_PIN G2 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_10 }];
 
+# connection to i2c RTC chip (Dallas DS3231) on JD
+set_property -dict { PACKAGE_PIN D2 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { i2c_rtc_d }];
+set_property -dict { PACKAGE_PIN H2 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { i2c_rtc_c }];
+
 ################################################################################
 # Arduino/chipKIT shield connector
 ################################################################################
@@ -188,8 +192,8 @@ set_property -dict { PACKAGE_PIN R11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_po
 set_property -dict { PACKAGE_PIN R13 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io31 }];
 set_property -dict { PACKAGE_PIN R15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io32 }];
 set_property -dict { PACKAGE_PIN P15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io33 }];
-set_property -dict { PACKAGE_PIN R16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io34 }];
-set_property -dict { PACKAGE_PIN N16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io35 }];
+#set_property -dict { PACKAGE_PIN R16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io34 }];
+#set_property -dict { PACKAGE_PIN N16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io35 }];
 set_property -dict { PACKAGE_PIN N14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io36 }];
 set_property -dict { PACKAGE_PIN U17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io37 }];
 set_property -dict { PACKAGE_PIN T18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io38 }];
