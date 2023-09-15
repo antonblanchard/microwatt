@@ -158,6 +158,11 @@ architecture behaviour of predecoder is
         2#111111_11010# to 2#111111_11011# =>  INSN_fmadd,
         2#111111_11100# to 2#111111_11101# =>  INSN_fnmsub,
         2#111111_11110# to 2#111111_11111# =>  INSN_fnmadd,
+        -- prefix word, PO1
+        2#000001_00000# to 2#000001_11111# =>  INSN_prefix,
+        -- Major opcodes 57 and 61 are SFFS load/store instructions when prefixed
+        2#111001_00000# to 2#111001_11111# =>  INSN_op57,
+        2#111101_00000# to 2#111101_11111# =>  INSN_op61,
         others                             =>  INSN_illegal
         );
 
@@ -179,6 +184,9 @@ architecture behaviour of predecoder is
         2#0_00000_11100#  =>  INSN_and,
         2#0_00001_11100#  =>  INSN_andc,
         2#0_00111_11100#  =>  INSN_bperm,
+        2#0_00110_11011#  =>  INSN_brh,
+        2#0_00100_11011#  =>  INSN_brw,
+        2#0_00101_11011#  =>  INSN_brd,
         2#0_01001_11010#  =>  INSN_cbcdtd,
         2#0_01000_11010#  =>  INSN_cdtbcd,
         2#0_00000_00000#  =>  INSN_cmp,
@@ -331,6 +339,10 @@ architecture behaviour of predecoder is
         2#0_00101_11010#  =>  INSN_prtyd,
         2#0_00100_11010#  =>  INSN_prtyw,
         2#0_00100_00000#  =>  INSN_setb,
+        2#0_01100_00000#  =>  INSN_setb, -- setbc
+        2#0_01101_00000#  =>  INSN_setb, -- setbcr
+        2#0_01110_00000#  =>  INSN_setb, -- setnbc
+        2#0_01111_00000#  =>  INSN_setb, -- setnbcr
         2#0_01111_10010#  =>  INSN_slbia,
         2#0_00000_11011#  =>  INSN_sld,
         2#0_00000_11000#  =>  INSN_slw,

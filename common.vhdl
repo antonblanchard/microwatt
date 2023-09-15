@@ -263,6 +263,10 @@ package common is
 	valid: std_ulogic;
 	stop_mark : std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
+        prefixed: std_ulogic;
+        prefix: std_ulogic_vector(25 downto 0);
+        illegal_suffix: std_ulogic;
+        misaligned_prefix: std_ulogic;
 	insn: std_ulogic_vector(31 downto 0);
 	decode: decode_rom_t;
         br_pred: std_ulogic; -- Branch was predicted to be taken
@@ -274,7 +278,9 @@ package common is
         reg_c : gspr_index_t;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
-        (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
+        (valid => '0', stop_mark => '0', nia => (others => '0'),
+         prefixed => '0', prefix => (others => '0'), insn => (others => '0'),
+         illegal_suffix => '0', misaligned_prefix => '0',
          decode => decode_rom_init, br_pred => '0', big_endian => '0',
          spr_info => spr_id_init, ram_spr => ram_spr_info_init,
          reg_a => (others => '0'), reg_b => (others => '0'), reg_c => (others => '0'));
@@ -359,9 +365,12 @@ package common is
         ramspr_write_odd   : std_ulogic;
         dbg_spr_access : std_ulogic;
         dec_ctr : std_ulogic;
+        prefixed : std_ulogic;
+        illegal_suffix : std_ulogic;
+        misaligned_prefix : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
-	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
+	(valid => '0', unit => ALU, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
          write_reg_enable => '0',
          lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0',
@@ -378,6 +387,7 @@ package common is
          ramspr_wraddr => (others => '0'), ramspr_write_even => '0', ramspr_write_odd => '0',
          dbg_spr_access => '0',
          dec_ctr => '0',
+         prefixed => '0', illegal_suffix => '0', misaligned_prefix => '0',
          others => (others => '0'));
 
     type MultiplyInputType is record
@@ -500,6 +510,7 @@ package common is
         priv_mode : std_ulogic;                         -- privileged mode (MSR[PR] = 0)
         mode_32bit : std_ulogic;                        -- trim addresses to 32 bits
         is_32bit : std_ulogic;
+        prefixed : std_ulogic;
         repeat : std_ulogic;
         second : std_ulogic;
         e2stall : std_ulogic;
@@ -514,7 +525,7 @@ package common is
          addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'),
          write_reg => (others => '0'),
          length => (others => '0'),
-         mode_32bit => '0', is_32bit => '0',
+         mode_32bit => '0', is_32bit => '0', prefixed => '0',
          repeat => '0', second => '0', e2stall => '0',
          msr => (others => '0'));
 

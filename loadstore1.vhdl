@@ -69,6 +69,7 @@ architecture behave of loadstore1 is
         instr_fault  : std_ulogic;
         do_update    : std_ulogic;
         mode_32bit   : std_ulogic;
+        prefixed     : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
         byte_sel     : std_ulogic_vector(7 downto 0);
         second_bytes : std_ulogic_vector(7 downto 0);
@@ -99,7 +100,8 @@ architecture behave of loadstore1 is
     constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0', tlbie => '0',
                                           dcbz => '0', read_spr => '0', write_spr => '0', mmu_op => '0',
                                           instr_fault => '0', do_update => '0',
-                                          mode_32bit => '0', addr => (others => '0'),
+                                          mode_32bit => '0', prefixed => '0',
+                                          addr => (others => '0'),
                                           byte_sel => x"00", second_bytes => x"00",
                                           store_data => (others => '0'), instr_tag => instr_tag_init,
                                           write_reg => 6x"00", length => x"0",
@@ -411,6 +413,7 @@ begin
         v.valid := l_in.valid;
         v.instr_tag := l_in.instr_tag;
         v.mode_32bit := l_in.mode_32bit;
+        v.prefixed := l_in.prefixed;
         v.write_reg := l_in.write_reg;
         v.length := l_in.length;
         v.elt_length := l_in.length;
@@ -906,8 +909,10 @@ begin
         if exception = '1' then
             if r2.req.align_intr = '1' then
                 v.intr_vec := 16#600#;
+                v.srr1(47 - 34) := r2.req.prefixed;
                 v.dar := r2.req.addr;
             elsif r2.req.instr_fault = '0' then
+                v.srr1(47 - 34) := r2.req.prefixed;
                 v.dar := r2.req.addr;
                 if m_in.segerr = '0' then
                     v.intr_vec := 16#300#;

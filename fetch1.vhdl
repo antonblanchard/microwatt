@@ -41,7 +41,6 @@ architecture behaviour of fetch1 is
         mode_32bit: std_ulogic;
         rd_is_niap4: std_ulogic;
         predicted_taken: std_ulogic;
-        pred_not_taken: std_ulogic;
         predicted_nia: std_ulogic_vector(63 downto 0);
     end record;
     signal r, r_next : Fetch1ToIcacheType;
@@ -87,7 +86,6 @@ begin
                 r.pred_ntaken <= r_next.pred_ntaken;
                 r.nia <= r_next.nia;
                 r_int.predicted_taken <= r_next_int.predicted_taken;
-                r_int.pred_not_taken <= r_next_int.pred_not_taken;
                 r_int.predicted_nia <= r_next_int.predicted_nia;
                 r_int.rd_is_niap4 <= r_next_int.rd_is_niap4;
             end if;
@@ -155,7 +153,6 @@ begin
         v.predicted := '0';
         v.pred_ntaken := '0';
         v_int.predicted_taken := '0';
-        v_int.pred_not_taken := '0';
         v_int.rd_is_niap4 := '0';
 
 	if rst = '1' then
@@ -185,10 +182,8 @@ begin
             end if;
         elsif r_int.predicted_taken = '1' then
             v.nia := r_int.predicted_nia;
-            v.predicted := '1';
-        else
+        elsif r.req = '1' then
             v_int.rd_is_niap4 := '1';
-            v.pred_ntaken := r_int.pred_not_taken;
             v.nia := std_ulogic_vector(unsigned(r.nia) + 4);
             if r_int.mode_32bit = '1' then
                 v.nia(63 downto 32) := x"00000000";
@@ -198,7 +193,8 @@ begin
                 btc_rd_data(BTC_WIDTH - 3 downto BTC_TARGET_BITS)
                 = v.nia(BTC_TAG_BITS + BTC_ADDR_BITS + 1 downto BTC_ADDR_BITS + 2) then
                 v_int.predicted_taken := btc_rd_data(BTC_WIDTH - 1);
-                v_int.pred_not_taken := not btc_rd_data(BTC_WIDTH - 1);
+                v.predicted := btc_rd_data(BTC_WIDTH - 1);
+                v.pred_ntaken := not btc_rd_data(BTC_WIDTH - 1);
             end if;
         end if;
         v_int.predicted_nia := btc_rd_data(BTC_TARGET_BITS - 1 downto 0) & "00";
