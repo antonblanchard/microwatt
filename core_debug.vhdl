@@ -333,6 +333,9 @@ begin
                 when 5x"10" =>
                     isram := '0';
                     sel := SPRSEL_HEIR;
+                when 5x"11" =>
+                    isram := '0';
+                    sel := SPRSEL_CFAR;
                 when others =>
                     valid := '0';
             end case;

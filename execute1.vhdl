@@ -79,6 +79,7 @@ architecture behaviour of execute1 is
         write_xerlow : std_ulogic;
         write_dec : std_ulogic;
         write_cfar : std_ulogic;
+        set_cfar : std_ulogic;
         write_loga : std_ulogic;
         inc_loga : std_ulogic;
         write_pmuspr : std_ulogic;
@@ -687,6 +688,8 @@ begin
                                 dbg_spr_data <= assemble_hfscr(ctrl);
                             when SPRSEL_HEIR =>
                                 dbg_spr_data <= ctrl.heir;
+                            when SPRSEL_CFAR =>
+                                dbg_spr_data <= ctrl.cfar;
                             when others =>
                                 dbg_spr_data <= assemble_xer(xerc_in, ctrl.xer_low);
                         end case;
@@ -1177,7 +1180,7 @@ begin
                 if ex1.msr(MSR_BE) = '1' then
                     v.do_trace := '1';
                 end if;
-                v.se.write_cfar := '1';
+                v.se.set_cfar := '1';
             when OP_BC =>
                 -- If CTR is being decremented, it is in ramspr_odd.
 		bo := insn_bo(e_in.insn);
@@ -1196,7 +1199,7 @@ begin
                 if ex1.msr(MSR_BE) = '1' then
                     v.do_trace := '1';
                 end if;
-                v.se.write_cfar := v.take_branch;
+                v.se.set_cfar := v.take_branch;
             when OP_BCREG =>
                 -- If CTR is being decremented, it is in ramspr_odd.
                 -- The target address is in ramspr_result (LR, CTR or TAR).
@@ -1209,7 +1212,7 @@ begin
                 if ex1.msr(MSR_BE) = '1' then
                     v.do_trace := '1';
                 end if;
-                v.se.write_cfar := v.take_branch;
+                v.se.set_cfar := v.take_branch;
 
 	    when OP_RFID =>
                 srr1 := ramspr_odd;
@@ -1229,7 +1232,7 @@ begin
                 end if;
                 v.se.write_msr := '1';
                 v.e.redirect := '1';
-                v.se.write_cfar := '1';
+                v.se.set_cfar := '1';
                 if HAS_FPU then
                     v.fp_intr := fp_in.exception and
                                  (srr1(MSR_FE0) or srr1(MSR_FE1));
@@ -1323,6 +1326,8 @@ begin
                             v.se.write_dec := '1';
                         when SPRSEL_LOGA =>
                             v.se.write_loga := '1';
+                        when SPRSEL_CFAR =>
+                            v.se.write_cfar := '1';
                         when SPRSEL_FSCR =>
                             v.se.write_fscr := '1';
                         when SPRSEL_HFSCR =>
@@ -1902,6 +1907,8 @@ begin
                 ctrl_tmp.dec <= ex1.e.write_data;
             end if;
             if ex1.se.write_cfar = '1' then
+                ctrl_tmp.cfar <= ex1.e.write_data;
+            elsif ex1.se.set_cfar = '1' then
                 ctrl_tmp.cfar <= ex1.e.last_nia;
             end if;
             if ex1.se.write_loga = '1' then
