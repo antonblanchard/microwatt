@@ -609,6 +609,7 @@ begin
                 end if;
             end if;
             v.e.prefixed := d_in.prefixed;
+            v.e.prefix := d_in.prefix;
             v.e.illegal_suffix := d_in.illegal_suffix;
             v.e.misaligned_prefix := d_in.misaligned_prefix;
 

@@ -89,6 +89,8 @@ architecture behaviour of execute1 is
         write_ic : std_ulogic;
         write_hfscr : std_ulogic;
         write_hic : std_ulogic;
+        write_heir : std_ulogic;
+        set_heir : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -147,6 +149,9 @@ architecture behaviour of execute1 is
         ramspr_wraddr : ramspr_index;
         ramspr_odd_data : std_ulogic_vector(63 downto 0);
         ic : std_ulogic_vector(3 downto 0);
+        prefixed : std_ulogic;
+        insn : std_ulogic_vector(31 downto 0);
+        prefix : std_ulogic_vector(25 downto 0);
     end record;
     constant reg_stage1_type_init : reg_stage1_type :=
         (e => Execute1ToWritebackInit, se => side_effect_init,
@@ -162,7 +167,8 @@ architecture behaviour of execute1 is
          msr => 64x"0",
          xerc => xerc_init, xerc_valid => '0',
          ramspr_wraddr => (others => '0'), ramspr_odd_data => 64x"0",
-         ic => x"0");
+         ic => x"0",
+         prefixed => '0', insn => 32x"0", prefix => 26x"0");
 
     type reg_stage2_type is record
 	e : Execute1ToWritebackType;
@@ -679,6 +685,8 @@ begin
                                 dbg_spr_data <= assemble_fscr(ctrl);
                             when SPRSEL_HFSCR =>
                                 dbg_spr_data <= assemble_hfscr(ctrl);
+                            when SPRSEL_HEIR =>
+                                dbg_spr_data <= ctrl.heir;
                             when others =>
                                 dbg_spr_data <= assemble_xer(xerc_in, ctrl.xer_low);
                         end case;
@@ -1319,6 +1327,8 @@ begin
                             v.se.write_fscr := '1';
                         when SPRSEL_HFSCR =>
                             v.se.write_hfscr := '1';
+                        when SPRSEL_HEIR =>
+                            v.se.write_heir := '1';
                         when others =>
                     end case;
                 end if;
@@ -1421,11 +1431,13 @@ begin
             end if;
 
         elsif illegal = '1' then
+            -- generate hypervisor emulation assistance interrupt (HEAI)
+            -- and write the offending instruction into HEIR
             v.exception := '1';
             v.e.srr1(47 - 34) := e_in.prefixed;
-            -- Since we aren't doing Hypervisor emulation assist (0xe40) we
-            -- set bit 44 to indicate we have an illegal
-            v.e.srr1(47 - 44) := '1';
+            v.e.intr_vec := 16#e40#;
+            v.e.hv_intr := '1';
+            v.se.set_heir := '1';
             if e_in.valid = '1' then
                 report "illegal instruction";
             end if;
@@ -1495,6 +1507,9 @@ begin
             v.lr_from_next := e_in.lr;
             v.ramspr_odd_data := actions.ramspr_odd_data;
             v.ic := actions.ic;
+            v.prefixed := e_in.prefixed;
+            v.insn := e_in.insn;
+            v.prefix := e_in.prefix;
         end if;
 
         lv := Execute1ToLoadstore1Init;
@@ -1752,6 +1767,7 @@ begin
         ctrl.cfar when SPRSEL_CFAR,
         assemble_fscr(ctrl) when SPRSEL_FSCR,
         assemble_hfscr(ctrl) when SPRSEL_HFSCR,
+        ctrl.heir when SPRSEL_HEIR,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
     stage2_stall <= l_in.l2stall or fp_in.f2stall;
@@ -1908,6 +1924,17 @@ begin
                 ctrl_tmp.fscr_tar <= ex1.e.write_data(FSCR_TAR);
             elsif ex1.se.write_ic = '1' then
                 ctrl_tmp.fscr_ic <= ex1.ic;
+            end if;
+            if ex1.se.write_heir = '1' then
+                ctrl_tmp.heir <= ex1.e.write_data;
+            elsif ex1.se.set_heir = '1' then
+                ctrl_tmp.heir(31 downto 0) <= ex1.insn;
+                if ex1.prefixed = '1' then
+                    ctrl_tmp.heir(63 downto 58) <= 6x"01";
+                    ctrl_tmp.heir(57 downto 32) <= ex1.prefix;
+                else
+                    ctrl_tmp.heir(63 downto 32) <= (others => '0');
+                end if;
             end if;
         end if;
 

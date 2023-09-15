@@ -550,7 +550,7 @@ static const char *fast_spr_names[] =
 	"lr", "ctr", "srr0", "srr1", "hsrr0", "hsrr1",
 	"sprg0", "sprg1", "sprg2", "sprg3",
 	"hsprg0", "hsprg1", "xer", "tar",
-	"fscr", "hfscr",
+	"fscr", "hfscr", "heir",
 };
 
 static const char *ldst_spr_names[] = {

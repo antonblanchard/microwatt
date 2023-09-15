@@ -57,6 +57,7 @@ package common is
     constant SPR_PVR	: spr_num_t := 287;
     constant SPR_FSCR   : spr_num_t := 153;
     constant SPR_HFSCR  : spr_num_t := 190;
+    constant SPR_HEIR   : spr_num_t := 339;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -159,6 +160,7 @@ package common is
     constant SPRSEL_CFAR  : spr_selector := 4x"6";
     constant SPRSEL_FSCR  : spr_selector := 4x"7";
     constant SPRSEL_HFSCR : spr_selector := 4x"8";
+    constant SPRSEL_HEIR  : spr_selector := 4x"9";
     constant SPRSEL_XER   : spr_selector := 4x"f";
 
     -- FSCR and HFSCR bit numbers
@@ -253,6 +255,7 @@ package common is
         hfscr_pref: std_ulogic;
         hfscr_tar: std_ulogic;
         hfscr_fp: std_ulogic;
+        heir: std_ulogic_vector(63 downto 0);
     end record;
     constant ctrl_t_init : ctrl_t :=
         (xer_low => 18x"0",
@@ -401,6 +404,7 @@ package common is
         dbg_spr_access : std_ulogic;
         dec_ctr : std_ulogic;
         prefixed : std_ulogic;
+        prefix : std_ulogic_vector(25 downto 0);
         illegal_suffix : std_ulogic;
         misaligned_prefix : std_ulogic;
         uses_tar : std_ulogic;
@@ -423,7 +427,8 @@ package common is
          ramspr_wraddr => (others => '0'), ramspr_write_even => '0', ramspr_write_odd => '0',
          dbg_spr_access => '0',
          dec_ctr => '0',
-         prefixed => '0', illegal_suffix => '0', misaligned_prefix => '0', uses_tar => '0',
+         prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
+         misaligned_prefix => '0', uses_tar => '0',
          others => (others => '0'));
 
     type MultiplyInputType is record

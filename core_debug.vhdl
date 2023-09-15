@@ -330,6 +330,9 @@ begin
                 when 5x"0f" =>
                     isram := '0';
                     sel := SPRSEL_HFSCR;
+                when 5x"10" =>
+                    isram := '0';
+                    sel := SPRSEL_HEIR;
                 when others =>
                     valid := '0';
             end case;
