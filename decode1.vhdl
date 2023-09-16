@@ -430,6 +430,8 @@ architecture behaviour of decode1 is
         i.sel := "0000";
         i.valid := '1';
         i.ispmu := '0';
+        i.ronly := '0';
+        i.wonly := '0';
         case sprn is
             when SPR_TB =>
                 i.sel := SPRSEL_TB;
@@ -458,6 +460,12 @@ architecture behaviour of decode1 is
                 i.sel := SPRSEL_HFSCR;
             when SPR_HEIR =>
                 i.sel := SPRSEL_HEIR;
+            when SPR_CTRL =>
+                i.sel := SPRSEL_CTRL;
+                i.ronly := '1';
+            when SPR_CTRLW =>
+                i.sel := SPRSEL_CTRL;
+                i.wonly := '1';
             when others =>
                 i.valid := '0';
         end case;

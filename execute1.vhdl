@@ -45,6 +45,7 @@ entity execute1 is
 
         dbg_ctrl_out : out ctrl_t;
 
+        run_out      : out std_ulogic;
 	icache_inval : out std_ulogic;
 	terminate_out : out std_ulogic;
 
@@ -92,6 +93,7 @@ architecture behaviour of execute1 is
         write_hic : std_ulogic;
         write_heir : std_ulogic;
         set_heir : std_ulogic;
+        write_ctrl : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -404,6 +406,15 @@ architecture behaviour of execute1 is
         return ret;
     end;
 
+    function assemble_ctrl(c: ctrl_t; msrpr: std_ulogic) return std_ulogic_vector is
+        variable ret : std_ulogic_vector(63 downto 0);
+    begin
+        ret := (others => '0');
+        ret(0) := c.run;
+        ret(15) := c.run and not msrpr;
+        return ret;
+    end;
+
     -- Tell vivado to keep the hierarchy for the random module so that the
     -- net names in the xdc file match.
     attribute keep_hierarchy : string;
@@ -523,7 +534,7 @@ begin
     x_to_pmu.addr_v <= '0';
     x_to_pmu.spr_num <= ex1.pmu_spr_num;
     x_to_pmu.spr_val <= ex1.e.write_data;
-    x_to_pmu.run <= '1';
+    x_to_pmu.run <= ctrl.run;
 
     -- XER forwarding.  The CA and CA32 bits are only modified by instructions
     -- that are handled here, so for them we can just use the result most
@@ -1334,6 +1345,8 @@ begin
                             v.se.write_hfscr := '1';
                         when SPRSEL_HEIR =>
                             v.se.write_heir := '1';
+                        when SPRSEL_CTRL =>
+                            v.se.write_ctrl := '1';
                         when others =>
                     end case;
                 end if;
@@ -1773,6 +1786,7 @@ begin
         assemble_fscr(ctrl) when SPRSEL_FSCR,
         assemble_hfscr(ctrl) when SPRSEL_HFSCR,
         ctrl.heir when SPRSEL_HEIR,
+        assemble_ctrl(ctrl, ex1.msr(MSR_PR)) when SPRSEL_CTRL,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
     stage2_stall <= l_in.l2stall or fp_in.f2stall;
@@ -1943,6 +1957,9 @@ begin
                     ctrl_tmp.heir(63 downto 32) <= (others => '0');
                 end if;
             end if;
+            if ex1.se.write_ctrl = '1' then
+                ctrl_tmp.run <= ex1.e.write_data(0);
+            end if;
         end if;
 
  	if interrupt_in.intr = '1' then
@@ -1981,6 +1998,7 @@ begin
 	e_out <= ex2.e;
         e_out.msr <= msr_copy(ctrl.msr);
 
+        run_out <= ctrl.run;
         terminate_out <= ex2.se.terminate;
         icache_inval <= ex2.se.icache_inval;
 

@@ -58,6 +58,8 @@ package common is
     constant SPR_FSCR   : spr_num_t := 153;
     constant SPR_HFSCR  : spr_num_t := 190;
     constant SPR_HEIR   : spr_num_t := 339;
+    constant SPR_CTRL   : spr_num_t := 136;
+    constant SPR_CTRLW  : spr_num_t := 152;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -148,6 +150,8 @@ package common is
         sel   : spr_selector;
         valid : std_ulogic;
         ispmu : std_ulogic;
+        ronly : std_ulogic;
+        wonly : std_ulogic;
     end record;
     constant spr_id_init : spr_id := (sel => "0000", others => '0');
 
@@ -161,6 +165,7 @@ package common is
     constant SPRSEL_FSCR  : spr_selector := 4x"7";
     constant SPRSEL_HFSCR : spr_selector := 4x"8";
     constant SPRSEL_HEIR  : spr_selector := 4x"9";
+    constant SPRSEL_CTRL  : spr_selector := 4x"a";
     constant SPRSEL_XER   : spr_selector := 4x"f";
 
     -- FSCR and HFSCR bit numbers
@@ -243,6 +248,7 @@ package common is
 
     -- This needs to die...
     type ctrl_t is record
+        run: std_ulogic;
 	tb: std_ulogic_vector(63 downto 0);
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
@@ -258,7 +264,7 @@ package common is
         heir: std_ulogic_vector(63 downto 0);
     end record;
     constant ctrl_t_init : ctrl_t :=
-        (xer_low => 18x"0",
+        (run => '1', xer_low => 18x"0",
          fscr_ic => x"0", fscr_pref => '1', fscr_tar => '1',
          hfscr_ic => x"0", hfscr_pref => '1', hfscr_tar => '1', hfscr_fp => '1',
          others => (others => '0'));

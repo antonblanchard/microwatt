@@ -420,6 +420,8 @@ begin
             v.e.input_cr := d_in.decode.input_cr;
             v.e.output_cr := d_in.decode.output_cr;
 
+            v.e.spr_select := d_in.spr_info;
+
             -- Work out whether XER SO/OV/OV32 bits are set
             -- or used by this instruction
             v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
@@ -454,6 +456,9 @@ begin
                                 v.e.uses_tar := '1';
                             when others =>
                         end case;
+                        if d_in.spr_info.wonly = '1' then
+                            v.e.spr_select.valid := '0';
+                        end if;
                     end if;
                 when OP_MTSPR =>
                     if is_X(d_in.insn) then
@@ -474,7 +479,9 @@ begin
                                 v.e.uses_tar := '1';
                             when others =>
                         end case;
-                        if d_in.spr_info.valid = '1' and d_in.valid = '1' then
+                        if d_in.spr_info.ronly = '1' then
+                            v.e.spr_select.valid := '0';
+                        elsif d_in.spr_info.valid = '1' and d_in.valid = '1' then
                             v.sgl_pipe := '1';
                         end if;
                     end if;
@@ -504,8 +511,6 @@ begin
             if d_in.decode.repeat /= NONE then
                 v.e.repeat := '1';
             end if;
-
-            v.e.spr_select := d_in.spr_info;
 
             if decctr = '1' then
                 -- read and write CTR
@@ -602,7 +607,7 @@ begin
             if op = OP_MFSPR then
                 if d_in.ram_spr.valid = '1' then
                     v.e.result_sel := "101";        -- ramspr_result
-                elsif d_in.spr_info.valid = '0' then
+                elsif d_in.spr_info.valid = '0' or d_in.spr_info.wonly = '1' then
                     -- Privileged mfspr to invalid/unimplemented SPR numbers
                     -- writes the contents of RT back to RT (i.e. it's a no-op)
                     v.e.result_sel := "001";        -- logical_result
