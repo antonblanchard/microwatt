@@ -248,6 +248,7 @@ package common is
 
     -- This needs to die...
     type ctrl_t is record
+        wait_state: std_ulogic;
         run: std_ulogic;
 	tb: std_ulogic_vector(63 downto 0);
 	dec: std_ulogic_vector(63 downto 0);
@@ -264,7 +265,7 @@ package common is
         heir: std_ulogic_vector(63 downto 0);
     end record;
     constant ctrl_t_init : ctrl_t :=
-        (run => '1', xer_low => 18x"0",
+        (wait_state => '0', run => '1', xer_low => 18x"0",
          fscr_ic => x"0", fscr_pref => '1', fscr_tar => '1',
          hfscr_ic => x"0", hfscr_pref => '1', hfscr_tar => '1', hfscr_fp => '1',
          others => (others => '0'));

@@ -7,8 +7,8 @@ package decode_types is
 			 OP_BCD, OP_BPERM, OP_BREV,
                          OP_CMP, OP_CMPB, OP_CMPEQB, OP_CMPRB,
 			 OP_CNTZ, OP_CROP,
-			 OP_DARN, OP_DCBF, OP_DCBST, OP_DCBT, OP_DCBTST,
-			 OP_DCBZ, OP_ICBI, OP_ICBT,
+			 OP_DARN, OP_DCBF, OP_DCBST, OP_XCBT, OP_DCBTST,
+			 OP_DCBZ, OP_ICBI,
                          OP_FP_CMP, OP_FP_ARITH, OP_FP_MOVE, OP_FP_MISC,
                          OP_DIV, OP_DIVE, OP_MOD,
                          OP_EXTS, OP_EXTSWSLI,
@@ -24,6 +24,7 @@ package decode_types is
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
 			 OP_XOR,
                          OP_ADDG6S,
+                         OP_WAIT,
                          OP_FETCH_FAILED
 			 );
 

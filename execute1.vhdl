@@ -94,6 +94,7 @@ architecture behaviour of execute1 is
         write_heir : std_ulogic;
         set_heir : std_ulogic;
         write_ctrl : std_ulogic;
+        enter_wait : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -551,7 +552,7 @@ begin
 
     -- N.B. the busy signal from each source includes the
     -- stage2 stall from that source in it.
-    busy_out <= l_in.busy or ex1.busy or fp_in.busy;
+    busy_out <= l_in.busy or ex1.busy or fp_in.busy or ctrl.wait_state;
 
     valid_in <= e_in.valid and not (busy_out or flush_in or ex1.e.redirect or ex1.e.interrupt);
 
@@ -1146,7 +1147,7 @@ begin
                 else
                     illegal := '1';
                 end if;
-	    when OP_NOP | OP_DCBF | OP_DCBST | OP_DCBT | OP_DCBTST | OP_ICBT =>
+	    when OP_NOP | OP_DCBF | OP_DCBST | OP_XCBT | OP_DCBTST =>
             -- Do nothing
 	    when OP_ADD =>
                 if e_in.output_carry = '1' then
@@ -1398,6 +1399,11 @@ begin
                     owait := '1';
                 end if;
 
+            when OP_WAIT =>
+                if e_in.insn(22 downto 21) = "00" then
+                    v.se.enter_wait := '1';
+                end if;
+
             when OP_FETCH_FAILED =>
                 -- Handling an ITLB miss doesn't count as having executed an instruction
                 v.do_trace := '0';
@@ -1513,7 +1519,7 @@ begin
         variable bypass_valid : std_ulogic;
     begin
 	v := ex1;
-        if (ex1.busy or l_in.busy or fp_in.busy) = '0' then
+        if busy_out = '0' then
             v.e := actions.e;
             v.e.valid := '0';
             v.oe := e_in.oe;
@@ -1577,8 +1583,8 @@ begin
                 v.e.srr1 := (others => '0');
                 v.e.srr1(47 - 33) := '1';
                 v.e.srr1(47 - 34) := ex1.prev_prefixed;
-                if ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or ex1.prev_op = OP_ICBT or
-                    ex1.prev_op = OP_DCBT or ex1.prev_op = OP_DCBST or ex1.prev_op = OP_DCBF then
+                if ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or
+                    ex1.prev_op = OP_XCBT or ex1.prev_op = OP_DCBST or ex1.prev_op = OP_DCBF then
                     v.e.srr1(47 - 35) := '1';
                 elsif ex1.prev_op = OP_STORE or ex1.prev_op = OP_DCBZ or
                     ex1.prev_op = OP_DCBTST then
@@ -1802,6 +1808,7 @@ begin
         variable cr_mask : std_ulogic_vector(7 downto 0);
         variable sign, zero : std_ulogic;
         variable rcnz_hi, rcnz_lo : std_ulogic;
+        variable irq_exc : std_ulogic;
     begin
 	-- Next insn adder used in a couple of places
 	next_nia <= std_ulogic_vector(unsigned(ex1.e.last_nia) + 4);
@@ -1960,6 +1967,17 @@ begin
             if ex1.se.write_ctrl = '1' then
                 ctrl_tmp.run <= ex1.e.write_data(0);
             end if;
+            if ex1.se.enter_wait = '1' then
+                ctrl_tmp.wait_state <= '1';
+            end if;
+        end if;
+
+        -- pending exceptions clear any wait state
+        -- ex1.fp_exception_next is not tested because it is not possible to
+        -- get into wait state with a pending FP exception.
+        irq_exc := pmu_to_x.intr or ctrl.dec(63) or ext_irq_in;
+        if ex1.trace_next = '1' or irq_exc = '1' or interrupt_in.intr = '1' then
+            ctrl_tmp.wait_state <= '0';
         end if;
 
  	if interrupt_in.intr = '1' then
