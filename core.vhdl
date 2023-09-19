@@ -521,6 +521,7 @@ begin
 	    core_stopped => dbg_core_is_stopped,
 	    nia => fetch1_to_icache.nia,
             msr => ctrl_debug.msr,
+            wb_snoop_in => wb_snoop_in,
             dbg_gpr_req => dbg_gpr_req,
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,

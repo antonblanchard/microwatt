@@ -341,7 +341,7 @@ architecture rtl of dcache is
         end_row_ix       : row_in_line_t;
         rows_valid       : row_per_line_valid_t;
         acks_pending     : unsigned(2 downto 0);
-        inc_acks         : std_ulogic;
+        stalled          : std_ulogic;
         dec_acks         : std_ulogic;
         choose_victim    : std_ulogic;
         victim_way       : way_t;
@@ -633,14 +633,20 @@ begin
                 addrbits := d_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1 downto TLB_LG_PGSZ);
                 valid := d_in.valid;
             end if;
-            -- If we have any op and the previous op isn't finished,
+            -- If the previous op isn't finished,
             -- then keep the same output for next cycle.
-            if r0_stall = '0' and valid = '1' then
-                assert not is_X(addrbits);
-                index := to_integer(unsigned(addrbits));
-                tlb_valid_way <= dtlb_valids(index);
-                tlb_tag_way <= dtlb_tags(index);
-                tlb_pte_way <= dtlb_ptes(index);
+            if r0_stall = '0' then
+                assert not (valid = '1' and is_X(addrbits));
+                if is_X(addrbits) then
+                    tlb_valid_way <= (others => 'X');
+                    tlb_tag_way <= (others => 'X');
+                    tlb_pte_way <= (others => 'X');
+                else
+                    index := to_integer(unsigned(addrbits));
+                    tlb_valid_way <= dtlb_valids(index);
+                    tlb_tag_way <= dtlb_tags(index);
+                    tlb_pte_way <= dtlb_ptes(index);
+                end if;
             end if;
             if rst = '1' then
                 tlb_read_valid <= '0';
@@ -1414,6 +1420,9 @@ begin
                 r1.wb.stb <= '0';
                 r1.ls_valid <= '0';
                 r1.mmu_done <= '0';
+                r1.acks_pending <= to_unsigned(0, 3);
+                r1.stalled <= '0';
+                r1.dec_acks <= '0';
 
 		-- Not useful normally but helps avoiding tons of sim warnings
 		r1.wb.adr <= (others => '0');
@@ -1421,8 +1430,6 @@ begin
 		-- One cycle pulses reset
 		r1.slow_valid <= '0';
                 r1.write_bram <= '0';
-                r1.inc_acks <= '0';
-                r1.dec_acks <= '0';
 
                 r1.ls_valid <= '0';
                 -- complete tlbies and TLB loads in the third cycle
@@ -1509,6 +1516,19 @@ begin
                     r1.choose_victim <= '1';
                 end if;
 
+                -- Update count of pending acks
+                acks := r1.acks_pending;
+                if r1.wb.cyc = '0' then
+                    acks := to_unsigned(0, 3);
+                elsif r1.wb.stb = '1' and r1.stalled = '0' and r1.dec_acks = '0' then
+                    acks := acks + 1;
+                elsif (r1.wb.stb = '0' or r1.stalled = '1') and r1.dec_acks = '1' then
+                    acks := acks - 1;
+                end if;
+                r1.acks_pending <= acks;
+                r1.stalled <= wishbone_in.stall and r1.wb.cyc;
+                r1.dec_acks <= wishbone_in.ack and r1.wb.cyc;
+
 		-- Main state machine
 		case r1.state is
                 when IDLE =>
@@ -1563,7 +1583,6 @@ begin
                     when OP_STORE_HIT | OP_STORE_MISS =>
                         if req.dcbz = '0' then
                             r1.state <= STORE_WAIT_ACK;
-                            r1.acks_pending <= to_unsigned(1, 3);
                             r1.full <= '0';
                             r1.slow_valid <= '1';
                             if req.mmu_req = '0' then
@@ -1657,15 +1676,6 @@ begin
 
                 when STORE_WAIT_ACK =>
 		    stbs_done := r1.wb.stb = '0';
-                    acks := r1.acks_pending;
-                    if r1.inc_acks /= r1.dec_acks then
-                        if r1.inc_acks = '1' then
-                            acks := acks + 1;
-                        else
-                            acks := acks - 1;
-                        end if;
-                    end if;
-                    r1.acks_pending <= acks;
 		    -- Clear stb when slave accepted request
                     if wishbone_in.stall = '0' then
                         -- See if there is another store waiting to be done
@@ -1691,7 +1701,6 @@ begin
                             -- Store requests never come from the MMU
                             r1.ls_valid <= '1';
                             stbs_done := false;
-                            r1.inc_acks <= '1';
                         else
                             r1.wb.stb <= '0';
                             stbs_done := true;
@@ -1706,7 +1715,6 @@ begin
                             r1.wb.cyc <= '0';
                             r1.wb.stb <= '0';
                         end if;
-                        r1.dec_acks <= '1';
 		    end if;
 
                 when NC_LOAD_WAIT_ACK =>

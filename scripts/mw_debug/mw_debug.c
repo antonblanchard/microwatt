@@ -45,6 +45,7 @@
 #define DBG_LOG_ADDR		0x16
 #define DBG_LOG_DATA		0x17
 #define DBG_LOG_TRIGGER		0x18
+#define DBG_LOG_MTRIGGER	0x19
 
 static bool debug;
 
@@ -766,6 +767,28 @@ static void ltrig_set(uint64_t addr)
 	check(dmi_write(DBG_LOG_TRIGGER, (addr & ~(uint64_t)2) | 1), "writing LOG_TRIGGER");
 }
 
+static void mtrig_show(void)
+{
+	uint64_t trig;
+
+	check(dmi_read(DBG_LOG_MTRIGGER, &trig), "reading LOG_MTRIGGER");
+	if (trig & 1)
+		printf("log memory stop trigger at %" PRIx64, trig & ~3);
+	else
+		printf("log memory stop trigger disabled");
+	printf(", %striggered\n", (trig & 2? "": "not "));
+}
+
+static void mtrig_off(void)
+{
+	check(dmi_write(DBG_LOG_MTRIGGER, 0), "writing LOG_MTRIGGER");
+}
+
+static void mtrig_set(uint64_t addr)
+{
+	check(dmi_write(DBG_LOG_MTRIGGER, (addr & ~(uint64_t)2) | 1), "writing LOG_MTRIGGER");
+}
+
 static void usage(const char *cmd)
 {
 	fprintf(stderr, "Usage: %s -b <jtag|ecp5|sim> <command> <args>\n", cmd);
@@ -798,6 +821,9 @@ static void usage(const char *cmd)
 	fprintf(stderr, "  ltrig 			show logging stop trigger status\n");
 	fprintf(stderr, "  ltrig off 			clear logging stop trigger address\n");
 	fprintf(stderr, "  ltrig <addr>			set logging stop trigger address\n");
+	fprintf(stderr, "  mtrig 			show logging stop trigger status\n");
+	fprintf(stderr, "  mtrig off 			clear logging stop trigger address\n");
+	fprintf(stderr, "  mtrig <addr>			set logging stop trigger address\n");
 
 	fprintf(stderr, "\n");
 	fprintf(stderr, " JTAG:\n");
@@ -966,6 +992,17 @@ int main(int argc, char *argv[])
 			else {
 				addr = strtoul(argv[i], NULL, 16);
 				ltrig_set(addr);
+			}
+		} else if (strcmp(argv[i], "mtrig") == 0) {
+			uint64_t addr;
+
+			if ((i+1) >= argc)
+				mtrig_show();
+			else if (strcmp(argv[++i], "off") == 0)
+				mtrig_off();
+			else {
+				addr = strtoul(argv[i], NULL, 16);
+				mtrig_set(addr);
 			}
 		} else {
 			fprintf(stderr, "Unknown command %s\n", argv[i]);
