@@ -625,7 +625,7 @@ begin
 	end if;
         i_out.insn <= insn(31 downto 0);
         i_out.icode <= icode;
-        log_insn <= cache_wr_data(35 downto 0);
+        log_insn <= insn;
 	i_out.valid <= r.hit_valid;
 	i_out.nia <= r.hit_nia;
 	i_out.stop_mark <= r.hit_smark;
