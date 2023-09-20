@@ -60,6 +60,8 @@ package common is
     constant SPR_HEIR   : spr_num_t := 339;
     constant SPR_CTRL   : spr_num_t := 136;
     constant SPR_CTRLW  : spr_num_t := 152;
+    constant SPR_UDSCR  : spr_num_t := 3;
+    constant SPR_DSCR   : spr_num_t := 17;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -166,13 +168,14 @@ package common is
     constant SPRSEL_HFSCR : spr_selector := 4x"8";
     constant SPRSEL_HEIR  : spr_selector := 4x"9";
     constant SPRSEL_CTRL  : spr_selector := 4x"a";
+    constant SPRSEL_DSCR  : spr_selector := 4x"b";
     constant SPRSEL_XER   : spr_selector := 4x"f";
 
     -- FSCR and HFSCR bit numbers
     constant FSCR_PREFIX   : integer := 63 - 50;
     constant FSCR_SCV      : integer := 63 - 51;
     constant FSCR_TAR      : integer := 63 - 55;
-    constant FSCR_DSCR3    : integer := 63 - 61;
+    constant FSCR_DSCR     : integer := 63 - 61;
     constant HFSCR_PREFIX  : integer := 63 - 50;
     constant HFSCR_MSG     : integer := 63 - 53;
     constant HFSCR_TAR     : integer := 63 - 55;
@@ -258,16 +261,20 @@ package common is
         fscr_ic: std_ulogic_vector(3 downto 0);
         fscr_pref: std_ulogic;
         fscr_tar: std_ulogic;
+        fscr_dscr: std_ulogic;
         hfscr_ic: std_ulogic_vector(3 downto 0);
         hfscr_pref: std_ulogic;
         hfscr_tar: std_ulogic;
+        hfscr_dscr: std_ulogic;
         hfscr_fp: std_ulogic;
         heir: std_ulogic_vector(63 downto 0);
+        dscr: std_ulogic_vector(24 downto 0);
     end record;
     constant ctrl_t_init : ctrl_t :=
         (wait_state => '0', run => '1', xer_low => 18x"0",
-         fscr_ic => x"0", fscr_pref => '1', fscr_tar => '1',
-         hfscr_ic => x"0", hfscr_pref => '1', hfscr_tar => '1', hfscr_fp => '1',
+         fscr_ic => x"0", fscr_pref => '1', fscr_tar => '1', fscr_dscr => '1',
+         hfscr_ic => x"0", hfscr_pref => '1', hfscr_tar => '1', hfscr_dscr => '1', hfscr_fp => '1',
+         dscr => (others => '0'),
          others => (others => '0'));
 
     type Fetch1ToIcacheType is record
@@ -415,6 +422,7 @@ package common is
         illegal_suffix : std_ulogic;
         misaligned_prefix : std_ulogic;
         uses_tar : std_ulogic;
+        uses_dscr : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => ALU, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
@@ -435,7 +443,7 @@ package common is
          dbg_spr_access => '0',
          dec_ctr => '0',
          prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
-         misaligned_prefix => '0', uses_tar => '0',
+         misaligned_prefix => '0', uses_tar => '0', uses_dscr => '0',
          others => (others => '0'));
 
     type MultiplyInputType is record

@@ -94,6 +94,7 @@ architecture behaviour of execute1 is
         write_heir : std_ulogic;
         set_heir : std_ulogic;
         write_ctrl : std_ulogic;
+        write_dscr : std_ulogic;
         enter_wait : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
@@ -393,6 +394,7 @@ architecture behaviour of execute1 is
         ret(59 downto 56) := c.fscr_ic;
         ret(FSCR_PREFIX) := c.fscr_pref;
         ret(FSCR_TAR) := c.fscr_tar;
+        ret(FSCR_DSCR) := c.fscr_dscr;
         return ret;
     end;
 
@@ -403,6 +405,7 @@ architecture behaviour of execute1 is
         ret(59 downto 56) := c.hfscr_ic;
         ret(HFSCR_PREFIX) := c.hfscr_pref;
         ret(HFSCR_TAR) := c.hfscr_tar;
+        ret(HFSCR_DSCR) := c.hfscr_dscr;
         ret(HFSCR_FP) := c.hfscr_fp;
         return ret;
     end;
@@ -1348,6 +1351,8 @@ begin
                             v.se.write_heir := '1';
                         when SPRSEL_CTRL =>
                             v.se.write_ctrl := '1';
+                        when SPRSEL_DSCR =>
+                            v.se.write_dscr := '1';
                         when others =>
                     end case;
                 end if;
@@ -1472,6 +1477,20 @@ begin
             v.exception := '1';
             v.ic := x"8";
             if ctrl.hfscr_tar = '0' then
+                v.e.hv_intr := '1';
+                v.e.intr_vec := 16#f80#;
+                v.se.write_hic := '1';
+            else
+                v.e.intr_vec := 16#f60#;
+                v.se.write_ic := '1';
+            end if;
+
+        elsif ex1.msr(MSR_PR) = '1' and e_in.uses_dscr = '1' and
+            (ctrl.hfscr_dscr = '0' or ctrl.fscr_dscr = '0') then
+            -- [Hypervisor] facility unavailable for DSCR access
+            v.exception := '1';
+            v.ic := x"2";
+            if ctrl.hfscr_dscr = '0' then
                 v.e.hv_intr := '1';
                 v.e.intr_vec := 16#f80#;
                 v.se.write_hic := '1';
@@ -1793,6 +1812,7 @@ begin
         assemble_hfscr(ctrl) when SPRSEL_HFSCR,
         ctrl.heir when SPRSEL_HEIR,
         assemble_ctrl(ctrl, ex1.msr(MSR_PR)) when SPRSEL_CTRL,
+        39x"0" & ctrl.dscr when SPRSEL_DSCR,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
     stage2_stall <= l_in.l2stall or fp_in.f2stall;
@@ -1942,6 +1962,7 @@ begin
                 ctrl_tmp.hfscr_ic <= ex1.e.write_data(59 downto 56);
                 ctrl_tmp.hfscr_pref <= ex1.e.write_data(HFSCR_PREFIX);
                 ctrl_tmp.hfscr_tar <= ex1.e.write_data(HFSCR_TAR);
+                ctrl_tmp.hfscr_dscr <= ex1.e.write_data(HFSCR_DSCR);
                 ctrl_tmp.hfscr_fp <= ex1.e.write_data(HFSCR_FP);
             elsif ex1.se.write_hic = '1' then
                 ctrl_tmp.hfscr_ic <= ex1.ic;
@@ -1950,6 +1971,7 @@ begin
                 ctrl_tmp.fscr_ic <= ex1.e.write_data(59 downto 56);
                 ctrl_tmp.fscr_pref <= ex1.e.write_data(FSCR_PREFIX);
                 ctrl_tmp.fscr_tar <= ex1.e.write_data(FSCR_TAR);
+                ctrl_tmp.fscr_dscr <= ex1.e.write_data(FSCR_DSCR);
             elsif ex1.se.write_ic = '1' then
                 ctrl_tmp.fscr_ic <= ex1.ic;
             end if;
@@ -1966,6 +1988,9 @@ begin
             end if;
             if ex1.se.write_ctrl = '1' then
                 ctrl_tmp.run <= ex1.e.write_data(0);
+            end if;
+            if ex1.se.write_dscr = '1' then
+                ctrl_tmp.dscr <= ex1.e.write_data(24 downto 0);
             end if;
             if ex1.se.enter_wait = '1' then
                 ctrl_tmp.wait_state <= '1';

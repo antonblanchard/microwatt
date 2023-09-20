@@ -466,6 +466,10 @@ architecture behaviour of decode1 is
             when SPR_CTRLW =>
                 i.sel := SPRSEL_CTRL;
                 i.wonly := '1';
+            when SPR_UDSCR =>
+                i.sel := SPRSEL_DSCR;
+            when SPR_DSCR =>
+                i.sel := SPRSEL_DSCR;
             when others =>
                 i.valid := '0';
         end case;

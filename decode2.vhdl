@@ -454,6 +454,8 @@ begin
                                 unit := LDST;
                             when SPR_TAR =>
                                 v.e.uses_tar := '1';
+                            when SPR_UDSCR =>
+                                v.e.uses_dscr := '1';
                             when others =>
                         end case;
                         if d_in.spr_info.wonly = '1' then
@@ -477,6 +479,8 @@ begin
                                 end if;
                             when SPR_TAR =>
                                 v.e.uses_tar := '1';
+                            when SPR_UDSCR =>
+                                v.e.uses_dscr := '1';
                             when others =>
                         end case;
                         if d_in.spr_info.ronly = '1' then
