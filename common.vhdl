@@ -260,6 +260,7 @@ package common is
         xer_low: std_ulogic_vector(17 downto 0);
         fscr_ic: std_ulogic_vector(3 downto 0);
         fscr_pref: std_ulogic;
+        fscr_scv: std_ulogic;
         fscr_tar: std_ulogic;
         fscr_dscr: std_ulogic;
         hfscr_ic: std_ulogic_vector(3 downto 0);
@@ -272,7 +273,7 @@ package common is
     end record;
     constant ctrl_t_init : ctrl_t :=
         (wait_state => '0', run => '1', xer_low => 18x"0",
-         fscr_ic => x"0", fscr_pref => '1', fscr_tar => '1', fscr_dscr => '1',
+         fscr_ic => x"0", fscr_pref => '1', fscr_scv => '1', fscr_tar => '1', fscr_dscr => '1',
          hfscr_ic => x"0", hfscr_pref => '1', hfscr_tar => '1', hfscr_dscr => '1', hfscr_fp => '1',
          dscr => (others => '0'),
          others => (others => '0'));
@@ -711,6 +712,7 @@ package common is
 	xerc : xer_common_t;
         interrupt : std_ulogic;
         hv_intr : std_ulogic;
+        is_scv : std_ulogic;
         intr_vec : intr_vector_t;
 	redirect: std_ulogic;
         redir_mode: std_ulogic_vector(3 downto 0);
@@ -727,7 +729,7 @@ package common is
          write_xerc_enable => '0', xerc => xerc_init,
          write_data => (others => '0'), write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'), write_reg => (others => '0'),
-         interrupt => '0', hv_intr => '0', intr_vec => 0,
+         interrupt => '0', hv_intr => '0', is_scv => '0', intr_vec => 0,
          redirect => '0', redir_mode => "0000",
          last_nia => (others => '0'),
          br_last => '0', br_taken => '0', abs_br => '0',
@@ -816,13 +818,13 @@ package common is
         br_last : std_ulogic;
         br_taken : std_ulogic;
         interrupt : std_ulogic;
-        intr_vec : std_ulogic_vector(11 downto 0);
+        intr_vec : std_ulogic_vector(16 downto 0);
     end record;
     constant WritebackToFetch1Init : WritebackToFetch1Type :=
         (redirect => '0', virt_mode => '0', priv_mode => '0', big_endian => '0',
          mode_32bit => '0', redirect_nia => (others => '0'),
          br_last => '0', br_taken => '0', br_nia => (others => '0'),
-         interrupt => '0', intr_vec => x"000");
+         interrupt => '0', intr_vec => 17x"0");
 
     type WritebackToRegisterFileType is record
 	write_reg : gspr_index_t;
@@ -847,6 +849,7 @@ package common is
     type WritebackToExecute1Type is record
         intr    : std_ulogic;
         hv_intr : std_ulogic;
+        scv_int : std_ulogic;
         srr1    : std_ulogic_vector(15 downto 0);
     end record;
 

@@ -553,7 +553,11 @@ begin
                     v.e.ramspr_write_odd := d_in.ram_spr.valid and d_in.ram_spr.isodd;
                     v.e.spr_is_ram := d_in.ram_spr.valid;
                 when OP_RFID =>
-                    if d_in.insn(9) = '0' then
+                    if d_in.insn(7) = '1' then
+                        -- rfscv
+                        v.e.ramspr_even_rdaddr := RAMSPR_LR;
+                        v.e.ramspr_odd_rdaddr := RAMSPR_CTR;
+                    elsif d_in.insn(9) = '0' then
                         -- rfid
                         v.e.ramspr_even_rdaddr := RAMSPR_SRR0;
                         v.e.ramspr_odd_rdaddr := RAMSPR_SRR1;

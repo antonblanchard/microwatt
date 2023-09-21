@@ -391,7 +391,7 @@ begin
 		v_int.next_nia :=  RESET_ADDRESS;
 	    end if;
         elsif w_in.interrupt = '1' then
-            v_int.next_nia := 52x"0" & w_in.intr_vec(11 downto 2) & "00";
+            v_int.next_nia := 47x"0" & w_in.intr_vec(16 downto 2) & "00";
         end if;
 	if rst /= '0' or w_in.interrupt = '1' then
             v.req := '0';

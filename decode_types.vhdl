@@ -107,6 +107,7 @@ package decode_types is
         INSN_prtyw,
         INSN_prtyd, -- 70
         INSN_rfid,
+        INSN_rfscv,
         INSN_rldic,
         INSN_rldicl,
         INSN_rldicr,
@@ -114,8 +115,8 @@ package decode_types is
         INSN_rlwimi,
         INSN_rlwinm,
         INSN_rnop,
-        INSN_sc,
-        INSN_setb, -- 80
+        INSN_sc, -- 80
+        INSN_setb,
         INSN_slbia,
         INSN_sradi,
         INSN_srawi,
@@ -124,8 +125,8 @@ package decode_types is
         INSN_stdu,
         INSN_sthu,
         INSN_stwu,
-        INSN_subfic,
-        INSN_subfme, -- 90
+        INSN_subfic, -- 90
+        INSN_subfme,
         INSN_subfze,
         INSN_sync,
         INSN_tdi,
@@ -135,7 +136,7 @@ package decode_types is
         INSN_xori,
         INSN_xoris,
         -- pad to 104
-        INSN_063, INSN_064, INSN_065, INSN_066, INSN_067,
+        INSN_064, INSN_065, INSN_066, INSN_067,
 
         -- Non-prefixed instructions that have a MLS:D prefixed form and
         -- their corresponding prefixed instructions.

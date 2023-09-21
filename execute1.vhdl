@@ -96,6 +96,7 @@ architecture behaviour of execute1 is
         write_ctrl : std_ulogic;
         write_dscr : std_ulogic;
         enter_wait : std_ulogic;
+        scv_trap : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -393,6 +394,7 @@ architecture behaviour of execute1 is
         ret := (others => '0');
         ret(59 downto 56) := c.fscr_ic;
         ret(FSCR_PREFIX) := c.fscr_pref;
+        ret(FSCR_SCV) := c.fscr_scv;
         ret(FSCR_TAR) := c.fscr_tar;
         ret(FSCR_DSCR) := c.fscr_dscr;
         return ret;
@@ -587,10 +589,12 @@ begin
         even_wr_enab := (ex1.se.ramspr_write_even and doit) or interrupt_in.intr;
         odd_wr_enab  := (ex1.se.ramspr_write_odd and doit) or interrupt_in.intr;
         if interrupt_in.intr = '1' then
-            if interrupt_in.hv_intr = '0' then
-                wr_addr := RAMSPR_SRR0;
-            else
+            if interrupt_in.hv_intr = '1' then
                 wr_addr := RAMSPR_HSRR0;
+            elsif interrupt_in.scv_int = '1' then
+                wr_addr := RAMSPR_LR;
+            else
+                wr_addr := RAMSPR_SRR0;
             end if;
         else
             wr_addr := ex1.ramspr_wraddr;
@@ -1127,18 +1131,20 @@ begin
 	    when OP_ILLEGAL =>
 		illegal := '1';
 	    when OP_SC =>
-		-- check bit 1 of the instruction is 1 so we know this is sc;
-                -- 0 would mean scv, so generate an illegal instruction interrupt
+		-- check bit 1 of the instruction to distinguish sc from scv
                 if e_in.insn(1) = '1' then
-                    v.trap := '1';
-                    v.advance_nia := '1';
+                    -- sc
                     v.e.intr_vec := 16#C00#;
                     if e_in.valid = '1' then
                         report "sc";
                     end if;
                 else
-                    illegal := '1';
+                    -- scv
+                    v.se.scv_trap := '1';
+                    v.e.intr_vec := to_integer(unsigned(e_in.insn(11 downto 5))) * 32;
                 end if;
+                v.trap := '1';
+                v.advance_nia := '1';
 	    when OP_ATTN =>
                 -- check bits 1-10 of the instruction to make sure it's attn
                 -- if not then it is illegal
@@ -1230,6 +1236,9 @@ begin
                 v.se.set_cfar := v.take_branch;
 
 	    when OP_RFID =>
+                -- rfid, hrfid and rfscv.
+                -- These all act the same given that we don't have
+                -- privileged non-hypervisor mode or ultravisor mode.
                 srr1 := ramspr_odd;
                 v.e.redir_mode := (srr1(MSR_IR) or srr1(MSR_PR)) & not srr1(MSR_PR) &
                                   not srr1(MSR_LE) & not srr1(MSR_SF);
@@ -1471,6 +1480,14 @@ begin
                 report "illegal instruction";
             end if;
 
+        elsif ex1.msr(MSR_PR) = '1' and v.se.scv_trap = '1' and
+            ctrl.fscr_scv = '0' then
+            -- Facility unavailable for scv instruction
+            v.exception := '1';
+            v.ic := x"c";
+            v.e.intr_vec := 16#f60#;
+            v.se.write_ic := '1';
+
         elsif ex1.msr(MSR_PR) = '1' and e_in.uses_tar = '1' and
             (ctrl.hfscr_tar = '0' or ctrl.fscr_tar = '0') then
             -- [Hypervisor] facility unavailable for TAR access
@@ -1536,6 +1553,7 @@ begin
         variable fv : Execute1ToFPUType;
         variable go : std_ulogic;
         variable bypass_valid : std_ulogic;
+        variable is_scv : std_ulogic;
     begin
 	v := ex1;
         if busy_out = '0' then
@@ -1670,6 +1688,7 @@ begin
                 fv.valid := '1';
             end if;
         end if;
+        is_scv := go and actions.se.scv_trap;
 
         if not HAS_FPU and ex1.div_in_progress = '1' then
             v.div_in_progress := not divider_to_x.valid;
@@ -1710,6 +1729,7 @@ begin
 
         if (ex1.busy or l_in.busy or fp_in.busy) = '0' then
             v.e.interrupt := exception;
+            v.e.is_scv := is_scv;
         end if;
         if v.e.valid = '0' then
             v.e.redirect := '0';
@@ -1970,6 +1990,7 @@ begin
             if ex1.se.write_fscr = '1' then
                 ctrl_tmp.fscr_ic <= ex1.e.write_data(59 downto 56);
                 ctrl_tmp.fscr_pref <= ex1.e.write_data(FSCR_PREFIX);
+                ctrl_tmp.fscr_scv <= ex1.e.write_data(FSCR_SCV);
                 ctrl_tmp.fscr_tar <= ex1.e.write_data(FSCR_TAR);
                 ctrl_tmp.fscr_dscr <= ex1.e.write_data(FSCR_DSCR);
             elsif ex1.se.write_ic = '1' then
@@ -2007,7 +2028,6 @@ begin
 
  	if interrupt_in.intr = '1' then
             ctrl_tmp.msr(MSR_SF) <= '1';
-            ctrl_tmp.msr(MSR_EE) <= '0';
             ctrl_tmp.msr(MSR_PR) <= '0';
             ctrl_tmp.msr(MSR_SE) <= '0';
             ctrl_tmp.msr(MSR_BE) <= '0';
@@ -2016,8 +2036,11 @@ begin
             ctrl_tmp.msr(MSR_FE1) <= '0';
             ctrl_tmp.msr(MSR_IR) <= '0';
             ctrl_tmp.msr(MSR_DR) <= '0';
-            ctrl_tmp.msr(MSR_RI) <= '0';
             ctrl_tmp.msr(MSR_LE) <= '1';
+            if interrupt_in.scv_int = '0' then
+                ctrl_tmp.msr(MSR_EE) <= '0';
+                ctrl_tmp.msr(MSR_RI) <= '0';
+            end if;
         end if;
 
         bypass_valid := ex1.e.valid;
