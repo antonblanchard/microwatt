@@ -62,6 +62,7 @@ package common is
     constant SPR_CTRLW  : spr_num_t := 152;
     constant SPR_UDSCR  : spr_num_t := 3;
     constant SPR_DSCR   : spr_num_t := 17;
+    constant SPR_VRSAVE : spr_num_t := 256;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -139,10 +140,12 @@ package common is
     constant RAMSPR_SPRG3  : ramspr_index := to_unsigned(3,3);
     constant RAMSPR_HSPRG1 : ramspr_index := to_unsigned(4,3);
     constant RAMSPR_CTR    : ramspr_index := to_unsigned(5,3);         -- must equal RAMSPR_LR
+    constant RAMSPR_VRSAVE : ramspr_index := to_unsigned(6,3);
 
     type ram_spr_info is record
         index : ramspr_index;
         isodd : std_ulogic;
+        is32b : std_ulogic;
         valid : std_ulogic;
     end record;
     constant ram_spr_info_init: ram_spr_info := (index => to_unsigned(0,3), others => '0');
@@ -416,6 +419,7 @@ package common is
         ramspr_wraddr      : ramspr_index;
         ramspr_write_even  : std_ulogic;
         ramspr_write_odd   : std_ulogic;
+        ramspr_32bit       : std_ulogic;
         dbg_spr_access : std_ulogic;
         dec_ctr : std_ulogic;
         prefixed : std_ulogic;
@@ -441,6 +445,7 @@ package common is
          spr_is_ram => '0',
          ramspr_even_rdaddr => (others => '0'), ramspr_odd_rdaddr => (others => '0'), ramspr_rd_odd => '0',
          ramspr_wraddr => (others => '0'), ramspr_write_even => '0', ramspr_write_odd => '0',
+         ramspr_32bit => '0',
          dbg_spr_access => '0',
          dec_ctr => '0',
          prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',

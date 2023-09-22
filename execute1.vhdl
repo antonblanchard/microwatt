@@ -635,6 +635,9 @@ begin
         else
             ramspr_result <= ramspr_odd;
         end if;
+        if e_in.ramspr_32bit = '1' then
+            ramspr_result(63 downto 32) <= 32x"0";
+        end if;
     end process;
 
     ramspr_write: process(clk)

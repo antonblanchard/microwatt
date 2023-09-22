@@ -545,6 +545,7 @@ begin
                     v.e.ramspr_even_rdaddr := d_in.ram_spr.index;
                     v.e.ramspr_odd_rdaddr := d_in.ram_spr.index;
                     v.e.ramspr_rd_odd := d_in.ram_spr.isodd;
+                    v.e.ramspr_32bit := d_in.ram_spr.is32b;
                     v.e.spr_is_ram := d_in.ram_spr.valid;
                     sprs_busy := d_in.ram_spr.valid;
                 when OP_MTSPR =>
