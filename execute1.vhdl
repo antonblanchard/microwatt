@@ -176,7 +176,6 @@ architecture behaviour of execute1 is
     signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
     signal cr_in : std_ulogic_vector(31 downto 0);
     signal xerc_in : xer_common_t;
-    signal mshort_p : std_ulogic_vector(31 downto 0) := (others => '0');
 
     signal valid_in : std_ulogic;
     signal ctrl: ctrl_t := ctrl_t_init;
@@ -192,7 +191,6 @@ architecture behaviour of execute1 is
     signal adder_result: std_ulogic_vector(63 downto 0);
     signal misc_result: std_ulogic_vector(63 downto 0);
     signal muldiv_result: std_ulogic_vector(63 downto 0);
-    signal shortmul_result: std_ulogic_vector(63 downto 0);
     signal spr_result: std_ulogic_vector(63 downto 0);
     signal next_nia : std_ulogic_vector(63 downto 0);
     signal s1_sel : std_ulogic_vector(2 downto 0);
@@ -601,7 +599,6 @@ begin
         adder_result       when "000",
         logical_result     when "001",
         rotator_result     when "010",
-        shortmul_result    when "011",
         muldiv_result      when "100",
         ramspr_result      when "101",
         misc_result        when others;
@@ -772,7 +769,6 @@ begin
         x_to_mult_32s.subtract <= '0';
         x_to_mult_32s.addend <= (others => '0');
 
-        shortmul_result <= std_ulogic_vector(resize(signed(mshort_p), 64));
         case ex1.mul_select is
             when "00" =>
                 muldiv_result <= multiply_to_x.result(63 downto 0);
@@ -1301,13 +1297,12 @@ begin
                 if e_in.is_32bit = '1' then
                     v.se.mult_32s := '1';
                     v.res2_sel := "00";
-                    slow_op := '1';
                 else
                     -- Use standard multiplier
                     v.start_mul := '1';
-                    slow_op := '1';
                     owait := '1';
                 end if;
+                slow_op := '1';
 
 	    when OP_MUL_H64 =>
                 v.start_mul := '1';
