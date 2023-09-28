@@ -20,6 +20,7 @@ filesets:
       - sim_console.vhdl
       - logical.vhdl
       - countbits.vhdl
+      - bitsort.vhdl
       - control.vhdl
       - execute1.vhdl
       - fpu.vhdl

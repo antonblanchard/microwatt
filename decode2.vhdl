@@ -232,12 +232,13 @@ architecture behaviour of decode2 is
         );
 
     constant subresult_select : mux_select_array_t := (
-        OP_MUL_L64 => "000",            -- muldiv_result
-        OP_MUL_H64 => "001",
-        OP_MUL_H32 => "010",
-        OP_DIV     => "011",
-        OP_DIVE    => "011",
-        OP_MOD     => "011",
+        OP_MUL_L64 => "000",            -- multicyc_result
+        OP_MUL_H64 => "010",
+        OP_MUL_H32 => "001",
+        OP_DIV     => "101",
+        OP_DIVE    => "101",
+        OP_MOD     => "101",
+        OP_BSORT   => "100",
         OP_ADDG6S  => "001",            -- misc_result
         OP_ISEL    => "010",
         OP_DARN    => "011",

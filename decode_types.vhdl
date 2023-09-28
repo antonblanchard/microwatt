@@ -6,7 +6,7 @@ package decode_types is
 			 OP_ATTN, OP_B, OP_BC, OP_BCREG,
 			 OP_BCD, OP_BPERM, OP_BREV,
                          OP_CMP, OP_CMPB, OP_CMPEQB, OP_CMPRB,
-			 OP_CNTZ, OP_CROP,
+			 OP_COUNTB, OP_CROP,
 			 OP_DARN, OP_DCBF, OP_DCBST, OP_XCBT, OP_DCBTST,
 			 OP_DCBZ, OP_ICBI,
                          OP_FP_CMP, OP_FP_ARITH, OP_FP_MOVE, OP_FP_MISC,
@@ -18,7 +18,8 @@ package decode_types is
 			 OP_MCRXRX, OP_MFCR, OP_MFMSR, OP_MFSPR,
 			 OP_MTCRF, OP_MTMSRD, OP_MTSPR, OP_MUL_L64,
 			 OP_MUL_H64, OP_MUL_H32,
-			 OP_POPCNT, OP_PRTY, OP_RFID,
+                         OP_BSORT,
+			 OP_PRTY, OP_RFID,
 			 OP_RLC, OP_RLCL, OP_RLCR, OP_SC, OP_SETB,
 			 OP_SHL, OP_SHR,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
@@ -179,11 +180,12 @@ package decode_types is
         INSN_and,
         INSN_andc,
         INSN_bperm,
+        INSN_cfuged,
         INSN_cmp,
         INSN_cmpb,
         INSN_cmpeqb,
-        INSN_cmpl,
-        INSN_cmprb, -- 140
+        INSN_cmpl, -- 140
+        INSN_cmprb,
         INSN_dcbf,
         INSN_dcbst,
         INSN_dcbt,
@@ -192,8 +194,8 @@ package decode_types is
         INSN_divd,
         INSN_divdu,
         INSN_divde,
-        INSN_divdeu,
-        INSN_divw, -- 150
+        INSN_divdeu, -- 150
+        INSN_divw,
         INSN_divwu,
         INSN_divwe,
         INSN_divweu,
@@ -202,8 +204,8 @@ package decode_types is
         INSN_icbt,
         INSN_isel,
         INSN_lbarx,
-        INSN_lbzcix,
-        INSN_lbzux, -- 160
+        INSN_lbzcix, -- 160
+        INSN_lbzux,
         INSN_lbzx,
         INSN_ldarx,
         INSN_ldbrx,
@@ -212,8 +214,8 @@ package decode_types is
         INSN_ldux,
         INSN_lharx,
         INSN_lhax,
-        INSN_lhaux,
-        INSN_lhbrx, -- 170
+        INSN_lhaux, -- 170
+        INSN_lhbrx,
         INSN_lhzcix,
         INSN_lhzx,
         INSN_lhzux,
@@ -222,8 +224,8 @@ package decode_types is
         INSN_lwaux,
         INSN_lwbrx,
         INSN_lwzcix,
-        INSN_lwzx,
-        INSN_lwzux, -- 180
+        INSN_lwzx, -- 180
+        INSN_lwzux,
         INSN_modsd,
         INSN_modsw,
         INSN_moduw,
@@ -232,51 +234,54 @@ package decode_types is
         INSN_mulhwu,
         INSN_mulhd,
         INSN_mulhdu,
-        INSN_mullw,
-        INSN_mulld, -- 190
+        INSN_mullw, -- 190
+        INSN_mulld,
         INSN_nand,
         INSN_nor,
         INSN_or,
         INSN_orc,
+        INSN_pdepd,
+        INSN_pextd,
         INSN_rldcl,
         INSN_rldcr,
-        INSN_rlwnm,
+        INSN_rlwnm, -- 200
         INSN_slw,
         INSN_sld,
-        INSN_sraw, -- 200
+        INSN_sraw,
         INSN_srad,
         INSN_srw,
         INSN_srd,
         INSN_stbcix,
         INSN_stbcx,
         INSN_stbx,
-        INSN_stbux,
+        INSN_stbux, -- 210
         INSN_stdbrx,
         INSN_stdcix,
-        INSN_stdcx, -- 210
+        INSN_stdcx,
         INSN_stdx,
         INSN_stdux,
         INSN_sthbrx,
         INSN_sthcix,
         INSN_sthcx,
         INSN_sthx,
-        INSN_sthux,
+        INSN_sthux, -- 220
         INSN_stwbrx,
         INSN_stwcix,
-        INSN_stwcx, -- 220
+        INSN_stwcx,
         INSN_stwx,
         INSN_stwux,
         INSN_subf,
         INSN_subfc,
         INSN_subfe,
         INSN_td,
-        INSN_tlbie,
+        INSN_tlbie, -- 230
         INSN_tlbiel,
         INSN_tw,
-        INSN_xor, -- 230
+        INSN_xor,
 
-        -- pad to 232 to simplify comparison logic
-        INSN_231,
+        -- pad to 240 to simplify comparison logic
+        INSN_234, INSN_235,
+        INSN_236, INSN_237, INSN_238, INSN_239,
 
         -- The following instructions have a third input addressed by RC
         INSN_maddld,
@@ -284,9 +289,7 @@ package decode_types is
         INSN_maddhdu,
 
         -- pad to 256 to simplify comparison logic
-        INSN_235,
-        INSN_236, INSN_237, INSN_238, INSN_239,
-        INSN_240, INSN_241, INSN_242, INSN_243,
+        INSN_243,
         INSN_244, INSN_245, INSN_246, INSN_247,
         INSN_248, INSN_249, INSN_250, INSN_251,
         INSN_252, INSN_253, INSN_254, INSN_255,

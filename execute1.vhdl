@@ -113,6 +113,7 @@ architecture behaviour of execute1 is
         direct_branch : std_ulogic;
         start_mul : std_ulogic;
         start_div : std_ulogic;
+        start_bsort : std_ulogic;
         do_trace : std_ulogic;
         fp_intr : std_ulogic;
         res2_sel : std_ulogic_vector(1 downto 0);
@@ -134,7 +135,7 @@ architecture behaviour of execute1 is
         prev_op : insn_type_t;
         prev_prefixed : std_ulogic;
         oe : std_ulogic;
-        mul_select : std_ulogic_vector(1 downto 0);
+        mul_select : std_ulogic_vector(2 downto 0);
         res2_sel : std_ulogic_vector(1 downto 0);
         spr_select : spr_id;
         pmu_spr_num : std_ulogic_vector(4 downto 0);
@@ -144,6 +145,7 @@ architecture behaviour of execute1 is
 	mul_in_progress : std_ulogic;
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
+        bsort_in_progress : std_ulogic;
         no_instr_avail : std_ulogic;
         instr_dispatch : std_ulogic;
         ext_interrupt : std_ulogic;
@@ -164,10 +166,11 @@ architecture behaviour of execute1 is
          busy => '0',
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
          prev_prefixed => '0',
-         oe => '0', mul_select => "00", res2_sel => "00",
+         oe => '0', mul_select => "000", res2_sel => "00",
          spr_select => spr_id_init, pmu_spr_num => 5x"0",
          redir_to_next => '0', advance_nia => '0', lr_from_next => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0',
+         bsort_in_progress => '0',
          no_instr_avail => '0', instr_dispatch => '0', ext_interrupt => '0',
          taken_branch_event => '0', br_mispredict => '0',
          msr => 64x"0",
@@ -209,7 +212,8 @@ architecture behaviour of execute1 is
     signal alu_result: std_ulogic_vector(63 downto 0);
     signal adder_result: std_ulogic_vector(63 downto 0);
     signal misc_result: std_ulogic_vector(63 downto 0);
-    signal muldiv_result: std_ulogic_vector(63 downto 0);
+    signal multicyc_result: std_ulogic_vector(63 downto 0);
+    signal bsort_result: std_ulogic_vector(63 downto 0);
     signal spr_result: std_ulogic_vector(63 downto 0);
     signal next_nia : std_ulogic_vector(63 downto 0);
     signal s1_sel : std_ulogic_vector(2 downto 0);
@@ -233,6 +237,10 @@ architecture behaviour of execute1 is
     -- divider signals
     signal x_to_divider: Execute1ToDividerType;
     signal divider_to_x: DividerToExecute1Type := DividerToExecute1Init;
+
+    -- bit-sort unit signals
+    signal bsort_start : std_ulogic;
+    signal bsort_done  : std_ulogic;
 
     -- random number generator signals
     signal random_raw  : std_ulogic_vector(63 downto 0);
@@ -493,6 +501,18 @@ begin
                 );
     end generate;
 
+    bsort_0: entity work.bit_sorter
+        port map (
+            clk => clk,
+            rst => rst,
+            rs => c_in,
+            rb => b_in,
+            go => bsort_start,
+            opc => e_in.insn(7 downto 6),
+            done => bsort_done,
+            result => bsort_result
+            );
+
     random_0: entity work.random
         port map (
             clk => clk,
@@ -664,7 +684,7 @@ begin
         adder_result       when "000",
         logical_result     when "001",
         rotator_result     when "010",
-        muldiv_result      when "100",
+        multicyc_result    when "100",
         ramspr_result      when "101",
         misc_result        when others;
 
@@ -845,17 +865,21 @@ begin
         x_to_mult_32s.subtract <= '0';
         x_to_mult_32s.addend <= (others => '0');
 
-        case ex1.mul_select is
-            when "00" =>
-                muldiv_result <= multiply_to_x.result(63 downto 0);
-            when "01" =>
-                muldiv_result <= multiply_to_x.result(127 downto 64);
-            when "10" =>
-                muldiv_result <= multiply_to_x.result(63 downto 32) &
-                                 multiply_to_x.result(63 downto 32);
-            when others =>
-                muldiv_result <= divider_to_x.write_reg_data;
-        end case;
+        if ex1.mul_select(2) = '0' then
+            case ex1.mul_select(1 downto 0) is
+                when "00" =>
+                    multicyc_result <= multiply_to_x.result(63 downto 0);
+                when "01" =>
+                    multicyc_result <= multiply_to_x.result(63 downto 32) &
+                                       multiply_to_x.result(63 downto 32);
+                when others =>
+                    multicyc_result <= multiply_to_x.result(127 downto 64);
+            end case;
+        elsif ex1.mul_select(0) = '1' and not HAS_FPU then
+            multicyc_result <= divider_to_x.write_reg_data;
+        else
+            multicyc_result <= bsort_result;
+        end if;
 
         -- Compute misc_result
         case e_in.sub_select is
@@ -1266,7 +1290,7 @@ begin
                 end if;
                 v.do_trace := '0';
 
-            when OP_CNTZ | OP_POPCNT =>
+            when OP_COUNTB =>
                 v.res2_sel := "01";
                 slow_op := '1';
 	    when OP_ISEL =>
@@ -1387,6 +1411,11 @@ begin
 
 	    when OP_ICBI =>
 		v.se.icache_inval := '1';
+
+            when OP_BSORT =>
+                v.start_bsort := '1';
+                slow_op := '1';
+                owait := '1';
 
 	    when OP_MUL_L64 =>
                 if e_in.is_32bit = '1' then
@@ -1565,7 +1594,7 @@ begin
             v.oe := e_in.oe;
             v.spr_select := e_in.spr_select;
             v.pmu_spr_num := e_in.insn(20 downto 16);
-            v.mul_select := e_in.sub_select(1 downto 0);
+            v.mul_select := e_in.sub_select;
             v.se := side_effect_init;
             v.ramspr_wraddr := e_in.ramspr_wraddr;
             v.lr_from_next := e_in.lr;
@@ -1596,7 +1625,7 @@ begin
 	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
         rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
 
-        do_popcnt <= '1' when e_in.insn_type = OP_POPCNT else '0';
+        do_popcnt <= '1' when e_in.insn_type = OP_COUNTB and e_in.insn(7 downto 6) = "11" else '0';
 
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
@@ -1671,6 +1700,7 @@ begin
             v.mul_in_progress := actions.start_mul;
             x_to_divider.valid <= actions.start_div;
             v.div_in_progress := actions.start_div;
+            v.bsort_in_progress := actions.start_bsort;
             v.br_mispredict := v.e.redirect and actions.direct_branch;
             v.advance_nia := actions.advance_nia;
             v.redir_to_next := actions.redir_to_next;
@@ -1681,7 +1711,7 @@ begin
             -- multiply is happening in order to stop following
             -- instructions from using the wrong XER value
             -- (and for simplicity in the OE=0 case).
-            v.busy := actions.start_div or actions.start_mul;
+            v.busy := actions.start_div or actions.start_mul or actions.start_bsort;
 
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
@@ -1692,6 +1722,7 @@ begin
             end if;
         end if;
         is_scv := go and actions.se.scv_trap;
+        bsort_start <= go and actions.start_bsort;
 
         if not HAS_FPU and ex1.div_in_progress = '1' then
             v.div_in_progress := not divider_to_x.valid;
@@ -1723,6 +1754,13 @@ begin
                 v.e.xerc.so := '1';
             end if;
             v.e.valid := '1';
+        end if;
+        if ex1.bsort_in_progress = '1' then
+            v.bsort_in_progress := not bsort_done;
+            v.e.valid := bsort_done;
+            v.busy := not bsort_done;
+            v.e.write_data := alu_result;
+            bypass_valid := bsort_done;
         end if;
 
         if v.e.write_xerc_enable = '1' and v.e.valid = '1' then
