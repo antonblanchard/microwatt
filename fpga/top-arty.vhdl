@@ -92,14 +92,22 @@ entity toplevel is
         shield_io33      : inout std_ulogic;
         --shield_io34      : inout std_ulogic;
         --shield_io35      : inout std_ulogic;
-        shield_io36      : inout std_ulogic;
-        shield_io37      : inout std_ulogic;
-        shield_io38      : inout std_ulogic;
-        shield_io39      : inout std_ulogic;
-        shield_io40      : inout std_ulogic;
-        shield_io41      : inout std_ulogic;
-        shield_io43      : inout std_ulogic;
-        shield_io44      : inout std_ulogic;
+        --shield_io36      : inout std_ulogic;
+        --shield_io37      : inout std_ulogic;
+        --shield_io38      : inout std_ulogic;
+        --shield_io39      : inout std_ulogic;
+        --shield_io40      : inout std_ulogic;
+        --shield_io41      : inout std_ulogic;
+        --shield_io43      : inout std_ulogic;
+        --shield_io44      : inout std_ulogic;
+        pmod_jb_1        : inout std_ulogic;
+        pmod_jb_2        : inout std_ulogic;
+        pmod_jb_3        : inout std_ulogic;
+        pmod_jb_4        : inout std_ulogic;
+        pmod_jb_7        : inout std_ulogic;
+        pmod_jb_8        : inout std_ulogic;
+        pmod_jb_9        : inout std_ulogic;
+        pmod_jb_10       : inout std_ulogic;
 
         -- Ethernet
         eth_ref_clk      : out std_ulogic;
@@ -865,14 +873,14 @@ begin
     gpio_in(21) <= shield_io33;
     gpio_in(22) <= i2c_rtc_d;
     gpio_in(23) <= i2c_rtc_c;
-    gpio_in(24) <= shield_io36;
-    gpio_in(25) <= shield_io37;
-    gpio_in(26) <= shield_io38;
-    gpio_in(27) <= shield_io39;
-    gpio_in(28) <= shield_io40;
-    gpio_in(29) <= shield_io41;
-    gpio_in(30) <= shield_io43;
-    gpio_in(31) <= shield_io44;
+    gpio_in(24) <= pmod_jb_1;
+    gpio_in(25) <= pmod_jb_2;
+    gpio_in(26) <= pmod_jb_3;
+    gpio_in(27) <= pmod_jb_4;
+    gpio_in(28) <= pmod_jb_7;
+    gpio_in(29) <= pmod_jb_8;
+    gpio_in(30) <= pmod_jb_9;
+    gpio_in(31) <= pmod_jb_10;
 
     led_b_pwm(1) <= gpio_out(0) and gpio_dir(0);
     led_g_pwm(1) <= gpio_out(1) and gpio_dir(1);
@@ -893,13 +901,13 @@ begin
     shield_io33 <= gpio_out(21) when gpio_dir(21) = '1' else 'Z';
     i2c_rtc_d <= gpio_out(22) when gpio_dir(22) = '1' else 'Z';
     i2c_rtc_c <= gpio_out(23) when gpio_dir(23) = '1' else 'Z';
-    shield_io36 <= gpio_out(24) when gpio_dir(24) = '1' else 'Z';
-    shield_io37 <= gpio_out(25) when gpio_dir(25) = '1' else 'Z';
-    shield_io38 <= gpio_out(26) when gpio_dir(26) = '1' else 'Z';
-    shield_io39 <= gpio_out(27) when gpio_dir(27) = '1' else 'Z';
-    shield_io40 <= gpio_out(28) when gpio_dir(28) = '1' else 'Z';
-    shield_io41 <= gpio_out(29) when gpio_dir(29) = '1' else 'Z';
-    shield_io43 <= gpio_out(30) when gpio_dir(30) = '1' else 'Z';
-    shield_io44 <= gpio_out(31) when gpio_dir(31) = '1' else 'Z';
+    pmod_jb_1   <= gpio_out(24) when gpio_dir(24) = '1' else 'Z';
+    pmod_jb_2   <= gpio_out(25) when gpio_dir(25) = '1' else 'Z';
+    pmod_jb_3   <= gpio_out(26) when gpio_dir(26) = '1' else 'Z';
+    pmod_jb_4   <= gpio_out(27) when gpio_dir(27) = '1' else 'Z';
+    pmod_jb_7   <= gpio_out(28) when gpio_dir(28) = '1' else 'Z';
+    pmod_jb_8   <= gpio_out(29) when gpio_dir(29) = '1' else 'Z';
+    pmod_jb_9   <= gpio_out(30) when gpio_dir(30) = '1' else 'Z';
+    pmod_jb_10  <= gpio_out(31) when gpio_dir(31) = '1' else 'Z';
 
 end architecture behaviour;
