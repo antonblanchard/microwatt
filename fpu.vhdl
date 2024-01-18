@@ -287,6 +287,11 @@ architecture behaviour of fpu is
     signal rs_neg2       : std_ulogic;
     signal rs_norm       : std_ulogic;
 
+    constant RSGN_NOP : std_ulogic_vector(1 downto 0) := "00";
+    constant RSGN_INV : std_ulogic_vector(1 downto 0) := "01";
+    constant RSGN_SUB : std_ulogic_vector(1 downto 0) := "10";
+    constant RSGN_SEL : std_ulogic_vector(1 downto 0) := "11";
+
     constant arith_decode : decode32 := (
         -- indexed by bits 5..1 of opcode
         2#01000# => DO_FRI,
@@ -851,6 +856,7 @@ begin
         variable int_result  : std_ulogic;
         variable illegal     : std_ulogic;
         variable rsign       : std_ulogic;
+        variable rsgn_op     : std_ulogic_vector(1 downto 0);
     begin
         v := r;
         v.complete := '0';
@@ -1146,6 +1152,8 @@ begin
         rs_neg1 <= '0';
         rs_neg2 <= '0';
         rs_norm <= '0';
+
+        rsgn_op := RSGN_NOP;
 
         case r.state is
             when IDLE =>
@@ -1625,7 +1633,7 @@ begin
             when DO_FSEL =>
                 if r.a.class = ZERO or (r.a.negative = '0' and r.a.class /= NAN) then
                     v.opsel_a := AIN_C;
-                    v.result_sign := r.c.negative;
+                    rsgn_op := RSGN_SEL;
                 else
                     v.opsel_a := AIN_B;
                 end if;
@@ -1756,7 +1764,7 @@ begin
                     elsif r.madd_cmp = '0' then
                         -- addend is bigger, do multiply first
                         -- if subtracting, sign is opposite to initial estimate
-                        v.result_sign := r.result_sign xor r.is_subtract;
+                        rsgn_op := RSGN_SUB;
                         f_to_multiply.valid <= '1';
                         v.first := '1';
                         v.state := FMADD_0;
@@ -1786,7 +1794,7 @@ begin
                         -- Here A is zero, C is zero, or B is infinity
                         -- Result is +/-B in all of those cases
                         v.opsel_a := AIN_B;
-                        v.result_sign := r.result_sign xor r.is_subtract;
+                        rsgn_op := RSGN_SUB;
                         v.state := EXC_RESULT;
                     end if;
                 end if;
@@ -1913,7 +1921,7 @@ begin
                 re_sel2 <= REXP2_NE;
                 if r.r(63) = '1' then
                     -- result is opposite sign to expected
-                    v.result_sign := not r.result_sign;
+                    rsgn_op := RSGN_INV;
                     opsel_ainv <= '1';
                     carry_in <= '1';
                     v.state := FINISH;
@@ -1989,7 +1997,7 @@ begin
                 -- product is bigger here
                 -- shift B right and use it as the addend to the multiplier
                 -- for subtract, multiplier does B - A * C
-                v.result_sign := r.result_sign xor r.is_subtract;
+                rsgn_op := RSGN_SUB;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 -- set shift to b.exp - result_exp + 64
@@ -2031,7 +2039,7 @@ begin
             when FMADD_5 =>
                 -- negate R:S:X if negative
                 if r.r(63) = '1' then
-                    v.result_sign := not r.result_sign;
+                    rsgn_op := RSGN_INV;
                     opsel_ainv <= '1';
                     carry_in <= not (s_nz or r.x);
                     opsel_s <= S_NEG;
@@ -2629,14 +2637,12 @@ begin
                 end if;
                 if r.use_a = '1' and r.a.class = NAN then
                     v.opsel_a := AIN_A;
-                    v.result_sign := r.a.negative;
                 elsif r.use_b = '1' and r.b.class = NAN then
                     v.opsel_a := AIN_B;
-                    v.result_sign := r.b.negative;
                 elsif r.use_c = '1' and r.c.class = NAN then
                     v.opsel_a := AIN_C;
-                    v.result_sign := r.c.negative;
                 end if;
+                rsgn_op := RSGN_SEL;
                 v.state := EXC_RESULT;
 
             when EXC_RESULT =>
@@ -3184,6 +3190,24 @@ begin
                 v.writing_fpr := '1';
                 v.instr_done := '1';
 
+        end case;
+
+        case rsgn_op is
+            when RSGN_SEL =>
+                case v.opsel_a is
+                    when AIN_A =>
+                        v.result_sign := r.a.negative;
+                    when AIN_B =>
+                        v.result_sign := r.b.negative;
+                    when AIN_C =>
+                        v.result_sign := r.c.negative;
+                    when others =>
+                end case;
+            when RSGN_SUB =>
+                v.result_sign := r.result_sign xor r.is_subtract;
+            when RSGN_INV =>
+                v.result_sign := not r.result_sign;
+            when others =>
         end case;
 
         rsign := r.result_sign;
