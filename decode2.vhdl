@@ -221,9 +221,8 @@ architecture behaviour of decode2 is
         OP_SHR      => "010",
         OP_EXTSWSLI => "010",
         OP_MUL_L64  => "011",           -- muldiv_result
-        OP_B        => "110",           -- next_nia
-        OP_BC       => "110",
-        OP_BCREG    => "110",
+        OP_BCREG    => "101",           -- ramspr_result
+        OP_RFID     => "101",
         OP_ADDG6S   => "111",           -- misc_result
         OP_ISEL     => "111",
         OP_DARN     => "111",

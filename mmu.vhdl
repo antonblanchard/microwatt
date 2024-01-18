@@ -20,7 +20,7 @@ entity mmu is
         d_out : out MmuToDcacheType;
         d_in  : in DcacheToMmuType;
 
-        i_out : out MmuToIcacheType
+        i_out : out MmuToITLBType
         );
 end mmu;
 

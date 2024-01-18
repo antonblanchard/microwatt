@@ -160,34 +160,21 @@ begin
         end if;
 
         -- Outputs to fetch1
+        f.interrupt := intr;
+        f.intr_vec := std_ulogic_vector(to_unsigned(vec, 12));
         f.redirect := e_in.redirect;
+        f.redirect_nia := e_in.write_data;
         f.br_nia := e_in.last_nia;
-        f.br_last := e_in.br_last;
+        f.br_last := e_in.br_last and not intr;
         f.br_taken := e_in.br_taken;
-        if intr = '1' then
-            f.redirect := '1';
-            f.br_last := '0';
-            f.redirect_nia := std_ulogic_vector(to_unsigned(vec, 64));
-            f.virt_mode := '0';
-            f.priv_mode := '1';
-            -- XXX need an interrupt LE bit here, e.g. from LPCR
-            f.big_endian := '0';
-            f.mode_32bit := '0';
-        else
-            if e_in.abs_br = '1' then
-                f.redirect_nia := e_in.br_offset;
-            else
-                f.redirect_nia := std_ulogic_vector(unsigned(e_in.last_nia) + unsigned(e_in.br_offset));
-            end if;
-            -- send MSR[IR], ~MSR[PR], ~MSR[LE] and ~MSR[SF] up to fetch1
-            f.virt_mode := e_in.redir_mode(3);
-            f.priv_mode := e_in.redir_mode(2);
-            f.big_endian := e_in.redir_mode(1);
-            f.mode_32bit := e_in.redir_mode(0);
-        end if;
+        -- send MSR[IR], ~MSR[PR], ~MSR[LE] and ~MSR[SF] up to fetch1
+        f.virt_mode := e_in.redir_mode(3);
+        f.priv_mode := e_in.redir_mode(2);
+        f.big_endian := e_in.redir_mode(1);
+        f.mode_32bit := e_in.redir_mode(0);
 
         f_out <= f;
-        flush_out <= f_out.redirect;
+        flush_out <= f_out.redirect or intr;
 
         -- Register write data bypass to decode2
         wb_bypass.tag.tag <= complete_out.tag;

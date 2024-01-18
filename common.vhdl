@@ -194,6 +194,10 @@ package common is
     subtype real_addr_t is std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
     function addr_to_real(addr: std_ulogic_vector(63 downto 0)) return real_addr_t;
 
+    -- Minimum page size
+    constant MIN_LG_PGSZ : positive := 12;
+    constant MIN_PAGESZ  : positive := 2 ** MIN_LG_PGSZ;
+
     -- Used for tracking instruction completion and pending register writes
     constant TAG_COUNT : positive := 4;
     constant TAG_NUMBER_BITS : natural := log2(TAG_COUNT);
@@ -231,6 +235,7 @@ package common is
 
     type Fetch1ToIcacheType is record
 	req: std_ulogic;
+        fetch_fail : std_ulogic;
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
         big_endian : std_ulogic;
@@ -238,6 +243,9 @@ package common is
         predicted : std_ulogic;
         pred_ntaken : std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
+        next_nia: std_ulogic_vector(63 downto 0);
+        rpn: std_ulogic_vector(REAL_ADDR_BITS - MIN_LG_PGSZ - 1 downto 0);
+        next_rpn: std_ulogic_vector(REAL_ADDR_BITS - MIN_LG_PGSZ - 1 downto 0);
     end record;
 
     type IcacheToDecode1Type is record
@@ -606,7 +614,7 @@ package common is
         data  : std_ulogic_vector(63 downto 0);
     end record;
 
-    type MmuToIcacheType is record
+    type MmuToITLBType is record
         tlbld : std_ulogic;
         tlbie : std_ulogic;
         doall : std_ulogic;
@@ -658,7 +666,6 @@ package common is
 	redirect: std_ulogic;
         redir_mode: std_ulogic_vector(3 downto 0);
         last_nia: std_ulogic_vector(63 downto 0);
-        br_offset: std_ulogic_vector(63 downto 0);
         br_last: std_ulogic;
         br_taken: std_ulogic;
         abs_br: std_ulogic;
@@ -672,7 +679,7 @@ package common is
          write_data => (others => '0'), write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'), write_reg => (others => '0'),
          interrupt => '0', intr_vec => 0, redirect => '0', redir_mode => "0000",
-         last_nia => (others => '0'), br_offset => (others => '0'),
+         last_nia => (others => '0'),
          br_last => '0', br_taken => '0', abs_br => '0',
          srr1 => (others => '0'), msr => (others => '0'));
 
@@ -758,11 +765,14 @@ package common is
         br_nia : std_ulogic_vector(63 downto 0);
         br_last : std_ulogic;
         br_taken : std_ulogic;
+        interrupt : std_ulogic;
+        intr_vec : std_ulogic_vector(11 downto 0);
     end record;
     constant WritebackToFetch1Init : WritebackToFetch1Type :=
         (redirect => '0', virt_mode => '0', priv_mode => '0', big_endian => '0',
          mode_32bit => '0', redirect_nia => (others => '0'),
-         br_last => '0', br_taken => '0', br_nia => (others => '0'));
+         br_last => '0', br_taken => '0', br_nia => (others => '0'),
+         interrupt => '0', intr_vec => x"000");
 
     type WritebackToRegisterFileType is record
 	write_reg : gspr_index_t;

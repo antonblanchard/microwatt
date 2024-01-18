@@ -15,8 +15,6 @@ architecture behave of icache_tb is
     signal i_out        : Fetch1ToIcacheType;
     signal i_in         : IcacheToDecode1Type;
 
-    signal m_out        : MmuToIcacheType;
-
     signal wb_bram_in   : wishbone_master_out;
     signal wb_bram_out  : wishbone_slave_out;
 
@@ -32,7 +30,6 @@ begin
             rst => rst,
             i_in => i_out,
             i_out => i_in,
-            m_in => m_out,
             stall_in => '0',
             flush_in => '0',
             inval_in => '0',
@@ -77,19 +74,21 @@ begin
         i_out.priv_mode <= '1';
         i_out.virt_mode <= '0';
         i_out.big_endian <= '0';
-
-        m_out.tlbld <= '0';
-        m_out.tlbie <= '0';
-        m_out.addr <= (others => '0');
-        m_out.pte <= (others => '0');
+        i_out.fetch_fail <= '0';
+        i_out.predicted <= '0';
+        i_out.pred_ntaken <= '0';
 
         wait until rising_edge(clk);
         wait until rising_edge(clk);
         wait until rising_edge(clk);
+
+        i_out.next_nia <= x"0000000000000004";
+        i_out.next_rpn <= (others => '0');
         wait until rising_edge(clk);
 
         i_out.req <= '1';
         i_out.nia <= x"0000000000000004";
+        i_out.rpn <= (others => '0');
 
         wait for 30*clk_period;
         wait until rising_edge(clk);
@@ -102,6 +101,7 @@ begin
             severity failure;
 
         i_out.req <= '0';
+        i_out.next_nia <= x"0000000000000008";
 
         wait until rising_edge(clk);
 
@@ -116,6 +116,8 @@ begin
             "=" & to_hstring(i_in.insn) &
             " expected 00000002"
             severity failure;
+
+        i_out.next_nia <= x"0000000000000040";
         wait until rising_edge(clk);
 
         -- another miss
@@ -133,6 +135,9 @@ begin
             severity failure;
 
         -- test something that aliases
+        i_out.next_nia <= x"0000000000000100";
+        wait until rising_edge(clk);
+
         i_out.req <= '1';
         i_out.nia <= x"0000000000000100";
         wait until rising_edge(clk);
