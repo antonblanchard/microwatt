@@ -898,6 +898,7 @@ begin
             v.round_mode := '0' & r.fpscr(FPSCR_RN+1 downto FPSCR_RN);
             v.result_sign := '0';
             v.negate := '0';
+            v.quieten_nan := '1';
             case e_in.op is
                 when OP_FP_ARITH =>
                     fpin_a := e_in.valid_a;
@@ -953,6 +954,7 @@ begin
                     fpin_a := e_in.valid_a;
                     fpin_b := e_in.valid_b;
                     fpin_c := e_in.valid_c;
+                    v.quieten_nan := '0';
                     if e_in.insn(5) = '0' then
                         exec_state := DO_FMR;
                         if e_in.insn(9) = '1' then
@@ -1002,7 +1004,6 @@ begin
                 when others =>
                     exec_state := DO_ILLEGAL;
             end case;
-            v.quieten_nan := '1';
             v.tiny := '0';
             v.denorm := '0';
             v.add_bsmall := '0';
@@ -1370,7 +1371,6 @@ begin
                 v.result_class := r.b.class;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
-                v.quieten_nan := '0';
                 v.writing_fpr := '1';
                 v.instr_done := '1';
 
@@ -1629,7 +1629,6 @@ begin
                 else
                     v.opsel_a := AIN_B;
                 end if;
-                v.quieten_nan := '0';
                 v.state := EXC_RESULT;
 
             when DO_FSQRT =>
@@ -3575,7 +3574,7 @@ begin
                 v.sp_result := r.single_prec;
                 v.int_result := int_result;
                 v.illegal := illegal;
-                v.nsnan_result := v.quieten_nan;
+                v.nsnan_result := r.quieten_nan;
                 v.res_sign := rsign;
                 if r.integer_op = '1' then
                     v.cr_mask := num_to_fxm(0);
