@@ -169,9 +169,7 @@ architecture behaviour of fpu is
         oe           : std_ulogic;
         xerc         : xer_common_t;
         xerc_result  : xer_common_t;
-        res_negate   : std_ulogic;
-        res_subtract : std_ulogic;
-        res_rmode    : std_ulogic_vector(2 downto 0);
+        res_sign     : std_ulogic;
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -609,20 +607,13 @@ architecture behaviour of fpu is
 
     -- Construct a DP floating-point result from components
     function pack_dp(negative: std_ulogic; class: fp_number_class; exp: signed(EXP_BITS-1 downto 0);
-                     mantissa: std_ulogic_vector; single_prec: std_ulogic; quieten_nan: std_ulogic;
-                     negate: std_ulogic; is_subtract: std_ulogic; round_mode: std_ulogic_vector)
+                     mantissa: std_ulogic_vector; single_prec: std_ulogic; quieten_nan: std_ulogic)
         return std_ulogic_vector is
         variable dp_result : std_ulogic_vector(63 downto 0);
-        variable sign : std_ulogic;
     begin
         dp_result := (others => '0');
-        sign := negative;
         case class is
             when ZERO =>
-                if is_subtract = '1' then
-                    -- set result sign depending on rounding mode
-                    sign := round_mode(0) and round_mode(1);
-                end if;
             when FINITE =>
                 if mantissa(UNIT_BIT) = '1' then
                     -- normalized number
@@ -642,7 +633,7 @@ architecture behaviour of fpu is
                     dp_result(28 downto 0) := mantissa(SP_LSB - 1 downto DP_LSB);
                 end if;
         end case;
-        dp_result(63) := sign xor negate;
+        dp_result(63) := negative;
         return dp_result;
     end;
 
@@ -860,6 +851,7 @@ begin
         variable opcbits     : std_ulogic_vector(4 downto 0);
         variable int_result  : std_ulogic;
         variable illegal     : std_ulogic;
+        variable rsign       : std_ulogic;
     begin
         v := r;
         v.complete := '0';
@@ -2590,7 +2582,6 @@ begin
                 arith_done := '1';
 
             when NAN_RESULT =>
-                v.negate := '0';
                 if (r.use_a = '1' and r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
                     (r.use_b = '1' and r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0') or
                     (r.use_c = '1' and r.c.class = NAN and r.c.mantissa(QNAN_BIT) = '0') then
@@ -3158,14 +3149,14 @@ begin
 
         end case;
 
+        rsign := v.result_sign;
         if zero_divide = '1' then
             v.fpscr(FPSCR_ZX) := '1';
         end if;
         if qnan_result = '1' then
             invalid := '1';
             v.result_class := NAN;
-            v.result_sign := '0';
-            v.negate := '0';
+            rsign := '0';
             misc_sel <= "0001";
             opsel_r <= RES_MISC;
             arith_done := '1';
@@ -3180,6 +3171,12 @@ begin
                 (zero_divide and r.fpscr(FPSCR_ZE)) = '0' then
                 v.writing_fpr := '1';
                 v.update_fprf := '1';
+            end if;
+            if v.is_subtract = '1' and v.result_class = ZERO then
+                rsign := r.round_mode(0) and r.round_mode(1);
+            end if;
+            if v.negate = '1' and v.result_class /= NAN then
+                rsign := not rsign;
             end if;
             v.instr_done := '1';
             update_fx := '1';
@@ -3516,7 +3513,7 @@ begin
         end if;
 
         if r.update_fprf = '1' then
-            v.fpscr(FPSCR_C downto FPSCR_FU) := result_flags(r.result_sign, r.result_class,
+            v.fpscr(FPSCR_C downto FPSCR_FU) := result_flags(r.res_sign, r.result_class,
                                                              r.r(UNIT_BIT) and not r.denorm);
         end if;
 
@@ -3541,9 +3538,7 @@ begin
                 v.int_result := int_result;
                 v.illegal := illegal;
                 v.nsnan_result := v.quieten_nan;
-                v.res_negate := v.negate;
-                v.res_subtract := v.is_subtract;
-                v.res_rmode := r.round_mode;
+                v.res_sign := rsign;
                 if r.integer_op = '1' then
                     v.cr_mask := num_to_fxm(0);
                 elsif r.is_cmp = '0' then
@@ -3574,9 +3569,8 @@ begin
         if r.int_result = '1' then
             fp_result <= r.r;
         else
-            fp_result <= pack_dp(r.result_sign, r.result_class, r.result_exp, r.r,
-                                 r.sp_result, r.nsnan_result,
-                                 r.res_negate, r.res_subtract, r.res_rmode);
+            fp_result <= pack_dp(r.res_sign, r.result_class, r.result_exp, r.r,
+                                 r.sp_result, r.nsnan_result);
         end if;
 
         rin <= v;
