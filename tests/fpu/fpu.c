@@ -459,6 +459,7 @@ int test6(long arg)
 	unsigned long results[6];
 	unsigned long v;
 
+	set_fpscr(0);
 	for (i = 0; i < sizeof(sp_dp_equiv) / sizeof(sp_dp_equiv[0]); ++i) {
 		v = sp_dp_equiv[i].dp;
 		asm("lfd%U0%X0 3,%0; fmr 6,3; fneg 7,3; stfd 6,0(%1); stfd 7,8(%1)"
@@ -474,6 +475,8 @@ int test6(long arg)
 		    results[4] != (v & ~SIGN) ||
 		    results[5] != (v | SIGN))
 			return i + 1;
+		if (get_fpscr() != 0)
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -482,6 +485,98 @@ int fpu_test_6(void)
 {
 	enable_fp();
 	return trapit(0, test6);
+}
+
+unsigned long expected_fprf(unsigned long result, bool single)
+{
+	unsigned long sign = (result >> 63) & 1;
+	unsigned long exp = (result >> 52) & 0x7ff;
+	unsigned long mant = (result & ((1ul << 52) - 1));
+
+	if (exp == 0x7ff) {
+		/* infinity or NaN */
+		if (mant)
+			return 0x11;	/* NaN */
+		if (sign)
+			return 0x09;	/* -Infinity */
+		else
+			return 0x05;	/* +Infinity */
+	} else if (exp > (single ? 0x380 : 0)) {
+		if (sign)
+			return 0x08;	/* -normalized */
+		else
+			return 0x04;	/* +normalized */
+	} else if (mant || exp > 0) {
+		if (sign)
+			return 0x18;	/* -denorm */
+		else
+			return 0x14;	/* +denorm */
+	} else {
+		if (sign)
+			return 0x12;	/* -zero */
+		else
+			return 0x02;	/* +zero */
+	}
+}
+
+unsigned long expected_fprf_sp(unsigned long result)
+{
+	unsigned long sign = (result >> 31) & 1;
+	unsigned long exp = (result >> 23) & 0xff;
+	unsigned long mant = (result & ((1ul << 23) - 1));
+
+	if (exp == 0xff) {
+		/* infinity or NaN */
+		if (mant)
+			return 0x11;	/* NaN */
+		if (sign)
+			return 0x09;	/* -Infinity */
+		else
+			return 0x05;	/* +Infinity */
+	} else if (exp > 0) {
+		if (sign)
+			return 0x08;	/* -normalized */
+		else
+			return 0x04;	/* +normalized */
+	} else if (mant) {
+		if (sign)
+			return 0x18;	/* -denorm */
+		else
+			return 0x14;	/* +denorm */
+	} else {
+		if (sign)
+			return 0x12;	/* -zero */
+		else
+			return 0x02;	/* +zero */
+	}
+}
+
+int check_fprf(unsigned long result, bool single, unsigned long fpscr)
+{
+	unsigned long fprf;
+
+	fprf = expected_fprf(result, single);
+	if (((fpscr >> 12) & 0x1f) == fprf)
+		return 0;
+	print_string("\r\n");
+	print_hex(result, 16, " ");
+	print_hex(fpscr, 8, " ");
+	print_hex(fprf, 2, " ");
+	return 1;
+}
+
+int check_fprf_sp(unsigned long result, unsigned long fpscr)
+{
+	unsigned long fprf;
+
+	fprf = expected_fprf_sp(result);
+	if (((fpscr >> 12) & 0x1f) == fprf)
+		return 0;
+	print_string("\r\n");
+	print_hex(result, 16, " ");
+	print_hex(fpscr, 8, " ");
+	print_hex(fprf, 2, " ");
+	return 1;
 }
 
 struct int_fp_equiv {
@@ -522,12 +617,15 @@ int test7(long arg)
 {
 	long i;
 	unsigned long results[4];
+	unsigned long fpscr;
 
 	for (i = 0; i < sizeof(intvals) / sizeof(intvals[0]); ++i) {
+		set_fpscr(0);
 		asm("lfd%U0%X0 3,%0; fcfid 6,3; fcfidu 7,3; stfd 6,0(%1); stfd 7,8(%1)"
 		    : : "m" (intvals[i].ival), "b" (results) : "memory");
 		asm("fcfids 9,3; stfd 9,16(%0); fcfidus 10,3; stfd 10,24(%0)"
 		    : : "b" (results) : "memory");
+		fpscr = get_fpscr();
 		if (results[0] != intvals[i].fp ||
 		    results[1] != intvals[i].fp_u ||
 		    results[2] != intvals[i].fp_s ||
@@ -539,6 +637,8 @@ int test7(long arg)
 			print_hex(results[3], 16, " ");
 			return i + 1;
 		}
+		if (check_fprf(results[3], true, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -582,16 +682,20 @@ int test8(long arg)
 {
 	long i;
 	unsigned long result;
+	unsigned long fpscr;
 
 	for (i = 0; i < sizeof(roundvals) / sizeof(roundvals[0]); ++i) {
 		asm("lfd 3,0(%0); lfd 4,8(%0); mtfsf 0,3,1,0; frsp 6,4; stfd 6,0(%1)"
 		    : : "b" (&roundvals[i]), "b" (&result) : "memory");
+		fpscr = get_fpscr();
 		if (result != roundvals[i].spval) {
 			print_string("\r\n");
 			print_hex(i, 4, " ");
 			print_hex(result, 16, " ");
 			return i + 1;
 		}
+		if (check_fprf(result, true, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -796,6 +900,7 @@ int test11(long arg)
 	long i;
 	unsigned long results[4];
 	struct frivals *vp = frivals;
+	unsigned long fpscr;
 
 	for (i = 0; i < sizeof(frivals) / sizeof(frivals[0]); ++i, ++vp) {
 		set_fpscr(FPS_RN_FLOOR);
@@ -807,6 +912,7 @@ int test11(long arg)
 		asm("frip 5,3; stfd 5,16(%0)" : : "b" (results) : "memory");
 		set_fpscr(FPS_RN_CEIL);
 		asm("frim 5,3; stfd 5,24(%0)" : : "b" (results) : "memory");
+		fpscr = get_fpscr();
 		if (results[0] != vp->nval || results[1] != vp->zval ||
 		    results[2] != vp->pval || results[3] != vp->mval) {
 			print_hex(i, 2, "\r\n");
@@ -816,6 +922,8 @@ int test11(long arg)
 			print_hex(results[3], 16, " ");
 			return i + 1;
 		}
+		if (check_fprf(results[3], false, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -903,17 +1011,21 @@ int test13(long arg)
 	long i;
 	unsigned long results[2];
 	struct addvals *vp = addvals;
+	unsigned long fpscr;
 
 	set_fpscr(FPS_RN_NEAR);
 	for (i = 0; i < sizeof(addvals) / sizeof(addvals[0]); ++i, ++vp) {
 		asm("lfd 5,0(%0); lfd 6,8(%0); fadd 7,5,6; fsub 8,5,6; stfd 7,0(%1); stfd 8,8(%1)"
 		    : : "b" (&vp->val_a), "b" (results) : "memory");
+		fpscr = get_fpscr();
 		if (results[0] != vp->sum || results[1] != vp->diff) {
 			print_hex(i, 2, " ");
 			print_hex(results[0], 16, " ");
 			print_hex(results[1], 16, "\r\n");
 			return i + 1;
 		}
+		if (check_fprf(results[1], false, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -976,18 +1088,22 @@ int test14(long arg)
 	long i;
 	unsigned long results[2];
 	struct addvals *vp = sp_addvals;
+	unsigned long fpscr;
 
 	set_fpscr(FPS_RN_NEAR);
 	for (i = 0; i < sizeof(sp_addvals) / sizeof(sp_addvals[0]); ++i, ++vp) {
 		asm("lfd 5,0(%0); frsp 5,5; lfd 6,8(%0); frsp 6,6; "
 		    "fadds 7,5,6; fsubs 8,5,6; stfd 7,0(%1); stfd 8,8(%1)"
 		    : : "b" (&vp->val_a), "b" (results) : "memory");
+		fpscr = get_fpscr();
 		if (results[0] != vp->sum || results[1] != vp->diff) {
 			print_hex(i, 2, " ");
 			print_hex(results[0], 16, " ");
 			print_hex(results[1], 16, "\r\n");
 			return i + 1;
 		}
+		if (check_fprf(results[1], true, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -1017,16 +1133,20 @@ int test15(long arg)
 	long i;
 	unsigned long result;
 	struct mulvals *vp = mulvals;
+	unsigned long fpscr;
 
 	set_fpscr(FPS_RN_NEAR);
 	for (i = 0; i < sizeof(mulvals) / sizeof(mulvals[0]); ++i, ++vp) {
 		asm("lfd 5,0(%0); lfd 6,8(%0); fmul 7,5,6; stfd 7,0(%1)"
 		    : : "b" (&vp->val_a), "b" (&result) : "memory");
+		fpscr = get_fpscr();
 		if (result != vp->prod) {
 			print_hex(i, 2, " ");
 			print_hex(result, 16, " ");
 			return i + 1;
 		}
+		if (check_fprf(result, false, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -1056,16 +1176,20 @@ int test16(long arg)
 	long i;
 	unsigned int result;
 	struct mulvals_sp *vp = mulvals_sp;
+	unsigned long fpscr;
 
 	set_fpscr(FPS_RN_NEAR);
 	for (i = 0; i < sizeof(mulvals_sp) / sizeof(mulvals_sp[0]); ++i, ++vp) {
 		asm("lfs 5,0(%0); lfs 6,4(%0); fmuls 7,5,6; stfs 7,0(%1)"
 		    : : "b" (&vp->val_a), "b" (&result) : "memory");
+		fpscr = get_fpscr();
 		if (result != vp->prod) {
 			print_hex(i, 2, " ");
 			print_hex(result, 8, " ");
 			return i + 1;
 		}
+		if (check_fprf_sp(result, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -1093,16 +1217,20 @@ int test17(long arg)
 	long i;
 	unsigned long result;
 	struct divvals *vp = divvals;
+	unsigned long fpscr;
 
 	set_fpscr(FPS_RN_NEAR);
 	for (i = 0; i < sizeof(divvals) / sizeof(divvals[0]); ++i, ++vp) {
 		asm("lfd 5,0(%0); lfd 6,8(%0); fdiv 7,5,6; stfd 7,0(%1)"
 		    : : "b" (&vp->val_a), "b" (&result) : "memory");
+		fpscr = get_fpscr();
 		if (result != vp->prod) {
 			print_hex(i, 2, " ");
 			print_hex(result, 16, " ");
 			return i + 1;
 		}
+		if (check_fprf(result, false, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -1130,16 +1258,20 @@ int test18(long arg)
 	long i;
 	unsigned long result;
 	struct recipvals *vp = recipvals;
+	unsigned long fpscr;
 
 	set_fpscr(FPS_RN_NEAR);
 	for (i = 0; i < sizeof(recipvals) / sizeof(recipvals[0]); ++i, ++vp) {
 		asm("lfd 6,0(%0); fre 7,6; stfd 7,0(%1)"
 		    : : "b" (&vp->val), "b" (&result) : "memory");
+		fpscr = get_fpscr();
 		if (result != vp->inv) {
 			print_hex(i, 2, " ");
 			print_hex(result, 16, " ");
 			return i + 1;
 		}
+		if (check_fprf(result, false, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -1273,16 +1405,20 @@ int test21(long arg)
 	long i;
 	unsigned long result;
 	struct isqrtvals *vp = isqrtvals;
+	unsigned long fpscr;
 
 	set_fpscr(FPS_RN_NEAR);
 	for (i = 0; i < sizeof(isqrtvals) / sizeof(isqrtvals[0]); ++i, ++vp) {
 		asm("lfd 6,0(%0); frsqrte 7,6; stfd 7,0(%1)"
 		    : : "b" (&vp->val), "b" (&result) : "memory");
+		fpscr = get_fpscr();
 		if (result != vp->inv) {
 			print_hex(i, 2, " ");
 			print_hex(result, 16, " ");
 			return i + 1;
 		}
+		if (check_fprf(result, false, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -1320,16 +1456,20 @@ int test22(long arg)
 	long i;
 	unsigned long result;
 	struct sqrtvals *vp = sqrtvals;
+	unsigned long fpscr;
 
 	set_fpscr(FPS_RN_NEAR);
 	for (i = 0; i < sizeof(sqrtvals) / sizeof(sqrtvals[0]); ++i, ++vp) {
 		asm("lfd 6,0(%0); fsqrt 7,6; stfd 7,0(%1)"
 		    : : "b" (&vp->val), "b" (&result) : "memory");
+		fpscr = get_fpscr();
 		if (result != vp->inv) {
 			print_hex(i, 2, " ");
 			print_hex(result, 16, " ");
 			return i + 1;
 		}
+		if (check_fprf(result, false, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
@@ -1384,6 +1524,7 @@ int test23(long arg)
 	long i;
 	unsigned long results[4];
 	struct fmavals *vp = fmavals;
+	unsigned long fpscr;
 
 	set_fpscr(FPS_RN_NEAR);
 	for (i = 0; i < sizeof(fmavals) / sizeof(fmavals[0]); ++i, ++vp) {
@@ -1391,6 +1532,7 @@ int test23(long arg)
 		    : : "b" (&vp->ra), "b" (results) : "memory");
 		asm("fmsub 1,6,7,8; fnmadd 2,6,7,8; fnmsub 3,6,7,8; stfd 1,8(%0); stfd 2,16(%0); stfd 3,24(%0)"
 		    : : "b" (results) : "memory");
+		fpscr = get_fpscr();
 		if (results[0] != vp->fma || results[1] != vp->fms ||
 		    results[2] != vp->nfma || results[3] != vp->nfms) {
 			print_hex(i, 2, " ");
@@ -1400,6 +1542,8 @@ int test23(long arg)
 			print_hex(results[3], 16, "\r\n");
 			return i + 1;
 		}
+		if (check_fprf(results[3], false, fpscr))
+			return i + 0x101;
 	}
 	return 0;
 }
