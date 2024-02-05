@@ -838,6 +838,7 @@ begin
         variable set_y       : std_ulogic;
         variable set_s       : std_ulogic;
         variable qnan_result : std_ulogic;
+        variable invalid_mul : std_ulogic;
         variable px_nz       : std_ulogic;
         variable pcmpb_eq    : std_ulogic;
         variable pcmpb_lt    : std_ulogic;
@@ -1217,6 +1218,7 @@ begin
                 -- At least one floating-point operand is infinity or NaN
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
+                invalid_mul := '0';
 
                 if (r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
                     (r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0') or
@@ -1225,6 +1227,15 @@ begin
                     v.fpscr(FPSCR_VXSNAN) := '1';
                     invalid := '1';
                 end if;
+                -- Check for this case here since VXIMZ can be set along with VXSNAN
+                if r.is_multiply = '1' and
+                    ((r.a.class = INFINITY and r.c.class = ZERO) or
+                     (r.a.class = ZERO and r.c.class = INFINITY)) then
+                    v.fpscr(FPSCR_VXIMZ) := '1';
+                    qnan_result := '1';
+                    invalid_mul := '1';
+                end if;
+
                 if r.a.class = NAN or r.b.class = NAN or r.c.class = NAN then
                     if r.int_result = '1' then
                         v.state := INT_OFLOW;
@@ -1241,51 +1252,32 @@ begin
                     end if;
 
                 else
-                    if r.a.class = INFINITY then
-                        if r.is_multiply = '1' and r.c.class = ZERO then
-                            -- invalid operation, construct QNaN
-                            v.fpscr(FPSCR_VXIMZ) := '1';
-                            qnan_result := '1';
-                        elsif r.is_subtract = '1' and r.b.class = INFINITY then
+                    if (r.a.class = INFINITY or r.c.class = INFINITY) and invalid_mul = '0' then
+                        sign_inv := r.is_multiply and r.is_subtract;
+                        if r.is_subtract = '1' and r.b.class = INFINITY then
                             v.fpscr(FPSCR_VXISI) := '1';
                             qnan_result := '1';
-                        elsif r.is_inverse = '1' and r.b.class = INFINITY then
-                            v.fpscr(FPSCR_VXIDI) := '1';
-                            qnan_result := '1';
-                        else
-                            sign_inv := r.is_multiply and r.is_subtract;
-                            v.result_class := INFINITY;
                         end if;
-                        arith_done := '1';
-                    elsif r.c.class = INFINITY then
-                        if r.is_multiply = '1' and r.a.class = ZERO then
-                            -- invalid operation, construct QNaN
-                            v.fpscr(FPSCR_VXIMZ) := '1';
-                            qnan_result := '1';
-                        elsif r.is_subtract = '1' and r.b.class = INFINITY then
-                            v.fpscr(FPSCR_VXISI) := '1';
-                            qnan_result := '1';
-                        else
-                            sign_inv := r.is_multiply and r.is_subtract;
-                            v.result_class := INFINITY;
-                        end if;
-                        arith_done := '1';
+                    end if;
+                    if r.is_inverse = '1' and r.a.class = INFINITY and r.b.class = INFINITY then
+                        v.fpscr(FPSCR_VXIDI) := '1';
+                        qnan_result := '1';
+                    end if;
+                    if r.b.class = INFINITY and r.is_sqrt = '1' and r.b.negative = '1' then
+                        v.fpscr(FPSCR_VXSQRT) := '1';
+                        qnan_result := '1';
+                    end if;
+                    if r.b.class = INFINITY and r.is_inverse = '1' then
+                        -- fdiv, fre, frsqrte
+                        v.result_class := ZERO;
                     else
-                        -- r.b.class = INFINITY
-                        if r.int_result = '1' then
-                            -- fcti*
-                            v.state := INT_OFLOW;
-                        elsif r.is_sqrt = '1' and r.b.negative = '1' then
-                            v.fpscr(FPSCR_VXSQRT) := '1';
-                            qnan_result := '1';
-                        elsif r.is_inverse = '1' then
-                            -- fdiv, fre, frsqrte
-                            v.result_class := ZERO;
-                            arith_done := '1';
-                        else
-                            v.result_class := INFINITY;
-                            arith_done := '1';
-                        end if;
+                        v.result_class := INFINITY;
+                    end if;
+                    if r.b.class = INFINITY and r.int_result = '1' then
+                        -- fcti*
+                        v.state := INT_OFLOW;
+                    else
+                        arith_done := '1';
                     end if;
                 end if;
 
