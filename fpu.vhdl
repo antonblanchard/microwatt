@@ -1817,8 +1817,17 @@ begin
 
             when RENORM_B2 =>
                 set_b := '1';
-                re_sel2 <= REXP2_NE;
-                re_set_result <= '1';
+                -- For fdiv, we need to increase result_exp by shift rather
+                -- than decreasing it as for fre/frsqrte and fsqrt.
+                -- We do that by negating r.shift in this cycle and then
+                -- setting result_exp to new_exp in the next cycle
+                if r.use_a = '1' then
+                    rs_sel1 <= RSH1_S;
+                    rs_neg1 <= '1';
+                else
+                    re_sel2 <= REXP2_NE;
+                    re_set_result <= '1';
+                end if;
                 v.opsel_a := AIN_B;
                 v.state := LOOKUP;
 
@@ -2038,6 +2047,12 @@ begin
             when LOOKUP =>
                 -- r.opsel_a = AIN_B
                 -- wait one cycle for inverse_table[B] lookup
+                -- if this is a division, compute exponent
+                -- (see comment on RENORM_B2 above)
+                if r.use_a = '1' then
+                    re_sel2 <= REXP2_NE;
+                    re_set_result <= '1';
+                end if;
                 v.first := '1';
                 if r.insn(4) = '0' then
                     if r.insn(3) = '0' then
