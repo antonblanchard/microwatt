@@ -1591,8 +1591,6 @@ begin
                 end if;
 
             when DO_FSEL =>
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 if r.a.class = ZERO or (r.a.negative = '0' and r.a.class /= NAN) then
                     v.opsel_a := AIN_C;
                     v.result_sign := r.c.negative;
