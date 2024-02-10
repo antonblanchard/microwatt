@@ -952,7 +952,7 @@ begin
                         when "11100" | "11101" | "11110" | "11111" =>   --fmadd family
                             v.is_multiply := '1';
                             v.is_addition := '1';
-                            v.result_sign := e_in.fra(63) xor e_in.frc(63);
+                            v.result_sign := e_in.frb(63) xnor e_in.insn(1);
                             v.is_subtract := not (e_in.fra(63) xor e_in.frb(63) xor
                                                   e_in.frc(63) xor e_in.insn(1));
                             v.negate := e_in.insn(2);
@@ -1253,6 +1253,7 @@ begin
                             v.fpscr(FPSCR_VXIDI) := '1';
                             qnan_result := '1';
                         else
+                            sign_inv := r.is_multiply and r.is_subtract;
                             v.result_class := INFINITY;
                         end if;
                         arith_done := '1';
@@ -1265,6 +1266,7 @@ begin
                             v.fpscr(FPSCR_VXISI) := '1';
                             qnan_result := '1';
                         else
+                            sign_inv := r.is_multiply and r.is_subtract;
                             v.result_class := INFINITY;
                         end if;
                         arith_done := '1';
@@ -1281,7 +1283,6 @@ begin
                             v.result_class := ZERO;
                             arith_done := '1';
                         else
-                            sign_inv := r.is_multiply and r.is_subtract;
                             v.result_class := INFINITY;
                             arith_done := '1';
                         end if;
@@ -1308,9 +1309,6 @@ begin
                         elsif r.is_addition = '1' then
                             -- result is +/- B
                             v.opsel_a := AIN_B;
-                            if r.is_multiply = '1' then
-                                rsgn_op := RSGN_SUB;
-                            end if;
                             v.state := EXC_RESULT;
                         else
                             v.result_class := ZERO;
@@ -1318,7 +1316,6 @@ begin
                         end if;
                     elsif r.use_c = '1' and r.c.class = ZERO then
                         v.opsel_a := AIN_B;
-                        rsgn_op := RSGN_SUB;
                         v.state := EXC_RESULT;
                     else
                         -- B is zero, other operands are finite
@@ -1349,6 +1346,14 @@ begin
                     if r.use_a = '1' and (r.use_b = '0' or r.use_c = '0') then
                         v.opsel_a := AIN_A;
                     end if;
+                    if r.use_b = '1' and r.b.class = ZERO and r.use_c = '1' then
+                        -- turn fmadd/sub into fmul
+                        v.opsel_a := AIN_A;
+                        rsgn_op := RSGN_SUB;
+                        v.state := DO_FMUL;
+                    else
+                        v.state := r.exec_state;
+                    end if;
                     -- input selection for denorm cases
                     case r.insn(5 downto 1) is
                         when "10010" =>         -- fdiv
@@ -1367,7 +1372,6 @@ begin
                             end if;
                         when others =>
                     end case;
-                    v.state := r.exec_state;
                 end if;
 
             when DO_ILLEGAL =>
@@ -1792,14 +1796,9 @@ begin
                     v.state := RENORM_A;
                 elsif r.c.mantissa(UNIT_BIT) = '0' then
                     v.state := RENORM_C;
-                elsif r.b.class = ZERO then
-                    -- no addend, degenerates to multiply
-                    f_to_multiply.valid <= '1';
-                    v.state := MULT_1;
                 elsif r.madd_cmp = '0' then
                     -- addend is bigger, do multiply first
                     -- if subtracting, sign is opposite to initial estimate
-                    rsgn_op := RSGN_SUB;
                     f_to_multiply.valid <= '1';
                     v.first := '1';
                     v.state := FMADD_0;
@@ -2006,7 +2005,6 @@ begin
                 -- product is bigger here
                 -- shift B right and use it as the addend to the multiplier
                 -- for subtract, multiplier does B - A * C
-                rsgn_op := RSGN_SUB;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 -- set shift to b.exp - result_exp + 64
