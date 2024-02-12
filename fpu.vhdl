@@ -938,6 +938,8 @@ begin
                     end if;
                     if e_in.insn(5 downto 1) = "01111" then   -- fcti*z
                         v.round_mode := "001";
+                    elsif e_in.insn(5 downto 1) = "01000" then   -- fri*
+                        v.round_mode := '1' & e_in.insn(7 downto 6);
                     end if;
                     case e_in.insn(5 downto 1) is
                         when "10100" | "10101" =>       -- fadd and fsub
@@ -1334,36 +1336,29 @@ begin
 
                 else
                     -- some operand is denorm, and/or it's fmadd/fmsub with B=0
-                    v.opsel_a := AIN_B;
-                    if r.use_a = '1' and (r.use_b = '0' or r.use_c = '0') then
+                    -- input selection for denorm cases
+                    -- A and C are non-zero if present,
+                    -- B is non-zero if present except for multiply-add
+                    if r.a.zeroexp = '1' and (r.is_multiply or r.is_inverse) = '1' then
                         v.opsel_a := AIN_A;
+                    elsif r.b.zeroexp = '1' and (r.is_inverse or r.is_sqrt) = '1' then
+                        v.opsel_a := AIN_B;
+                    elsif r.c.zeroexp = '1' then
+                        v.opsel_a := AIN_C;
+                    else
+                        v.opsel_a := AIN_B;
+                        if r.use_a = '1' and (r.use_b = '0' or r.use_c = '0' or r.b.class = ZERO) then
+                            v.opsel_a := AIN_A;
+                        end if;
                     end if;
-                    if r.use_b = '1' and r.b.class = ZERO and r.use_c = '1' then
-                        -- turn fmadd/sub into fmul
-                        v.opsel_a := AIN_A;
+                    if r.is_multiply = '1' and r.b.class = ZERO then
+                        -- This will trigger for fmul as well as fmadd/sub, but
+                        -- it doesn't matter since r.is_subtract = 0 for fmul.
                         rsgn_op := RSGN_SUB;
                         v.state := DO_FMUL;
                     else
                         v.state := r.exec_state;
                     end if;
-                    -- input selection for denorm cases
-                    case r.insn(5 downto 1) is
-                        when "10010" =>         -- fdiv
-                            if r.b.mantissa(UNIT_BIT) = '0' and r.a.mantissa(UNIT_BIT) = '1' then
-                                v.opsel_a := AIN_B;
-                            end if;
-                        when "11001" =>         -- fmul
-                            if r.c.mantissa(UNIT_BIT) = '0' and r.a.mantissa(UNIT_BIT) = '1' then
-                                v.opsel_a := AIN_C;
-                            end if;
-                        when "11100" | "11101" | "11110" | "11111" =>   -- fmadd etc.
-                            if r.a.mantissa(UNIT_BIT) = '0' then
-                                v.opsel_a := AIN_A;
-                            elsif r.c.mantissa(UNIT_BIT) = '0' then
-                                v.opsel_a := AIN_C;
-                            end if;
-                        when others =>
-                    end case;
                 end if;
 
             when DO_ILLEGAL =>
@@ -1571,7 +1566,6 @@ begin
                     arith_done := '1';
                 else
                     v.state := FRI_1;
-                    v.round_mode := '1' & r.insn(7 downto 6);
                 end if;
 
             when DO_FRSP =>
@@ -1813,9 +1807,9 @@ begin
                 set_a := '1';
                 re_sel2 <= REXP2_NE;
                 re_set_result <= '1';
-                if r.insn(4) = '1' then
+                if r.is_multiply = '1' then
                     if r.c.mantissa(UNIT_BIT) = '1' then
-                        if r.insn(3) = '0' or r.b.class = ZERO then
+                        if r.is_addition = '0' or r.b.class = ZERO then
                             v.first := '1';
                             v.state := MULT_1;
                         else
@@ -1867,7 +1861,7 @@ begin
                 set_c := '1';
                 re_sel2 <= REXP2_NE;
                 re_set_result <= '1';
-                if r.insn(3) = '0' or r.b.class = ZERO then
+                if r.is_addition = '0' or r.b.class = ZERO then
                     v.first := '1';
                     v.state := MULT_1;
                 else
@@ -2081,16 +2075,16 @@ begin
                     re_set_result <= '1';
                 end if;
                 v.first := '1';
-                if r.insn(4) = '0' then
-                    if r.insn(3) = '0' then
-                        v.state := DIV_2;
+                if r.is_sqrt = '1' then
+                    if r.is_inverse = '1' then
+                        v.state := RSQRT_1;
                     else
                         v.state := SQRT_1;
                     end if;
-                elsif r.insn(2) = '0' then
-                    v.state := FRE_1;
+                elsif r.use_a = '1' then
+                    v.state := DIV_2;
                 else
-                    v.state := RSQRT_1;
+                    v.state := FRE_1;
                 end if;
 
             when DIV_2 =>
