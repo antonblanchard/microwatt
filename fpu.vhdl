@@ -146,6 +146,7 @@ architecture behaviour of fpu is
         exp_cmp      : std_ulogic;
         madd_cmp     : std_ulogic;
         add_bsmall   : std_ulogic;
+        is_arith     : std_ulogic;
         is_addition  : std_ulogic;
         is_multiply  : std_ulogic;
         is_inverse   : std_ulogic;
@@ -176,6 +177,7 @@ architecture behaviour of fpu is
         res_sign     : std_ulogic;
         res_int      : std_ulogic;
         exec_state   : state_t;
+        cycle_1      : std_ulogic;
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -880,6 +882,7 @@ begin
         is_nan_inf := '0';
         is_zero_den := '0';
         sign_inv := '0';
+        v.cycle_1 := e_in.valid;
 
         if r.complete = '1' or r.do_intr = '1' then
             v.instr_done := '0';
@@ -925,6 +928,7 @@ begin
             v.negate := '0';
             v.quieten_nan := '1';
             v.int_result := '0';
+            v.is_arith := '0';
             case e_in.op is
                 when OP_FP_ARITH =>
                     fpin_a := e_in.valid_a;
@@ -932,6 +936,7 @@ begin
                     fpin_c := e_in.valid_c;
                     v.longmask := e_in.single;
                     v.fp_rc := e_in.rc;
+                    v.is_arith := '1';
                     exec_state := arith_decode(to_integer(unsigned(e_in.insn(5 downto 1))));
                     if e_in.insn(5 downto 1) = "10110" or e_in.insn(5 downto 1) = "11010" then
                         v.is_sqrt := '1';
@@ -1193,6 +1198,11 @@ begin
 
         rsgn_op := RSGN_NOP;
 
+        if r.cycle_1 = '1' and r.is_arith = '1' then
+            v.fpscr(FPSCR_FR) := '0';
+            v.fpscr(FPSCR_FI) := '0';
+        end if;
+
         case r.state is
             when IDLE =>
                 v.invalid := '0';
@@ -1218,8 +1228,6 @@ begin
 
             when DO_NAN_INF =>
                 -- At least one floating-point operand is infinity or NaN
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 invalid_mul := '0';
 
                 if (r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
@@ -1285,8 +1293,6 @@ begin
 
             when DO_ZERO_DEN =>
                 -- At least one floating point operand is zero or denormalized
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 if (r.use_a = '1' and r.a.class = ZERO) or
                     (r.use_b = '1' and r.b.class = ZERO and r.is_multiply = '0') or
                     (r.use_c = '1' and r.c.class = ZERO) then
@@ -1559,8 +1565,6 @@ begin
                 rs_sel1 <= RSH1_B;
                 rs_con2 <= RSCON2_52;
                 rs_neg2 <= '1';
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 if r.b.exponent >= to_signed(52, EXP_BITS) then
                     -- integer already, no rounding required
                     arith_done := '1';
@@ -1577,8 +1581,6 @@ begin
                 rs_sel1 <= RSH1_B;
                 rs_con2 <= RSCON2_MINEXP;
                 rs_neg2 <= '1';
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 set_x := '1';
                 if r.b.exponent < to_signed(-126, EXP_BITS) then
                     v.state := ROUND_UFLOW;
@@ -1598,8 +1600,6 @@ begin
                 re_set_result <= '1';
                 rs_sel1 <= RSH1_B;
                 rs_neg2 <= '1';
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
 
                 if r.b.exponent >= to_signed(64, EXP_BITS) or
                     (r.insn(9) = '0' and r.b.exponent >= to_signed(32, EXP_BITS)) then
@@ -1630,8 +1630,6 @@ begin
                 v.result_class := r.b.class;
                 re_con2 <= RECON2_UNIT;
                 re_set_result <= '1';
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 if r.b.class = ZERO then
                     arith_done := '1';
                 else
@@ -1648,8 +1646,6 @@ begin
                 rs_sel1 <= RSH1_B;
                 rs_neg1 <= '1';
                 rs_sel2 <= RSH2_A;
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 v.add_bsmall := r.exp_cmp;
                 v.opsel_a := AIN_B;
                 if r.exp_cmp = '0' then
@@ -1667,8 +1663,6 @@ begin
                 -- fmul[s]
                 -- r.opsel_a = AIN_A unless C is denorm and A isn't
                 v.result_class := r.a.class;
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 re_sel1 <= REXP1_A;
                 re_sel2 <= REXP2_C;
                 re_set_result <= '1';
@@ -1685,8 +1679,6 @@ begin
             when DO_FDIV =>
                 -- r.opsel_a = AIN_A unless B is denorm and A isn't
                 v.result_class := r.a.class;
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 re_sel1 <= REXP1_A;
                 re_sel2 <= REXP2_B;
                 re_neg2 <= '1';
@@ -1714,8 +1706,6 @@ begin
             when DO_FSQRT =>
                 -- r.opsel_a = AIN_B
                 v.result_class := r.b.class;
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 if r.b.negative = '1' then
@@ -1734,8 +1724,6 @@ begin
             when DO_FRE =>
                 -- r.opsel_a = AIN_B
                 v.result_class := r.b.class;
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 if r.b.mantissa(UNIT_BIT) = '0' then
@@ -1747,8 +1735,6 @@ begin
             when DO_FRSQRTE =>
                 -- r.opsel_a = AIN_B
                 v.result_class := r.b.class;
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 -- set shift to 1
@@ -1775,8 +1761,6 @@ begin
                 re_set_result <= '1';
                 -- put b.exp into shift
                 rs_sel1 <= RSH1_B;
-                v.fpscr(FPSCR_FR) := '0';
-                v.fpscr(FPSCR_FI) := '0';
                 -- Make sure A and C are normalized
                 if r.a.mantissa(UNIT_BIT) = '0' then
                     v.state := RENORM_A;
