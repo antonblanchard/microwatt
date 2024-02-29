@@ -51,7 +51,7 @@ architecture behaviour of fpu is
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
                      DO_FMR, DO_FMRG, DO_FCMP, DO_FTDIV, DO_FTSQRT,
                      DO_FCFID, DO_FCTI,
-                     DO_FRSP, DO_FRI,
+                     DO_FRSP, DO_FRSP_2, DO_FRI,
                      DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT, DO_FMADD,
                      DO_FRE, DO_FRSQRTE,
                      DO_FSEL,
@@ -1577,6 +1577,10 @@ begin
                 v.result_class := r.b.class;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
+                v.state := DO_FRSP_2;
+
+            when DO_FRSP_2 =>
+                -- r.opsel_a = AIN_R, r.shift = 0
                 -- set shift to exponent - -126
                 rs_sel1 <= RSH1_B;
                 rs_con2 <= RSCON2_MINEXP;
@@ -3269,6 +3273,9 @@ begin
         else
             mask := right_mask(unsigned(mshift(5 downto 0)));
         end if;
+        if (or (mask and r.r)) = '1' and set_x = '1' then
+            v.x := '1';
+        end if;
         case r.opsel_a is
             when AIN_R =>
                 in_a0 := r.r;
@@ -3279,9 +3286,6 @@ begin
             when others =>
                 in_a0 := r.c.mantissa;
         end case;
-        if (or (mask and in_a0)) = '1' and set_x = '1' then
-            v.x := '1';
-        end if;
         if opsel_ainv = '1' then
             in_a0 := not in_a0;
         end if;
