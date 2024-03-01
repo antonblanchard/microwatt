@@ -200,7 +200,7 @@ architecture behaviour of fpu is
     signal r_lo_nz       : std_ulogic;
     signal r_gt_1        : std_ulogic;
     signal s_nz          : std_ulogic;
-    signal misc_sel      : std_ulogic_vector(3 downto 0);
+    signal misc_sel      : std_ulogic_vector(2 downto 0);
     signal f_to_multiply : MultiplyInputType;
     signal multiply_to_f : MultiplyOutputType;
     signal msel_1        : std_ulogic_vector(1 downto 0);
@@ -1150,7 +1150,7 @@ begin
         opsel_r <= RES_SUM;
         opsel_s <= S_ZERO;
         carry_in <= '0';
-        misc_sel <= "0000";
+        misc_sel <= "000";
         fpscr_mask := (others => '1');
         update_fx := '0';
         arith_done := '0';
@@ -1498,13 +1498,14 @@ begin
             when DO_FMRG =>
                 -- fmrgew, fmrgow
                 opsel_r <= RES_MISC;
-                misc_sel <= "01" & r.insn(8) & '0';
+                misc_sel <= "100";
                 v.writing_fpr := '1';
                 v.instr_done := '1';
 
             when DO_MFFS =>
                 v.writing_fpr := '1';
                 opsel_r <= RES_MISC;
+                misc_sel <= "011";
                 case r.insn(20 downto 16) is
                     when "00000" =>
                         -- mffs
@@ -2153,7 +2154,7 @@ begin
                 re_neg1 <= '1';
                 re_set_result <= '1';
                 opsel_r <= RES_MISC;
-                misc_sel <= "0111";
+                misc_sel <= "101";
                 -- set shift to 1
                 rs_con2 <= RSCON2_1;
                 v.state := NORMALIZE;
@@ -2173,7 +2174,7 @@ begin
 
             when RSQRT_1 =>
                 opsel_r <= RES_MISC;
-                misc_sel <= "0111";
+                misc_sel <= "101";
                 re_sel1 <= REXP1_BHALF;
                 re_neg1 <= '1';
                 re_set_result <= '1';
@@ -2186,7 +2187,7 @@ begin
                 -- also transfer B (in R) to A
                 set_a := '1';
                 opsel_r <= RES_MISC;
-                misc_sel <= "0111";
+                misc_sel <= "101";
                 msel_1 <= MUL1_B;
                 msel_2 <= MUL2_LUT;
                 f_to_multiply.valid <= '1';
@@ -2399,7 +2400,7 @@ begin
                 else
                     msb := r.r(63);
                 end if;
-                misc_sel <= '1' & r.insn(9 downto 8) & r.result_sign;
+                misc_sel <= "110";
                 if (r.insn(8) = '0' and msb /= r.result_sign) or
                     (r.insn(8) = '1' and msb /= '1') then
                     opsel_r <= RES_MISC;
@@ -2414,10 +2415,7 @@ begin
 
             when INT_OFLOW =>
                 opsel_r <= RES_MISC;
-                misc_sel <= '1' & r.insn(9 downto 8) & r.result_sign;
-                if r.b.class = NAN then
-                    misc_sel(0) <= '1';
-                end if;
+                misc_sel <= "110";
                 v.fpscr(FPSCR_VXCVI) := '1';
                 invalid := '1';
                 arith_done := '1';
@@ -2515,7 +2513,7 @@ begin
                     re_con2 <= RECON2_MAX;
                     re_set_result <= '1';
                     opsel_r <= RES_MISC;
-                    misc_sel <= "001" & r.single_prec;
+                    misc_sel <= "010";
                     arith_done := '1';
                 else
                     -- enabled overflow exception
@@ -2761,7 +2759,7 @@ begin
                 -- less than 0.5, in which case we want to use 0.5, to avoid
                 -- infinite loops in some cases.
                 opsel_r <= RES_MISC;
-                misc_sel <= "0001";
+                misc_sel <= "001";
                 if multiply_to_f.valid = '1' then
                     v.first := '1';
                     if r.count = "11" then
@@ -2774,7 +2772,7 @@ begin
                 -- Get 0.5 into R; it turns out the generated
                 -- QNaN mantissa is actually what we want
                 opsel_r <= RES_MISC;
-                misc_sel <= "0001";
+                misc_sel <= "001";
                 v.opsel_a := AIN_A;
                 -- set shift to 64
                 rs_con2 <= RSCON2_64;
@@ -3136,7 +3134,7 @@ begin
                 v.instr_done := '1';
             when IDIV_ZERO =>
                 opsel_r <= RES_MISC;
-                misc_sel <= "0101";
+                misc_sel <= "000";
                 v.xerc_result := v.xerc;
                 if r.oe = '1' then
                     v.xerc_result.ov := r.int_ovf;
@@ -3176,7 +3174,7 @@ begin
             invalid := '1';
             v.result_class := NAN;
             rsign := '0';
-            misc_sel <= "0001";
+            misc_sel <= "001";
             opsel_r <= RES_MISC;
             arith_done := '1';
         end if;
@@ -3342,50 +3340,41 @@ begin
             when others =>
                 misc := (others => '0');
                 case misc_sel is
-                    when "0000" =>
-                        misc := x"00000000" & (r.fpscr and fpscr_mask);
-                    when "0001" =>
-                        -- generated QNaN mantissa
+                    when "000" =>
+                        -- zero result, used in idiv logic
+                    when "001" =>
+                        -- generated QNaN mantissa; also used for 0.5 in idiv logic
                         misc(QNAN_BIT) := '1';
-                    when "0010" =>
-                        -- mantissa of max representable DP number
-                        misc(UNIT_BIT downto DP_LSB) := (others => '1');
-                    when "0011" =>
-                        -- mantissa of max representable SP number
+                    when "010" =>
+                        -- mantissa of max representable number, DP or SP
                         misc(UNIT_BIT downto SP_LSB) := (others => '1');
-                    when "0100" =>
-                        -- fmrgow result
-                        misc := r.a.mantissa(31 downto 0) & r.b.mantissa(31 downto 0);
-                    when "0110" =>
-                        -- fmrgew result
-                        misc := r.a.mantissa(63 downto 32) & r.b.mantissa(63 downto 32);
-                    when "0111" =>
+                        misc(SP_LSB-1 downto DP_LSB) := (others => not r.single_prec);
+                    when "011" =>
+                        -- read FPSCR
+                        misc := x"00000000" & (r.fpscr and fpscr_mask);
+                    when "100" =>
+                        -- fmrgow/fmrgew result
+                        if r.insn(8) = '0' then
+                            misc := r.a.mantissa(31 downto 0) & r.b.mantissa(31 downto 0);
+                        else
+                            misc := r.a.mantissa(63 downto 32) & r.b.mantissa(63 downto 32);
+                        end if;
+                    when "101" =>
                         misc := std_ulogic_vector(shift_left(resize(unsigned(inverse_est), 64),
                                                              UNIT_BIT - 19));
-                    when "1000" =>
-                        -- max positive result for fctiw[z]
-                        misc := x"000000007fffffff";
-                    when "1001" =>
-                        -- max negative result for fctiw[z]
-                        misc := x"ffffffff80000000";
-                    when "1010" =>
-                        -- max positive result for fctiwu[z]
-                        misc := x"00000000ffffffff";
-                    when "1011" =>
-                        -- max negative result for fctiwu[z]
-                        misc := x"0000000000000000";
-                    when "1100" =>
-                        -- max positive result for fctid[z]
-                        misc := x"7fffffffffffffff";
-                    when "1101" =>
-                        -- max negative result for fctid[z]
-                        misc := x"8000000000000000";
-                    when "1110" =>
-                        -- max positive result for fctidu[z]
-                        misc := x"ffffffffffffffff";
-                    when "1111" =>
-                        -- max negative result for fctidu[z]
-                        misc := x"0000000000000000";
+                    when "110" =>
+                        -- max positive or negative result for fcti*
+                        if r.result_sign = '0' and r.b.class /= NAN then
+                            misc := x"000000007fffffff";
+                            misc(31) := r.insn(8) or r.insn(9);  -- unsigned or dword
+                            misc(62 downto 32) := (others => r.insn(9));  -- dword
+                            misc(63) := r.insn(8) and r.insn(8);
+                        elsif r.insn(8) = '0' then
+                            misc(63) := '1';
+                            if r.insn(9) = '0' then
+                                misc(62 downto 31) := (others => '1');
+                            end if;
+                        end if;
                     when others =>
                 end case;
                 result <= misc;
