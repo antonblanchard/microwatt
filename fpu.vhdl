@@ -143,8 +143,6 @@ architecture behaviour of fpu is
         denorm       : std_ulogic;
         round_mode   : std_ulogic_vector(2 downto 0);
         is_subtract  : std_ulogic;
-        exp_cmp      : std_ulogic;
-        madd_cmp     : std_ulogic;
         add_bsmall   : std_ulogic;
         is_arith     : std_ulogic;
         is_addition  : std_ulogic;
@@ -1069,15 +1067,6 @@ begin
                 is_zero_den := adec.zeroexp or bdec.zeroexp or cdec.zeroexp;
             end if;
 
-            v.exp_cmp := '0';
-            if adec.exponent > bdec.exponent then
-                v.exp_cmp := '1';
-            end if;
-            v.madd_cmp := '0';
-            if (adec.exponent + cdec.exponent + 1) >= bdec.exponent then
-                v.madd_cmp := '1';
-            end if;
-
             v.a_hi := 8x"0";
             v.a_lo := 56x"0";
         end if;
@@ -1448,7 +1437,7 @@ begin
                     v.cr_result := r.a.negative & not r.a.negative & "00";
                 elsif r.b.class = INFINITY then
                     v.cr_result := not r.b.negative & r.b.negative & "00";
-                elsif r.exp_cmp = '1' then
+                elsif r.a.exponent > r.b.exponent then
                     -- A and B are both finite from here down
                     v.cr_result := r.a.negative & not r.a.negative & "00";
                 elsif r.a.exponent /= r.b.exponent then
@@ -1642,15 +1631,14 @@ begin
                 rs_sel1 <= RSH1_B;
                 rs_neg1 <= '1';
                 rs_sel2 <= RSH2_A;
-                v.add_bsmall := r.exp_cmp;
-                if r.exp_cmp = '0' then
-                    if r.a.exponent = r.b.exponent then
-                        v.state := ADD_2;
-                    else
-                        v.longmask := '0';
-                        v.state := ADD_SHIFT;
-                    end if;
+                v.add_bsmall := '0';
+                if r.a.exponent = r.b.exponent then
+                    v.state := ADD_2;
+                elsif r.a.exponent < r.b.exponent then
+                    v.longmask := '0';
+                    v.state := ADD_SHIFT;
                 else
+                    v.add_bsmall := '1';
                     v.state := ADD_1;
                 end if;
 
@@ -1764,7 +1752,7 @@ begin
                 elsif r.c.denorm = '1' then
                     opsel_a <= AIN_C;
                     v.state := RENORM_C;
-                elsif r.madd_cmp = '0' then
+                elsif (r.a.exponent + r.c.exponent + 1) < r.b.exponent then
                     -- addend is bigger, do multiply first
                     -- if subtracting, sign is opposite to initial estimate
                     f_to_multiply.valid <= '1';
@@ -1790,10 +1778,6 @@ begin
                             v.first := '1';
                             v.state := MULT_1;
                         else
-                            v.madd_cmp := '0';
-                            if new_exp + 1 >= r.b.exponent then
-                                v.madd_cmp := '1';
-                            end if;
                             v.state := DO_FMADD;
                         end if;
                     else
@@ -1841,10 +1825,6 @@ begin
                     v.first := '1';
                     v.state := MULT_1;
                 else
-                    v.madd_cmp := '0';
-                    if new_exp + 1 >= r.b.exponent then
-                        v.madd_cmp := '1';
-                    end if;
                     v.state := DO_FMADD;
                 end if;
 
