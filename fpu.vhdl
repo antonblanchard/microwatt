@@ -53,7 +53,7 @@ architecture behaviour of fpu is
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRSP_2, DO_FRI,
                      DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT, DO_FMADD,
-                     DO_FRE, DO_FRSQRTE,
+                     DO_FRE,
                      DO_FSEL,
                      DO_IDIVMOD,
                      FRI_1,
@@ -62,10 +62,9 @@ architecture behaviour of fpu is
                      MULT_1,
                      FMADD_0, FMADD_1, FMADD_2, FMADD_3,
                      FMADD_4, FMADD_5, FMADD_6,
-                     LOOKUP,
                      DIV_2, DIV_3, DIV_4, DIV_5, DIV_6,
                      FRE_1,
-                     RSQRT_1,
+                     SQRT_ODD, RSQRT_1,
                      FTDIV_1,
                      SQRT_1, SQRT_2, SQRT_3, SQRT_4,
                      SQRT_5, SQRT_6, SQRT_7, SQRT_8,
@@ -76,9 +75,8 @@ architecture behaviour of fpu is
                      ROUND_UFLOW, ROUND_OFLOW,
                      ROUNDING, ROUNDING_2, ROUNDING_3,
                      DENORM,
-                     RENORM_A, RENORM_A2,
-                     RENORM_B, RENORM_B2,
-                     RENORM_C, RENORM_C2,
+                     RENORM_A, RENORM_B, RENORM_C,
+                     RENORM_1, RENORM_2,
                      IDIV_NORMB, IDIV_NORMB2, IDIV_NORMB3,
                      IDIV_CLZA, IDIV_CLZA2, IDIV_CLZA3,
                      IDIV_NR0, IDIV_NR1, IDIV_NR2, IDIV_USE0_5,
@@ -174,6 +172,7 @@ architecture behaviour of fpu is
         res_int      : std_ulogic;
         exec_state   : state_t;
         cycle_1      : std_ulogic;
+        regsel       : std_ulogic_vector(1 downto 0);
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -309,7 +308,7 @@ architecture behaviour of fpu is
         2#10110# => DO_FSQRT,
         2#11000# => DO_FRE,
         2#11001# => DO_FMUL,
-        2#11010# => DO_FRSQRTE,
+        2#11010# => DO_FSQRT,
         2#11100# => DO_FMADD,
         2#11101# => DO_FMADD,
         2#11110# => DO_FMADD,
@@ -870,6 +869,7 @@ begin
         variable rsgn_op     : std_ulogic_vector(1 downto 0);
         variable is_nan_inf  : std_ulogic;
         variable is_zero_den : std_ulogic;
+        variable set_reg_ind : std_ulogic;
     begin
         v := r;
         v.complete := '0';
@@ -1170,6 +1170,7 @@ begin
         mult_mask := '0';
         rnd_b32 := '0';
         illegal := '0';
+        set_reg_ind := '0';
 
         re_sel1 <= REXP1_ZERO;
         re_sel2 <= REXP2_CON;
@@ -1208,6 +1209,7 @@ begin
                 v.x := '0';
                 v.old_exc := r.fpscr(FPSCR_VX downto FPSCR_XX);
                 set_s := '1';
+                v.regsel := AIN_R;
 
             when DO_NAN_INF =>
                 -- At least one floating-point operand is infinity or NaN
@@ -1331,6 +1333,14 @@ begin
                         -- This will trigger for fmul as well as fmadd/sub, but
                         -- it doesn't matter since r.is_subtract = 0 for fmul.
                         rsgn_op := RSGN_SUB;
+                    end if;
+                    if r.a.denorm = '1' and (r.is_multiply = '1' or r.is_inverse = '1') then
+                        v.state := RENORM_A;
+                    elsif r.c.denorm = '1' then
+                        v.state := RENORM_C;
+                    elsif r.b.denorm = '1' and (r.is_inverse = '1' or r.is_sqrt = '1') then
+                        v.state := RENORM_B;
+                    elsif r.is_multiply = '1' and r.b.class = ZERO then
                         v.state := DO_FMUL;
                     else
                         v.state := r.exec_state;
@@ -1639,16 +1649,8 @@ begin
                 re_sel1 <= REXP1_A;
                 re_sel2 <= REXP2_C;
                 re_set_result <= '1';
-                -- Renormalize denorm operands
-                if r.a.denorm = '1' then
-                    v.state := RENORM_A;
-                elsif r.c.denorm = '1' then
-                    opsel_a <= AIN_C;
-                    v.state := RENORM_C;
-                else
-                    f_to_multiply.valid <= '1';
-                    v.state := MULT_1;
-                end if;
+                f_to_multiply.valid <= '1';
+                v.state := MULT_1;
 
             when DO_FDIV =>
                 opsel_a <= AIN_A;
@@ -1658,16 +1660,8 @@ begin
                 re_neg2 <= '1';
                 re_set_result <= '1';
                 v.count := "00";
-                -- Renormalize denorm operands
-                if r.a.denorm = '1' then
-                    v.state := RENORM_A;
-                elsif r.b.denorm = '1' then
-                    opsel_a <= AIN_B;
-                    v.state := RENORM_B;
-                else
-                    v.first := '1';
-                    v.state := DIV_2;
-                end if;
+                v.first := '1';
+                v.state := DIV_2;
 
             when DO_FSEL =>
                 rsgn_op := RSGN_SEL;
@@ -1691,14 +1685,13 @@ begin
                 if r.b.negative = '1' then
                     v.fpscr(FPSCR_VXSQRT) := '1';
                     qnan_result := '1';
-                elsif r.b.denorm = '1' then
-                    v.state := RENORM_B;
-                elsif r.b.exponent(0) = '0' then
+                end if;
+                if r.b.exponent(0) = '1' then
+                    v.state := SQRT_ODD;
+                elsif r.is_inverse = '0' then
                     v.state := SQRT_1;
                 else
-                    -- set shift to 1
-                    rs_con2 <= RSCON2_1;
-                    v.state := RENORM_B2;
+                    v.state := RSQRT_1;
                 end if;
 
             when DO_FRE =>
@@ -1706,29 +1699,7 @@ begin
                 v.result_class := r.b.class;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
-                if r.b.denorm = '1' then
-                    v.state := RENORM_B;
-                else
-                    v.state := FRE_1;
-                end if;
-
-            when DO_FRSQRTE =>
-                opsel_a <= AIN_B;
-                v.result_class := r.b.class;
-                re_sel2 <= REXP2_B;
-                re_set_result <= '1';
-                -- set shift to 1
-                rs_con2 <= RSCON2_1;
-                if r.b.negative = '1' then
-                    v.fpscr(FPSCR_VXSQRT) := '1';
-                    qnan_result := '1';
-                elsif r.b.denorm = '1' then
-                    v.state := RENORM_B;
-                elsif r.b.exponent(0) = '0' then
-                    v.state := RSQRT_1;
-                else
-                    v.state := RENORM_B2;
-                end if;
+                v.state := FRE_1;
 
             when DO_FMADD =>
                 -- fmadd, fmsub, fnmadd, fnmsub
@@ -1740,14 +1711,7 @@ begin
                 re_set_result <= '1';
                 -- put b.exp into shift
                 rs_sel1 <= RSH1_B;
-                -- Make sure A and C are normalized
-                if r.a.denorm = '1' then
-                    opsel_a <= AIN_A;
-                    v.state := RENORM_A;
-                elsif r.c.denorm = '1' then
-                    opsel_a <= AIN_C;
-                    v.state := RENORM_C;
-                elsif (r.a.exponent + r.c.exponent + 1) < r.b.exponent then
+                if (r.a.exponent + r.c.exponent + 1) < r.b.exponent then
                     -- addend is bigger, do multiply first
                     -- if subtracting, sign is opposite to initial estimate
                     f_to_multiply.valid <= '1';
@@ -1759,68 +1723,48 @@ begin
                 end if;
 
             when RENORM_A =>
-                rs_norm <= '1';
-                v.state := RENORM_A2;
-
-            when RENORM_A2 =>
-                set_a := '1';
-                re_sel2 <= REXP2_NE;
+                -- Get A into R
+                opsel_a <= AIN_A;
+                v.regsel := AIN_A;
+                re_sel1 <= REXP1_A;
                 re_set_result <= '1';
-                if r.is_multiply = '1' then
-                    opsel_a <= AIN_C;
-                    if r.c.mantissa(UNIT_BIT) = '1' then
-                        if r.is_addition = '0' or r.b.class = ZERO then
-                            v.first := '1';
-                            v.state := MULT_1;
-                        else
-                            v.state := DO_FMADD;
-                        end if;
-                    else
-                        v.state := RENORM_C;
-                    end if;
-                else
-                    opsel_a <= AIN_B;
-                    if r.b.mantissa(UNIT_BIT) = '1' then
-                        v.first := '1';
-                        v.state := DIV_2;
-                    else
-                        v.state := RENORM_B;
-                    end if;
-                end if;
+                v.a.denorm := '0';
+                v.state := RENORM_1;
 
             when RENORM_B =>
-                rs_norm <= '1';
-                renorm_sqrt := r.is_sqrt;
-                v.state := RENORM_B2;
-
-            when RENORM_B2 =>
-                set_b := '1';
-                -- For fdiv, we need to increase result_exp by shift rather
-                -- than decreasing it as for fre/frsqrte and fsqrt.
-                -- We do that by negating r.shift in this cycle and then
-                -- setting result_exp to new_exp in the next cycle
-                if r.use_a = '1' then
-                    rs_sel1 <= RSH1_S;
-                    rs_neg1 <= '1';
-                else
-                    re_sel2 <= REXP2_NE;
-                    re_set_result <= '1';
-                end if;
-                v.state := LOOKUP;
+                -- Get B into R
+                opsel_a <= AIN_B;
+                v.regsel := AIN_B;
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
+                v.b.denorm := '0';
+                v.state := RENORM_1;
 
             when RENORM_C =>
-                rs_norm <= '1';
-                v.state := RENORM_C2;
-
-            when RENORM_C2 =>
-                set_c := '1';
-                re_sel2 <= REXP2_NE;
+                -- Get C into R
+                opsel_a <= AIN_C;
+                v.regsel := AIN_C;
+                re_sel2 <= REXP2_C;
                 re_set_result <= '1';
-                if r.is_addition = '0' or r.b.class = ZERO then
-                    v.first := '1';
-                    v.state := MULT_1;
+                v.c.denorm := '0';
+                v.state := RENORM_1;
+
+            when RENORM_1 =>
+                rs_norm <= '1';
+                renorm_sqrt := r.is_sqrt;
+                v.state := RENORM_2;
+
+            when RENORM_2 =>
+                set_reg_ind := '1';
+                if r.c.denorm = '1' then
+                    -- must be either fmul or fmadd/sub
+                    v.state := RENORM_C;
+                elsif r.b.denorm = '1' and r.is_addition = '0' then
+                    v.state := RENORM_B;
+                elsif r.is_multiply = '1' and r.b.class = ZERO then
+                    v.state := DO_FMUL;
                 else
-                    v.state := DO_FMADD;
+                    v.state := r.exec_state;
                 end if;
 
             when ADD_1 =>
@@ -2017,28 +1961,6 @@ begin
                     v.state := NORMALIZE;
                 end if;
 
-            when LOOKUP =>
-                -- wait one cycle for inverse_table[B] lookup
-                -- if this is a division, compute exponent
-                -- (see comment on RENORM_B2 above)
-                opsel_a <= AIN_B;
-                if r.use_a = '1' then
-                    re_sel2 <= REXP2_NE;
-                    re_set_result <= '1';
-                end if;
-                v.first := '1';
-                if r.is_sqrt = '1' then
-                    if r.is_inverse = '1' then
-                        v.state := RSQRT_1;
-                    else
-                        v.state := SQRT_1;
-                    end if;
-                elsif r.use_a = '1' then
-                    v.state := DIV_2;
-                else
-                    v.state := FRE_1;
-                end if;
-
             when DIV_2 =>
                 -- compute Y = inverse_table[B] (when count=0); P = 2 - B * Y
                 msel_1 <= MUL1_B;
@@ -2134,6 +2056,12 @@ begin
                 else
                     v.doing_ftdiv := "10";
                 end if;
+
+            when SQRT_ODD =>
+                -- set shift to 1
+                rs_con2 <= RSCON2_1;
+                v.regsel := AIN_B;
+                v.state := RENORM_2;
 
             when RSQRT_1 =>
                 opsel_r <= RES_MISC;
@@ -3344,6 +3272,17 @@ begin
             end case;
         end if;
 
+        if set_reg_ind = '1' then
+            case r.regsel is
+                when AIN_A =>
+                    set_a := '1';
+                when AIN_B =>
+                    set_b := '1';
+                when AIN_C =>
+                    set_c := '1';
+                when others =>
+            end case;
+        end if;
         if set_a = '1' or set_a_exp = '1' then
             v.a.exponent := new_exp;
         end if;
