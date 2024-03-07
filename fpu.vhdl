@@ -1190,6 +1190,7 @@ begin
         if r.cycle_1 = '1' and r.is_arith = '1' then
             v.fpscr(FPSCR_FR) := '0';
             v.fpscr(FPSCR_FI) := '0';
+            v.result_class := FINITE;
         end if;
 
         case r.state is
@@ -1538,7 +1539,6 @@ begin
 
             when DO_FRI =>    -- fri[nzpm]
                 opsel_a <= AIN_B;
-                v.result_class := r.b.class;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 -- set shift to exponent - 52
@@ -1555,7 +1555,6 @@ begin
             when DO_FRSP =>
                 -- r.shift = 0
                 opsel_a <= AIN_B;
-                v.result_class := r.b.class;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 v.state := DO_FRSP_2;
@@ -1580,7 +1579,6 @@ begin
                 -- instr bit 8: 1=unsigned 0=signed
                 -- instr bit 1: 1=round to zero 0=use fpscr[RN]
                 opsel_a <= AIN_B;
-                v.result_class := r.b.class;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 rs_sel1 <= RSH1_B;
@@ -1624,7 +1622,6 @@ begin
             when DO_FADD =>
                 -- fadd[s] and fsub[s]
                 opsel_a <= AIN_A;
-                v.result_class := r.a.class;
                 re_sel1 <= REXP1_A;
                 re_set_result <= '1';
                 -- set shift to a.exp - b.exp
@@ -1645,7 +1642,6 @@ begin
             when DO_FMUL =>
                 -- fmul[s]
                 opsel_a <= AIN_A;
-                v.result_class := r.a.class;
                 re_sel1 <= REXP1_A;
                 re_sel2 <= REXP2_C;
                 re_set_result <= '1';
@@ -1654,7 +1650,6 @@ begin
 
             when DO_FDIV =>
                 opsel_a <= AIN_A;
-                v.result_class := r.a.class;
                 re_sel1 <= REXP1_A;
                 re_sel2 <= REXP2_B;
                 re_neg2 <= '1';
@@ -1679,7 +1674,6 @@ begin
 
             when DO_FSQRT =>
                 opsel_a <= AIN_B;
-                v.result_class := r.b.class;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 if r.b.negative = '1' then
@@ -1696,7 +1690,6 @@ begin
 
             when DO_FRE =>
                 opsel_a <= AIN_B;
-                v.result_class := r.b.class;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 v.state := FRE_1;
@@ -1704,7 +1697,6 @@ begin
             when DO_FMADD =>
                 -- fmadd, fmsub, fnmadd, fnmsub
                 opsel_a <= AIN_B;
-                v.result_class := r.a.class;
                 -- put a.exp + c.exp into result_exp
                 re_sel1 <= REXP1_A;
                 re_sel2 <= REXP2_C;
@@ -2511,7 +2503,6 @@ begin
                         opsel_ainv <= '1';
                         carry_in <= '1';
                     end if;
-                    v.result_class := FINITE;
                     re_con2 <= RECON2_UNIT;
                     re_set_result <= '1';
                     v.state := IDIV_NORMB;
