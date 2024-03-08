@@ -152,7 +152,7 @@ begin
         attribute ram_style of btc_memory : signal is "block";
 
         signal btc_valids : std_ulogic_vector(BTC_SIZE - 1 downto 0);
-        attribute ram_style of btc_valids : signal is "distributed";
+        -- attribute ram_style of btc_valids : signal is "distributed";
 
         signal btc_wr : std_ulogic;
         signal btc_wr_data : std_ulogic_vector(BTC_WIDTH - 1 downto 0);
