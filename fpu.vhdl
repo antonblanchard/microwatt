@@ -1007,7 +1007,7 @@ begin
         elsif new_exp < min_exp then
             exp_tiny := '1';
         end if;
-	if is_X(new_exp) or is_X(min_exp) then
+	if is_X(new_exp) or is_X(max_exp) then
 	    exp_huge := 'X';
 	elsif new_exp > max_exp then
             exp_huge := '1';
