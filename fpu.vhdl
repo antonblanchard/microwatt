@@ -953,7 +953,6 @@ begin
             v.denorm := '0';
             v.is_subtract := '0';
             v.add_bsmall := '0';
-            v.doing_ftdiv := "00";
             v.int_ovf := '0';
             v.div_close := '0';
 
@@ -1038,6 +1037,7 @@ begin
 
         v.update_fprf := '0';
         v.first := '0';
+        v.doing_ftdiv := "00";
         v.opsel_a := AIN_R;
         opsel_ainv <= '0';
         opsel_mask <= '0';
@@ -1147,8 +1147,10 @@ begin
                 v.instr_done := '1';
 
             when DO_FTDIV =>
-                v.instr_done := '1';
                 v.cr_result := "0000";
+                -- set result_exp to the exponent of B
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
                 if r.a.class = INFINITY or r.b.class = ZERO or r.b.class = INFINITY or
                     (r.b.class = FINITE and r.b.mantissa(UNIT_BIT) = '0') then
                     v.cr_result(2) := '1';
@@ -1157,6 +1159,7 @@ begin
                     r.b.class = NAN or r.b.class = ZERO or r.b.class = INFINITY or
                     (r.a.class = FINITE and r.a.exponent <= to_signed(-970, EXP_BITS)) then
                     v.cr_result(1) := '1';
+                    v.instr_done := '1';
                 else
                     v.doing_ftdiv := "11";
                     v.first := '1';
@@ -1173,7 +1176,7 @@ begin
                 end if;
                 if r.b.class = NAN or r.b.class = INFINITY or r.b.class = ZERO
                     or r.b.negative = '1' or r.b.exponent <= to_signed(-970, EXP_BITS) then
-                    v.cr_result(1) := '0';
+                    v.cr_result(1) := '1';
                 end if;
 
             when DO_FCMP =>
@@ -2148,6 +2151,9 @@ begin
                 v.state := NORMALIZE;
 
             when FTDIV_1 =>
+                -- We go through this state up to two times; the first sees if
+                -- B.exponent is in the range [-1021,1020], and the second tests
+                -- whether B.exp - A.exp is in the range [-1022,1020].
                 v.cr_result(1) := exp_tiny or exp_huge;
                 -- set shift to a.exp
                 rs_sel2 <= RSH2_A;
