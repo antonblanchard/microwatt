@@ -304,6 +304,13 @@ architecture behaviour of fpu is
     constant RCLS_TZERO  : std_ulogic_vector(1 downto 0) := "10";
     constant RCLS_TINF   : std_ulogic_vector(1 downto 0) := "11";
 
+    constant CROP_NONE   : std_ulogic_vector(2 downto 0) := "000";
+    constant CROP_FCMP   : std_ulogic_vector(2 downto 0) := "001";
+    constant CROP_MCRFS  : std_ulogic_vector(2 downto 0) := "010";
+    constant CROP_FTDIV  : std_ulogic_vector(2 downto 0) := "100";
+    constant CROP_FTSQRT : std_ulogic_vector(2 downto 0) := "101";
+    constant CROP_INTRES : std_ulogic_vector(2 downto 0) := "110";
+
     constant arith_decode : decode32 := (
         -- indexed by bits 5..1 of opcode
         2#01000# => DO_FRI,
@@ -875,6 +882,10 @@ begin
         variable is_nan_inf  : std_ulogic;
         variable is_zero_den : std_ulogic;
         variable set_reg_ind : std_ulogic;
+        variable cr_op       : std_ulogic_vector(2 downto 0);
+        variable cr_result   : std_ulogic_vector(3 downto 0);
+        variable set_cr      : std_ulogic;
+        variable set_fpcc    : std_ulogic;
     begin
         v := r;
         v.complete := '0';
@@ -1144,6 +1155,7 @@ begin
         carry_in <= '0';
         misc_sel <= "000";
         fpscr_mask := (others => '1');
+        cr_op := CROP_NONE;
         update_fx := '0';
         arith_done := '0';
         invalid := '0';
@@ -1160,6 +1172,8 @@ begin
         set_c := '0';
         set_r := '1';
         set_s := '0';
+        set_cr := '0';
+        set_fpcc := '0';
         f_to_multiply.is_signed <= '0';
         f_to_multiply.valid <= '0';
         msel_1 <= MUL1_A;
@@ -1361,6 +1375,8 @@ begin
                 v.instr_done := '1';
 
             when DO_MCRFS =>
+                cr_op := CROP_MCRFS;
+                set_cr := '1';
                 j := to_integer(unsigned(insn_bfa(r.insn)));
                 for i in 0 to 7 loop
                     if i = j then
@@ -1373,94 +1389,56 @@ begin
                 v.instr_done := '1';
 
             when DO_FTDIV =>
-                v.cr_result := "0000";
                 -- set result_exp to the exponent of B
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
-                if r.a.class = INFINITY or r.b.class = ZERO or r.b.class = INFINITY or
-                    (r.b.class = FINITE and r.b.denorm = '1') then
-                    v.cr_result(2) := '1';
-                end if;
-                if r.a.class = NAN or r.a.class = INFINITY or
-                    r.b.class = NAN or r.b.class = ZERO or r.b.class = INFINITY or
-                    (r.a.class = FINITE and r.a.exponent <= to_signed(-970, EXP_BITS)) then
-                    v.cr_result(1) := '1';
-                    v.instr_done := '1';
-                else
+                cr_op := CROP_FTDIV;
+                if (r.a.class = ZERO or r.a.class = FINITE) and r.b.class = FINITE then
                     v.doing_ftdiv := "11";
                     v.first := '1';
                     v.state := FTDIV_1;
-                    v.instr_done := '0';
+                else
+                    set_cr := '1';
+                    v.instr_done := '1';
                 end if;
 
             when DO_FTSQRT =>
+                cr_op := CROP_FTSQRT;
+                set_cr := '1';
                 v.instr_done := '1';
-                v.cr_result := "0000";
-                if r.b.class = ZERO or r.b.class = INFINITY or
-                    (r.b.class = FINITE and r.b.denorm = '1') then
-                    v.cr_result(2) := '1';
-                end if;
-                if r.b.class = NAN or r.b.class = INFINITY or r.b.class = ZERO
-                    or r.b.negative = '1' or r.b.exponent <= to_signed(-970, EXP_BITS) then
-                    v.cr_result(1) := '1';
-                end if;
 
             when DO_FCMP =>
                 -- fcmp[uo]
+                -- Prepare to subtract mantissas, put B in R
                 opsel_a <= AIN_B;
                 opsel_b <= BIN_ZERO;
                 set_r := '1';
-                v.instr_done := '1';
                 update_fx := '1';
-                re_sel2 <= REXP2_B;
-                re_set_result <= '1';
-                if (r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
-                    (r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0') then
-                    -- Signalling NAN
-                    v.fpscr(FPSCR_VXSNAN) := '1';
-                    if r.insn(6) = '1' and r.fpscr(FPSCR_VE) = '0' then
-                        v.fpscr(FPSCR_VXVC) := '1';
-                    end if;
-                    invalid := '1';
-                    v.cr_result := "0001";          -- unordered
-                elsif r.a.class = NAN or r.b.class = NAN then
-                    if r.insn(6) = '1' then
+                cr_op := CROP_FCMP;
+                if r.a.class = NAN or r.b.class = NAN then
+                    if (r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
+                        (r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0') then
+                        -- Signalling NAN
+                        v.fpscr(FPSCR_VXSNAN) := '1';
+                        if r.insn(6) = '1' and r.fpscr(FPSCR_VE) = '0' then
+                            v.fpscr(FPSCR_VXVC) := '1';
+                        end if;
+                        invalid := '1';
+                    elsif r.insn(6) = '1' then
                         -- fcmpo
                         v.fpscr(FPSCR_VXVC) := '1';
                         invalid := '1';
                     end if;
-                    v.cr_result := "0001";          -- unordered
-                elsif r.a.class = ZERO and r.b.class = ZERO then
-                    v.cr_result := "0010";          -- equal
-                elsif r.a.negative /= r.b.negative then
-                    v.cr_result := r.a.negative & r.b.negative & "00";
-                elsif r.a.class = ZERO then
-                    -- A and B are the same sign from here down
-                    v.cr_result := not r.b.negative & r.b.negative & "00";
-                elsif r.a.class = INFINITY then
-                    if r.b.class = INFINITY then
-                        v.cr_result := "0010";
-                    else
-                        v.cr_result := r.a.negative & not r.a.negative & "00";
-                    end if;
-                elsif r.b.class = ZERO then
-                    -- A is finite from here down
-                    v.cr_result := r.a.negative & not r.a.negative & "00";
-                elsif r.b.class = INFINITY then
-                    v.cr_result := not r.b.negative & r.b.negative & "00";
-                elsif r.a.exponent > r.b.exponent then
-                    -- A and B are both finite from here down
-                    v.cr_result := r.a.negative & not r.a.negative & "00";
-                elsif r.a.exponent /= r.b.exponent then
-                    -- A exponent is smaller than B
-                    v.cr_result := not r.a.negative & r.a.negative & "00";
-                else
-                    -- Prepare to subtract mantissas, put B in R
-                    v.cr_result := "0000";
-                    v.instr_done := '0';
-                    v.state := CMP_1;
                 end if;
-                v.fpscr(FPSCR_FL downto FPSCR_FU) := v.cr_result;
+                if r.a.class = FINITE and r.b.class = FINITE and
+                    r.a.negative = r.b.negative and
+                    r.a.exponent = r.b.exponent then
+                    v.state := CMP_1;
+                else
+                    set_cr := '1';
+                    set_fpcc := '1';
+                    v.instr_done := '1';
+                end if;
 
             when DO_MTFSB =>
                 -- mtfsb{0,1}
@@ -1878,15 +1856,9 @@ begin
                 v.state := CMP_2;
 
             when CMP_2 =>
-                if r.r(63) = '1' then
-                    -- A is smaller in magnitude
-                    v.cr_result := not r.a.negative & r.a.negative & "00";
-                elsif (r_hi_nz or r_lo_nz) = '0' then
-                    v.cr_result := "0010";
-                else
-                    v.cr_result := r.a.negative & not r.a.negative & "00";
-                end if;
-                v.fpscr(FPSCR_FL downto FPSCR_FU) := v.cr_result;
+                cr_op := CROP_FCMP;
+                set_cr := '1';
+                set_fpcc := '1';
                 v.instr_done := '1';
 
             when MULT_1 =>
@@ -2086,10 +2058,10 @@ begin
                 -- We go through this state up to two times; the first sees if
                 -- B.exponent is in the range [-1021,1020], and the second tests
                 -- whether B.exp - A.exp is in the range [-1022,1020].
-                v.cr_result(1) := exp_tiny or exp_huge;
-                -- set shift to a.exp
-                rs_sel2 <= RSH2_A;
+                rs_sel2 <= RSH2_A;                -- set shift to a.exp
+                cr_op := CROP_FTDIV;
                 if exp_tiny = '1' or exp_huge = '1' or r.a.class = ZERO or r.first = '0' then
+                    set_cr := '1';
                     v.instr_done := '1';
                 else
                     v.doing_ftdiv := "10";
@@ -3057,58 +3029,26 @@ begin
                     v.state := IDIV_OVFCHK;
                 end if;
             when IDIV_OVFCHK =>
+                opsel_r <= RES_MISC;
+                misc_sel <= "000";
                 if r.single_prec = '0' then
                     sign_bit := r.r(63);
                 else
                     sign_bit := r.r(31);
                 end if;
                 v.int_ovf := sign_bit xor r.result_sign;
-                if v.int_ovf = '1' then
-                    v.state := IDIV_ZERO;
-                else
-                    v.state := IDIV_DONE;
-                end if;
+                set_r := sign_bit xor r.result_sign;
+                v.state := IDIV_DONE;
             when IDIV_DONE =>
-                v.xerc_result := v.xerc;
-                if r.oe = '1' then
-                    v.xerc_result.ov := '0';
-                    v.xerc_result.ov32 := '0';
-                    v.writing_xer := '1';
-                end if;
-                if r.m32b = '0' then
-                    v.cr_result(3) := r.r(63);
-                    v.cr_result(2 downto 1) := "00";
-                    if r.r = 64x"0" then
-                        v.cr_result(1) := '1';
-                    else
-                        v.cr_result(2) := not r.r(63);
-                    end if;
-                else
-                    v.cr_result(3) := r.r(31);
-                    v.cr_result(2 downto 1) := "00";
-                    if r.r(31 downto 0) = 32x"0" then
-                        v.cr_result(1) := '1';
-                    else
-                        v.cr_result(2) := not r.r(31);
-                    end if;
-                end if;
-                v.cr_result(0) := v.xerc.so;
+                cr_op := CROP_INTRES;
+                set_cr := '1';
                 v.writing_fpr := '1';
                 v.instr_done := '1';
             when IDIV_ZERO =>
                 opsel_r <= RES_MISC;
                 misc_sel <= "000";
                 set_r := '1';
-                v.xerc_result := v.xerc;
-                if r.oe = '1' then
-                    v.xerc_result.ov := r.int_ovf;
-                    v.xerc_result.ov32 := r.int_ovf;
-                    v.xerc_result.so := r.xerc.so or r.int_ovf;
-                    v.writing_xer := '1';
-                end if;
-                v.cr_result := "001" & v.xerc_result.so;
-                v.writing_fpr := '1';
-                v.instr_done := '1';
+                v.state := IDIV_DONE;
 
         end case;
 
@@ -3523,6 +3463,103 @@ begin
             v.shift := resize(signed('0' & clz) - (63 - UNIT_BIT), EXP_BITS);
         else
             v.shift := rsh_in1 + rsh_in2 + (rs_neg1 or rs_neg2);
+        end if;
+
+        -- Condition register data path
+        cr_result := "0000";
+        case cr_op is
+            when CROP_FCMP =>
+                if r.a.class = NAN or r.b.class = NAN then
+                    cr_result := "0001";          -- unordered
+                elsif r.a.class = ZERO and r.b.class = ZERO then
+                    cr_result := "0010";          -- equal
+                elsif r.a.negative /= r.b.negative then
+                    cr_result := r.a.negative & r.b.negative & "00";
+                elsif r.a.class = INFINITY and r.b.class = INFINITY then
+                    -- A and B are the same sign from here down
+                    cr_result := "0010";
+                elsif r.a.class = ZERO then
+                    cr_result := not r.b.negative & r.b.negative & "00";
+                elsif r.a.class = INFINITY then
+                    cr_result := r.a.negative & not r.a.negative & "00";
+                elsif r.b.class = ZERO then
+                    -- A is finite from here down
+                    cr_result := r.a.negative & not r.a.negative & "00";
+                elsif r.b.class = INFINITY then
+                    cr_result := not r.b.negative & r.b.negative & "00";
+                elsif r.a.exponent > r.b.exponent then
+                    -- A and B are both finite from here down
+                    cr_result := r.a.negative & not r.a.negative & "00";
+                elsif r.a.exponent /= r.b.exponent then
+                    -- A exponent is smaller than B
+                    cr_result := not r.a.negative & r.a.negative & "00";
+                elsif r.r(63) = '1' then
+                    -- A is smaller in magnitude
+                    cr_result := not r.a.negative & r.a.negative & "00";
+                elsif (r_hi_nz or r_lo_nz) = '0' then
+                    cr_result := "0010";
+                else
+                    cr_result := r.a.negative & not r.a.negative & "00";
+                end if;
+            when CROP_MCRFS =>
+                j := to_integer(unsigned(insn_bfa(r.insn)));
+                for i in 0 to 7 loop
+                    if i = j then
+                        k := (7 - i) * 4;
+                        cr_result := r.fpscr(k + 3 downto k);
+                    end if;
+                end loop;
+            when CROP_FTDIV =>
+                if r.a.class = INFINITY or r.b.class = ZERO or r.b.class = INFINITY or
+                    (r.b.class = FINITE and r.b.denorm = '1') then
+                    cr_result(2) := '1';
+                end if;
+                if r.a.class = NAN or r.a.class = INFINITY or
+                    r.b.class = NAN or r.b.class = ZERO or r.b.class = INFINITY or
+                    (r.a.class = FINITE and r.a.exponent <= to_signed(-970, EXP_BITS)) or
+                    (r.doing_ftdiv(1) = '1' and (exp_tiny or exp_huge) = '1') then
+                    cr_result(1) := '1';
+                end if;
+            when CROP_FTSQRT =>
+                if r.b.class = ZERO or r.b.class = INFINITY or
+                    (r.b.class = FINITE and r.b.denorm = '1') then
+                    cr_result(2) := '1';
+                end if;
+                if r.b.class = NAN or r.b.class = INFINITY or r.b.class = ZERO
+                    or r.b.negative = '1' or r.b.exponent <= to_signed(-970, EXP_BITS) then
+                    cr_result(1) := '1';
+                end if;
+            when CROP_INTRES =>
+                v.xerc_result := v.xerc;
+                if r.oe = '1' then
+                    v.xerc_result.ov := r.int_ovf;
+                    v.xerc_result.ov32 := r.int_ovf;
+                    v.xerc_result.so := r.xerc.so or r.int_ovf;
+                    v.writing_xer := '1';
+                end if;
+                if r.m32b = '0' then
+                    cr_result(3) := r.r(63);
+                    if r.r = 64x"0" then
+                        cr_result(1) := '1';
+                    else
+                        cr_result(2) := not r.r(63);
+                    end if;
+                else
+                    cr_result(3) := r.r(31);
+                    if r.r(31 downto 0) = 32x"0" then
+                        cr_result(1) := '1';
+                    else
+                        cr_result(2) := not r.r(31);
+                    end if;
+                end if;
+                cr_result(0) := v.xerc_result.so;
+            when others =>
+        end case;
+        if set_cr = '1' then
+            v.cr_result := cr_result;
+        end if;
+        if set_fpcc = '1' then
+            v.fpscr(FPSCR_FL downto FPSCR_FU) := cr_result;
         end if;
 
         if r.update_fprf = '1' then
