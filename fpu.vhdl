@@ -1924,13 +1924,13 @@ begin
 
             when FMADD_4 =>
                 msel_add <= MULADD_RS;
+                set_r := '1';
                 f_to_multiply.valid <= r.first;
                 msel_inv <= r.is_subtract;
                 opsel_r <= RES_MULT;
                 opsel_s <= S_MULT;
                 set_s := '1';
                 if multiply_to_f.valid = '1' then
-                    set_r := '1';
                     v.state := FMADD_5;
                 end if;
 
@@ -2012,8 +2012,8 @@ begin
                 pshift := '1';
                 mult_mask := '1';
                 opsel_r <= RES_MULT;
+                set_r := '1';
                 if multiply_to_f.valid = '1' then
-                    set_r := '1';
                     v.first := '1';
                     v.state := DIV_5;
                 end if;
@@ -2118,9 +2118,8 @@ begin
                 pshift := '1';
                 mult_mask := '1';
                 opsel_r <= RES_MULT;
+                set_r := '1';
                 if multiply_to_f.valid = '1' then
-                    -- put result into R
-                    set_r := '1';
                     v.first := '1';
                     v.state := SQRT_4;
                 end if;
@@ -2166,8 +2165,6 @@ begin
                 opsel_r <= RES_MULT;
                 set_r := '1';
                 if multiply_to_f.valid = '1' then
-                    -- put result into R
-                    set_r := '1';
                     v.first := '1';
                     v.count := r.count + 1;
                     if r.count < 2 then
@@ -2741,11 +2738,11 @@ begin
                 f_to_multiply.valid <= r.first;
                 pshift := '1';
                 opsel_r <= RES_MULT;
+                set_r := '1';
                 -- set shift to - b.exp
                 rs_sel1 <= RSH1_B;
                 rs_neg1 <= '1';
                 if multiply_to_f.valid = '1' then
-                    set_r := '1';
                     v.state := IDIV_DIV2;
                 end if;
             when IDIV_DIV2 =>
@@ -2765,10 +2762,10 @@ begin
                 -- store the current quotient estimate in B
                 set_b_mant := r.first;
                 opsel_r <= RES_MULT;
+                set_r := '1';
                 opsel_s <= S_MULT;
                 set_s := '1';
                 if multiply_to_f.valid = '1' then
-                    set_r := '1';
                     v.state := IDIV_DIV4;
                 end if;
             when IDIV_DIV4 =>
@@ -2800,11 +2797,11 @@ begin
             when IDIV_DIV5 =>
                 pshift := '1';
                 opsel_r <= RES_MULT;
+                set_r := '1';
                 -- set shift to - b.exp
                 rs_sel1 <= RSH1_B;
                 rs_neg1 <= '1';
                 if multiply_to_f.valid = '1' then
-                    set_r := '1';
                     v.state := IDIV_DIV6;
                 end if;
             when IDIV_DIV6 =>
@@ -2831,10 +2828,10 @@ begin
                 -- store the current quotient estimate in B
                 set_b_mant := r.first;
                 opsel_r <= RES_MULT;
+                set_r := '1';
                 opsel_s <= S_MULT;
                 set_s := '1';
                 if multiply_to_f.valid = '1' then
-                    set_r := '1';
                     v.state := IDIV_DIV9;
                 end if;
             when IDIV_DIV9 =>
@@ -2933,8 +2930,8 @@ begin
                 f_to_multiply.valid <= r.first;
                 pshift := '1';
                 opsel_r <= RES_MULT;
+                set_r := '1';
                 if multiply_to_f.valid = '1' then
-                    set_r := '1';
                     v.first := '1';
                     v.state := IDIV_EXTDIV3;
                 end if;
@@ -2954,6 +2951,7 @@ begin
                 msel_inv <= '1';
                 f_to_multiply.valid <= r.first;
                 opsel_r <= RES_MULT;
+                set_r := '1';
                 opsel_s <= S_MULT;
                 set_s := '1';
                 -- set shift to UNIT_BIT - b.exp
@@ -2961,7 +2959,6 @@ begin
                 rs_neg1 <= '1';
                 rs_con2 <= RSCON2_UNIT;
                 if multiply_to_f.valid = '1' then
-                    set_r := '1';
                     v.state := IDIV_EXTDIV5;
                 end if;
             when IDIV_EXTDIV5 =>
