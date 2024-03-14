@@ -47,7 +47,7 @@ architecture behaviour of fpu is
         mantissa : std_ulogic_vector(63 downto 0);      -- 8.56 format
     end record;
 
-    type state_t is (IDLE, DO_ILLEGAL, DO_NAN_INF, DO_ZERO_DEN,
+    type state_t is (IDLE, DO_ILLEGAL, DO_SPECIAL,
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
                      DO_FMR, DO_FMRG, DO_FCMP, DO_FTDIV, DO_FTSQRT,
                      DO_FCFID, DO_FCTI,
@@ -91,6 +91,17 @@ architecture behaviour of fpu is
 
     type decode32 is array(0 to 31) of state_t;
     type decode8 is array(0 to 7) of state_t;
+
+    type specialcase_t is record
+        invalid       : std_ulogic;
+        zero_divide   : std_ulogic;
+        new_fpscr     : std_ulogic_vector(31 downto 0);
+        immed_result  : std_ulogic;      -- result is an input, zero, infinity or NaN
+        qnan_result   : std_ulogic;
+        result_sel    : std_ulogic_vector(2 downto 0);
+        result_class  : fp_number_class;
+        rsgn_op       : std_ulogic_vector(1 downto 0);
+    end record;
 
     type reg_type is record
         state        : state_t;
@@ -172,7 +183,9 @@ architecture behaviour of fpu is
         res_int      : std_ulogic;
         exec_state   : state_t;
         cycle_1      : std_ulogic;
+        cycle_1_ar   : std_ulogic;
         regsel       : std_ulogic_vector(2 downto 0);
+        is_nan_inf   : std_ulogic;
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -310,6 +323,8 @@ architecture behaviour of fpu is
     constant CROP_FTDIV  : std_ulogic_vector(2 downto 0) := "100";
     constant CROP_FTSQRT : std_ulogic_vector(2 downto 0) := "101";
     constant CROP_INTRES : std_ulogic_vector(2 downto 0) := "110";
+
+    signal scinfo : specialcase_t;
 
     constant arith_decode : decode32 := (
         -- indexed by bits 5..1 of opcode
@@ -806,6 +821,140 @@ begin
     w_out.intr_vec <= 16#700#;
     w_out.srr1 <= (47-44 => r.illegal, 47-43 => not r.illegal, others => '0');
 
+    -- This is active in the second cycle of an instruction, and works out if
+    -- we have a special case where one or more operand is NaN, infinity, or zero,
+    -- meaning that an exception is generated or a specific value results
+    -- immediately without further calculation.
+    fpu_specialcases: process(all)
+        variable e : specialcase_t;
+        variable invalid_mul  : std_ulogic;
+    begin
+        e.invalid := '0';
+        e.zero_divide := '0';
+        e.new_fpscr := (others => '0');
+        e.immed_result := '0';
+        e.qnan_result := '0';
+        e.result_sel := AIN_ZERO;
+        e.result_class := FINITE;
+        e.rsgn_op := RSGN_NOP;
+
+        -- Check if any operand is a signalling NAN
+        if (r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
+            (r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0') or
+            (r.c.class = NAN and r.c.mantissa(QNAN_BIT) = '0') then
+            e.new_fpscr(FPSCR_VXSNAN) := '1';
+            e.invalid := '1';
+        end if;
+
+        -- Check for this case here since VXIMZ can be set along with VXSNAN
+        invalid_mul := '0';
+        if r.is_multiply = '1' and
+            ((r.a.class = INFINITY and r.c.class = ZERO) or
+             (r.a.class = ZERO and r.c.class = INFINITY)) then
+            e.new_fpscr(FPSCR_VXIMZ) := '1';
+            e.invalid := '1';
+            invalid_mul := '1';
+        end if;
+
+        -- Note that any operand for which r.use_X is 0 will have class = ZERO
+        if r.is_nan_inf = '1' then
+            e.immed_result := '1';
+
+            if r.int_result = '1' then
+                e.qnan_result := '1';
+                e.new_fpscr(FPSCR_VXCVI) := '1';
+
+            elsif r.a.class = NAN or r.b.class = NAN or r.c.class = NAN then
+                e.result_class := NAN;
+                e.rsgn_op := RSGN_SEL;
+                -- Select the first input that is a NaN
+                if r.a.class = NAN then
+                    e.result_sel := AIN_A;
+                elsif r.b.class = NAN then
+                    e.result_sel := AIN_B;
+                elsif r.c.class = NAN then
+                    e.result_sel := AIN_C;
+                end if;
+
+            else
+                -- some operand is an infinity
+                if invalid_mul = '1' then
+                    e.qnan_result := '1';
+                elsif (r.a.class = INFINITY or r.c.class = INFINITY) then
+                    if r.is_multiply = '1' then
+                        e.rsgn_op := RSGN_SUB;
+                    end if;
+                    if r.is_subtract = '1' and r.b.class = INFINITY then
+                        e.new_fpscr(FPSCR_VXISI) := '1';
+                        e.qnan_result := '1';
+                    end if;
+                end if;
+                if r.is_inverse = '1' and r.a.class = INFINITY and r.b.class = INFINITY then
+                    e.new_fpscr(FPSCR_VXIDI) := '1';
+                    e.qnan_result := '1';
+                end if;
+                if r.b.class = INFINITY and r.is_sqrt = '1' and r.b.negative = '1' then
+                    e.new_fpscr(FPSCR_VXSQRT) := '1';
+                    e.qnan_result := '1';
+                end if;
+                if r.b.class = INFINITY and r.is_inverse = '1' then
+                    -- fdiv, fre, frsqrte
+                    e.result_class := ZERO;
+                else
+                    e.result_class := INFINITY;
+                end if;
+            end if;
+
+        elsif r.use_a = '1' and r.a.class = ZERO then
+            e.immed_result := '1';
+            if r.is_addition = '1' then
+                -- result is +/- B
+                e.result_sel := AIN_B;
+                e.result_class := r.b.class;
+            else
+                e.result_class := ZERO;
+            end if;
+            if r.is_inverse = '1' and r.b.class = ZERO then
+                -- fdiv 0 / 0
+                e.new_fpscr(FPSCR_VXZDZ) := '1';
+                e.qnan_result := '1';
+            end if;
+
+        elsif r.use_c = '1' and r.c.class = ZERO then
+            -- fmadd/sub A * 0 + B
+            e.immed_result := '1';
+            e.result_sel := AIN_B;
+            e.result_class := r.b.class;
+
+        elsif r.use_b = '1' and r.b.class = ZERO and r.is_multiply = '0' then
+            -- B is zero, other operands are finite
+            e.immed_result := '1';
+            if r.is_inverse = '1' then
+                -- fdiv, fre, frsqrte
+                e.result_class := INFINITY;
+                e.new_fpscr(FPSCR_ZX) := '1';
+                e.zero_divide := '1';
+            elsif r.is_addition = '1' then
+                -- fadd, result is A
+                e.result_sel := AIN_A;
+            else
+                -- other things, result is zero
+                e.result_class := ZERO;
+            end if;
+        end if;
+        if r.is_sqrt = '1' and r.b.class = FINITE and r.b.negative = '1' then
+            e.immed_result := '1';
+            e.new_fpscr(FPSCR_VXSQRT) := '1';
+            e.qnan_result := '1';
+        end if;
+
+        if e.qnan_result = '1' then
+            e.invalid := '1';
+            e.result_class := NAN;
+        end if;
+        scinfo <= e;
+    end process;
+
     fpu_1: process(all)
         variable v           : reg_type;
         variable adec        : fpu_reg_type;
@@ -895,6 +1044,7 @@ begin
         is_nan_inf := '0';
         is_zero_den := '0';
         v.cycle_1 := e_in.valid;
+        v.cycle_1_ar := '0';
 
         if r.complete = '1' or r.do_intr = '1' then
             v.instr_done := '0';
@@ -949,6 +1099,7 @@ begin
                     v.longmask := e_in.single;
                     v.fp_rc := e_in.rc;
                     v.is_arith := '1';
+                    v.cycle_1_ar := '1';
                     exec_state := arith_decode(to_integer(unsigned(e_in.insn(5 downto 1))));
                     if e_in.insn(5 downto 1) = "10110" or e_in.insn(5 downto 1) = "11010" then
                         v.is_sqrt := '1';
@@ -1205,7 +1356,7 @@ begin
         rsgn_op := RSGN_NOP;
         rcls_op <= RCLS_NOP;
 
-        if r.cycle_1 = '1' and r.is_arith = '1' then
+        if r.cycle_1_ar = '1' then
             v.fpscr(FPSCR_FR) := '0';
             v.fpscr(FPSCR_FI) := '0';
             v.result_class := FINITE;
@@ -1217,10 +1368,9 @@ begin
                 if e_in.valid = '1' then
                     v.busy := '1';
                     v.exec_state := exec_state;
-                    if is_nan_inf = '1' then
-                        v.state := DO_NAN_INF;
-                    elsif is_zero_den = '1' then
-                        v.state := DO_ZERO_DEN;
+                    v.is_nan_inf := is_nan_inf;
+                    if is_nan_inf = '1' or is_zero_den = '1' then
+                        v.state := DO_SPECIAL;
                     else
                         v.state := exec_state;
                     end if;
@@ -1230,144 +1380,25 @@ begin
                 set_s := '1';
                 v.regsel := AIN_ZERO;
 
-            when DO_NAN_INF =>
-                -- At least one floating-point operand is infinity or NaN
-                if r.a.class = NAN then
-                    opsel_a <= AIN_A;
-                elsif r.b.class = NAN then
-                    opsel_a <= AIN_B;
+            when DO_SPECIAL =>
+                -- At least one floating point operand is NaN, infinity, zero or denormalized
+                -- Most of the special cases are handled in the fpu_specialcases process
+                -- and in the code below (the scinfo.immed_result = '1' block).
+                if r.is_multiply = '1' and r.b.class = ZERO then
+                    -- This will trigger for fmul as well as fmadd/sub, but
+                    -- it doesn't matter since r.is_subtract = 0 for fmul.
+                    rsgn_op := RSGN_SUB;
+                end if;
+                if r.a.denorm = '1' and (r.is_multiply = '1' or r.is_inverse = '1') then
+                    v.state := RENORM_A;
+                elsif r.c.denorm = '1' then
+                    v.state := RENORM_C;
+                elsif r.b.denorm = '1' and (r.is_inverse = '1' or r.is_sqrt = '1') then
+                    v.state := RENORM_B;
+                elsif r.is_multiply = '1' and r.b.class = ZERO then
+                    v.state := DO_FMUL;
                 else
-                    opsel_a <= AIN_C;
-                end if;
-                opsel_b <= BIN_ZERO;
-                set_r := '1';
-
-                if (r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
-                    (r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0') or
-                    (r.c.class = NAN and r.c.mantissa(QNAN_BIT) = '0') then
-                    -- Signalling NAN
-                    v.fpscr(FPSCR_VXSNAN) := '1';
-                    invalid := '1';
-                end if;
-
-                -- Check for this case here since VXIMZ can be set along with VXSNAN
-                invalid_mul := '0';
-                if r.is_multiply = '1' and
-                    ((r.a.class = INFINITY and r.c.class = ZERO) or
-                     (r.a.class = ZERO and r.c.class = INFINITY)) then
-                    v.fpscr(FPSCR_VXIMZ) := '1';
-                    invalid_mul := '1';
-                end if;
-
-                if r.int_result = '1' then
-                    opsel_r <= RES_MISC;
-                    misc_sel <= "110";
-                    v.fpscr(FPSCR_VXCVI) := '1';
-                    invalid := '1';
-                end if;
-
-                if r.a.class = NAN or r.b.class = NAN or r.c.class = NAN then
-                    rsgn_op := RSGN_SEL;
-                    v.result_class := NAN;
-
-                else
-                    if invalid_mul = '1' then
-                        qnan_result := '1';
-                    elsif (r.a.class = INFINITY or r.c.class = INFINITY) then
-                        if r.is_multiply = '1' then
-                            rsgn_op := RSGN_SUB;
-                        end if;
-                        if r.is_subtract = '1' and r.b.class = INFINITY then
-                            v.fpscr(FPSCR_VXISI) := '1';
-                            qnan_result := '1';
-                        end if;
-                    end if;
-                    if r.is_inverse = '1' and r.a.class = INFINITY and r.b.class = INFINITY then
-                        v.fpscr(FPSCR_VXIDI) := '1';
-                        qnan_result := '1';
-                    end if;
-                    if r.b.class = INFINITY and r.is_sqrt = '1' and r.b.negative = '1' then
-                        v.fpscr(FPSCR_VXSQRT) := '1';
-                        qnan_result := '1';
-                    end if;
-                    if r.b.class = INFINITY and r.is_inverse = '1' then
-                        -- fdiv, fre, frsqrte
-                        v.result_class := ZERO;
-                    else
-                        v.result_class := INFINITY;
-                    end if;
-                end if;
-                arith_done := '1';
-
-            when DO_ZERO_DEN =>
-                -- At least one floating point operand is zero or denormalized
-                opsel_b <= BIN_ZERO;
-                set_r := '1';
-                if r.use_a = '1' and r.a.class = ZERO then
-                    opsel_a <= AIN_B;
-                    re_sel2 <= REXP2_B;
-                    re_set_result <= '1';
-                    if r.is_inverse = '1' and r.b.class = ZERO then
-                        -- fdiv with B=0
-                        v.fpscr(FPSCR_VXZDZ) := '1';
-                        qnan_result := '1';
-                    end if;
-                    if r.is_addition = '1' then
-                        -- result is +/- B
-                        v.result_class := r.b.class;
-                    else
-                        v.result_class := ZERO;
-                    end if;
-                    arith_done := '1';
-                elsif r.use_c = '1' and r.c.class = ZERO then
-                    -- fmul or fmadd/sub with C=0
-                    opsel_a <= AIN_B;
-                    re_sel2 <= REXP2_B;
-                    re_set_result <= '1';
-                    if r.is_addition = '1' then
-                        v.result_class := r.b.class;
-                    else
-                        v.result_class := ZERO;
-                    end if;
-                    arith_done := '1';
-                elsif (r.use_b = '1' and r.b.class = ZERO and r.is_multiply = '0') then
-                    -- B is zero, other operands are finite, not fmadd*
-                    opsel_a <= AIN_A;
-                    re_sel1 <= REXP1_A;
-                    re_set_result <= '1';
-                    if r.is_inverse = '1' then
-                        -- fdiv, fre, frsqrte
-                        v.result_class := INFINITY;
-                        zero_divide := '1';
-                    elsif r.is_addition = '1' then
-                        -- fadd, fsub
-                        v.result_class := FINITE;
-                    else
-                        -- other things, result is zero
-                        v.result_class := ZERO;
-                    end if;
-                    arith_done := '1';
-
-                else
-                    -- some operand is denorm, and/or it's fmadd/fmsub with B=0
-                    -- A and C are non-zero if present,
-                    -- B is non-zero if present except for multiply-add
-                    if r.is_multiply = '1' and r.b.class = ZERO then
-                        -- This will trigger for fmul as well as fmadd/sub, but
-                        -- it doesn't matter since r.is_subtract = 0 for fmul.
-                        rsgn_op := RSGN_SUB;
-                    end if;
-                    if r.a.denorm = '1' and (r.is_multiply = '1' or r.is_inverse = '1') then
-                        v.state := RENORM_A;
-                    elsif r.c.denorm = '1' then
-                        v.state := RENORM_C;
-                    elsif r.b.denorm = '1' and (r.is_inverse = '1' or r.is_sqrt = '1') then
-                        v.state := RENORM_B;
-                    elsif r.is_multiply = '1' and r.b.class = ZERO then
-                        v.state := DO_FMUL;
-                    else
-                        v.state := r.exec_state;
-                    end if;
+                    v.state := r.exec_state;
                 end if;
 
             when DO_ILLEGAL =>
@@ -1685,10 +1716,6 @@ begin
                 set_r := '1';
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
-                if r.b.negative = '1' then
-                    v.fpscr(FPSCR_VXSQRT) := '1';
-                    qnan_result := '1';
-                end if;
                 if r.b.exponent(0) = '1' then
                     v.state := SQRT_ODD;
                 elsif r.is_inverse = '0' then
@@ -3049,6 +3076,37 @@ begin
 
         end case;
 
+        -- Handle exceptions and special cases for arithmetic operations
+        if r.cycle_1_ar = '1' then
+            v.fpscr := r.fpscr or scinfo.new_fpscr;
+            invalid := scinfo.invalid;
+            zero_divide := scinfo.zero_divide;
+            qnan_result := scinfo.qnan_result;
+            if scinfo.immed_result = '1' then
+                -- state machine is in the DO_SPECIAL or DO_FSQRT state here
+                arith_done := '1';
+                set_r := '1';
+                opsel_a <= scinfo.result_sel;
+                opsel_b <= BIN_ZERO;
+                if scinfo.qnan_result = '1' then
+                    opsel_r <= RES_MISC;
+                    if r.int_result = '0' then
+                        misc_sel <= "001";
+                    else
+                        misc_sel <= "110";
+                    end if;
+                end if;
+                rsgn_op := scinfo.rsgn_op;
+                v.result_class := scinfo.result_class;
+                if scinfo.result_sel = AIN_B then
+                    re_sel2 <= REXP2_B;
+                else
+                    re_sel1 <= REXP1_A;
+                end if;
+                re_set_result <= '1';
+            end if;
+        end if;
+
         rsign := r.result_sign;
         case rsgn_op is
             when RSGN_SEL =>
@@ -3100,16 +3158,8 @@ begin
             when others =>
         end case;
 
-        if zero_divide = '1' then
-            v.fpscr(FPSCR_ZX) := '1';
-        end if;
         if qnan_result = '1' then
-            invalid := '1';
-            v.result_class := NAN;
             rsign := '0';
-            misc_sel <= "001";
-            opsel_r <= RES_MISC;
-            arith_done := '1';
         end if;
         if invalid = '1' then
             v.invalid := '1';
