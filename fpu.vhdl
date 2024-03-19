@@ -194,16 +194,16 @@ architecture behaviour of fpu is
 
     signal fp_result     : std_ulogic_vector(63 downto 0);
     signal opsel_a       : std_ulogic_vector(2 downto 0);
-    signal opsel_b       : std_ulogic;
+    signal opsel_b       : std_ulogic_vector(2 downto 0);
+    signal opsel_c       : std_ulogic_vector(2 downto 0);
     signal opsel_r       : std_ulogic_vector(1 downto 0);
     signal opsel_s       : std_ulogic_vector(1 downto 0);
-    signal opsel_ainv    : std_ulogic;
+    signal opsel_aneg    : std_ulogic;
+    signal opsel_aabs    : std_ulogic;
     signal opsel_mask    : std_ulogic;
-    signal opsel_binv    : std_ulogic;
     signal in_a          : std_ulogic_vector(63 downto 0);
     signal in_b          : std_ulogic_vector(63 downto 0);
     signal result        : std_ulogic_vector(63 downto 0);
-    signal carry_in      : std_ulogic;
     signal lost_bits     : std_ulogic;
     signal r_hi_nz       : std_ulogic;
     signal r_lo_nz       : std_ulogic;
@@ -228,8 +228,20 @@ architecture behaviour of fpu is
     constant AIN_RND_RBIT : std_ulogic_vector(2 downto 0) := "110";
     constant AIN_RND      : std_ulogic_vector(2 downto 0) := "111";
 
-    constant BIN_ZERO  : std_ulogic := '0';
-    constant BIN_R     : std_ulogic := '1';
+    constant BIN_ZERO     : std_ulogic_vector(2 downto 0) := "000";
+    constant BIN_R        : std_ulogic_vector(2 downto 0) := "001";
+    constant BIN_MINUSR   : std_ulogic_vector(2 downto 0) := "100";
+    constant BIN_ABSR     : std_ulogic_vector(2 downto 0) := "101";
+    constant BIN_ADDSUBR  : std_ulogic_vector(2 downto 0) := "110";
+    constant BIN_RSIGNR   : std_ulogic_vector(2 downto 0) := "111";
+
+    constant CIN_ZERO     : std_ulogic_vector(2 downto 0) := "000";
+    constant CIN_SUBEXT   : std_ulogic_vector(2 downto 0) := "001";
+    constant CIN_ABSEXT   : std_ulogic_vector(2 downto 0) := "010";
+    constant CIN_INC      : std_ulogic_vector(2 downto 0) := "011";
+    constant CIN_ROUND    : std_ulogic_vector(2 downto 0) := "100";
+    constant CIN_RNDX     : std_ulogic_vector(2 downto 0) := "101";
+    constant CIN_RNDQ     : std_ulogic_vector(2 downto 0) := "110";
 
     constant RES_SUM   : std_ulogic_vector(1 downto 0) := "00";
     constant RES_SHIFT : std_ulogic_vector(1 downto 0) := "01";
@@ -1035,6 +1047,9 @@ begin
         variable cr_result   : std_ulogic_vector(3 downto 0);
         variable set_cr      : std_ulogic;
         variable set_fpcc    : std_ulogic;
+        variable asign       : std_ulogic;
+        variable bneg        : std_ulogic;
+        variable ci          : std_ulogic;
     begin
         v := r;
         v.complete := '0';
@@ -1297,13 +1312,13 @@ begin
         v.first := '0';
         v.doing_ftdiv := "00";
         opsel_a <= AIN_ZERO;
-        opsel_ainv <= '0';
+        opsel_aneg <= '0';
+        opsel_aabs <= '0';
         opsel_mask <= '0';
         opsel_b <= BIN_R;
-        opsel_binv <= '0';
+        opsel_c <= CIN_ZERO;
         opsel_r <= RES_SUM;
         opsel_s <= S_ZERO;
-        carry_in <= '0';
         misc_sel <= "000";
         fpscr_mask := (others => '1');
         cr_op := CROP_NONE;
@@ -1634,14 +1649,10 @@ begin
 
             when DO_FCFID =>
                 opsel_a <= AIN_B;
+                opsel_aabs <= '1';
                 opsel_b <= BIN_ZERO;
                 set_r := '1';
                 rcls_op <= RCLS_SEL;
-                if r.insn(8) = '0' and r.b.negative = '1' then
-                    -- fcfid[s] with negative operand, set R = -B
-                    opsel_ainv <= '1';
-                    carry_in <= '1';
-                end if;
                 re_con2 <= RECON2_UNIT;
                 re_set_result <= '1';
                 if r.b.class = ZERO then
@@ -1833,9 +1844,8 @@ begin
                 else
                     opsel_a <= AIN_B;
                 end if;
-                opsel_b <= BIN_R;
-                opsel_binv <= r.is_subtract;
-                carry_in <= r.is_subtract and not r.x;
+                opsel_b <= BIN_ADDSUBR;
+                opsel_c <= CIN_SUBEXT;
                 set_r := '1';
                 -- set shift to -1
                 rs_con2 <= RSCON2_1;
@@ -1847,13 +1857,12 @@ begin
                 -- r.shift = -1
                 re_sel2 <= REXP2_NE;
                 rcls_op <= RCLS_TZERO;
+                opsel_a <= AIN_ZERO;
+                opsel_b <= BIN_ABSR;
                 if r.r(63) = '1' then
                     -- result is opposite sign to expected
                     rsgn_op := RSGN_INV;
-                    opsel_a <= AIN_ZERO;
                     set_r := '1';
-                    opsel_binv <= '1';
-                    carry_in <= '1';
                     v.state := FINISH;
                 elsif r.r(UNIT_BIT + 1) = '1' then
                     -- sum overflowed, shift right
@@ -1876,9 +1885,7 @@ begin
 
             when CMP_1 =>
                 opsel_a <= AIN_A;
-                opsel_b <= BIN_R;
-                opsel_binv <= '1';
-                carry_in <= '1';
+                opsel_b <= BIN_MINUSR;
                 set_r := '1';
                 v.state := CMP_2;
 
@@ -1963,10 +1970,10 @@ begin
 
             when FMADD_5 =>
                 -- negate R:S:X if negative
+                opsel_b <= BIN_ABSR;
+                opsel_c <= CIN_ABSEXT;
                 if r.r(63) = '1' then
                     rsgn_op := RSGN_INV;
-                    opsel_binv <= '1';
-                    carry_in <= not (s_nz or r.x);
                     set_r := '1';
                     opsel_s <= S_NEG;
                     set_s := '1';
@@ -2260,7 +2267,7 @@ begin
             when SQRT_12 =>
                 -- test if remainder is 0 or >= B = 2*R + 1
                 set_r := '0';
-                carry_in <= '1';
+                opsel_c <= CIN_INC;
                 if pcmpb_lt = '1' then
                     -- square root is correct, set X if remainder non-zero
                     v.x := r.p(UNIT_BIT + 2) or px_nz;
@@ -2309,8 +2316,8 @@ begin
 
             when INT_FINAL =>
                 -- Negate if necessary, and increment for rounding if needed
-                opsel_binv <= r.result_sign;
-                carry_in <= r.fpscr(FPSCR_FR) xor r.result_sign;
+                opsel_b <= BIN_RSIGNR;
+                opsel_c <= CIN_ROUND;
                 set_r := '1';
                 -- Check for possible overflows
                 case r.insn(9 downto 8) is
@@ -2547,13 +2554,9 @@ begin
 
             when DO_IDIVMOD =>
                 opsel_a <= AIN_B;
+                opsel_aabs <= '1';
                 opsel_b <= BIN_ZERO;
                 set_r := '1';
-                -- take absolute value for signed division
-                if r.is_signed = '1' and r.b.negative = '1' then
-                    opsel_ainv <= '1';
-                    carry_in <= '1';
-                end if;
                 -- normalize and round up B to 8.56 format, like fcfid[u]
                 re_con2 <= RECON2_UNIT;
                 re_set_result <= '1';
@@ -2583,19 +2586,16 @@ begin
                 v.state := IDIV_NORMB3;
             when IDIV_NORMB3 =>
                 -- add the X bit onto R to round up B
-                carry_in <= r.x;
+                opsel_c <= CIN_RNDX;
                 set_r := '1';
                 -- prepare to do count-leading-zeroes on A
                 v.state := IDIV_CLZA;
             when IDIV_CLZA =>
                 set_b := '1';           -- put R back into B
                 opsel_a <= AIN_A;
+                opsel_aabs <= '1';
                 opsel_b <= BIN_ZERO;
                 set_r := '1';
-                if r.is_signed = '1' and r.a.negative = '1' then
-                    opsel_ainv <= '1';
-                    carry_in <= '1';
-                end if;
                 re_con2 <= RECON2_UNIT;
                 re_set_result <= '1';
                 v.state := IDIV_CLZA2;
@@ -2608,8 +2608,7 @@ begin
                 -- (using the original value of B, which is now in C)
                 opsel_a <= AIN_C;
                 opsel_b <= BIN_R;
-                opsel_ainv <= '1';
-                carry_in <= '1';
+                opsel_aneg <= '1';
                 set_r := '1';
                 v.state := IDIV_CLZA3;
             when IDIV_CLZA3 =>
@@ -2924,8 +2923,7 @@ begin
                 -- shifted dividend is in R, subtract left-justified divisor
                 opsel_a <= AIN_B;
                 opsel_b <= BIN_R;
-                opsel_ainv <= '1';
-                carry_in <= '1';
+                opsel_aneg <= '1';
                 set_r := '1';
                 -- and put 1<<63 into B as the divisor (S is still 0)
                 shiftin0 := '1';
@@ -3028,8 +3026,7 @@ begin
             when IDIV_MODSUB =>
                 -- Subtract divisor from remainder
                 opsel_a <= AIN_C;
-                opsel_ainv <= '1';
-                carry_in <= '1';
+                opsel_aneg <= '1';
                 opsel_b <= BIN_R;
                 set_r := '1';
                 if r.result_sign = '0' then
@@ -3041,8 +3038,8 @@ begin
                 -- result (so far) is in R
                 -- set carry to increment quotient if needed
                 -- and also negate R if the answer is negative
-                opsel_binv <= r.result_sign;
-                carry_in <= r.inc_quot xor r.result_sign;
+                opsel_b <= BIN_RSIGNR;
+                opsel_c <= CIN_RNDQ;
                 set_r := '1';
                 if r.divmod = '0' then
                     opsel_a <= AIN_RND_B32;
@@ -3257,11 +3254,14 @@ begin
         if (or (mask and r.r)) = '1' and set_x = '1' then
             v.x := '1';
         end if;
+        asign := '0';
         case opsel_a is
             when AIN_A =>
                 in_a0 := r.a.mantissa;
+                asign := r.a.negative;
             when AIN_B =>
                 in_a0 := r.b.mantissa;
+                asign := r.b.negative;
             when AIN_C =>
                 in_a0 := r.c.mantissa;
             when AIN_PS8 =>     -- 8 LSBs of P sign-extended to 64
@@ -3275,18 +3275,45 @@ begin
             when others =>
                 in_a0 := (others => '0');
         end case;
-        if opsel_ainv = '1' then
+        ci := '0';
+        case opsel_c is
+            when CIN_SUBEXT =>
+                ci := r.is_subtract and r.x;
+            when CIN_ABSEXT =>
+                ci := r.r(63) and (s_nz or r.x);
+            when CIN_INC =>
+                ci := '1';
+            when CIN_ROUND =>
+                ci := r.fpscr(FPSCR_FR);
+            when CIN_RNDX =>
+                ci := r.x;
+            when CIN_RNDQ =>
+                ci := r.inc_quot;
+            when others =>
+        end case;
+        if opsel_aneg = '1' or (opsel_aabs = '1' and r.is_signed = '1' and asign = '1') then
             in_a0 := not in_a0;
+            ci := not ci;
         end if;
         in_a <= in_a0;
+        in_b0 := r.r;
+        bneg := '0';
         case opsel_b is
             when BIN_R =>
-                in_b0 := r.r;
+            when BIN_MINUSR =>
+                bneg := '1';
+            when BIN_ABSR =>
+                bneg := r.r(63);
+            when BIN_ADDSUBR =>
+                bneg := r.is_subtract;
+            when BIN_RSIGNR =>
+                bneg := r.result_sign;
             when others =>
                 in_b0 := (others => '0');
         end case;
-        if opsel_binv = '1' then
+        if bneg = '1' then
             in_b0 := not in_b0;
+            ci := not ci;
         end if;
         in_b <= in_b0;
 	if is_X(r.shift) then
@@ -3298,7 +3325,7 @@ begin
         else
             shift_res := (others => '0');
         end if;
-        sum := std_ulogic_vector(unsigned(in_a) + unsigned(in_b) + carry_in);
+        sum := std_ulogic_vector(unsigned(in_a) + unsigned(in_b) + ci);
         if opsel_mask = '1' then
             sum(DP_LSB - 1 downto 0) := "0000";
             if r.single_prec = '1' then
