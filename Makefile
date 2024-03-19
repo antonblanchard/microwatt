@@ -164,7 +164,7 @@ RAM_INIT_FILE ?=hello_world/hello_world.hex
 #MEMORY_SIZE=393216
 #RAM_INIT_FILE=micropython/firmware.hex
 
-FPGA_TARGET ?= ORANGE-CRAB-0.21
+FPGA_TARGET ?= ECPIX-5
 
 clkgen=fpga/clk_gen_ecp5.vhd
 toplevel=fpga/top-generic.vhdl
@@ -213,6 +213,20 @@ PACKAGE=CABGA381
 NEXTPNR_FLAGS=--um5g-85k --freq 40
 OPENOCD_JTAG_CONFIG=openocd/ecp5-evn.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+endif
+
+# ECPIX-5
+ifeq ($(FPGA_TARGET), ECPIX-5)
+RESET_LOW=true
+CLK_INPUT=100000000
+CLK_FREQUENCY=50000000
+LPF=constraints/ecpix-5.lpf
+PACKAGE=CABGA554
+NEXTPNR_FLAGS=--um5g-85k --speed 8 --freq 50 --timing-allow-fail --ignore-loops
+OPENOCD_JTAG_CONFIG=openocd/ecpix-5.cfg
+OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
+toplevel=fpga/top-ecpix5.vhdl
+dmi_dtm=dmi_dtm_ecp5.vhdl
 endif
 
 ifneq ($(litedram_target),)
