@@ -43,3 +43,17 @@ LOCATE COMP "led8_b_n" SITE "P22";
 IOBUF PORT "led8_r_n" IO_TYPE=LVCMOS33;
 IOBUF PORT "led8_g_n" IO_TYPE=LVCMOS33;
 IOBUF PORT "led8_b_n" IO_TYPE=LVCMOS33;
+
+// We use USRMCLK instead for clk
+// LOCATE COMP "spi_flash_clk" SITE "U16";
+// IOBUF PORT "spi_flash_clk" IO_TYPE=LVCMOS33;
+LOCATE COMP "spi_flash_cs_n" SITE "AA2";
+IOBUF PORT "spi_flash_cs_n" IO_TYPE=LVCMOS33;
+LOCATE COMP "spi_flash_mosi" SITE "AE2";
+IOBUF PORT "spi_flash_mosi" IO_TYPE=LVCMOS33;
+LOCATE COMP "spi_flash_miso" SITE "AD2";
+IOBUF PORT "spi_flash_miso" IO_TYPE=LVCMOS33;
+LOCATE COMP "spi_flash_wp_n" SITE "AF2";
+IOBUF PORT "spi_flash_wp_n" IO_TYPE=LVCMOS33;
+LOCATE COMP "spi_flash_hold_n" SITE "AE1";
+IOBUF PORT "spi_flash_hold_n" IO_TYPE=LVCMOS33;

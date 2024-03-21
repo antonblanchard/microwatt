@@ -17,6 +17,9 @@ entity toplevel is
         USE_LITEDRAM       : boolean  := false;
         NO_BRAM            : boolean  := false;
         SCLK_STARTUPE2     : boolean := false;
+        SPI_FLASH_OFFSET   : integer := 4194304;
+        SPI_FLASH_DEF_CKDV : natural := 0;
+        SPI_FLASH_DEF_QUAD : boolean := true;
         LOG_LENGTH         : natural := 0;
         UART_IS_16550      : boolean  := true;
         HAS_UART1          : boolean  := false;
@@ -45,7 +48,14 @@ entity toplevel is
         led7_b_n  : out std_ulogic;
         led8_r_n  : out std_ulogic;
         led8_g_n  : out std_ulogic;
-        led8_b_n  : out std_ulogic
+        led8_b_n  : out std_ulogic;
+
+        -- SPI
+        spi_flash_cs_n   : out std_ulogic;
+        spi_flash_mosi   : inout std_ulogic;
+        spi_flash_miso   : inout std_ulogic;
+        spi_flash_wp_n   : inout std_ulogic;
+        spi_flash_hold_n : inout std_ulogic
 
         );
 end entity toplevel;
@@ -59,6 +69,14 @@ architecture behaviour of toplevel is
     -- Internal clock signals:
     signal system_clk        : std_ulogic;
     signal system_clk_locked : std_ulogic;
+
+    -- SPI flash
+    signal spi_sck     : std_ulogic;
+    signal spi_sck_ts  : std_ulogic;
+    signal spi_cs_n    : std_ulogic;
+    signal spi_sdat_o  : std_ulogic_vector(3 downto 0);
+    signal spi_sdat_oe : std_ulogic_vector(3 downto 0);
+    signal spi_sdat_i  : std_ulogic_vector(3 downto 0);
 
     -- Fixup various memory sizes based on generics
     function get_bram_size return natural is
@@ -82,6 +100,15 @@ architecture behaviour of toplevel is
     constant BRAM_SIZE    : natural := get_bram_size;
     constant PAYLOAD_SIZE : natural := get_payload_size;
 
+    COMPONENT USRMCLK
+        PORT(
+            USRMCLKI : IN STD_ULOGIC;
+            USRMCLKTS : IN STD_ULOGIC
+        );
+    END COMPONENT;
+    attribute syn_noprune: boolean ;
+    attribute syn_noprune of USRMCLK: component is true;
+
 begin
 
     -- Main SoC
@@ -96,7 +123,11 @@ begin
             HAS_DRAM           => USE_LITEDRAM,
             DRAM_SIZE          => 512 * 1024 * 1024,
             DRAM_INIT_SIZE     => PAYLOAD_SIZE,
-            HAS_SPI_FLASH      => false,
+            HAS_SPI_FLASH      => true,
+            SPI_FLASH_DLINES   => 4,
+            SPI_FLASH_OFFSET   => SPI_FLASH_OFFSET,
+            SPI_FLASH_DEF_CKDV => SPI_FLASH_DEF_CKDV,
+            SPI_FLASH_DEF_QUAD => SPI_FLASH_DEF_QUAD,
             LOG_LENGTH         => LOG_LENGTH,
             UART0_IS_16550     => UART_IS_16550,
             HAS_UART1          => HAS_UART1,
@@ -111,8 +142,33 @@ begin
 
             -- UART signals
             uart0_txd         => uart0_txd,
-            uart0_rxd         => uart0_rxd
+            uart0_rxd         => uart0_rxd,
+
+            -- SPI signals
+            spi_flash_sck     => spi_sck,
+            spi_flash_cs_n    => spi_cs_n,
+            spi_flash_sdat_o  => spi_sdat_o,
+            spi_flash_sdat_oe => spi_sdat_oe,
+            spi_flash_sdat_i  => spi_sdat_i
             );
+
+    -- SPI Flash
+    --
+    spi_flash_cs_n   <= spi_cs_n;
+    spi_flash_mosi   <= spi_sdat_o(0) when spi_sdat_oe(0) = '1' else 'Z';
+    spi_flash_miso   <= spi_sdat_o(1) when spi_sdat_oe(1) = '1' else 'Z';
+    spi_flash_wp_n   <= spi_sdat_o(2) when spi_sdat_oe(2) = '1' else 'Z';
+    spi_flash_hold_n <= spi_sdat_o(3) when spi_sdat_oe(3) = '1' else 'Z';
+    spi_sdat_i(0)    <= spi_flash_mosi;
+    spi_sdat_i(1)    <= spi_flash_miso;
+    spi_sdat_i(2)    <= spi_flash_wp_n;
+    spi_sdat_i(3)    <= spi_flash_hold_n;
+    spi_sck_ts       <= '0';
+
+    uclk: USRMCLK port map (
+        USRMCLKI => spi_sck,
+        USRMCLKTS => spi_sck_ts
+        );
 
     nodram: if not USE_LITEDRAM generate
         signal div2 : std_ulogic := '0';
