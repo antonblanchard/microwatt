@@ -55,7 +55,73 @@ entity toplevel is
         spi_flash_mosi   : inout std_ulogic;
         spi_flash_miso   : inout std_ulogic;
         spi_flash_wp_n   : inout std_ulogic;
-        spi_flash_hold_n : inout std_ulogic
+        spi_flash_hold_n : inout std_ulogic;
+
+        -- PMOD ports 0 - 7
+        pmod0_0 : inout std_ulogic;
+        pmod0_1 : inout std_ulogic;
+        pmod0_2 : inout std_ulogic;
+        pmod0_3 : inout std_ulogic;
+        pmod0_4 : inout std_ulogic;
+        pmod0_5 : inout std_ulogic;
+        pmod0_6 : inout std_ulogic;
+        pmod0_7 : inout std_ulogic;
+        pmod1_0 : inout std_ulogic;
+        pmod1_1 : inout std_ulogic;
+        pmod1_2 : inout std_ulogic;
+        pmod1_3 : inout std_ulogic;
+        pmod1_4 : inout std_ulogic;
+        pmod1_5 : inout std_ulogic;
+        pmod1_6 : inout std_ulogic;
+        pmod1_7 : inout std_ulogic;
+        pmod2_0 : inout std_ulogic;
+        pmod2_1 : inout std_ulogic;
+        pmod2_2 : inout std_ulogic;
+        pmod2_3 : inout std_ulogic;
+        pmod2_4 : inout std_ulogic;
+        pmod2_5 : inout std_ulogic;
+        pmod2_6 : inout std_ulogic;
+        pmod2_7 : inout std_ulogic;
+        pmod3_0 : inout std_ulogic;
+        pmod3_1 : inout std_ulogic;
+        pmod3_2 : inout std_ulogic;
+        pmod3_3 : inout std_ulogic;
+        pmod3_4 : inout std_ulogic;
+        pmod3_5 : inout std_ulogic;
+        pmod3_6 : inout std_ulogic;
+        pmod3_7 : inout std_ulogic;
+        pmod4_0 : inout std_ulogic;     -- 0n
+        pmod4_1 : inout std_ulogic;     -- 0p
+        pmod4_2 : inout std_ulogic;     -- 1n
+        pmod4_3 : inout std_ulogic;     -- 1p
+        pmod4_4 : inout std_ulogic;     -- 2n
+        pmod4_5 : inout std_ulogic;     -- 2p
+        pmod4_6 : inout std_ulogic;     -- 3n
+        pmod4_7 : inout std_ulogic;     -- 3p
+        pmod5_0 : inout std_ulogic;
+        pmod5_1 : inout std_ulogic;
+        pmod5_2 : inout std_ulogic;
+        pmod5_3 : inout std_ulogic;
+        pmod5_4 : inout std_ulogic;
+        pmod5_5 : inout std_ulogic;
+        pmod5_6 : inout std_ulogic;
+        pmod5_7 : inout std_ulogic;
+        pmod6_0 : inout std_ulogic;
+        pmod6_1 : inout std_ulogic;
+        pmod6_2 : inout std_ulogic;
+        pmod6_3 : inout std_ulogic;
+        pmod6_4 : inout std_ulogic;
+        pmod6_5 : inout std_ulogic;
+        pmod6_6 : inout std_ulogic;
+        pmod6_7 : inout std_ulogic;
+        pmod7_0 : inout std_ulogic;
+        pmod7_1 : inout std_ulogic;
+        pmod7_2 : inout std_ulogic;
+        pmod7_3 : inout std_ulogic;
+        pmod7_4 : inout std_ulogic;
+        pmod7_5 : inout std_ulogic;
+        pmod7_6 : inout std_ulogic;
+        pmod7_7 : inout std_ulogic
 
         );
 end entity toplevel;
