@@ -1,0 +1,34 @@
+# Based on orangecrab-85-0.2.yml and arty.yml
+
+{
+    "cpu":        "None",  # CPU type (ex vexriscv, serv, None)
+    "device":     "LFE5UM5G-85F-8BG554I",
+    "memtype":    "DDR3",      # DRAM type
+
+    "cmd_latency":     0,
+    "sdram_module":    "MT41K256M16", # SDRAM modules of the board or SO-DIMM
+    "sdram_module_nb": 2,             # Number of byte groups
+    "sdram_rank_nb":   1,             # Number of ranks
+    "sdram_phy":       "ECP5DDRPHY",    # Type of FPGA PHY
+
+    # Electrical ---------------------------------------------------------------
+    "rtt_nom": "60ohm",  # Nominal termination. (Default)
+    "rtt_wr":  "60ohm",  # Write termination. (Default)
+    "ron":     "34ohm",  # Output driver impedance. (Default)
+
+    # Frequency ----------------------------------------------------------------
+    "input_clk_freq":   100e6, # Input clock frequency
+    "sys_clk_freq":      50e6, # System clock frequency (DDR_clk = 4 x sys_clk)
+    "init_clk_freq":     50e6, # ?
+
+    # Core ---------------------------------------------------------------------
+    "cmd_buffer_depth": 16,    # Depth of the command buffer
+
+    # User Ports ---------------------------------------------------------------
+    "user_ports": {
+        "native_0": {
+            "type": "native",
+            "block_until_ready": False,
+        },
+    },
+}

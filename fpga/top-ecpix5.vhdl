@@ -14,8 +14,8 @@ entity toplevel is
         CLK_FREQUENCY      : positive := 50000000;
         HAS_FPU            : boolean  := false;
         HAS_BTC            : boolean  := false;
-        USE_LITEDRAM       : boolean  := false;
-        NO_BRAM            : boolean  := false;
+        USE_LITEDRAM       : boolean  := true;
+        NO_BRAM            : boolean  := true;
         SCLK_STARTUPE2     : boolean := false;
         SPI_FLASH_OFFSET   : integer := 4194304;
         SPI_FLASH_DEF_CKDV : natural := 0;
@@ -121,8 +121,23 @@ entity toplevel is
         pmod7_4 : inout std_ulogic;
         pmod7_5 : inout std_ulogic;
         pmod7_6 : inout std_ulogic;
-        pmod7_7 : inout std_ulogic
+        pmod7_7 : inout std_ulogic;
 
+        -- DRAM wires
+        ddram_a       : out std_ulogic_vector(14 downto 0);
+        ddram_ba      : out std_ulogic_vector(2 downto 0);
+        ddram_ras_n   : out std_ulogic;
+        ddram_cas_n   : out std_ulogic;
+        ddram_we_n    : out std_ulogic;
+        ddram_dm      : out std_ulogic_vector(1 downto 0);
+        ddram_dq      : inout std_ulogic_vector(15 downto 0);
+        ddram_dqs_p   : inout std_ulogic_vector(1 downto 0);
+        ddram_clk_p   : out std_ulogic_vector(0 downto 0);
+        -- only the positive differential pin is instantiated
+        --ddram_dqs_n   : inout std_ulogic_vector(1 downto 0);
+        --ddram_clk_n   : out std_ulogic_vector(0 downto 0);
+        ddram_cke     : out std_ulogic;
+        ddram_odt     : out std_ulogic
         );
 end entity toplevel;
 
@@ -135,6 +150,19 @@ architecture behaviour of toplevel is
     -- Internal clock signals:
     signal system_clk        : std_ulogic;
     signal system_clk_locked : std_ulogic;
+
+    -- External IOs from the SoC
+    signal wb_ext_io_in        : wb_io_master_out;
+    signal wb_ext_io_out       : wb_io_slave_out;
+    signal wb_ext_is_dram_csr  : std_ulogic;
+    signal wb_ext_is_dram_init : std_ulogic;
+
+    -- DRAM main data wishbone connection
+    signal wb_dram_in          : wishbone_master_out;
+    signal wb_dram_out         : wishbone_slave_out;
+
+    -- DRAM control wishbone connection
+    signal wb_dram_ctrl_out    : wb_io_slave_out := wb_io_slave_out_init;
 
     -- SPI flash
     signal spi_sck     : std_ulogic;
@@ -215,7 +243,17 @@ begin
             spi_flash_cs_n    => spi_cs_n,
             spi_flash_sdat_o  => spi_sdat_o,
             spi_flash_sdat_oe => spi_sdat_oe,
-            spi_flash_sdat_i  => spi_sdat_i
+            spi_flash_sdat_i  => spi_sdat_i,
+
+            -- DRAM wishbone
+            wb_dram_in           => wb_dram_in,
+            wb_dram_out          => wb_dram_out,
+
+            -- IO wishbone
+            wb_ext_io_in         => wb_ext_io_in,
+            wb_ext_io_out        => wb_ext_io_out,
+            wb_ext_is_dram_csr   => wb_ext_is_dram_csr,
+            wb_ext_is_dram_init  => wb_ext_is_dram_init
             );
 
     -- SPI Flash
@@ -262,19 +300,108 @@ begin
         system_clk <= div2;
         system_clk_locked <= '1';
 
+        led8_r_n <= '1';
+        led8_g_n <= '1';
+        led8_b_n <= '1';
+
     end generate;
 
-    led5_r_n <= '0';
+    has_dram: if USE_LITEDRAM generate
+        signal dram_init_done  : std_ulogic;
+        signal dram_init_error : std_ulogic;
+        signal dram_sys_rst    : std_ulogic;
+    begin
+
+        -- Eventually dig out the frequency from
+        -- litesdram generate.py sys_clk_freq
+        -- but for now, assert it's 50Mhz for ECPIX-5
+        assert CLK_FREQUENCY = 50000000;
+
+        reset_controller: entity work.soc_reset
+            generic map(
+                RESET_LOW => RESET_LOW,
+                PLL_RESET_BITS => 18,
+                SOC_RESET_BITS => 20
+                )
+            port map(
+                ext_clk => ext_clk,
+                pll_clk => system_clk,
+                pll_locked_in => system_clk_locked and not dram_sys_rst,
+                ext_rst_in => ext_rst_n and gsrn,
+                pll_rst_out => pll_rst,
+                rst_out => soc_rst
+                );
+
+        -- Generate SoC reset
+        soc_rst_gen: process(system_clk)
+        begin
+            if ext_rst_n = '0' then
+                soc_rst <= '1';
+            elsif rising_edge(system_clk) then
+                soc_rst <= dram_sys_rst or not system_clk_locked;
+            end if;
+        end process;
+
+        dram: entity work.litedram_wrapper
+            generic map(
+                DRAM_ABITS => 25,
+                DRAM_ALINES => 15,
+                DRAM_DLINES => 16,
+                DRAM_CKLINES => 1,
+                DRAM_PORT_WIDTH => 128,
+                PAYLOAD_FILE => RAM_INIT_FILE,
+                PAYLOAD_SIZE => PAYLOAD_SIZE
+                )
+            port map(
+                clk_in          => ext_clk,
+                rst             => pll_rst,
+                system_clk      => system_clk,
+                system_reset    => dram_sys_rst,
+                pll_locked      => system_clk_locked,
+
+                wb_in           => wb_dram_in,
+                wb_out          => wb_dram_out,
+                wb_ctrl_in      => wb_ext_io_in,
+                wb_ctrl_out     => wb_dram_ctrl_out,
+                wb_ctrl_is_csr  => wb_ext_is_dram_csr,
+                wb_ctrl_is_init => wb_ext_is_dram_init,
+
+                init_done       => dram_init_done,
+                init_error      => dram_init_error,
+
+                ddram_a         => ddram_a,
+                ddram_ba        => ddram_ba,
+                ddram_ras_n     => ddram_ras_n,
+                ddram_cas_n     => ddram_cas_n,
+                ddram_we_n      => ddram_we_n,
+                ddram_dm        => ddram_dm,
+                ddram_dq        => ddram_dq,
+                ddram_dqs_p     => ddram_dqs_p,
+                ddram_clk_p     => ddram_clk_p,
+                -- only the positive differential pin is instantiated
+                --ddram_dqs_n     => ddram_dqs_n,
+                --ddram_clk_n     => ddram_clk_n,
+                ddram_cke       => ddram_cke,
+                ddram_odt       => ddram_odt
+                );
+
+        -- active-low outputs to the LED
+        led8_b_n <= dram_init_done;
+        led8_r_n <= not dram_init_error;
+        led8_g_n <= not (dram_init_done and not dram_init_error);
+    end generate;
+
+    -- Mux WB response on the IO bus
+    wb_ext_io_out <= wb_dram_ctrl_out;
+
+    led5_r_n <= '1';
     led5_g_n <= '1';
     led5_b_n <= '1';
     led6_r_n <= '1';
-    led6_g_n <= '0';
+    led6_g_n <= '1';
     led6_b_n <= '1';
-    led7_r_n <= '1';
-    led7_g_n <= '1';
-    led7_b_n <= '0';
-    led8_r_n <= '1';
-    led8_g_n <= '1';
-    led8_b_n <= '1';
+    led7_r_n <= not soc_rst;
+    led7_g_n <= not system_clk_locked;
+    led7_b_n <= '1';
 
 end architecture behaviour;
