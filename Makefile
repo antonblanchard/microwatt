@@ -227,6 +227,7 @@ OPENOCD_JTAG_CONFIG=openocd/ecpix-5.cfg
 OPENOCD_DEVICE_CONFIG=openocd/LFE5UM5G-85F.cfg
 toplevel=fpga/top-ecpix5.vhdl
 litedram_target=ecpix-5
+soc_extra_v += litesdcard/generated/lattice.50e6/litesdcard_core.v
 dmi_dtm=dmi_dtm_ecp5.vhdl
 endif
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # vendor:sysclk
-VENDORS="xilinx:100e6 lattice:48e6"
+VENDORS="xilinx:100e6 lattice:48e6 lattice:50e6"
 
 ME=$(realpath $0)
 echo ME=$ME
