@@ -12,8 +12,8 @@ entity toplevel is
         RESET_LOW          : boolean  := true;
         CLK_INPUT          : positive := 100000000;
         CLK_FREQUENCY      : positive := 50000000;
-        HAS_FPU            : boolean  := false;
-        HAS_BTC            : boolean  := false;
+        HAS_FPU            : boolean  := true;
+        HAS_BTC            : boolean  := true;
         USE_LITEDRAM       : boolean  := true;
         NO_BRAM            : boolean  := true;
         SCLK_STARTUPE2     : boolean := false;
