@@ -7,10 +7,12 @@ import pathlib
 class LiteSDCardGenerator(Generator):
     def run(self):
         vendor = self.config.get('vendor')
+        clk = self.config.get('frequency')
+        vf = vendor + "." + clk
 
         # Collect a bunch of directory path
         script_dir = os.path.dirname(sys.argv[0])
-        gen_dir = os.path.join(script_dir, "generated", vendor)
+        gen_dir = os.path.join(script_dir, "generated", vf)
 
         print("Adding LiteSDCard for vendor... ", vendor)
 
