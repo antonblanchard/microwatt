@@ -102,9 +102,6 @@ architecture behaviour of fetch1 is
     signal itlb_pte : tlb_pte_t;
     signal itlb_hit : std_ulogic;
 
-    -- Privilege bit from PTE EAA field
-    signal eaa_priv  : std_ulogic;
-
     -- Simple hash for direct-mapped TLB index
     function hash_ea(addr: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
         variable hash : std_ulogic_vector(TLB_BITS - 1 downto 0);
