@@ -380,20 +380,20 @@ begin
         component liteeth_core port (
             sys_clock           : in std_ulogic;
             sys_reset           : in std_ulogic;
-            gmii_eth_clocks_tx  : in std_ulogic;
-            gmii_eth_clocks_gtx : out std_ulogic;
-            gmii_eth_clocks_rx  : in std_ulogic;
-            gmii_eth_rst_n      : out std_ulogic;
-            gmii_eth_mdio       : inout std_ulogic;
-            gmii_eth_mdc        : out std_ulogic;
-            gmii_eth_rx_dv      : in std_ulogic;
-            gmii_eth_rx_er      : in std_ulogic;
-            gmii_eth_rx_data    : in std_ulogic_vector(7 downto 0);
-            gmii_eth_tx_en      : out std_ulogic;
-            gmii_eth_tx_er      : out std_ulogic;
-            gmii_eth_tx_data    : out std_ulogic_vector(7 downto 0);
-            gmii_eth_col        : in std_ulogic;
-            gmii_eth_crs        : in std_ulogic;
+            gmii_clocks_tx      : in std_ulogic;
+            gmii_clocks_gtx     : out std_ulogic;
+            gmii_clocks_rx      : in std_ulogic;
+            gmii_rst_n          : out std_ulogic;
+            gmii_mdio           : inout std_ulogic;
+            gmii_mdc            : out std_ulogic;
+            gmii_rx_dv          : in std_ulogic;
+            gmii_rx_er          : in std_ulogic;
+            gmii_rx_data        : in std_ulogic_vector(7 downto 0);
+            gmii_tx_en          : out std_ulogic;
+            gmii_tx_er          : out std_ulogic;
+            gmii_tx_data        : out std_ulogic_vector(7 downto 0);
+            gmii_col            : in std_ulogic;
+            gmii_crs            : in std_ulogic;
             wishbone_adr        : in std_ulogic_vector(29 downto 0);
             wishbone_dat_w      : in std_ulogic_vector(31 downto 0);
             wishbone_dat_r      : out std_ulogic_vector(31 downto 0);
@@ -420,20 +420,20 @@ begin
             port map(
                 sys_clock           => system_clk,
                 sys_reset           => soc_rst,
-                gmii_eth_clocks_tx  => eth_clocks_tx,
-                gmii_eth_clocks_gtx => eth_clocks_gtx,
-                gmii_eth_clocks_rx  => eth_clocks_rx,
-                gmii_eth_rst_n      => eth_rst_n,
-                gmii_eth_mdio       => eth_mdio,
-                gmii_eth_mdc        => eth_mdc,
-                gmii_eth_rx_dv      => eth_rx_dv,
-                gmii_eth_rx_er      => eth_rx_er,
-                gmii_eth_rx_data    => eth_rx_data,
-                gmii_eth_tx_en      => eth_tx_en,
-                gmii_eth_tx_er      => eth_tx_er,
-                gmii_eth_tx_data    => eth_tx_data,
-                gmii_eth_col        => eth_col,
-                gmii_eth_crs        => eth_crs,
+                gmii_clocks_tx      => eth_clocks_tx,
+                gmii_clocks_gtx     => eth_clocks_gtx,
+                gmii_clocks_rx      => eth_clocks_rx,
+                gmii_rst_n          => eth_rst_n,
+                gmii_mdio           => eth_mdio,
+                gmii_mdc            => eth_mdc,
+                gmii_rx_dv          => eth_rx_dv,
+                gmii_rx_er          => eth_rx_er,
+                gmii_rx_data        => eth_rx_data,
+                gmii_tx_en          => eth_tx_en,
+                gmii_tx_er          => eth_tx_er,
+                gmii_tx_data        => eth_tx_data,
+                gmii_col            => eth_col,
+                gmii_crs            => eth_crs,
                 wishbone_adr        => wb_eth_adr,
                 wishbone_dat_w      => wb_ext_io_in.dat,
                 wishbone_dat_r      => wb_eth_out.dat,
