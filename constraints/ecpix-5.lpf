@@ -58,6 +58,43 @@ IOBUF PORT "spi_flash_wp_n" IO_TYPE=LVCMOS33;
 LOCATE COMP "spi_flash_hold_n" SITE "AE1";
 IOBUF PORT "spi_flash_hold_n" IO_TYPE=LVCMOS33;
 
+// Ethernet
+LOCATE COMP "rgmii_clocks_rx" SITE "E11";
+LOCATE COMP "rgmii_clocks_tx" SITE "A12";
+LOCATE COMP "rgmii_rst_n"  SITE "C13";
+LOCATE COMP "rgmii_int_n" SITE "B13";
+LOCATE COMP "rgmii_mdc" SITE "C11";
+LOCATE COMP "rgmii_mdio" SITE "A13";
+LOCATE COMP "rgmii_rx_ctl" SITE "A11";
+LOCATE COMP "rgmii_rx_data[0]" SITE "B11";
+LOCATE COMP "rgmii_rx_data[1]" SITE "A10";
+LOCATE COMP "rgmii_rx_data[2]" SITE "B10";
+LOCATE COMP "rgmii_rx_data[3]" SITE "A9";
+LOCATE COMP "rgmii_tx_ctl" SITE "C9";
+LOCATE COMP "rgmii_tx_data[0]" SITE "D8";
+LOCATE COMP "rgmii_tx_data[1]" SITE "C8";
+LOCATE COMP "rgmii_tx_data[2]" SITE "B8";
+LOCATE COMP "rgmii_tx_data[3]" SITE "A8";
+IOBUF PORT  "rgmii_clocks_rx" IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_clocks_tx" IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_rst_n"  IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_int_n" IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_mdc" IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_mdio" IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_rx_ctl" IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_rx_data[0]" IO_TYPE=LVCMOS33 PULLMODE=UP;
+IOBUF PORT  "rgmii_rx_data[1]" IO_TYPE=LVCMOS33 PULLMODE=UP;
+IOBUF PORT  "rgmii_rx_data[2]" IO_TYPE=LVCMOS33 PULLMODE=UP;
+IOBUF PORT  "rgmii_rx_data[3]" IO_TYPE=LVCMOS33 PULLMODE=UP;
+IOBUF PORT  "rgmii_tx_ctl" IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_tx_data[0]" IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_tx_data[1]" IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_tx_data[2]" IO_TYPE=LVCMOS33;
+IOBUF PORT  "rgmii_tx_data[3]" IO_TYPE=LVCMOS33;
+FREQUENCY PORT "eth_rx_clk" 125.0 MHz;
+FREQUENCY PORT "eth_tx_clk" 125.0 MHz;
+FREQUENCY PORT "rgmii_clocks_rx" 125.0 MHz;
+
 // SD card slot and level translator
 LOCATE COMP "sdcard_data[0]" SITE "N26";
 LOCATE COMP "sdcard_data[1]" SITE "N25";

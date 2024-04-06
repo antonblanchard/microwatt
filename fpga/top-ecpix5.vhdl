@@ -23,6 +23,7 @@ entity toplevel is
         LOG_LENGTH         : natural := 0;
         UART_IS_16550      : boolean  := true;
         HAS_UART1          : boolean  := false;
+        USE_LITEETH        : boolean := true;
         USE_LITESDCARD     : boolean := true;
         ICACHE_NUM_LINES   : natural := 64;
         NGPIO              : natural := 0
@@ -56,6 +57,18 @@ entity toplevel is
         spi_flash_miso   : inout std_ulogic;
         spi_flash_wp_n   : inout std_ulogic;
         spi_flash_hold_n : inout std_ulogic;
+
+        -- Ethernet
+        rgmii_clocks_rx  : in    std_ulogic;
+        rgmii_clocks_tx  : out   std_ulogic;
+        rgmii_rst_n      : out   std_ulogic;
+        rgmii_int_n      : in    std_ulogic;
+        rgmii_mdc        : out   std_ulogic;
+        rgmii_mdio       : inout std_ulogic;
+        rgmii_rx_ctl     : in    std_ulogic;
+        rgmii_rx_data    : in    std_ulogic_vector(3 downto 0);
+        rgmii_tx_ctl     : out   std_ulogic;
+        rgmii_tx_data    : out   std_ulogic_vector(3 downto 0);
 
         -- SD card wires
         sdcard_data      : inout std_ulogic_vector(3 downto 0);
@@ -166,6 +179,7 @@ architecture behaviour of toplevel is
     signal wb_ext_io_out       : wb_io_slave_out;
     signal wb_ext_is_dram_csr  : std_ulogic;
     signal wb_ext_is_dram_init : std_ulogic;
+    signal wb_ext_is_eth       : std_ulogic;
     signal wb_ext_is_sdcard    : std_ulogic;
 
     -- DRAM main data wishbone connection
@@ -174,6 +188,10 @@ architecture behaviour of toplevel is
 
     -- DRAM control wishbone connection
     signal wb_dram_ctrl_out    : wb_io_slave_out := wb_io_slave_out_init;
+
+    -- LiteEth connection
+    signal ext_irq_eth         : std_ulogic;
+    signal wb_eth_out          : wb_io_slave_out := wb_io_slave_out_init;
 
     -- LiteSDCard connection
     signal ext_irq_sdcard      : std_ulogic := '0';
@@ -246,6 +264,7 @@ begin
             LOG_LENGTH         => LOG_LENGTH,
             UART0_IS_16550     => UART_IS_16550,
             HAS_UART1          => HAS_UART1,
+            HAS_LITEETH        => USE_LITEETH,
             HAS_SD_CARD        => USE_LITESDCARD,
             ICACHE_NUM_LINES   => ICACHE_NUM_LINES,
             NGPIO              => NGPIO
@@ -267,6 +286,7 @@ begin
             spi_flash_sdat_i  => spi_sdat_i,
 
             -- External interrupts
+            ext_irq_eth       => ext_irq_eth,
             ext_irq_sdcard    => ext_irq_sdcard,
 
             -- DRAM wishbone
@@ -278,6 +298,7 @@ begin
             wb_ext_io_out        => wb_ext_io_out,
             wb_ext_is_dram_csr   => wb_ext_is_dram_csr,
             wb_ext_is_dram_init  => wb_ext_is_dram_init,
+            wb_ext_is_eth       => wb_ext_is_eth,
             wb_ext_is_sdcard     => wb_ext_is_sdcard,
 
             -- DMA wishbone
@@ -420,6 +441,83 @@ begin
         led8_g_n <= not (dram_init_done and not dram_init_error);
     end generate;
 
+    has_liteeth : if USE_LITEETH generate
+
+        component liteeth_core port (
+            sys_clock           : in std_ulogic;
+            sys_reset           : in std_ulogic;
+            rgmii_clocks_tx     : out std_ulogic;
+            rgmii_clocks_rx     : in std_ulogic;
+            rgmii_rst_n         : out std_ulogic;
+            rgmii_int_n         : in std_ulogic;
+            rgmii_mdio          : inout std_ulogic;
+            rgmii_mdc           : out std_ulogic;
+            rgmii_rx_ctl        : in std_ulogic;
+            rgmii_rx_data       : in std_ulogic_vector(3 downto 0);
+            rgmii_tx_ctl        : out std_ulogic;
+            rgmii_tx_data       : out std_ulogic_vector(3 downto 0);
+            wishbone_adr        : in std_ulogic_vector(29 downto 0);
+            wishbone_dat_w      : in std_ulogic_vector(31 downto 0);
+            wishbone_dat_r      : out std_ulogic_vector(31 downto 0);
+            wishbone_sel        : in std_ulogic_vector(3 downto 0);
+            wishbone_cyc        : in std_ulogic;
+            wishbone_stb        : in std_ulogic;
+            wishbone_ack        : out std_ulogic;
+            wishbone_we         : in std_ulogic;
+            wishbone_cti        : in std_ulogic_vector(2 downto 0);
+            wishbone_bte        : in std_ulogic_vector(1 downto 0);
+            wishbone_err        : out std_ulogic;
+            interrupt           : out std_ulogic
+            );
+        end component;
+
+        signal wb_eth_cyc     : std_ulogic;
+        signal wb_eth_adr     : std_ulogic_vector(29 downto 0);
+
+    begin
+        liteeth :  liteeth_core
+            port map(
+                sys_clock           => system_clk,
+                sys_reset           => soc_rst,
+                rgmii_clocks_tx     => rgmii_clocks_tx,
+                rgmii_clocks_rx     => rgmii_clocks_rx,
+                rgmii_rst_n         => rgmii_rst_n,
+                rgmii_int_n         => rgmii_int_n,
+                rgmii_mdio          => rgmii_mdio,
+                rgmii_mdc           => rgmii_mdc,
+                rgmii_rx_ctl        => rgmii_rx_ctl,
+                rgmii_rx_data       => rgmii_rx_data,
+                rgmii_tx_ctl        => rgmii_tx_ctl,
+                rgmii_tx_data       => rgmii_tx_data,
+                wishbone_adr        => wb_eth_adr,
+                wishbone_dat_w      => wb_ext_io_in.dat,
+                wishbone_dat_r      => wb_eth_out.dat,
+                wishbone_sel        => wb_ext_io_in.sel,
+                wishbone_cyc        => wb_eth_cyc,
+                wishbone_stb        => wb_ext_io_in.stb,
+                wishbone_ack        => wb_eth_out.ack,
+                wishbone_we         => wb_ext_io_in.we,
+                wishbone_cti        => "000",
+                wishbone_bte        => "00",
+                wishbone_err        => open,
+                interrupt           => ext_irq_eth
+                );
+
+        -- Gate cyc with "chip select" from soc
+        wb_eth_cyc <= wb_ext_io_in.cyc and wb_ext_is_eth;
+
+        -- Remove top address bits as liteeth decoder doesn't know about them
+        wb_eth_adr <= x"000" & "000" & wb_ext_io_in.adr(14 downto 0);
+
+        -- LiteETH isn't pipelined
+        wb_eth_out.stall <= not wb_eth_out.ack;
+
+    end generate;
+
+    no_liteeth : if not USE_LITEETH generate
+        ext_irq_eth    <= '0';
+    end generate;
+
     -- SD card
     -- The ECPIX-5 has a buffer/level translator chip in order to be able to
     -- support 1.8V signalling to the SD card as well as 3V signalling.
@@ -537,7 +635,8 @@ begin
     end generate;
 
     -- Mux WB response on the IO bus
-    wb_ext_io_out <= wb_sdcard_out when wb_ext_is_sdcard = '1' else
+    wb_ext_io_out <= wb_eth_out when wb_ext_is_eth = '1' else
+                     wb_sdcard_out when wb_ext_is_sdcard = '1' else
                      wb_dram_ctrl_out;
 
     led5_r_n <= '1';

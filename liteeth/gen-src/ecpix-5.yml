@@ -1,0 +1,18 @@
+# This file is derived from nexys_video.yml, which is:
+# Copyright (c) 2020 Florent Kermarrec <florent@enjoy-digital.fr>
+# License: BSD
+
+# PHY ----------------------------------------------------------------------
+phy:        LiteEthECP5PHYRGMII
+vendor:     lattice
+# Core ---------------------------------------------------------------------
+clk_freq:   125e6
+core:       wishbone
+endianness: little
+ntxslots:   2
+nrxslots:   2
+phy_rx_delay: 0
+
+soc:
+    mem_map:
+        ethmac: 0x00010000
