@@ -403,12 +403,12 @@ begin
             variable snoop_addr : real_addr_t;
             variable next_raddr : real_addr_t;
         begin
-            replace_way := to_unsigned(0, WAY_BITS);
-            if NUM_WAYS > 1 then
-                -- Get victim way from plru
-                replace_way := plru_victim;
-            end if;
             if rising_edge(clk) then
+                replace_way := to_unsigned(0, WAY_BITS);
+                if NUM_WAYS > 1 then
+                    -- Get victim way from plru
+                    replace_way := plru_victim;
+                end if;
                 -- Read tags using NIA for next cycle
                 if flush_in = '1' or i_in.req = '0' or (stall_in = '0' and stall_out = '0') then
                     next_raddr := i_in.next_rpn & i_in.next_nia(MIN_LG_PGSZ - 1 downto 0);
@@ -649,6 +649,7 @@ begin
     begin
         if rising_edge(clk) then
             ev.icache_miss <= '0';
+            ev.itlb_miss_resolved <= '0';
             r.recv_valid <= '0';
 	    -- On reset, clear all valid bits to force misses
             if rst = '1' then

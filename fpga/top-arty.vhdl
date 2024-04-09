@@ -206,6 +206,9 @@ architecture behaviour of toplevel is
     signal ddram_clk_p_vec : std_logic_vector(0 downto 0);
     signal ddram_clk_n_vec : std_logic_vector(0 downto 0);
 
+    signal uart1_rxd : std_ulogic;
+    signal uart1_txd : std_ulogic;
+
     -- Fixup various memory sizes based on generics
     function get_bram_size return natural is
     begin
@@ -266,8 +269,8 @@ begin
             uart0_rxd         => uart_main_rx,
 
 	    -- UART1 signals
-	    --uart1_txd         => uart_pmod_tx,
-	    --uart1_rxd         => uart_pmod_rx,
+            uart1_txd         => uart1_txd,
+            uart1_rxd         => uart1_rxd,
 
             -- SPI signals
             spi_flash_sck     => spi_sck,
@@ -302,7 +305,7 @@ begin
             wishbone_dma_out     => wb_sddma_out
             );
 
-    --uart_pmod_rts_n <= '0';
+    uart1_txd <= '1';
 
     -- SPI Flash
     --
@@ -415,8 +418,9 @@ begin
                 );
 
         -- Generate SoC reset
-        soc_rst_gen: process(system_clk)
+        soc_rst_gen: process(system_clk, ext_rst_n)
         begin
+            -- XXX why does this need to be an asynchronous reset?
             if ext_rst_n = '0' then
                 soc_rst <= '1';
             elsif rising_edge(system_clk) then

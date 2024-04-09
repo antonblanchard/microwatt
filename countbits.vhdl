@@ -50,9 +50,11 @@ architecture behaviour of bit_counter is
 begin
     countzero_r: process(clk)
     begin
-        if rising_edge(clk) and stall = '0' then
-            inp_r <= inp;
-            sum_r <= sum;
+        if rising_edge(clk) then
+            if stall = '0' then
+                inp_r <= inp;
+                sum_r <= sum;
+            end if;
         end if;
     end process;
 

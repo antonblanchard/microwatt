@@ -386,15 +386,14 @@ begin
     reg_write: process(clk)
         variable be_in  : std_ulogic_vector(31 downto 0);
     begin
-        -- Byteswapped input
-        be_in := bswap(wb_in.dat);
-
         if rising_edge(clk) then
             if rst = '1' then
                 for i in 0 to SRC_NUM - 1 loop
                     xives(i) <= (pri => pri_masked);
                 end loop;
             elsif wb_valid = '1' and wb_in.we = '1' then
+                -- Byteswapped input
+                be_in := bswap(wb_in.dat);
                 if reg_is_xive then
                     -- TODO: When adding support for other bits, make sure to
                     -- properly implement wb_in.sel to allow partial writes.

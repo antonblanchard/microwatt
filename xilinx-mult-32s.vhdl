@@ -286,9 +286,11 @@ begin
 
     process(clk)
     begin
-        if rising_edge(clk) and stall = '0' then
-            m_out.valid <= m_in.valid;
-            product_lo <= m01_p(5 downto 0) & m00_p(16 downto 0);
+        if rising_edge(clk) then
+            if stall = '0' then
+                m_out.valid <= m_in.valid;
+                product_lo <= m01_p(5 downto 0) & m00_p(16 downto 0);
+            end if;
         end if;
     end process;
 
