@@ -9,7 +9,7 @@
 // Filename   : liteeth_core.v
 // Device     : 
 // LiteX sha1 : 87137c30
-// Date       : 2024-04-05 17:38:49
+// Date       : 2024-04-09 14:20:58
 //------------------------------------------------------------------------------
 
 `timescale 1ns / 1ps
@@ -66,49 +66,19 @@ MACCore
 └─── crg (CRG)
 └─── ethphy (LiteEthPHYRGMII)
 │    └─── crg (LiteEthPHYRGMIICRG)
-│    │    └─── pll (S7PLL)
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [BUFG]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [PLLE2_ADV]
-│    │    │    └─── [BUFG]
-│    │    └─── [BUFG]
-│    │    └─── [ODDR]
-│    │    └─── [IBUF]
-│    │    └─── [OBUF]
+│    │    └─── [DELAYG]
 │    └─── tx (LiteEthPHYRGMIITX)
-│    │    └─── [OBUF]
-│    │    └─── [ODDR]
-│    │    └─── [OBUF]
-│    │    └─── [OBUF]
-│    │    └─── [OBUF]
-│    │    └─── [ODDR]
-│    │    └─── [ODDR]
-│    │    └─── [ODDR]
-│    │    └─── [OBUF]
-│    │    └─── [ODDR]
+│    │    └─── [DELAYG]
+│    │    └─── [DELAYG]
+│    │    └─── [DELAYG]
+│    │    └─── [DELAYG]
+│    │    └─── [DELAYG]
 │    └─── rx (LiteEthPHYRGMIIRX)
-│    │    └─── [IDDR]
-│    │    └─── [IBUF]
-│    │    └─── [IBUF]
-│    │    └─── [IDDR]
-│    │    └─── [IBUF]
-│    │    └─── [IDELAYE2]
-│    │    └─── [IDDR]
-│    │    └─── [IDDR]
-│    │    └─── [IBUF]
-│    │    └─── [IDELAYE2]
-│    │    └─── [IDELAYE2]
-│    │    └─── [IDELAYE2]
-│    │    └─── [IBUF]
-│    │    └─── [IDDR]
-│    │    └─── [IDELAYE2]
+│    │    └─── [DELAYG]
+│    │    └─── [DELAYG]
+│    │    └─── [DELAYG]
+│    │    └─── [DELAYG]
+│    │    └─── [DELAYG]
 │    └─── mdio (LiteEthPHYMDIO)
 └─── ethmac (LiteEthMAC)
 │    └─── core (LiteEthMACCore)
@@ -208,15 +178,25 @@ MACCore
 │    │    └─── csrstatus_11* (CSRStatus)
 │    └─── csrbank_2* (CSRBank)
 │    │    └─── csrstorage_0* (CSRStorage)
-│    │    └─── csrstorage_1* (CSRStorage)
 │    │    └─── csrstatus_0* (CSRStatus)
+│    │    └─── csrstorage_1* (CSRStorage)
+│    │    └─── csrstatus_1* (CSRStatus)
 └─── csr_interconnect (InterconnectShared)
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
+└─── [ODDRX1F]
+└─── [IDDRX1F]
+└─── [ODDRX1F]
+└─── [ODDRX1F]
+└─── [FD1S3BX]
+└─── [FD1S3BX]
+└─── [ODDRX1F]
+└─── [IDDRX1F]
+└─── [IDDRX1F]
+└─── [FD1S3BX]
+└─── [ODDRX1F]
+└─── [ODDRX1F]
+└─── [FD1S3BX]
+└─── [IDDRX1F]
+└─── [IDDRX1F]
 * : Generated name.
 []: BlackBox.
 */
@@ -318,6 +298,10 @@ wire    [2:0] builder_csrbank2_mdio_w0_r;
 reg           builder_csrbank2_mdio_w0_re = 1'd0;
 wire    [2:0] builder_csrbank2_mdio_w0_w;
 reg           builder_csrbank2_mdio_w0_we = 1'd0;
+wire    [2:0] builder_csrbank2_rx_inband_status_r;
+reg           builder_csrbank2_rx_inband_status_re = 1'd0;
+wire    [2:0] builder_csrbank2_rx_inband_status_w;
+reg           builder_csrbank2_rx_inband_status_we = 1'd0;
 wire          builder_csrbank2_sel;
 wire   [31:0] builder_dat_r;
 wire   [31:0] builder_dat_w;
@@ -355,17 +339,38 @@ reg     [1:0] builder_liteethmacsramreader_next_state = 2'd0;
 reg     [1:0] builder_liteethmacsramreader_state = 2'd0;
 reg     [2:0] builder_liteethmacsramwriter_next_state = 3'd0;
 reg     [2:0] builder_liteethmacsramwriter_state = 3'd0;
+(* syn_no_retiming = "true" *)
+reg           builder_multiregimpl00 = 1'd0;
+(* syn_no_retiming = "true" *)
+reg           builder_multiregimpl01 = 1'd0;
+(* syn_no_retiming = "true" *)
+reg     [5:0] builder_multiregimpl10 = 6'd0;
+(* syn_no_retiming = "true" *)
+reg     [5:0] builder_multiregimpl11 = 6'd0;
+(* syn_no_retiming = "true" *)
+reg     [5:0] builder_multiregimpl20 = 6'd0;
+(* syn_no_retiming = "true" *)
+reg     [5:0] builder_multiregimpl21 = 6'd0;
+(* syn_no_retiming = "true" *)
+reg           builder_multiregimpl30 = 1'd0;
+(* syn_no_retiming = "true" *)
+reg           builder_multiregimpl31 = 1'd0;
+(* syn_no_retiming = "true" *)
+reg           builder_multiregimpl40 = 1'd0;
+(* syn_no_retiming = "true" *)
+reg           builder_multiregimpl41 = 1'd0;
+(* syn_no_retiming = "true" *)
+reg     [5:0] builder_multiregimpl50 = 6'd0;
+(* syn_no_retiming = "true" *)
+reg     [5:0] builder_multiregimpl51 = 6'd0;
+(* syn_no_retiming = "true" *)
+reg     [5:0] builder_multiregimpl60 = 6'd0;
+(* syn_no_retiming = "true" *)
+reg     [5:0] builder_multiregimpl61 = 6'd0;
 reg           builder_next_state = 1'd0;
-wire          builder_pll_fb;
 wire          builder_request;
-wire          builder_reset0;
-wire          builder_reset1;
-wire          builder_reset2;
-wire          builder_reset3;
-wire          builder_reset4;
-wire          builder_reset5;
-wire          builder_reset6;
-wire          builder_reset7;
+wire          builder_rst10;
+wire          builder_rst11;
 reg     [1:0] builder_rxdatapath_bufferizeendpoints_next_state = 2'd0;
 reg     [1:0] builder_rxdatapath_bufferizeendpoints_state = 2'd0;
 reg           builder_rxdatapath_liteethmacpreamblechecker_next_state = 1'd0;
@@ -468,45 +473,11 @@ reg           builder_txdatapath_liteethmactxlastbe_next_state = 1'd0;
 reg           builder_txdatapath_liteethmactxlastbe_state = 1'd0;
 wire          builder_wait;
 wire          builder_we;
-wire          builder_xilinxasyncresetsynchronizerimpl0_async_reset;
-wire          builder_xilinxasyncresetsynchronizerimpl0_expr;
-wire          builder_xilinxasyncresetsynchronizerimpl0_rst_meta;
-wire          builder_xilinxasyncresetsynchronizerimpl1_rst_meta;
-wire          builder_xilinxasyncresetsynchronizerimpl2_rst_meta;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl00 = 1'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl01 = 1'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl10 = 6'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl11 = 6'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl20 = 6'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl21 = 6'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl30 = 1'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl31 = 1'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl40 = 1'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl41 = 1'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl50 = 6'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl51 = 6'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl60 = 6'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl61 = 6'd0;
-(* dont_touch = "true" *)
+(* syn_keep = "true" *)
 wire          eth_rx_clk;
 wire          eth_rx_rst;
-(* dont_touch = "true" *)
+(* syn_keep = "true" *)
 wire          eth_tx_clk;
-wire          eth_tx_delayed_clk;
 wire          eth_tx_rst;
 wire          main_bufferizeendpoints_pipe_valid_sink_first;
 wire          main_bufferizeendpoints_pipe_valid_sink_last;
@@ -676,41 +647,28 @@ reg           main_maccore_ethphy__r_status = 1'd0;
 wire          main_maccore_ethphy__r_we;
 reg           main_maccore_ethphy__w_re = 1'd0;
 reg     [2:0] main_maccore_ethphy__w_storage = 3'd0;
-wire          main_maccore_ethphy_clkin;
-wire          main_maccore_ethphy_clkout0;
-wire          main_maccore_ethphy_clkout1;
-wire          main_maccore_ethphy_clkout_buf0;
-wire          main_maccore_ethphy_clkout_buf1;
+reg           main_maccore_ethphy_clock_speed = 1'd0;
 wire          main_maccore_ethphy_data_oe;
 wire          main_maccore_ethphy_data_r;
 wire          main_maccore_ethphy_data_w;
-wire          main_maccore_ethphy_eth_rx_clk_ibuf;
-wire          main_maccore_ethphy_eth_tx_clk_obuf;
-wire          main_maccore_ethphy_liteethphyrgmiirx;
-wire          main_maccore_ethphy_liteethphyrgmiirx_last;
-wire          main_maccore_ethphy_liteethphyrgmiirx_rx_ctl;
-reg           main_maccore_ethphy_liteethphyrgmiirx_rx_ctl_d = 1'd0;
-wire          main_maccore_ethphy_liteethphyrgmiirx_rx_ctl_ibuf;
-wire          main_maccore_ethphy_liteethphyrgmiirx_rx_ctl_idelay;
-wire    [7:0] main_maccore_ethphy_liteethphyrgmiirx_rx_data;
-wire    [3:0] main_maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf;
-wire    [3:0] main_maccore_ethphy_liteethphyrgmiirx_rx_data_idelay;
-reg           main_maccore_ethphy_liteethphyrgmiirx_source_first = 1'd0;
-wire          main_maccore_ethphy_liteethphyrgmiirx_source_last;
-reg     [7:0] main_maccore_ethphy_liteethphyrgmiirx_source_payload_data = 8'd0;
-reg           main_maccore_ethphy_liteethphyrgmiirx_source_payload_error = 1'd0;
-reg           main_maccore_ethphy_liteethphyrgmiirx_source_payload_last_be = 1'd0;
-wire          main_maccore_ethphy_liteethphyrgmiirx_source_ready;
-reg           main_maccore_ethphy_liteethphyrgmiirx_source_valid = 1'd0;
-wire          main_maccore_ethphy_locked;
+reg           main_maccore_ethphy_duplex_status = 1'd0;
+wire          main_maccore_ethphy_eth_tx_clk_o;
+wire          main_maccore_ethphy_last;
+reg           main_maccore_ethphy_link_status = 1'd0;
 wire          main_maccore_ethphy_mdc;
 wire          main_maccore_ethphy_oe;
-reg           main_maccore_ethphy_power_down = 1'd0;
 reg           main_maccore_ethphy_r = 1'd0;
-reg           main_maccore_ethphy_reset0 = 1'd0;
-wire          main_maccore_ethphy_reset1;
+reg           main_maccore_ethphy_re = 1'd0;
+wire          main_maccore_ethphy_reset;
 reg           main_maccore_ethphy_reset_re = 1'd0;
 reg           main_maccore_ethphy_reset_storage = 1'd0;
+wire    [1:0] main_maccore_ethphy_rx_ctl;
+wire          main_maccore_ethphy_rx_ctl_delayf;
+reg     [1:0] main_maccore_ethphy_rx_ctl_reg = 2'd0;
+reg     [1:0] main_maccore_ethphy_rx_ctl_reg_d = 2'd0;
+wire    [7:0] main_maccore_ethphy_rx_data;
+wire    [3:0] main_maccore_ethphy_rx_data_delayf;
+reg     [7:0] main_maccore_ethphy_rx_data_reg = 8'd0;
 wire          main_maccore_ethphy_sink_first;
 wire          main_maccore_ethphy_sink_last;
 wire    [7:0] main_maccore_ethphy_sink_payload_data;
@@ -718,9 +676,18 @@ wire          main_maccore_ethphy_sink_payload_error;
 wire          main_maccore_ethphy_sink_payload_last_be;
 wire          main_maccore_ethphy_sink_ready;
 wire          main_maccore_ethphy_sink_valid;
-wire          main_maccore_ethphy_tx_ctl_obuf;
-wire    [3:0] main_maccore_ethphy_tx_data_obuf;
+reg           main_maccore_ethphy_source_first = 1'd0;
+wire          main_maccore_ethphy_source_last;
+reg     [7:0] main_maccore_ethphy_source_payload_data = 8'd0;
+reg           main_maccore_ethphy_source_payload_error = 1'd0;
+reg           main_maccore_ethphy_source_payload_last_be = 1'd0;
+wire          main_maccore_ethphy_source_ready;
+reg           main_maccore_ethphy_source_valid = 1'd0;
+reg     [2:0] main_maccore_ethphy_status = 3'd0;
+wire          main_maccore_ethphy_tx_ctl_oddrx1f;
+wire    [3:0] main_maccore_ethphy_tx_data_oddrx1f;
 wire          main_maccore_ethphy_w;
+wire          main_maccore_ethphy_we;
 reg           main_maccore_int_rst = 1'd1;
 wire          main_maccore_maccore_bus_error;
 reg    [31:0] main_maccore_maccore_bus_errors = 32'd0;
@@ -767,13 +734,13 @@ wire   [31:0] main_rx_cdc_cdc_fifo_out_payload_data;
 wire    [3:0] main_rx_cdc_cdc_fifo_out_payload_error;
 wire    [3:0] main_rx_cdc_cdc_fifo_out_payload_last_be;
 wire          main_rx_cdc_cdc_graycounter0_ce;
-(* dont_touch = "true" *)
+(* syn_no_retiming = "true" *)
 reg     [5:0] main_rx_cdc_cdc_graycounter0_q = 6'd0;
 reg     [5:0] main_rx_cdc_cdc_graycounter0_q_binary = 6'd0;
 wire    [5:0] main_rx_cdc_cdc_graycounter0_q_next;
 reg     [5:0] main_rx_cdc_cdc_graycounter0_q_next_binary = 6'd0;
 wire          main_rx_cdc_cdc_graycounter1_ce;
-(* dont_touch = "true" *)
+(* syn_no_retiming = "true" *)
 reg     [5:0] main_rx_cdc_cdc_graycounter1_q = 6'd0;
 reg     [5:0] main_rx_cdc_cdc_graycounter1_q_binary = 6'd0;
 wire    [5:0] main_rx_cdc_cdc_graycounter1_q_next;
@@ -1126,13 +1093,13 @@ wire   [31:0] main_tx_cdc_cdc_fifo_out_payload_data;
 wire    [3:0] main_tx_cdc_cdc_fifo_out_payload_error;
 wire    [3:0] main_tx_cdc_cdc_fifo_out_payload_last_be;
 wire          main_tx_cdc_cdc_graycounter0_ce;
-(* dont_touch = "true" *)
+(* syn_no_retiming = "true" *)
 reg     [5:0] main_tx_cdc_cdc_graycounter0_q = 6'd0;
 reg     [5:0] main_tx_cdc_cdc_graycounter0_q_binary = 6'd0;
 wire    [5:0] main_tx_cdc_cdc_graycounter0_q_next;
 reg     [5:0] main_tx_cdc_cdc_graycounter0_q_next_binary = 6'd0;
 wire          main_tx_cdc_cdc_graycounter1_ce;
-(* dont_touch = "true" *)
+(* syn_no_retiming = "true" *)
 reg     [5:0] main_tx_cdc_cdc_graycounter1_q = 6'd0;
 reg     [5:0] main_tx_cdc_cdc_graycounter1_q_binary = 6'd0;
 wire    [5:0] main_tx_cdc_cdc_graycounter1_q_next;
@@ -1349,7 +1316,7 @@ wire          main_we;
 wire   [31:0] main_wr_data;
 reg           main_write = 1'd0;
 wire          por_clk;
-(* dont_touch = "true" *)
+(* syn_keep = "true" *)
 wire          sys_clk;
 wire          sys_rst;
 
@@ -1423,14 +1390,13 @@ assign main_maccore_maccore_bus_errors_status = main_maccore_maccore_bus_errors;
 assign sys_clk = sys_clock;
 assign por_clk = sys_clock;
 assign sys_rst = main_maccore_int_rst;
-assign main_maccore_ethphy_reset1 = main_maccore_ethphy_reset_storage;
-assign rgmii_rst_n = (~main_maccore_ethphy_reset1);
-assign main_maccore_ethphy_clkin = eth_rx_clk;
-assign eth_tx_clk = main_maccore_ethphy_clkout_buf0;
-assign eth_tx_delayed_clk = main_maccore_ethphy_clkout_buf1;
+assign eth_rx_clk = rgmii_clocks_rx;
+assign eth_tx_clk = eth_rx_clk;
+assign main_maccore_ethphy_reset = main_maccore_ethphy_reset_storage;
+assign rgmii_rst_n = (~main_maccore_ethphy_reset);
 assign main_maccore_ethphy_sink_ready = 1'd1;
-assign main_maccore_ethphy_liteethphyrgmiirx_last = ((~main_maccore_ethphy_liteethphyrgmiirx_rx_ctl) & main_maccore_ethphy_liteethphyrgmiirx_rx_ctl_d);
-assign main_maccore_ethphy_liteethphyrgmiirx_source_last = main_maccore_ethphy_liteethphyrgmiirx_last;
+assign main_maccore_ethphy_last = ((~main_maccore_ethphy_rx_ctl_reg[0]) & main_maccore_ethphy_rx_ctl_reg_d[0]);
+assign main_maccore_ethphy_source_last = main_maccore_ethphy_last;
 assign rgmii_mdc = main_maccore_ethphy__w_storage[0];
 assign main_maccore_ethphy_data_oe = main_maccore_ethphy__w_storage[1];
 assign main_maccore_ethphy_data_w = main_maccore_ethphy__w_storage[2];
@@ -2322,13 +2288,13 @@ always @(*) begin
     end
 end
 assign main_rx_cdc_cdc_graycounter1_q_next = (main_rx_cdc_cdc_graycounter1_q_next_binary ^ main_rx_cdc_cdc_graycounter1_q_next_binary[5:1]);
-assign main_rx_preamble_sink_valid = main_maccore_ethphy_liteethphyrgmiirx_source_valid;
-assign main_maccore_ethphy_liteethphyrgmiirx_source_ready = main_rx_preamble_sink_ready;
-assign main_rx_preamble_sink_first = main_maccore_ethphy_liteethphyrgmiirx_source_first;
-assign main_rx_preamble_sink_last = main_maccore_ethphy_liteethphyrgmiirx_source_last;
-assign main_rx_preamble_sink_payload_data = main_maccore_ethphy_liteethphyrgmiirx_source_payload_data;
-assign main_rx_preamble_sink_payload_last_be = main_maccore_ethphy_liteethphyrgmiirx_source_payload_last_be;
-assign main_rx_preamble_sink_payload_error = main_maccore_ethphy_liteethphyrgmiirx_source_payload_error;
+assign main_rx_preamble_sink_valid = main_maccore_ethphy_source_valid;
+assign main_maccore_ethphy_source_ready = main_rx_preamble_sink_ready;
+assign main_rx_preamble_sink_first = main_maccore_ethphy_source_first;
+assign main_rx_preamble_sink_last = main_maccore_ethphy_source_last;
+assign main_rx_preamble_sink_payload_data = main_maccore_ethphy_source_payload_data;
+assign main_rx_preamble_sink_payload_last_be = main_maccore_ethphy_source_payload_last_be;
+assign main_rx_preamble_sink_payload_error = main_maccore_ethphy_source_payload_error;
 assign main_bufferizeendpoints_sink_sink_valid = main_rx_preamble_source_valid;
 assign main_rx_preamble_source_ready = main_bufferizeendpoints_sink_sink_ready;
 assign main_bufferizeendpoints_sink_sink_first = main_rx_preamble_source_first;
@@ -3028,11 +2994,20 @@ always @(*) begin
         builder_csrbank2_crg_reset0_we <= (~builder_interface2_bank_bus_we);
     end
 end
+assign builder_csrbank2_rx_inband_status_r = builder_interface2_bank_bus_dat_w[2:0];
+always @(*) begin
+    builder_csrbank2_rx_inband_status_re <= 1'd0;
+    builder_csrbank2_rx_inband_status_we <= 1'd0;
+    if ((builder_csrbank2_sel & (builder_interface2_bank_bus_adr[8:0] == 1'd1))) begin
+        builder_csrbank2_rx_inband_status_re <= builder_interface2_bank_bus_we;
+        builder_csrbank2_rx_inband_status_we <= (~builder_interface2_bank_bus_we);
+    end
+end
 assign builder_csrbank2_mdio_w0_r = builder_interface2_bank_bus_dat_w[2:0];
 always @(*) begin
     builder_csrbank2_mdio_w0_re <= 1'd0;
     builder_csrbank2_mdio_w0_we <= 1'd0;
-    if ((builder_csrbank2_sel & (builder_interface2_bank_bus_adr[8:0] == 1'd1))) begin
+    if ((builder_csrbank2_sel & (builder_interface2_bank_bus_adr[8:0] == 2'd2))) begin
         builder_csrbank2_mdio_w0_re <= builder_interface2_bank_bus_we;
         builder_csrbank2_mdio_w0_we <= (~builder_interface2_bank_bus_we);
     end
@@ -3041,12 +3016,20 @@ assign builder_csrbank2_mdio_r_r = builder_interface2_bank_bus_dat_w[0];
 always @(*) begin
     builder_csrbank2_mdio_r_re <= 1'd0;
     builder_csrbank2_mdio_r_we <= 1'd0;
-    if ((builder_csrbank2_sel & (builder_interface2_bank_bus_adr[8:0] == 2'd2))) begin
+    if ((builder_csrbank2_sel & (builder_interface2_bank_bus_adr[8:0] == 2'd3))) begin
         builder_csrbank2_mdio_r_re <= builder_interface2_bank_bus_we;
         builder_csrbank2_mdio_r_we <= (~builder_interface2_bank_bus_we);
     end
 end
 assign builder_csrbank2_crg_reset0_w = main_maccore_ethphy_reset_storage;
+always @(*) begin
+    main_maccore_ethphy_status <= 3'd0;
+    main_maccore_ethphy_status[0] <= main_maccore_ethphy_link_status;
+    main_maccore_ethphy_status[1] <= main_maccore_ethphy_clock_speed;
+    main_maccore_ethphy_status[2] <= main_maccore_ethphy_duplex_status;
+end
+assign builder_csrbank2_rx_inband_status_w = main_maccore_ethphy_status[2:0];
+assign main_maccore_ethphy_we = builder_csrbank2_rx_inband_status_we;
 assign main_maccore_ethphy_mdc = main_maccore_ethphy__w_storage[0];
 assign main_maccore_ethphy_oe = main_maccore_ethphy__w_storage[1];
 assign main_maccore_ethphy_w = main_maccore_ethphy__w_storage[2];
@@ -3196,18 +3179,17 @@ always @(*) begin
         end
     endcase
 end
-assign builder_xilinxasyncresetsynchronizerimpl0_async_reset = (~main_maccore_ethphy_locked);
 always @(*) begin
     main_maccore_ethphy__r_status <= 1'd0;
     main_maccore_ethphy__r_status <= main_maccore_ethphy_r;
-    main_maccore_ethphy__r_status <= builder_xilinxmultiregimpl01;
+    main_maccore_ethphy__r_status <= builder_multiregimpl01;
 end
-assign main_tx_cdc_cdc_produce_rdomain = builder_xilinxmultiregimpl11;
-assign main_tx_cdc_cdc_consume_wdomain = builder_xilinxmultiregimpl21;
-assign main_pulsesynchronizer0_toggle_o = builder_xilinxmultiregimpl31;
-assign main_pulsesynchronizer1_toggle_o = builder_xilinxmultiregimpl41;
-assign main_rx_cdc_cdc_produce_rdomain = builder_xilinxmultiregimpl51;
-assign main_rx_cdc_cdc_consume_wdomain = builder_xilinxmultiregimpl61;
+assign main_tx_cdc_cdc_produce_rdomain = builder_multiregimpl11;
+assign main_tx_cdc_cdc_consume_wdomain = builder_multiregimpl21;
+assign main_pulsesynchronizer0_toggle_o = builder_multiregimpl31;
+assign main_pulsesynchronizer1_toggle_o = builder_multiregimpl41;
+assign main_rx_cdc_cdc_produce_rdomain = builder_multiregimpl51;
+assign main_rx_cdc_cdc_consume_wdomain = builder_multiregimpl61;
 
 
 //------------------------------------------------------------------------------
@@ -3215,9 +3197,16 @@ assign main_rx_cdc_cdc_consume_wdomain = builder_xilinxmultiregimpl61;
 //------------------------------------------------------------------------------
 
 always @(posedge eth_rx_clk) begin
-    main_maccore_ethphy_liteethphyrgmiirx_rx_ctl_d <= main_maccore_ethphy_liteethphyrgmiirx_rx_ctl;
-    main_maccore_ethphy_liteethphyrgmiirx_source_valid <= main_maccore_ethphy_liteethphyrgmiirx_rx_ctl;
-    main_maccore_ethphy_liteethphyrgmiirx_source_payload_data <= main_maccore_ethphy_liteethphyrgmiirx_rx_data;
+    main_maccore_ethphy_rx_ctl_reg <= main_maccore_ethphy_rx_ctl;
+    main_maccore_ethphy_rx_data_reg <= main_maccore_ethphy_rx_data;
+    main_maccore_ethphy_rx_ctl_reg_d <= main_maccore_ethphy_rx_ctl_reg;
+    main_maccore_ethphy_source_valid <= main_maccore_ethphy_rx_ctl_reg[0];
+    main_maccore_ethphy_source_payload_data <= main_maccore_ethphy_rx_data_reg;
+    if ((main_maccore_ethphy_rx_ctl == 1'd0)) begin
+        main_maccore_ethphy_link_status <= main_maccore_ethphy_rx_data[0];
+        main_maccore_ethphy_clock_speed <= main_maccore_ethphy_rx_data[2:1];
+        main_maccore_ethphy_duplex_status <= main_maccore_ethphy_rx_data[3];
+    end
     builder_rxdatapath_liteethmacpreamblechecker_state <= builder_rxdatapath_liteethmacpreamblechecker_next_state;
     if (main_pulsesynchronizer0_i) begin
         main_pulsesynchronizer0_toggle_i <= (~main_pulsesynchronizer0_toggle_i);
@@ -3321,9 +3310,14 @@ always @(posedge eth_rx_clk) begin
     main_rx_cdc_cdc_graycounter0_q_binary <= main_rx_cdc_cdc_graycounter0_q_next_binary;
     main_rx_cdc_cdc_graycounter0_q <= main_rx_cdc_cdc_graycounter0_q_next;
     if (eth_rx_rst) begin
-        main_maccore_ethphy_liteethphyrgmiirx_source_valid <= 1'd0;
-        main_maccore_ethphy_liteethphyrgmiirx_source_payload_data <= 8'd0;
-        main_maccore_ethphy_liteethphyrgmiirx_rx_ctl_d <= 1'd0;
+        main_maccore_ethphy_source_valid <= 1'd0;
+        main_maccore_ethphy_source_payload_data <= 8'd0;
+        main_maccore_ethphy_link_status <= 1'd0;
+        main_maccore_ethphy_clock_speed <= 1'd0;
+        main_maccore_ethphy_duplex_status <= 1'd0;
+        main_maccore_ethphy_rx_ctl_reg <= 2'd0;
+        main_maccore_ethphy_rx_data_reg <= 8'd0;
+        main_maccore_ethphy_rx_ctl_reg_d <= 2'd0;
         main_liteethmaccrc32checker_crc_reg <= 32'd4294967295;
         main_liteethmaccrc32checker_syncfifo_level <= 3'd0;
         main_liteethmaccrc32checker_syncfifo_produce <= 3'd0;
@@ -3343,8 +3337,8 @@ always @(posedge eth_rx_clk) begin
         builder_rxdatapath_liteethmacpreamblechecker_state <= 1'd0;
         builder_rxdatapath_bufferizeendpoints_state <= 2'd0;
     end
-    builder_xilinxmultiregimpl60 <= main_rx_cdc_cdc_graycounter1_q;
-    builder_xilinxmultiregimpl61 <= builder_xilinxmultiregimpl60;
+    builder_multiregimpl60 <= main_rx_cdc_cdc_graycounter1_q;
+    builder_multiregimpl61 <= builder_multiregimpl60;
 end
 
 always @(posedge eth_tx_clk) begin
@@ -3417,8 +3411,8 @@ always @(posedge eth_tx_clk) begin
         builder_txdatapath_liteethmacpreambleinserter_state <= 2'd0;
         builder_txdatapath_liteethmacgap_state <= 1'd0;
     end
-    builder_xilinxmultiregimpl10 <= main_tx_cdc_cdc_graycounter0_q;
-    builder_xilinxmultiregimpl11 <= builder_xilinxmultiregimpl10;
+    builder_multiregimpl10 <= main_tx_cdc_cdc_graycounter0_q;
+    builder_multiregimpl11 <= builder_multiregimpl10;
 end
 
 always @(posedge por_clk) begin
@@ -3639,9 +3633,12 @@ always @(posedge sys_clk) begin
                 builder_interface2_bank_bus_dat_r <= builder_csrbank2_crg_reset0_w;
             end
             1'd1: begin
-                builder_interface2_bank_bus_dat_r <= builder_csrbank2_mdio_w0_w;
+                builder_interface2_bank_bus_dat_r <= builder_csrbank2_rx_inband_status_w;
             end
             2'd2: begin
+                builder_interface2_bank_bus_dat_r <= builder_csrbank2_mdio_w0_w;
+            end
+            2'd3: begin
                 builder_interface2_bank_bus_dat_r <= builder_csrbank2_mdio_r_w;
             end
         endcase
@@ -3650,6 +3647,7 @@ always @(posedge sys_clk) begin
         main_maccore_ethphy_reset_storage <= builder_csrbank2_crg_reset0_r;
     end
     main_maccore_ethphy_reset_re <= builder_csrbank2_crg_reset0_re;
+    main_maccore_ethphy_re <= builder_csrbank2_rx_inband_status_re;
     if (builder_csrbank2_mdio_w0_re) begin
         main_maccore_ethphy__w_storage[2:0] <= builder_csrbank2_mdio_w0_r;
     end
@@ -3664,6 +3662,7 @@ always @(posedge sys_clk) begin
         main_maccore_maccore_bus_errors <= 32'd0;
         main_maccore_ethphy_reset_storage <= 1'd0;
         main_maccore_ethphy_reset_re <= 1'd0;
+        main_maccore_ethphy_re <= 1'd0;
         main_maccore_ethphy__w_storage <= 3'd0;
         main_maccore_ethphy__w_re <= 1'd0;
         main_maccore_ethphy__r_re <= 1'd0;
@@ -3715,16 +3714,16 @@ always @(posedge sys_clk) begin
         builder_liteethmacsramreader_state <= 2'd0;
         builder_state <= 1'd0;
     end
-    builder_xilinxmultiregimpl00 <= main_maccore_ethphy_data_r;
-    builder_xilinxmultiregimpl01 <= builder_xilinxmultiregimpl00;
-    builder_xilinxmultiregimpl20 <= main_tx_cdc_cdc_graycounter1_q;
-    builder_xilinxmultiregimpl21 <= builder_xilinxmultiregimpl20;
-    builder_xilinxmultiregimpl30 <= main_pulsesynchronizer0_toggle_i;
-    builder_xilinxmultiregimpl31 <= builder_xilinxmultiregimpl30;
-    builder_xilinxmultiregimpl40 <= main_pulsesynchronizer1_toggle_i;
-    builder_xilinxmultiregimpl41 <= builder_xilinxmultiregimpl40;
-    builder_xilinxmultiregimpl50 <= main_rx_cdc_cdc_graycounter0_q;
-    builder_xilinxmultiregimpl51 <= builder_xilinxmultiregimpl50;
+    builder_multiregimpl00 <= main_maccore_ethphy_data_r;
+    builder_multiregimpl01 <= builder_multiregimpl00;
+    builder_multiregimpl20 <= main_tx_cdc_cdc_graycounter1_q;
+    builder_multiregimpl21 <= builder_multiregimpl20;
+    builder_multiregimpl30 <= main_pulsesynchronizer0_toggle_i;
+    builder_multiregimpl31 <= builder_multiregimpl30;
+    builder_multiregimpl40 <= main_pulsesynchronizer1_toggle_i;
+    builder_multiregimpl41 <= builder_multiregimpl40;
+    builder_multiregimpl50 <= main_rx_cdc_cdc_graycounter0_q;
+    builder_multiregimpl51 <= builder_multiregimpl50;
 end
 
 
@@ -3733,482 +3732,168 @@ end
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
-// Instance IBUF of IBUF Module.
+// Instance DELAYG of DELAYG Module.
 //------------------------------------------------------------------------------
-IBUF IBUF(
-	// Inputs.
-	.I (rgmii_clocks_rx),
-
-	// Outputs.
-	.O (main_maccore_ethphy_eth_rx_clk_ibuf)
-);
-
-//------------------------------------------------------------------------------
-// Instance BUFG of BUFG Module.
-//------------------------------------------------------------------------------
-BUFG BUFG(
-	// Inputs.
-	.I (main_maccore_ethphy_eth_rx_clk_ibuf),
-
-	// Outputs.
-	.O (eth_rx_clk)
-);
-
-//------------------------------------------------------------------------------
-// Instance BUFG_1 of BUFG Module.
-//------------------------------------------------------------------------------
-BUFG BUFG_1(
-	// Inputs.
-	.I (main_maccore_ethphy_clkout0),
-
-	// Outputs.
-	.O (main_maccore_ethphy_clkout_buf0)
-);
-
-//------------------------------------------------------------------------------
-// Instance BUFG_2 of BUFG Module.
-//------------------------------------------------------------------------------
-BUFG BUFG_2(
-	// Inputs.
-	.I (main_maccore_ethphy_clkout1),
-
-	// Outputs.
-	.O (main_maccore_ethphy_clkout_buf1)
-);
-
-//------------------------------------------------------------------------------
-// Instance ODDR of ODDR Module.
-//------------------------------------------------------------------------------
-ODDR #(
+DELAYG #(
 	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE")
-) ODDR (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (7'd80)
+) DELAYG (
 	// Inputs.
-	.C  (eth_tx_delayed_clk),
-	.CE (1'd1),
-	.D1 (1'd1),
-	.D2 (1'd0),
-	.R  (1'd0),
-	.S  (1'd0),
+	.A (main_maccore_ethphy_eth_tx_clk_o),
 
 	// Outputs.
-	.Q  (main_maccore_ethphy_eth_tx_clk_obuf)
+	.Z (rgmii_clocks_tx)
 );
 
 //------------------------------------------------------------------------------
-// Instance OBUF of OBUF Module.
+// Instance DELAYG_1 of DELAYG Module.
 //------------------------------------------------------------------------------
-OBUF OBUF(
-	// Inputs.
-	.I (main_maccore_ethphy_eth_tx_clk_obuf),
-
-	// Outputs.
-	.O (rgmii_clocks_tx)
-);
-
-//------------------------------------------------------------------------------
-// Instance ODDR_1 of ODDR Module.
-//------------------------------------------------------------------------------
-ODDR #(
+DELAYG #(
 	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE")
-) ODDR_1 (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (1'd0)
+) DELAYG_1 (
 	// Inputs.
-	.C  (eth_tx_clk),
-	.CE (1'd1),
-	.D1 (main_maccore_ethphy_sink_valid),
-	.D2 (main_maccore_ethphy_sink_valid),
-	.R  (1'd0),
-	.S  (1'd0),
+	.A (main_maccore_ethphy_tx_ctl_oddrx1f),
 
 	// Outputs.
-	.Q  (main_maccore_ethphy_tx_ctl_obuf)
+	.Z (rgmii_tx_ctl)
 );
 
 //------------------------------------------------------------------------------
-// Instance OBUF_1 of OBUF Module.
+// Instance DELAYG_2 of DELAYG Module.
 //------------------------------------------------------------------------------
-OBUF OBUF_1(
-	// Inputs.
-	.I (main_maccore_ethphy_tx_ctl_obuf),
-
-	// Outputs.
-	.O (rgmii_tx_ctl)
-);
-
-//------------------------------------------------------------------------------
-// Instance ODDR_2 of ODDR Module.
-//------------------------------------------------------------------------------
-ODDR #(
+DELAYG #(
 	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE")
-) ODDR_2 (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (1'd0)
+) DELAYG_2 (
 	// Inputs.
-	.C  (eth_tx_clk),
-	.CE (1'd1),
-	.D1 (main_maccore_ethphy_sink_payload_data[0]),
-	.D2 (main_maccore_ethphy_sink_payload_data[4]),
-	.R  (1'd0),
-	.S  (1'd0),
+	.A (main_maccore_ethphy_tx_data_oddrx1f[0]),
 
 	// Outputs.
-	.Q  (main_maccore_ethphy_tx_data_obuf[0])
+	.Z (rgmii_tx_data[0])
 );
 
 //------------------------------------------------------------------------------
-// Instance OBUF_2 of OBUF Module.
+// Instance DELAYG_3 of DELAYG Module.
 //------------------------------------------------------------------------------
-OBUF OBUF_2(
-	// Inputs.
-	.I (main_maccore_ethphy_tx_data_obuf[0]),
-
-	// Outputs.
-	.O (rgmii_tx_data[0])
-);
-
-//------------------------------------------------------------------------------
-// Instance ODDR_3 of ODDR Module.
-//------------------------------------------------------------------------------
-ODDR #(
+DELAYG #(
 	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE")
-) ODDR_3 (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (1'd0)
+) DELAYG_3 (
 	// Inputs.
-	.C  (eth_tx_clk),
-	.CE (1'd1),
-	.D1 (main_maccore_ethphy_sink_payload_data[1]),
-	.D2 (main_maccore_ethphy_sink_payload_data[5]),
-	.R  (1'd0),
-	.S  (1'd0),
+	.A (main_maccore_ethphy_tx_data_oddrx1f[1]),
 
 	// Outputs.
-	.Q  (main_maccore_ethphy_tx_data_obuf[1])
+	.Z (rgmii_tx_data[1])
 );
 
 //------------------------------------------------------------------------------
-// Instance OBUF_3 of OBUF Module.
+// Instance DELAYG_4 of DELAYG Module.
 //------------------------------------------------------------------------------
-OBUF OBUF_3(
-	// Inputs.
-	.I (main_maccore_ethphy_tx_data_obuf[1]),
-
-	// Outputs.
-	.O (rgmii_tx_data[1])
-);
-
-//------------------------------------------------------------------------------
-// Instance ODDR_4 of ODDR Module.
-//------------------------------------------------------------------------------
-ODDR #(
+DELAYG #(
 	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE")
-) ODDR_4 (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (1'd0)
+) DELAYG_4 (
 	// Inputs.
-	.C  (eth_tx_clk),
-	.CE (1'd1),
-	.D1 (main_maccore_ethphy_sink_payload_data[2]),
-	.D2 (main_maccore_ethphy_sink_payload_data[6]),
-	.R  (1'd0),
-	.S  (1'd0),
+	.A (main_maccore_ethphy_tx_data_oddrx1f[2]),
 
 	// Outputs.
-	.Q  (main_maccore_ethphy_tx_data_obuf[2])
+	.Z (rgmii_tx_data[2])
 );
 
 //------------------------------------------------------------------------------
-// Instance OBUF_4 of OBUF Module.
+// Instance DELAYG_5 of DELAYG Module.
 //------------------------------------------------------------------------------
-OBUF OBUF_4(
-	// Inputs.
-	.I (main_maccore_ethphy_tx_data_obuf[2]),
-
-	// Outputs.
-	.O (rgmii_tx_data[2])
-);
-
-//------------------------------------------------------------------------------
-// Instance ODDR_5 of ODDR Module.
-//------------------------------------------------------------------------------
-ODDR #(
+DELAYG #(
 	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE")
-) ODDR_5 (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (1'd0)
+) DELAYG_5 (
 	// Inputs.
-	.C  (eth_tx_clk),
-	.CE (1'd1),
-	.D1 (main_maccore_ethphy_sink_payload_data[3]),
-	.D2 (main_maccore_ethphy_sink_payload_data[7]),
-	.R  (1'd0),
-	.S  (1'd0),
+	.A (main_maccore_ethphy_tx_data_oddrx1f[3]),
 
 	// Outputs.
-	.Q  (main_maccore_ethphy_tx_data_obuf[3])
+	.Z (rgmii_tx_data[3])
 );
 
 //------------------------------------------------------------------------------
-// Instance OBUF_5 of OBUF Module.
+// Instance DELAYG_6 of DELAYG Module.
 //------------------------------------------------------------------------------
-OBUF OBUF_5(
-	// Inputs.
-	.I (main_maccore_ethphy_tx_data_obuf[3]),
-
-	// Outputs.
-	.O (rgmii_tx_data[3])
-);
-
-//------------------------------------------------------------------------------
-// Instance IBUF_1 of IBUF Module.
-//------------------------------------------------------------------------------
-IBUF IBUF_1(
-	// Inputs.
-	.I (rgmii_rx_ctl),
-
-	// Outputs.
-	.O (main_maccore_ethphy_liteethphyrgmiirx_rx_ctl_ibuf)
-);
-
-//------------------------------------------------------------------------------
-// Instance IDELAYE2 of IDELAYE2 Module.
-//------------------------------------------------------------------------------
-IDELAYE2 #(
+DELAYG #(
 	// Parameters.
-	.IDELAY_TYPE      ("FIXED"),
-	.IDELAY_VALUE     (5'd26),
-	.REFCLK_FREQUENCY (200.0)
-) IDELAYE2 (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (1'd0)
+) DELAYG_6 (
 	// Inputs.
-	.C        (1'd0),
-	.CE       (1'd0),
-	.IDATAIN  (main_maccore_ethphy_liteethphyrgmiirx_rx_ctl_ibuf),
-	.INC      (1'd0),
-	.LD       (1'd0),
-	.LDPIPEEN (1'd0),
+	.A (rgmii_rx_ctl),
 
 	// Outputs.
-	.DATAOUT  (main_maccore_ethphy_liteethphyrgmiirx_rx_ctl_idelay)
+	.Z (main_maccore_ethphy_rx_ctl_delayf)
 );
 
 //------------------------------------------------------------------------------
-// Instance IDDR of IDDR Module.
+// Instance DELAYG_7 of DELAYG Module.
 //------------------------------------------------------------------------------
-IDDR #(
+DELAYG #(
 	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE_PIPELINED")
-) IDDR (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (1'd0)
+) DELAYG_7 (
 	// Inputs.
-	.C  (eth_rx_clk),
-	.CE (1'd1),
-	.D  (main_maccore_ethphy_liteethphyrgmiirx_rx_ctl_idelay),
-	.R  (1'd0),
-	.S  (1'd0),
+	.A (rgmii_rx_data[0]),
 
 	// Outputs.
-	.Q1 (main_maccore_ethphy_liteethphyrgmiirx_rx_ctl),
-	.Q2 (main_maccore_ethphy_liteethphyrgmiirx)
+	.Z (main_maccore_ethphy_rx_data_delayf[0])
 );
 
 //------------------------------------------------------------------------------
-// Instance IBUF_2 of IBUF Module.
+// Instance DELAYG_8 of DELAYG Module.
 //------------------------------------------------------------------------------
-IBUF IBUF_2(
-	// Inputs.
-	.I (rgmii_rx_data[0]),
-
-	// Outputs.
-	.O (main_maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[0])
-);
-
-//------------------------------------------------------------------------------
-// Instance IDELAYE2_1 of IDELAYE2 Module.
-//------------------------------------------------------------------------------
-IDELAYE2 #(
+DELAYG #(
 	// Parameters.
-	.IDELAY_TYPE      ("FIXED"),
-	.IDELAY_VALUE     (5'd26),
-	.REFCLK_FREQUENCY (200.0)
-) IDELAYE2_1 (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (1'd0)
+) DELAYG_8 (
 	// Inputs.
-	.C        (1'd0),
-	.CE       (1'd0),
-	.IDATAIN  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[0]),
-	.INC      (1'd0),
-	.LD       (1'd0),
-	.LDPIPEEN (1'd0),
+	.A (rgmii_rx_data[1]),
 
 	// Outputs.
-	.DATAOUT  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[0])
+	.Z (main_maccore_ethphy_rx_data_delayf[1])
 );
 
 //------------------------------------------------------------------------------
-// Instance IDDR_1 of IDDR Module.
+// Instance DELAYG_9 of DELAYG Module.
 //------------------------------------------------------------------------------
-IDDR #(
+DELAYG #(
 	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE_PIPELINED")
-) IDDR_1 (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (1'd0)
+) DELAYG_9 (
 	// Inputs.
-	.C  (eth_rx_clk),
-	.CE (1'd1),
-	.D  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[0]),
-	.R  (1'd0),
-	.S  (1'd0),
+	.A (rgmii_rx_data[2]),
 
 	// Outputs.
-	.Q1 (main_maccore_ethphy_liteethphyrgmiirx_rx_data[0]),
-	.Q2 (main_maccore_ethphy_liteethphyrgmiirx_rx_data[4])
+	.Z (main_maccore_ethphy_rx_data_delayf[2])
 );
 
 //------------------------------------------------------------------------------
-// Instance IBUF_3 of IBUF Module.
+// Instance DELAYG_10 of DELAYG Module.
 //------------------------------------------------------------------------------
-IBUF IBUF_3(
-	// Inputs.
-	.I (rgmii_rx_data[1]),
-
-	// Outputs.
-	.O (main_maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[1])
-);
-
-//------------------------------------------------------------------------------
-// Instance IDELAYE2_2 of IDELAYE2 Module.
-//------------------------------------------------------------------------------
-IDELAYE2 #(
+DELAYG #(
 	// Parameters.
-	.IDELAY_TYPE      ("FIXED"),
-	.IDELAY_VALUE     (5'd26),
-	.REFCLK_FREQUENCY (200.0)
-) IDELAYE2_2 (
+	.DEL_MODE  ("SCLK_ALIGNED"),
+	.DEL_VALUE (1'd0)
+) DELAYG_10 (
 	// Inputs.
-	.C        (1'd0),
-	.CE       (1'd0),
-	.IDATAIN  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[1]),
-	.INC      (1'd0),
-	.LD       (1'd0),
-	.LDPIPEEN (1'd0),
+	.A (rgmii_rx_data[3]),
 
 	// Outputs.
-	.DATAOUT  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[1])
-);
-
-//------------------------------------------------------------------------------
-// Instance IDDR_2 of IDDR Module.
-//------------------------------------------------------------------------------
-IDDR #(
-	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE_PIPELINED")
-) IDDR_2 (
-	// Inputs.
-	.C  (eth_rx_clk),
-	.CE (1'd1),
-	.D  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[1]),
-	.R  (1'd0),
-	.S  (1'd0),
-
-	// Outputs.
-	.Q1 (main_maccore_ethphy_liteethphyrgmiirx_rx_data[1]),
-	.Q2 (main_maccore_ethphy_liteethphyrgmiirx_rx_data[5])
-);
-
-//------------------------------------------------------------------------------
-// Instance IBUF_4 of IBUF Module.
-//------------------------------------------------------------------------------
-IBUF IBUF_4(
-	// Inputs.
-	.I (rgmii_rx_data[2]),
-
-	// Outputs.
-	.O (main_maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[2])
-);
-
-//------------------------------------------------------------------------------
-// Instance IDELAYE2_3 of IDELAYE2 Module.
-//------------------------------------------------------------------------------
-IDELAYE2 #(
-	// Parameters.
-	.IDELAY_TYPE      ("FIXED"),
-	.IDELAY_VALUE     (5'd26),
-	.REFCLK_FREQUENCY (200.0)
-) IDELAYE2_3 (
-	// Inputs.
-	.C        (1'd0),
-	.CE       (1'd0),
-	.IDATAIN  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[2]),
-	.INC      (1'd0),
-	.LD       (1'd0),
-	.LDPIPEEN (1'd0),
-
-	// Outputs.
-	.DATAOUT  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[2])
-);
-
-//------------------------------------------------------------------------------
-// Instance IDDR_3 of IDDR Module.
-//------------------------------------------------------------------------------
-IDDR #(
-	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE_PIPELINED")
-) IDDR_3 (
-	// Inputs.
-	.C  (eth_rx_clk),
-	.CE (1'd1),
-	.D  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[2]),
-	.R  (1'd0),
-	.S  (1'd0),
-
-	// Outputs.
-	.Q1 (main_maccore_ethphy_liteethphyrgmiirx_rx_data[2]),
-	.Q2 (main_maccore_ethphy_liteethphyrgmiirx_rx_data[6])
-);
-
-//------------------------------------------------------------------------------
-// Instance IBUF_5 of IBUF Module.
-//------------------------------------------------------------------------------
-IBUF IBUF_5(
-	// Inputs.
-	.I (rgmii_rx_data[3]),
-
-	// Outputs.
-	.O (main_maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[3])
-);
-
-//------------------------------------------------------------------------------
-// Instance IDELAYE2_4 of IDELAYE2 Module.
-//------------------------------------------------------------------------------
-IDELAYE2 #(
-	// Parameters.
-	.IDELAY_TYPE      ("FIXED"),
-	.IDELAY_VALUE     (5'd26),
-	.REFCLK_FREQUENCY (200.0)
-) IDELAYE2_4 (
-	// Inputs.
-	.C        (1'd0),
-	.CE       (1'd0),
-	.IDATAIN  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[3]),
-	.INC      (1'd0),
-	.LD       (1'd0),
-	.LDPIPEEN (1'd0),
-
-	// Outputs.
-	.DATAOUT  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[3])
-);
-
-//------------------------------------------------------------------------------
-// Instance IDDR_4 of IDDR Module.
-//------------------------------------------------------------------------------
-IDDR #(
-	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE_PIPELINED")
-) IDDR_4 (
-	// Inputs.
-	.C  (eth_rx_clk),
-	.CE (1'd1),
-	.D  (main_maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[3]),
-	.R  (1'd0),
-	.S  (1'd0),
-
-	// Outputs.
-	.Q1 (main_maccore_ethphy_liteethphyrgmiirx_rx_data[3]),
-	.Q2 (main_maccore_ethphy_liteethphyrgmiirx_rx_data[7])
+	.Z (main_maccore_ethphy_rx_data_delayf[3])
 );
 
 assign rgmii_mdio = main_maccore_ethphy_data_oe ? main_maccore_ethphy_data_w : 1'bz;
@@ -4403,255 +4088,202 @@ assign main_sram3_dat_r = mem_3[mem_3_adr1];
 
 
 //------------------------------------------------------------------------------
-// Instance FDCE of FDCE Module.
+// Instance ODDRX1F of ODDRX1F Module.
 //------------------------------------------------------------------------------
-FDCE FDCE(
+ODDRX1F ODDRX1F(
 	// Inputs.
-	.C   (main_maccore_ethphy_clkin),
-	.CE  (1'd1),
-	.CLR (1'd0),
-	.D   (main_maccore_ethphy_reset0),
+	.D0   (1'd1),
+	.D1   (1'd0),
+	.SCLK (eth_tx_clk),
 
 	// Outputs.
-	.Q   (builder_reset0)
+	.Q    (main_maccore_ethphy_eth_tx_clk_o)
 );
 
 //------------------------------------------------------------------------------
-// Instance FDCE_1 of FDCE Module.
+// Instance FD1S3BX of FD1S3BX Module.
 //------------------------------------------------------------------------------
-FDCE FDCE_1(
+FD1S3BX FD1S3BX(
 	// Inputs.
-	.C   (main_maccore_ethphy_clkin),
-	.CE  (1'd1),
-	.CLR (1'd0),
-	.D   (builder_reset0),
+	.CK (eth_tx_clk),
+	.D  (1'd0),
+	.PD (main_maccore_ethphy_reset),
 
 	// Outputs.
-	.Q   (builder_reset1)
+	.Q  (builder_rst10)
 );
 
 //------------------------------------------------------------------------------
-// Instance FDCE_2 of FDCE Module.
+// Instance FD1S3BX_1 of FD1S3BX Module.
 //------------------------------------------------------------------------------
-FDCE FDCE_2(
+FD1S3BX FD1S3BX_1(
 	// Inputs.
-	.C   (main_maccore_ethphy_clkin),
-	.CE  (1'd1),
-	.CLR (1'd0),
-	.D   (builder_reset1),
+	.CK (eth_tx_clk),
+	.D  (builder_rst10),
+	.PD (main_maccore_ethphy_reset),
 
 	// Outputs.
-	.Q   (builder_reset2)
+	.Q  (eth_tx_rst)
 );
 
 //------------------------------------------------------------------------------
-// Instance FDCE_3 of FDCE Module.
+// Instance FD1S3BX_2 of FD1S3BX Module.
 //------------------------------------------------------------------------------
-FDCE FDCE_3(
+FD1S3BX FD1S3BX_2(
 	// Inputs.
-	.C   (main_maccore_ethphy_clkin),
-	.CE  (1'd1),
-	.CLR (1'd0),
-	.D   (builder_reset2),
+	.CK (eth_rx_clk),
+	.D  (1'd0),
+	.PD (main_maccore_ethphy_reset),
 
 	// Outputs.
-	.Q   (builder_reset3)
+	.Q  (builder_rst11)
 );
 
 //------------------------------------------------------------------------------
-// Instance FDCE_4 of FDCE Module.
+// Instance FD1S3BX_3 of FD1S3BX Module.
 //------------------------------------------------------------------------------
-FDCE FDCE_4(
+FD1S3BX FD1S3BX_3(
 	// Inputs.
-	.C   (main_maccore_ethphy_clkin),
-	.CE  (1'd1),
-	.CLR (1'd0),
-	.D   (builder_reset3),
+	.CK (eth_rx_clk),
+	.D  (builder_rst11),
+	.PD (main_maccore_ethphy_reset),
 
 	// Outputs.
-	.Q   (builder_reset4)
+	.Q  (eth_rx_rst)
 );
 
 //------------------------------------------------------------------------------
-// Instance FDCE_5 of FDCE Module.
+// Instance ODDRX1F_1 of ODDRX1F Module.
 //------------------------------------------------------------------------------
-FDCE FDCE_5(
+ODDRX1F ODDRX1F_1(
 	// Inputs.
-	.C   (main_maccore_ethphy_clkin),
-	.CE  (1'd1),
-	.CLR (1'd0),
-	.D   (builder_reset4),
+	.D0   (main_maccore_ethphy_sink_valid),
+	.D1   (main_maccore_ethphy_sink_valid),
+	.SCLK (eth_tx_clk),
 
 	// Outputs.
-	.Q   (builder_reset5)
+	.Q    (main_maccore_ethphy_tx_ctl_oddrx1f)
 );
 
 //------------------------------------------------------------------------------
-// Instance FDCE_6 of FDCE Module.
+// Instance ODDRX1F_2 of ODDRX1F Module.
 //------------------------------------------------------------------------------
-FDCE FDCE_6(
+ODDRX1F ODDRX1F_2(
 	// Inputs.
-	.C   (main_maccore_ethphy_clkin),
-	.CE  (1'd1),
-	.CLR (1'd0),
-	.D   (builder_reset5),
+	.D0   (main_maccore_ethphy_sink_payload_data[0]),
+	.D1   (main_maccore_ethphy_sink_payload_data[4]),
+	.SCLK (eth_tx_clk),
 
 	// Outputs.
-	.Q   (builder_reset6)
+	.Q    (main_maccore_ethphy_tx_data_oddrx1f[0])
 );
 
 //------------------------------------------------------------------------------
-// Instance FDCE_7 of FDCE Module.
+// Instance ODDRX1F_3 of ODDRX1F Module.
 //------------------------------------------------------------------------------
-FDCE FDCE_7(
+ODDRX1F ODDRX1F_3(
 	// Inputs.
-	.C   (main_maccore_ethphy_clkin),
-	.CE  (1'd1),
-	.CLR (1'd0),
-	.D   (builder_reset6),
+	.D0   (main_maccore_ethphy_sink_payload_data[1]),
+	.D1   (main_maccore_ethphy_sink_payload_data[5]),
+	.SCLK (eth_tx_clk),
 
 	// Outputs.
-	.Q   (builder_reset7)
+	.Q    (main_maccore_ethphy_tx_data_oddrx1f[1])
 );
 
 //------------------------------------------------------------------------------
-// Instance PLLE2_ADV of PLLE2_ADV Module.
+// Instance ODDRX1F_4 of ODDRX1F Module.
 //------------------------------------------------------------------------------
-PLLE2_ADV #(
-	// Parameters.
-	.CLKFBOUT_MULT  (4'd12),
-	.CLKIN1_PERIOD  (8.0),
-	.CLKOUT0_DIVIDE (4'd12),
-	.CLKOUT0_PHASE  (1'd0),
-	.CLKOUT1_DIVIDE (4'd12),
-	.CLKOUT1_PHASE  (90.0),
-	.DIVCLK_DIVIDE  (1'd1),
-	.REF_JITTER1    (0.01),
-	.STARTUP_WAIT   ("FALSE")
-) PLLE2_ADV (
+ODDRX1F ODDRX1F_4(
 	// Inputs.
-	.CLKFBIN  (builder_pll_fb),
-	.CLKIN1   (main_maccore_ethphy_clkin),
-	.PWRDWN   (main_maccore_ethphy_power_down),
-	.RST      (builder_reset7),
+	.D0   (main_maccore_ethphy_sink_payload_data[2]),
+	.D1   (main_maccore_ethphy_sink_payload_data[6]),
+	.SCLK (eth_tx_clk),
 
 	// Outputs.
-	.CLKFBOUT (builder_pll_fb),
-	.CLKOUT0  (main_maccore_ethphy_clkout0),
-	.CLKOUT1  (main_maccore_ethphy_clkout1),
-	.LOCKED   (main_maccore_ethphy_locked)
+	.Q    (main_maccore_ethphy_tx_data_oddrx1f[2])
 );
 
-(* ars_ff1 = "true", async_reg = "true" *)
 //------------------------------------------------------------------------------
-// Instance FDPE of FDPE Module.
+// Instance ODDRX1F_5 of ODDRX1F Module.
 //------------------------------------------------------------------------------
-FDPE #(
-	// Parameters.
-	.INIT (1'd1)
-) FDPE (
+ODDRX1F ODDRX1F_5(
 	// Inputs.
-	.C   (eth_tx_delayed_clk),
-	.CE  (1'd1),
-	.D   (1'd0),
-	.PRE (builder_xilinxasyncresetsynchronizerimpl0_async_reset),
+	.D0   (main_maccore_ethphy_sink_payload_data[3]),
+	.D1   (main_maccore_ethphy_sink_payload_data[7]),
+	.SCLK (eth_tx_clk),
 
 	// Outputs.
-	.Q   (builder_xilinxasyncresetsynchronizerimpl0_rst_meta)
+	.Q    (main_maccore_ethphy_tx_data_oddrx1f[3])
 );
 
-(* ars_ff2 = "true", async_reg = "true" *)
 //------------------------------------------------------------------------------
-// Instance FDPE_1 of FDPE Module.
+// Instance IDDRX1F of IDDRX1F Module.
 //------------------------------------------------------------------------------
-FDPE #(
-	// Parameters.
-	.INIT (1'd1)
-) FDPE_1 (
+IDDRX1F IDDRX1F(
 	// Inputs.
-	.C   (eth_tx_delayed_clk),
-	.CE  (1'd1),
-	.D   (builder_xilinxasyncresetsynchronizerimpl0_rst_meta),
-	.PRE (builder_xilinxasyncresetsynchronizerimpl0_async_reset),
+	.D    (main_maccore_ethphy_rx_ctl_delayf),
+	.SCLK (eth_rx_clk),
 
 	// Outputs.
-	.Q   (builder_xilinxasyncresetsynchronizerimpl0_expr)
+	.Q0   (main_maccore_ethphy_rx_ctl[0]),
+	.Q1   (main_maccore_ethphy_rx_ctl[1])
 );
 
-(* ars_ff1 = "true", async_reg = "true" *)
 //------------------------------------------------------------------------------
-// Instance FDPE_2 of FDPE Module.
+// Instance IDDRX1F_1 of IDDRX1F Module.
 //------------------------------------------------------------------------------
-FDPE #(
-	// Parameters.
-	.INIT (1'd1)
-) FDPE_2 (
+IDDRX1F IDDRX1F_1(
 	// Inputs.
-	.C   (eth_tx_clk),
-	.CE  (1'd1),
-	.D   (1'd0),
-	.PRE (main_maccore_ethphy_reset1),
+	.D    (main_maccore_ethphy_rx_data_delayf[0]),
+	.SCLK (eth_rx_clk),
 
 	// Outputs.
-	.Q   (builder_xilinxasyncresetsynchronizerimpl1_rst_meta)
+	.Q0   (main_maccore_ethphy_rx_data[0]),
+	.Q1   (main_maccore_ethphy_rx_data[4])
 );
 
-(* ars_ff2 = "true", async_reg = "true" *)
 //------------------------------------------------------------------------------
-// Instance FDPE_3 of FDPE Module.
+// Instance IDDRX1F_2 of IDDRX1F Module.
 //------------------------------------------------------------------------------
-FDPE #(
-	// Parameters.
-	.INIT (1'd1)
-) FDPE_3 (
+IDDRX1F IDDRX1F_2(
 	// Inputs.
-	.C   (eth_tx_clk),
-	.CE  (1'd1),
-	.D   (builder_xilinxasyncresetsynchronizerimpl1_rst_meta),
-	.PRE (main_maccore_ethphy_reset1),
+	.D    (main_maccore_ethphy_rx_data_delayf[1]),
+	.SCLK (eth_rx_clk),
 
 	// Outputs.
-	.Q   (eth_tx_rst)
+	.Q0   (main_maccore_ethphy_rx_data[1]),
+	.Q1   (main_maccore_ethphy_rx_data[5])
 );
 
-(* ars_ff1 = "true", async_reg = "true" *)
 //------------------------------------------------------------------------------
-// Instance FDPE_4 of FDPE Module.
+// Instance IDDRX1F_3 of IDDRX1F Module.
 //------------------------------------------------------------------------------
-FDPE #(
-	// Parameters.
-	.INIT (1'd1)
-) FDPE_4 (
+IDDRX1F IDDRX1F_3(
 	// Inputs.
-	.C   (eth_rx_clk),
-	.CE  (1'd1),
-	.D   (1'd0),
-	.PRE (main_maccore_ethphy_reset1),
+	.D    (main_maccore_ethphy_rx_data_delayf[2]),
+	.SCLK (eth_rx_clk),
 
 	// Outputs.
-	.Q   (builder_xilinxasyncresetsynchronizerimpl2_rst_meta)
+	.Q0   (main_maccore_ethphy_rx_data[2]),
+	.Q1   (main_maccore_ethphy_rx_data[6])
 );
 
-(* ars_ff2 = "true", async_reg = "true" *)
 //------------------------------------------------------------------------------
-// Instance FDPE_5 of FDPE Module.
+// Instance IDDRX1F_4 of IDDRX1F Module.
 //------------------------------------------------------------------------------
-FDPE #(
-	// Parameters.
-	.INIT (1'd1)
-) FDPE_5 (
+IDDRX1F IDDRX1F_4(
 	// Inputs.
-	.C   (eth_rx_clk),
-	.CE  (1'd1),
-	.D   (builder_xilinxasyncresetsynchronizerimpl2_rst_meta),
-	.PRE (main_maccore_ethphy_reset1),
+	.D    (main_maccore_ethphy_rx_data_delayf[3]),
+	.SCLK (eth_rx_clk),
 
 	// Outputs.
-	.Q   (eth_rx_rst)
+	.Q0   (main_maccore_ethphy_rx_data[3]),
+	.Q1   (main_maccore_ethphy_rx_data[7])
 );
 
 endmodule
 
 // -----------------------------------------------------------------------------
-//  Auto-Generated by LiteX on 2024-04-05 17:38:49.
+//  Auto-Generated by LiteX on 2024-04-09 14:20:59.
 //------------------------------------------------------------------------------

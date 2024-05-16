@@ -7,9 +7,9 @@
 //                   https://github.com/enjoy-digital/litex
 //
 // Filename   : litedram_core.v
-// Device     : LFE5U-85F-8MG285C
+// Device     : LFE5UM5G-85F-8BG554I
 // LiteX sha1 : 87137c30
-// Date       : 2024-04-01 10:12:11
+// Date       : 2024-04-01 18:06:24
 //------------------------------------------------------------------------------
 
 `timescale 1ns / 1ps
@@ -80,9 +80,9 @@ LiteDRAMCore
 └─── crg (LiteDRAMECP5DDRPHYCRG)
 │    └─── pll (ECP5PLL)
 │    │    └─── [EHXPLLL]
-│    └─── [ECLKSYNCB]
 │    └─── [CLKDIVF]
 │    └─── [ECLKBRIDGECS]
+│    └─── [ECLKSYNCB]
 └─── ddrphy (ECP5DDRPHY)
 │    └─── init (ECP5DDRPHYInit)
 │    │    └─── [DDRDLLA]
@@ -104,125 +104,125 @@ LiteDRAMCore
 │    └─── bitslip_15* (BitSlip)
 │    └─── tappeddelayline_0* (TappedDelayLine)
 │    └─── tappeddelayline_1* (TappedDelayLine)
+│    └─── [DELAYG]
 │    └─── [TSHX2DQA]
 │    └─── [ODDRX2F]
 │    └─── [TSHX2DQA]
 │    └─── [DELAYG]
 │    └─── [ODDRX2F]
+│    └─── [ODDRX2F]
 │    └─── [DELAYG]
+│    └─── [ODDRX2F]
+│    └─── [ODDRX2DQSB]
+│    └─── [TSHX2DQA]
+│    └─── [DELAYG]
+│    └─── [DELAYG]
+│    └─── [TSHX2DQA]
+│    └─── [DELAYG]
+│    └─── [ODDRX2F]
+│    └─── [ODDRX2F]
+│    └─── [TSHX2DQA]
+│    └─── [DELAYG]
+│    └─── [ODDRX2DQA]
+│    └─── [DELAYG]
+│    └─── [DELAYG]
+│    └─── [TSHX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2F]
+│    └─── [ODDRX2F]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [DELAYG]
+│    └─── [DQSBUFM]
+│    └─── [DELAYG]
+│    └─── [TSHX2DQA]
+│    └─── [ODDRX2F]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2F]
+│    └─── [IDDRX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [DELAYG]
+│    └─── [DELAYG]
+│    └─── [IDDRX2DQA]
+│    └─── [IDDRX2DQA]
+│    └─── [DELAYG]
+│    └─── [TSHX2DQSA]
+│    └─── [IDDRX2DQA]
+│    └─── [IDDRX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2F]
+│    └─── [DELAYG]
+│    └─── [IDDRX2DQA]
+│    └─── [DELAYG]
+│    └─── [IDDRX2DQA]
+│    └─── [DELAYG]
+│    └─── [ODDRX2F]
+│    └─── [DELAYG]
+│    └─── [DQSBUFM]
+│    └─── [DELAYG]
+│    └─── [TSHX2DQSA]
+│    └─── [ODDRX2F]
+│    └─── [DELAYG]
+│    └─── [IDDRX2DQA]
+│    └─── [DELAYG]
+│    └─── [ODDRX2DQA]
+│    └─── [TSHX2DQA]
+│    └─── [IDDRX2DQA]
+│    └─── [DELAYG]
+│    └─── [TSHX2DQA]
+│    └─── [DELAYG]
+│    └─── [TSHX2DQA]
+│    └─── [DELAYG]
+│    └─── [ODDRX2F]
 │    └─── [DELAYG]
 │    └─── [ODDRX2F]
 │    └─── [DELAYG]
 │    └─── [TSHX2DQA]
+│    └─── [DELAYG]
 │    └─── [TSHX2DQA]
+│    └─── [DELAYG]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2F]
+│    └─── [TSHX2DQA]
+│    └─── [DELAYG]
+│    └─── [DELAYG]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2F]
+│    └─── [TSHX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2F]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [TSHX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [ODDRX2F]
+│    └─── [ODDRX2F]
+│    └─── [DELAYG]
+│    └─── [IDDRX2DQA]
+│    └─── [IDDRX2DQA]
+│    └─── [IDDRX2DQA]
+│    └─── [IDDRX2DQA]
+│    └─── [ODDRX2F]
+│    └─── [ODDRX2F]
+│    └─── [IDDRX2DQA]
+│    └─── [ODDRX2DQA]
+│    └─── [DELAYG]
+│    └─── [ODDRX2F]
+│    └─── [ODDRX2F]
+│    └─── [DELAYG]
+│    └─── [ODDRX2F]
+│    └─── [DELAYG]
+│    └─── [IDDRX2DQA]
+│    └─── [DELAYG]
+│    └─── [IDDRX2DQA]
 │    └─── [ODDRX2DQSB]
 │    └─── [ODDRX2F]
 │    └─── [DELAYG]
 │    └─── [DELAYG]
 │    └─── [TSHX2DQA]
-│    └─── [ODDRX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [TSHX2DQA]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [TSHX2DQA]
-│    └─── [ODDRX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2DQA]
-│    └─── [ODDRX2DQA]
-│    └─── [ODDRX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [DELAYG]
-│    └─── [ODDRX2DQA]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [ODDRX2DQA]
-│    └─── [IDDRX2DQA]
-│    └─── [ODDRX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2F]
-│    └─── [DELAYG]
-│    └─── [IDDRX2DQA]
-│    └─── [TSHX2DQSA]
-│    └─── [DELAYG]
-│    └─── [IDDRX2DQA]
-│    └─── [IDDRX2DQA]
-│    └─── [ODDRX2DQA]
-│    └─── [IDDRX2DQA]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [IDDRX2DQA]
-│    └─── [DQSBUFM]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2DQA]
-│    └─── [TSHX2DQA]
-│    └─── [DELAYG]
-│    └─── [IDDRX2DQA]
-│    └─── [TSHX2DQSA]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [IDDRX2DQA]
-│    └─── [TSHX2DQA]
-│    └─── [TSHX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [ODDRX2F]
-│    └─── [TSHX2DQA]
-│    └─── [TSHX2DQA]
-│    └─── [DELAYG]
-│    └─── [ODDRX2DQA]
-│    └─── [IDDRX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [TSHX2DQA]
-│    └─── [DELAYG]
-│    └─── [TSHX2DQA]
-│    └─── [ODDRX2DQA]
-│    └─── [ODDRX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2DQA]
-│    └─── [ODDRX2DQA]
-│    └─── [TSHX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2DQA]
-│    └─── [IDDRX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2DQA]
-│    └─── [DELAYG]
-│    └─── [ODDRX2F]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [IDDRX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [IDDRX2DQA]
-│    └─── [DELAYG]
-│    └─── [DELAYG]
-│    └─── [IDDRX2DQA]
-│    └─── [ODDRX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2F]
-│    └─── [DELAYG]
-│    └─── [ODDRX2F]
-│    └─── [DELAYG]
-│    └─── [ODDRX2DQSB]
-│    └─── [IDDRX2DQA]
-│    └─── [DELAYG]
-│    └─── [IDDRX2DQA]
-│    └─── [ODDRX2F]
-│    └─── [ODDRX2F]
-│    └─── [DELAYG]
-│    └─── [TSHX2DQA]
-│    └─── [DQSBUFM]
-│    └─── [IDDRX2DQA]
-│    └─── [DELAYG]
 │    └─── [DELAYG]
 │    └─── [DELAYG]
 │    └─── [DELAYG]
@@ -369,12 +369,6 @@ LiteDRAMCore
 └─── [TRELLIS_IO]
 └─── [TRELLIS_IO]
 └─── [TRELLIS_IO]
-└─── [TRELLIS_IO]
-└─── [FD1S3BX]
-└─── [FD1S3BX]
-└─── [TRELLIS_IO]
-└─── [TRELLIS_IO]
-└─── [TRELLIS_IO]
 └─── [FD1S3BX]
 └─── [FD1S3BX]
 └─── [TRELLIS_IO]
@@ -382,6 +376,12 @@ LiteDRAMCore
 └─── [FD1S3BX]
 └─── [TRELLIS_IO]
 └─── [FD1S3BX]
+└─── [TRELLIS_IO]
+└─── [FD1S3BX]
+└─── [TRELLIS_IO]
+└─── [FD1S3BX]
+└─── [TRELLIS_IO]
+└─── [TRELLIS_IO]
 └─── [TRELLIS_IO]
 └─── [TRELLIS_IO]
 └─── [TRELLIS_IO]
@@ -2088,7 +2088,7 @@ reg     [2:0] litedramcore_tfawcon_window = 3'd0;
 reg     [4:0] litedramcore_time0 = 5'd0;
 reg     [3:0] litedramcore_time1 = 4'd0;
 wire    [8:0] litedramcore_timer_count0;
-reg     [8:0] litedramcore_timer_count1 = 9'd374;
+reg     [8:0] litedramcore_timer_count1 = 9'd390;
 wire          litedramcore_timer_done0;
 wire          litedramcore_timer_done1;
 wire          litedramcore_timer_wait;
@@ -2105,7 +2105,7 @@ reg           litedramcore_zqcs_executer_done = 1'd0;
 reg           litedramcore_zqcs_executer_start = 1'd0;
 reg     [5:0] litedramcore_zqcs_executer_trigger = 6'd0;
 wire   [25:0] litedramcore_zqcs_timer_count0;
-reg    [25:0] litedramcore_zqcs_timer_count1 = 26'd47999999;
+reg    [25:0] litedramcore_zqcs_timer_count1 = 26'd49999999;
 wire          litedramcore_zqcs_timer_done0;
 wire          litedramcore_zqcs_timer_done1;
 wire          litedramcore_zqcs_timer_wait;
@@ -2256,14 +2256,14 @@ assign init_clk = crg_clkout1;
 assign crg_locked = (litedramecp5ddrphycrg_locked & (~crg_reset1));
 always @(*) begin
     ddrphy_dm_o_data0 <= 8'd0;
-    ddrphy_dm_o_data0[0] <= ddrphy_dfi_p0_wrdata_mask[1];
-    ddrphy_dm_o_data0[1] <= ddrphy_dfi_p0_wrdata_mask[3];
-    ddrphy_dm_o_data0[2] <= ddrphy_dfi_p0_wrdata_mask[5];
-    ddrphy_dm_o_data0[3] <= ddrphy_dfi_p0_wrdata_mask[7];
-    ddrphy_dm_o_data0[4] <= ddrphy_dfi_p1_wrdata_mask[1];
-    ddrphy_dm_o_data0[5] <= ddrphy_dfi_p1_wrdata_mask[3];
-    ddrphy_dm_o_data0[6] <= ddrphy_dfi_p1_wrdata_mask[5];
-    ddrphy_dm_o_data0[7] <= ddrphy_dfi_p1_wrdata_mask[7];
+    ddrphy_dm_o_data0[0] <= ddrphy_dfi_p0_wrdata_mask[0];
+    ddrphy_dm_o_data0[1] <= ddrphy_dfi_p0_wrdata_mask[2];
+    ddrphy_dm_o_data0[2] <= ddrphy_dfi_p0_wrdata_mask[4];
+    ddrphy_dm_o_data0[3] <= ddrphy_dfi_p0_wrdata_mask[6];
+    ddrphy_dm_o_data0[4] <= ddrphy_dfi_p1_wrdata_mask[0];
+    ddrphy_dm_o_data0[5] <= ddrphy_dfi_p1_wrdata_mask[2];
+    ddrphy_dm_o_data0[6] <= ddrphy_dfi_p1_wrdata_mask[4];
+    ddrphy_dm_o_data0[7] <= ddrphy_dfi_p1_wrdata_mask[6];
 end
 always @(*) begin
     ddrphy_dq_o_data0 <= 8'd0;
@@ -2497,14 +2497,14 @@ end
 assign ddrphy_dq_i_data7 = {ddrphy_bitslip7_o, ddrphy_dq_i_bitslip_o_d7};
 always @(*) begin
     ddrphy_dm_o_data1 <= 8'd0;
-    ddrphy_dm_o_data1[0] <= ddrphy_dfi_p0_wrdata_mask[0];
-    ddrphy_dm_o_data1[1] <= ddrphy_dfi_p0_wrdata_mask[2];
-    ddrphy_dm_o_data1[2] <= ddrphy_dfi_p0_wrdata_mask[4];
-    ddrphy_dm_o_data1[3] <= ddrphy_dfi_p0_wrdata_mask[6];
-    ddrphy_dm_o_data1[4] <= ddrphy_dfi_p1_wrdata_mask[0];
-    ddrphy_dm_o_data1[5] <= ddrphy_dfi_p1_wrdata_mask[2];
-    ddrphy_dm_o_data1[6] <= ddrphy_dfi_p1_wrdata_mask[4];
-    ddrphy_dm_o_data1[7] <= ddrphy_dfi_p1_wrdata_mask[6];
+    ddrphy_dm_o_data1[0] <= ddrphy_dfi_p0_wrdata_mask[1];
+    ddrphy_dm_o_data1[1] <= ddrphy_dfi_p0_wrdata_mask[3];
+    ddrphy_dm_o_data1[2] <= ddrphy_dfi_p0_wrdata_mask[5];
+    ddrphy_dm_o_data1[3] <= ddrphy_dfi_p0_wrdata_mask[7];
+    ddrphy_dm_o_data1[4] <= ddrphy_dfi_p1_wrdata_mask[1];
+    ddrphy_dm_o_data1[5] <= ddrphy_dfi_p1_wrdata_mask[3];
+    ddrphy_dm_o_data1[6] <= ddrphy_dfi_p1_wrdata_mask[5];
+    ddrphy_dm_o_data1[7] <= ddrphy_dfi_p1_wrdata_mask[7];
 end
 always @(*) begin
     ddrphy_dq_o_data8 <= 8'd0;
@@ -10440,7 +10440,7 @@ always @(posedge sys_clk) begin
     if ((litedramcore_timer_wait & (~litedramcore_timer_done0))) begin
         litedramcore_timer_count1 <= (litedramcore_timer_count1 - 1'd1);
     end else begin
-        litedramcore_timer_count1 <= 9'd374;
+        litedramcore_timer_count1 <= 9'd390;
     end
     litedramcore_postponer_req_o <= 1'd0;
     if (litedramcore_postponer_req_i) begin
@@ -10501,7 +10501,7 @@ always @(posedge sys_clk) begin
     if ((litedramcore_zqcs_timer_wait & (~litedramcore_zqcs_timer_done0))) begin
         litedramcore_zqcs_timer_count1 <= (litedramcore_zqcs_timer_count1 - 1'd1);
     end else begin
-        litedramcore_zqcs_timer_count1 <= 26'd47999999;
+        litedramcore_zqcs_timer_count1 <= 26'd49999999;
     end
     litedramcore_zqcs_executer_done <= 1'd0;
     if ((litedramcore_zqcs_executer_start & (litedramcore_zqcs_executer_trigger == 1'd0))) begin
@@ -12014,13 +12014,13 @@ always @(posedge sys_clk) begin
         litedramcore_cmd_payload_cas <= 1'd0;
         litedramcore_cmd_payload_ras <= 1'd0;
         litedramcore_cmd_payload_we <= 1'd0;
-        litedramcore_timer_count1 <= 9'd374;
+        litedramcore_timer_count1 <= 9'd390;
         litedramcore_postponer_req_o <= 1'd0;
         litedramcore_postponer_count <= 1'd0;
         litedramcore_sequencer_done1 <= 1'd0;
         litedramcore_sequencer_trigger <= 7'd0;
         litedramcore_sequencer_count <= 1'd0;
-        litedramcore_zqcs_timer_count1 <= 26'd47999999;
+        litedramcore_zqcs_timer_count1 <= 26'd49999999;
         litedramcore_zqcs_executer_done <= 1'd0;
         litedramcore_zqcs_executer_trigger <= 6'd0;
         litedramcore_bankmachine0_level <= 5'd0;
@@ -12266,7 +12266,7 @@ ODDRX2F ODDRX2F(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f0),
@@ -12297,7 +12297,7 @@ ODDRX2F ODDRX2F_1(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_1 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f1),
@@ -12328,7 +12328,7 @@ ODDRX2F ODDRX2F_2(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_2 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f2),
@@ -12359,7 +12359,7 @@ ODDRX2F ODDRX2F_3(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_3 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f3),
@@ -12390,7 +12390,7 @@ ODDRX2F ODDRX2F_4(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_4 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f4),
@@ -12421,7 +12421,7 @@ ODDRX2F ODDRX2F_5(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_5 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f5),
@@ -12452,7 +12452,7 @@ ODDRX2F ODDRX2F_6(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_6 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f6),
@@ -12483,7 +12483,7 @@ ODDRX2F ODDRX2F_7(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_7 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f7),
@@ -12514,7 +12514,7 @@ ODDRX2F ODDRX2F_8(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_8 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f8),
@@ -12545,7 +12545,7 @@ ODDRX2F ODDRX2F_9(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_9 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f9),
@@ -12576,7 +12576,7 @@ ODDRX2F ODDRX2F_10(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_10 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f10),
@@ -12607,7 +12607,7 @@ ODDRX2F ODDRX2F_11(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_11 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f11),
@@ -12638,7 +12638,7 @@ ODDRX2F ODDRX2F_12(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_12 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f12),
@@ -12669,7 +12669,7 @@ ODDRX2F ODDRX2F_13(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_13 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f13),
@@ -12700,7 +12700,7 @@ ODDRX2F ODDRX2F_14(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_14 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f14),
@@ -12731,7 +12731,7 @@ ODDRX2F ODDRX2F_15(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_15 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f15),
@@ -12762,7 +12762,7 @@ ODDRX2F ODDRX2F_16(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_16 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f16),
@@ -12793,7 +12793,7 @@ ODDRX2F ODDRX2F_17(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_17 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f17),
@@ -12824,7 +12824,7 @@ ODDRX2F ODDRX2F_18(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_18 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f18),
@@ -12855,7 +12855,7 @@ ODDRX2F ODDRX2F_19(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_19 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f19),
@@ -12886,7 +12886,7 @@ ODDRX2F ODDRX2F_20(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_20 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f20),
@@ -12917,7 +12917,7 @@ ODDRX2F ODDRX2F_21(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_21 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f21),
@@ -12948,7 +12948,7 @@ ODDRX2F ODDRX2F_22(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_22 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f22),
@@ -12979,7 +12979,7 @@ ODDRX2F ODDRX2F_23(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_23 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f23),
@@ -13010,7 +13010,7 @@ ODDRX2F ODDRX2F_24(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_24 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f24),
@@ -13041,7 +13041,7 @@ ODDRX2F ODDRX2F_25(
 //------------------------------------------------------------------------------
 DELAYG #(
 	// Parameters.
-	.DEL_VALUE (7'd100)
+	.DEL_VALUE (1'd0)
 ) DELAYG_25 (
 	// Inputs.
 	.A (ddrphy_pad_oddrx2f25),
@@ -14536,24 +14536,24 @@ assign litedramcore_bankmachine7_wrport_dat_r = storage_7_dat0;
 assign litedramcore_bankmachine7_rdport_dat_r = storage_7[litedramcore_bankmachine7_rdport_adr];
 
 
-(* FREQUENCY_PIN_CLKI = "48.0", FREQUENCY_PIN_CLKOP = "96.0", FREQUENCY_PIN_CLKOS = "24.0", ICP_CURRENT = "6", LPF_RESISTOR = "16", MFG_ENABLE_FILTEROPAMP = "1", MFG_GMCREF_SEL = "2" *)
+(* FREQUENCY_PIN_CLKI = "100.0", FREQUENCY_PIN_CLKOP = "100.0", FREQUENCY_PIN_CLKOS = "50.0", ICP_CURRENT = "6", LPF_RESISTOR = "16", MFG_ENABLE_FILTEROPAMP = "1", MFG_GMCREF_SEL = "2" *)
 //------------------------------------------------------------------------------
 // Instance EHXPLLL of EHXPLLL Module.
 //------------------------------------------------------------------------------
 EHXPLLL #(
 	// Parameters.
-	.CLKFB_DIV     (4'd10),
+	.CLKFB_DIV     (3'd4),
 	.CLKI_DIV      (1'd1),
-	.CLKOP_CPHASE  (3'd4),
-	.CLKOP_DIV     (3'd5),
+	.CLKOP_CPHASE  (2'd3),
+	.CLKOP_DIV     (3'd4),
 	.CLKOP_ENABLE  ("ENABLED"),
 	.CLKOP_FPHASE  (1'd0),
 	.CLKOS2_CPHASE (1'd0),
 	.CLKOS2_DIV    (1'd1),
 	.CLKOS2_ENABLE ("ENABLED"),
 	.CLKOS2_FPHASE (1'd0),
-	.CLKOS_CPHASE  (5'd19),
-	.CLKOS_DIV     (5'd20),
+	.CLKOS_CPHASE  (3'd7),
+	.CLKOS_DIV     (4'd8),
 	.CLKOS_ENABLE  ("ENABLED"),
 	.CLKOS_FPHASE  (1'd0),
 	.FEEDBK_PATH   ("INT_OS2")
@@ -14965,5 +14965,5 @@ TRELLIS_IO #(
 endmodule
 
 // -----------------------------------------------------------------------------
-//  Auto-Generated by LiteX on 2024-04-01 10:12:11.
+//  Auto-Generated by LiteX on 2024-04-01 18:06:24.
 //------------------------------------------------------------------------------

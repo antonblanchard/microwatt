@@ -41,6 +41,7 @@ void flush_cpu_icache(void)
 #define SPI_CMD_READ		0x03
 #define SPI_CMD_DUAL_FREAD	0x3b
 #define SPI_CMD_QUAD_FREAD	0x6b
+#define SPI_CMD_QUAD_FREAD_4BA	0x6c
 #define SPI_CMD_RDCR            0x35
 #define SPI_CMD_WREN		0x06
 #define SPI_CMD_PP		0x02
@@ -106,10 +107,44 @@ static void check_spansion_quad_mode(void)
 	wait_wip();
 }
 
+static uint32_t check_enable_issi_quad(void)
+{
+	uint8_t sr;
+
+	/* Read status register to see if quad mode is already enabled */
+	fl_cs_on();
+	writeb(SPI_CMD_RDSR, SPI_FCTRL_BASE + SPI_REG_DATA);
+	sr = readb(SPI_FCTRL_BASE + SPI_REG_DATA);
+	fl_cs_off();
+	if ((sr & 0x40) == 0) {
+		printf(" [enabling quad]");
+		send_wren();
+		fl_cs_on();
+		writeb(SPI_CMD_WWR, SPI_FCTRL_BASE + SPI_REG_DATA); 
+		writeb(sr | 0x40, SPI_FCTRL_BASE + SPI_REG_DATA); 
+		fl_cs_off();
+		wait_wip();
+	}
+
+	/* Enable quad mode and 4B addresses, 8 dummy cycles */
+	return  SPI_CMD_QUAD_FREAD_4BA |
+		(0x07 << SPI_REG_AUTO_CFG_DUMMIES_SHIFT) |
+		SPI_REG_AUT_CFG_MODE_QUAD | SPI_REG_AUTO_CFG_ADDR4 |
+		(0x20 << SPI_REG_AUTO_CFG_CSTOUT_SHIFT);
+}
+
 static bool check_flash(void)
 {
 	bool quad = false;
 	uint8_t id[3];
+	uint32_t autocfg;
+
+	/* default auto mode configuration for quad reads: */
+	/* Enable quad mode, 8 dummy clocks, 32 cycles CS timeout */
+	autocfg = SPI_CMD_QUAD_FREAD |
+		(0x07 << SPI_REG_AUTO_CFG_DUMMIES_SHIFT) |
+		SPI_REG_AUT_CFG_MODE_QUAD |
+		(0x20 << SPI_REG_AUTO_CFG_CSTOUT_SHIFT);
 
 	fl_cs_on();
 	writeb(SPI_CMD_RDID, SPI_FCTRL_BASE + SPI_REG_DATA);
@@ -134,6 +169,13 @@ static bool check_flash(void)
 		printf(" Micron");
 		quad = true;
 	}
+	if (id[0] == 0x9d && (id[1] & ~0x10) == 0x60 &&
+	    id[2] == 0x19) {
+		/* ISSI IS25LP256D or IS25WP256D */
+		printf(" ISSI");
+		autocfg = check_enable_issi_quad();
+		quad = true;
+	}
 	if (quad) {
 		uint32_t cfg;
 		printf(" [quad IO mode]");
@@ -141,12 +183,8 @@ static bool check_flash(void)
 		/* Preserve the default clock div for the board */
 		cfg = readl(SPI_FCTRL_BASE + SPI_REG_AUTO_CFG);
 		cfg &= SPI_REG_AUTO_CFG_CKDIV_MASK;
+		cfg |= autocfg;
 
-		/* Enable quad mode, 8 dummy clocks, 32 cycles CS timeout */
-		cfg |= SPI_CMD_QUAD_FREAD |
-			(0x07 << SPI_REG_AUTO_CFG_DUMMIES_SHIFT) |
-			SPI_REG_AUT_CFG_MODE_QUAD |
-			(0x20 << SPI_REG_AUTO_CFG_CSTOUT_SHIFT);
 		writel(cfg, SPI_FCTRL_BASE + SPI_REG_AUTO_CFG);
 	}
 	printf("\n");

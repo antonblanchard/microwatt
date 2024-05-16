@@ -100,7 +100,8 @@ def generate_one(t):
 
 def main():
 
-    targets = ['arty','nexys-video', 'genesys2', 'acorn-cle-215', 'wukong-v2', 'orangecrab-85-0.2', 'sim']
+    targets = ['arty','nexys-video', 'genesys2', 'acorn-cle-215', 'wukong-v2', 'orangecrab-85-0.2',
+               'ecpix-5', 'sim']
     for t in targets:
         generate_one(t)
     

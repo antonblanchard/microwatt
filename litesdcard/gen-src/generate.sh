@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # vendor:sysclk
-VENDORS="xilinx:100e6 lattice:48e6"
+VENDORS="xilinx:100e6 lattice:48e6 lattice:50e6"
 
 ME=$(realpath $0)
 echo ME=$ME
@@ -18,8 +18,8 @@ for i_clk in $VENDORS
 do
     i=$(echo $i_clk | cut -d : -f 1)
     clk=$(echo $i_clk | cut -d : -f 2)
-    TARGET_BUILD_PATH=$BUILD_PATH/$i
-    TARGET_GEN_PATH=$GEN_PATH/$i
+    TARGET_BUILD_PATH=$BUILD_PATH/$i.$clk
+    TARGET_GEN_PATH=$GEN_PATH/$i.$clk
     rm -rf $TARGET_BUILD_PATH
     rm -rf $TARGET_GEN_PATH
     mkdir -p $TARGET_BUILD_PATH

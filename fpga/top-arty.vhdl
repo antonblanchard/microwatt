@@ -488,18 +488,18 @@ begin
         component liteeth_core port (
             sys_clock           : in std_ulogic;
             sys_reset           : in std_ulogic;
-            mii_eth_clocks_tx   : in std_ulogic;
-            mii_eth_clocks_rx   : in std_ulogic;
-            mii_eth_rst_n       : out std_ulogic;
-            mii_eth_mdio        : in std_ulogic;
-            mii_eth_mdc         : out std_ulogic;
-            mii_eth_rx_dv       : in std_ulogic;
-            mii_eth_rx_er       : in std_ulogic;
-            mii_eth_rx_data     : in std_ulogic_vector(3 downto 0);
-            mii_eth_tx_en       : out std_ulogic;
-            mii_eth_tx_data     : out std_ulogic_vector(3 downto 0);
-            mii_eth_col         : in std_ulogic;
-            mii_eth_crs         : in std_ulogic;
+            mii_clocks_tx       : in std_ulogic;
+            mii_clocks_rx       : in std_ulogic;
+            mii_rst_n           : out std_ulogic;
+            mii_mdio            : in std_ulogic;
+            mii_mdc             : out std_ulogic;
+            mii_rx_dv           : in std_ulogic;
+            mii_rx_er           : in std_ulogic;
+            mii_rx_data         : in std_ulogic_vector(3 downto 0);
+            mii_tx_en           : out std_ulogic;
+            mii_tx_data         : out std_ulogic_vector(3 downto 0);
+            mii_col             : in std_ulogic;
+            mii_crs             : in std_ulogic;
             wishbone_adr        : in std_ulogic_vector(29 downto 0);
             wishbone_dat_w      : in std_ulogic_vector(31 downto 0);
             wishbone_dat_r      : out std_ulogic_vector(31 downto 0);
@@ -573,18 +573,18 @@ begin
             port map(
                 sys_clock         => system_clk,
                 sys_reset         => periph_rst,
-                mii_eth_clocks_tx => eth_clocks_tx,
-                mii_eth_clocks_rx => eth_clocks_rx,
-                mii_eth_rst_n     => eth_rst_n,
-                mii_eth_mdio      => eth_mdio,
-                mii_eth_mdc       => eth_mdc,
-                mii_eth_rx_dv     => eth_rx_dv,
-                mii_eth_rx_er     => eth_rx_er,
-                mii_eth_rx_data   => eth_rx_data,
-                mii_eth_tx_en     => eth_tx_en,
-                mii_eth_tx_data   => eth_tx_data,
-                mii_eth_col       => eth_col,
-                mii_eth_crs       => eth_crs,
+                mii_clocks_tx     => eth_clocks_tx,
+                mii_clocks_rx     => eth_clocks_rx,
+                mii_rst_n         => eth_rst_n,
+                mii_mdio          => eth_mdio,
+                mii_mdc           => eth_mdc,
+                mii_rx_dv         => eth_rx_dv,
+                mii_rx_er         => eth_rx_er,
+                mii_rx_data       => eth_rx_data,
+                mii_tx_en         => eth_tx_en,
+                mii_tx_data       => eth_tx_data,
+                mii_col           => eth_col,
+                mii_crs           => eth_crs,
                 wishbone_adr      => wb_eth_adr,
                 wishbone_dat_w    => wb_ext_io_in.dat,
                 wishbone_dat_r    => wb_eth_out.dat,

@@ -384,16 +384,16 @@ begin
         component liteeth_core port (
             sys_clock           : in std_ulogic;
             sys_reset           : in std_ulogic;
-            rgmii_eth_clocks_tx : out std_ulogic;
-            rgmii_eth_clocks_rx : in std_ulogic;
-            rgmii_eth_rst_n     : out std_ulogic;
-            rgmii_eth_int_n     : in std_ulogic;
-            rgmii_eth_mdio      : inout std_ulogic;
-            rgmii_eth_mdc       : out std_ulogic;
-            rgmii_eth_rx_ctl    : in std_ulogic;
-            rgmii_eth_rx_data   : in std_ulogic_vector(3 downto 0);
-            rgmii_eth_tx_ctl    : out std_ulogic;
-            rgmii_eth_tx_data   : out std_ulogic_vector(3 downto 0);
+            rgmii_clocks_tx     : out std_ulogic;
+            rgmii_clocks_rx     : in std_ulogic;
+            rgmii_rst_n         : out std_ulogic;
+            rgmii_int_n         : in std_ulogic;
+            rgmii_mdio          : inout std_ulogic;
+            rgmii_mdc           : out std_ulogic;
+            rgmii_rx_ctl        : in std_ulogic;
+            rgmii_rx_data       : in std_ulogic_vector(3 downto 0);
+            rgmii_tx_ctl        : out std_ulogic;
+            rgmii_tx_data       : out std_ulogic_vector(3 downto 0);
             wishbone_adr        : in std_ulogic_vector(29 downto 0);
             wishbone_dat_w      : in std_ulogic_vector(31 downto 0);
             wishbone_dat_r      : out std_ulogic_vector(31 downto 0);
@@ -417,16 +417,16 @@ begin
             port map(
                 sys_clock           => system_clk,
                 sys_reset           => soc_rst,
-                rgmii_eth_clocks_tx => eth_clocks_tx,
-                rgmii_eth_clocks_rx => eth_clocks_rx,
-                rgmii_eth_rst_n     => eth_rst_n,
-                rgmii_eth_int_n     => eth_int_n,
-                rgmii_eth_mdio      => eth_mdio,
-                rgmii_eth_mdc       => eth_mdc,
-                rgmii_eth_rx_ctl    => eth_rx_ctl,
-                rgmii_eth_rx_data   => eth_rx_data,
-                rgmii_eth_tx_ctl    => eth_tx_ctl,
-                rgmii_eth_tx_data   => eth_tx_data,
+                rgmii_clocks_tx     => eth_clocks_tx,
+                rgmii_clocks_rx     => eth_clocks_rx,
+                rgmii_rst_n         => eth_rst_n,
+                rgmii_int_n         => eth_int_n,
+                rgmii_mdio          => eth_mdio,
+                rgmii_mdc           => eth_mdc,
+                rgmii_rx_ctl        => eth_rx_ctl,
+                rgmii_rx_data       => eth_rx_data,
+                rgmii_tx_ctl        => eth_tx_ctl,
+                rgmii_tx_data       => eth_tx_data,
                 wishbone_adr        => wb_eth_adr,
                 wishbone_dat_w      => wb_ext_io_in.dat,
                 wishbone_dat_r      => wb_eth_out.dat,

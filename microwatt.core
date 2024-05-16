@@ -460,11 +460,11 @@ generate:
 
   litesdcard_arty:
     generator: litesdcard_gen
-    parameters: {vendor : xilinx}
+    parameters: {vendor : xilinx, frequency : 100e6}
 
   litesdcard_nexys_video:
     generator: litesdcard_gen
-    parameters: {vendor : xilinx}
+    parameters: {vendor : xilinx, frequency : 100e6}
 
   litedram_nexys_video:
     generator: litedram_gen
@@ -492,7 +492,7 @@ generate:
 
   litesdcard_wukong-v2:
     generator: litesdcard_gen
-    parameters: {vendor : xilinx}
+    parameters: {vendor : xilinx, frequency : 100e6}
 
 parameters:
   memory_size:
