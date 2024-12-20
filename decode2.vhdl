@@ -220,7 +220,6 @@ architecture behaviour of decode2 is
         OP_SHL      => "010",
         OP_SHR      => "010",
         OP_EXTSWSLI => "010",
-        OP_MUL_L64  => "011",           -- muldiv_result
         OP_BCREG    => "101",           -- ramspr_result
         OP_RFID     => "101",
         OP_ADDG6S   => "111",           -- misc_result
