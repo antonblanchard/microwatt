@@ -44,6 +44,8 @@ architecture behaviour of decode1 is
     signal decode_rom_addr : insn_code;
     signal decode : decode_rom_t;
 
+    signal double : std_ulogic;
+
     type prefix_state_t is record
         prefixed : std_ulogic;
         prefix   : std_ulogic_vector(25 downto 0);
@@ -485,6 +487,8 @@ architecture behaviour of decode1 is
     end;
 
 begin
+    double <= not r.second when (r.valid = '1' and decode.repeat /= NONE) else '0';
+
     decode1_0: process(clk)
     begin
         if rising_edge(clk) then
@@ -497,10 +501,14 @@ begin
                 fetch_failed <= '0';
                 pr <= prefix_state_init;
             elsif stall_in = '0' then
-                r <= rin;
-                fetch_failed <= f_in.fetch_failed;
-                if f_in.valid = '1' then
-                    pr <= pr_in;
+                if double = '0' then
+                    r <= rin;
+                    fetch_failed <= f_in.fetch_failed;
+                    if f_in.valid = '1' then
+                        pr <= pr_in;
+                    end if;
+                else
+                    r.second <= '1';
                 end if;
             end if;
             if rst = '1' then
@@ -511,12 +519,12 @@ begin
         end if;
     end process;
 
-    busy_out <= stall_in;
+    busy_out <= stall_in or double;
 
     decode1_rom: process(clk)
     begin
         if rising_edge(clk) then
-            if stall_in = '0' then
+            if stall_in = '0' and double = '0' then
                 decode <= decode_rom(decode_rom_addr);
             end if;
         end if;
@@ -646,33 +654,43 @@ begin
         -- Work out GPR/FPR read addresses
         -- Note that for prefixed instructions we are working this out based
         -- only on the suffix.
-        maybe_rb := '0';
-        vr.reg_1_addr := '0' & insn_ra(f_in.insn);
-        vr.reg_2_addr := '0' & insn_rb(f_in.insn);
-        vr.reg_3_addr := '0' & insn_rs(f_in.insn);
-        if icode >= INSN_first_rb then
-            maybe_rb := '1';
-            if icode < INSN_first_frs then
-                if icode >= INSN_first_rc then
-                    vr.reg_3_addr := '0' & insn_rcreg(f_in.insn);
-                end if;
-            else
-                -- access FRS operand
-                vr.reg_3_addr(5) := '1';
-                if icode >= INSN_first_frab then
-                    -- access FRA and/or FRB operands
-                    vr.reg_1_addr(5) := '1';
-                    vr.reg_2_addr(5) := '1';
-                end if;
-                if icode >= INSN_first_frabc then
-                    -- access FRC operand
-                    vr.reg_3_addr := '1' & insn_rcreg(f_in.insn);
+        if double = '0' then
+            maybe_rb := '0';
+            vr.reg_1_addr := '0' & insn_ra(f_in.insn);
+            vr.reg_2_addr := '0' & insn_rb(f_in.insn);
+            vr.reg_3_addr := '0' & insn_rs(f_in.insn);
+            if icode >= INSN_first_rb then
+                maybe_rb := '1';
+                if icode < INSN_first_frs then
+                    if icode >= INSN_first_rc then
+                        vr.reg_3_addr := '0' & insn_rcreg(f_in.insn);
+                    end if;
+                else
+                    -- access FRS operand
+                    vr.reg_3_addr(5) := '1';
+                    if icode >= INSN_first_frab then
+                        -- access FRA and/or FRB operands
+                        vr.reg_1_addr(5) := '1';
+                        vr.reg_2_addr(5) := '1';
+                    end if;
+                    if icode >= INSN_first_frabc then
+                        -- access FRC operand
+                        vr.reg_3_addr := '1' & insn_rcreg(f_in.insn);
+                    end if;
                 end if;
             end if;
+            vr.read_1_enable := f_in.valid;
+            vr.read_2_enable := f_in.valid and maybe_rb;
+            vr.read_3_enable := f_in.valid;
+        else
+            -- second instance of a doubled instruction
+            vr.reg_1_addr := r.reg_a;
+            vr.reg_2_addr := r.reg_b;
+            vr.reg_3_addr := r.reg_c;
+            vr.read_1_enable := '0';            -- (not actually used)
+            vr.read_2_enable := '0';
+            vr.read_3_enable := '1';            -- (not actually used)
         end if;
-        vr.read_1_enable := f_in.valid;
-        vr.read_2_enable := f_in.valid and maybe_rb;
-        vr.read_3_enable := f_in.valid;
 
         v.reg_a := vr.reg_1_addr;
         v.reg_b := vr.reg_2_addr;

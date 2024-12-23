@@ -377,6 +377,21 @@ begin
         dec_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, d_in.prefix);
         dec_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn);
         dec_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn);
+        case d_in.decode.repeat is
+            when DUPD =>
+                if d_in.second = '1' then
+                    -- update-form loads, 2nd instruction writes RA
+                    dec_o.reg := dec_a.reg;
+                end if;
+            when others =>
+        end case;
+        -- For the second instance of a doubled instruction, we ignore the RA
+        -- and RB operands, in order to avoid false dependencies on the output
+        -- of the first instance.
+        if d_in.second = '1' then
+            dec_a.reg_valid := '0';
+            dec_b.reg_valid := '0';
+        end if;
         if d_in.valid = '0' or d_in.illegal_suffix = '1' then
             dec_a.reg_valid := '0';
             dec_b.reg_valid := '0';
@@ -512,10 +527,10 @@ begin
             end if;
             v.e.dec_ctr := decctr;
 
-            v.repeat := d_in.decode.repeat;
             if d_in.decode.repeat /= NONE then
                 v.e.repeat := '1';
             end if;
+            v.e.second := d_in.second;
 
             if decctr = '1' then
                 -- read and write CTR
@@ -627,14 +642,6 @@ begin
             v.e.prefix := d_in.prefix;
             v.e.illegal_suffix := d_in.illegal_suffix;
             v.e.misaligned_prefix := d_in.misaligned_prefix;
-
-        elsif dc2.e.valid = '1' then
-            -- dc2.busy = 1 and dc2.e.valid = 1, thus this must be a repeated instruction.
-            -- Set up for the second iteration (if deferred = 1 this will all be ignored)
-            v.e.second := '1';
-            -- DUPD is the only possibility here:
-            -- update-form loads, 2nd instruction writes RA
-            v.e.write_reg := dc2.e.read_reg1;
         end if;
 
         -- issue control
@@ -723,7 +730,7 @@ begin
 
         v.e.valid := control_valid_out;
         v.e.instr_tag := instr_tag;
-        v.busy := valid_in and (not control_valid_out or (v.e.repeat and not v.e.second));
+        v.busy := valid_in and not control_valid_out;
 
         stall_out <= dc2.busy or deferred;
 

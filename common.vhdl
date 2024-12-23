@@ -318,6 +318,7 @@ package common is
     type Decode1ToDecode2Type is record
 	valid: std_ulogic;
 	stop_mark : std_ulogic;
+        second : std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
         prefixed: std_ulogic;
         prefix: std_ulogic_vector(25 downto 0);
@@ -334,7 +335,7 @@ package common is
         reg_c : gspr_index_t;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
-        (valid => '0', stop_mark => '0', nia => (others => '0'),
+        (valid => '0', stop_mark => '0', second => '0', nia => (others => '0'),
          prefixed => '0', prefix => (others => '0'), insn => (others => '0'),
          illegal_suffix => '0', misaligned_prefix => '0',
          decode => decode_rom_init, br_pred => '0', big_endian => '0',
