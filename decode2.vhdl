@@ -348,7 +348,8 @@ begin
             elsif deferred = '0' then
                 if dc2in.e.valid = '1' then
                     report "execute " & to_hstring(dc2in.e.nia) &
-                        " tag=" & integer'image(dc2in.e.instr_tag.tag) & std_ulogic'image(dc2in.e.instr_tag.valid);
+                        " tag=" & integer'image(dc2in.e.instr_tag.tag) & std_ulogic'image(dc2in.e.instr_tag.valid) &
+                        " rpt=" & std_ulogic'image(dc2in.e.repeat) & " 2nd=" & std_ulogic'image(dc2in.e.second) & " wr=" & to_hstring(dc2in.e.write_reg);
                 end if;
                 dc2 <= dc2in;
             elsif dc2.read_rspr = '0' then
@@ -382,6 +383,16 @@ begin
                 if d_in.second = '1' then
                     -- update-form loads, 2nd instruction writes RA
                     dec_o.reg := dec_a.reg;
+                end if;
+            when DRSP =>
+                -- non-prefixed stq, stqcx do RS|1, RS in LE mode; others do RS, RS|1
+                if d_in.second = (d_in.big_endian or d_in.prefixed) then
+                    dec_c.reg(0) := '1';            -- do RS, RS|1
+                end if;
+            when DRTP =>
+                -- non-prefixed lq, lqarx do RT|1, RT in LE mode; others do RT, RT|1
+                if d_in.second = (d_in.big_endian or d_in.prefixed) then
+                    dec_o.reg(0) := '1';
                 end if;
             when others =>
         end case;
@@ -642,6 +653,18 @@ begin
             v.e.prefix := d_in.prefix;
             v.e.illegal_suffix := d_in.illegal_suffix;
             v.e.misaligned_prefix := d_in.misaligned_prefix;
+
+            -- check for invalid forms that cause an illegal instruction interrupt
+            -- Does RA = RT for a load quadword instr, or RB = RT for lqarx?
+            if d_in.decode.repeat = DRTP and
+                (insn_ra(d_in.insn) = insn_rt(d_in.insn) or
+                 (d_in.decode.reserve = '1' and insn_rb(d_in.insn) = insn_rt(d_in.insn))) then
+                v.e.illegal_form := '1';
+            end if;
+            -- Is RS/RT odd for a load/store quadword instruction?
+            if (d_in.decode.repeat = DRSP or d_in.decode.repeat = DRTP) and d_in.insn(21) = '1' then
+                v.e.illegal_form := '1';
+            end if;
         end if;
 
         -- issue control

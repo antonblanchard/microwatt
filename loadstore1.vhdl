@@ -84,6 +84,8 @@ architecture behave of loadstore1 is
 	update       : std_ulogic;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
+        atomic_qw    : std_ulogic;
+        atomic_last  : std_ulogic;
         rc           : std_ulogic;
         nc           : std_ulogic;              -- non-cacheable access
         virt_mode    : std_ulogic;
@@ -108,6 +110,7 @@ architecture behave of loadstore1 is
                                           elt_length => x"0", byte_reverse => '0', brev_mask => "000",
                                           sign_extend => '0', update => '0',
                                           xerc => xerc_init, reserve => '0',
+                                          atomic_qw => '0', atomic_last => '0',
                                           rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
                                           sprsel => "00", ric => "00", is_slbia => '0', align_intr => '0',
@@ -447,7 +450,10 @@ begin
         if l_in.second = '1' then
             -- for an update-form load, use the previous address
             -- as the value to write back to RA.
-            addr := r1.addr0;
+            -- for a quadword load or store, use with the previous
+            -- address + 8.
+            addr := std_ulogic_vector(unsigned(r1.addr0(63 downto 3)) + not l_in.update) &
+                    r1.addr0(2 downto 0);
         end if;
         if l_in.mode_32bit = '1' then
             addr(63 downto 32) := (others => '0');
@@ -474,12 +480,32 @@ begin
         misaligned := or (addr_mask and addr(2 downto 0));
         v.align_intr := l_in.reserve and misaligned;
 
+        -- is this a quadword load or store? i.e. lq plq stq pstq lqarx stqcx.
+        if l_in.repeat = '1' and l_in.update = '0' then
+            -- is the access aligned?
+            if misaligned = '0' and addr(3) = l_in.second then
+                -- Since the access is aligned we have to do it atomically
+                v.atomic_qw := '1';
+                v.atomic_last := l_in.second;
+            else
+                -- lqarx/stqcx have to be aligned
+                if l_in.reserve = '1' then
+                    v.align_intr := '1';
+                end if;
+                -- We require non-prefixed lq in LE mode to be aligned in order
+                -- to avoid the case where RA = RT+1 and the second access faults
+                -- after the first has overwritten RA.
+                if l_in.op = OP_LOAD and l_in.byte_reverse = '0' and l_in.prefixed = '0' then
+                    v.align_intr := '1';
+                end if;
+            end if;
+        end if;
+
         case l_in.op is
             when OP_STORE =>
                 v.store := '1';
             when OP_LOAD =>
-                -- Note: only RA updates have l_in.second = 1
-                if l_in.second = '0' then
+                if l_in.update = '0' or l_in.second = '0' then
                     v.load := '1';
                     if HAS_FPU and l_in.is_32bit = '1' then
                         -- Allow an extra cycle for SP->DP precision conversion
@@ -952,6 +978,8 @@ begin
             d_out.dcbz <= stage1_req.dcbz;
             d_out.nc <= stage1_req.nc;
             d_out.reserve <= stage1_req.reserve;
+            d_out.atomic_qw <= stage1_req.atomic_qw;
+            d_out.atomic_last <= stage1_req.atomic_last;
             d_out.addr <= stage1_req.addr;
             d_out.byte_sel <= stage1_req.byte_sel;
             d_out.virt_mode <= stage1_req.virt_mode;
@@ -962,6 +990,8 @@ begin
             d_out.dcbz <= r2.req.dcbz;
             d_out.nc <= r2.req.nc;
             d_out.reserve <= r2.req.reserve;
+            d_out.atomic_qw <= r2.req.atomic_qw;
+            d_out.atomic_last <= r2.req.atomic_last;
             d_out.addr <= r2.req.addr;
             d_out.byte_sel <= r2.req.byte_sel;
             d_out.virt_mode <= r2.req.virt_mode;

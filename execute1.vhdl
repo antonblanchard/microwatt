@@ -704,7 +704,8 @@ begin
                 if valid_in = '1' then
                     report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
                         " wr=" & to_hstring(ex1in.e.write_reg) & " we=" & std_ulogic'image(ex1in.e.write_enable) &
-                        " tag=" & integer'image(ex1in.e.instr_tag.tag) & std_ulogic'image(ex1in.e.instr_tag.valid);
+                        " tag=" & integer'image(ex1in.e.instr_tag.tag) & std_ulogic'image(ex1in.e.instr_tag.valid) &
+                        " 2nd=" & std_ulogic'image(e_in.second);
                 end if;
                 -- We mustn't get stalled on a cycle where execute2 is
                 -- completing an instruction or generating an interrupt
@@ -1147,7 +1148,7 @@ begin
         slow_op := '0';
         owait := '0';
 
-        if e_in.illegal_suffix = '1' then
+        if e_in.illegal_suffix = '1' or e_in.illegal_form = '1' then
             illegal := '1';
         elsif ex1.msr(MSR_PR) = '1' and instr_is_privileged(e_in.insn_type, e_in.insn) then
             privileged := '1';

@@ -427,6 +427,7 @@ package common is
         prefix : std_ulogic_vector(25 downto 0);
         illegal_suffix : std_ulogic;
         misaligned_prefix : std_ulogic;
+        illegal_form : std_ulogic;
         uses_tar : std_ulogic;
         uses_dscr : std_ulogic;
     end record;
@@ -450,7 +451,7 @@ package common is
          dbg_spr_access => '0',
          dec_ctr => '0',
          prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
-         misaligned_prefix => '0', uses_tar => '0', uses_dscr => '0',
+         misaligned_prefix => '0', illegal_form => '0', uses_tar => '0', uses_dscr => '0',
          others => (others => '0'));
 
     type MultiplyInputType is record
@@ -604,6 +605,8 @@ package common is
         dcbz : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
+        atomic_qw : std_ulogic;                         -- part of a quadword atomic op
+        atomic_last : std_ulogic;
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);

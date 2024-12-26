@@ -237,6 +237,8 @@ architecture behaviour of decode1 is
         INSN_lhzu        =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', DUPD),
         INSN_lhzux       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', DUPD),
         INSN_lhzx        =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_lq          =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_DQ,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTP),
+        INSN_lqarx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', DRTP),
         INSN_lwa         =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_DS,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_lwarx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', NONE),
         INSN_lwaux       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '1', '0', '0', '0', NONE, '0', '0', DUPD),
@@ -292,6 +294,7 @@ architecture behaviour of decode1 is
         INSN_plfs        =>  (LDST, FPU,  OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, FRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE),
         INSN_plha        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_plhz        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_plq         =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTP),
         INSN_plwa        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_plwz        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, CONST_PSI,   NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_pnop        =>  (ALU,  NONE, OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
@@ -300,6 +303,7 @@ architecture behaviour of decode1 is
         INSN_pstfd       =>  (LDST, FPU,  OP_STORE,     RA0_OR_CIA, CONST_PSI,   FRS,  NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_pstfs       =>  (LDST, FPU,  OP_STORE,     RA0_OR_CIA, CONST_PSI,   FRS,  NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE),
         INSN_psth        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, CONST_PSI,   RS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_pstq        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, CONST_PSI,   RS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRSP),
         INSN_pstw        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, CONST_PSI,   RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_popcntb     =>  (ALU,  NONE, OP_COUNTB,    NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_popcntd     =>  (ALU,  NONE, OP_COUNTB,    NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
@@ -358,6 +362,8 @@ architecture behaviour of decode1 is
         INSN_sthu        =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_sthux       =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_sthx        =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_stq         =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_DS,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRSP),
+        INSN_stqcx       =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '1', '0', '0', ONE,  '0', '0', DRSP),
         INSN_stw         =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_stwbrx      =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '1', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_stwcix      =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '1', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
@@ -509,6 +515,7 @@ begin
                     end if;
                 else
                     r.second <= '1';
+                    r.reg_c <= rin.reg_c;
                 end if;
             end if;
             if rst = '1' then
@@ -679,6 +686,12 @@ begin
                     end if;
                 end if;
             end if;
+            -- See if this is an instruction where repeat_t = DRSP and we need
+            -- to read RS|1 followed by RS, i.e. stq or stqcx. in LE mode
+            -- (note we don't have access to the decode for the current instruction)
+            if (icode = INSN_stq or icode = INSN_stqcx) and f_in.big_endian = '0' then
+                vr.reg_3_addr(0) := '1';
+            end if;
             vr.read_1_enable := f_in.valid;
             vr.read_2_enable := f_in.valid and maybe_rb;
             vr.read_3_enable := f_in.valid;
@@ -690,6 +703,12 @@ begin
             vr.read_1_enable := '0';            -- (not actually used)
             vr.read_2_enable := '0';
             vr.read_3_enable := '1';            -- (not actually used)
+            -- For pstq, and for stq and stqcx in BE mode,
+            -- we need to read register RS|1 in the cycle after we read RS;
+            -- stq and stqcx in LE mode read RS.
+            if decode.repeat = DRSP then
+                vr.reg_3_addr(0) := r.prefixed or f_in.big_endian;
+            end if;
         end if;
 
         v.reg_a := vr.reg_1_addr;

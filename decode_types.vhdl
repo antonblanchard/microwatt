@@ -125,8 +125,9 @@ package decode_types is
         INSN_std,
         INSN_stdu,
         INSN_sthu,
-        INSN_stwu,
-        INSN_subfic, -- 90
+        INSN_stq,
+        INSN_stwu, -- 90
+        INSN_subfic,
         INSN_subfme,
         INSN_subfze,
         INSN_sync,
@@ -135,23 +136,23 @@ package decode_types is
         INSN_twi,
         INSN_wait,
         INSN_xori,
-        INSN_xoris,
-        -- pad to 104
-        INSN_064, INSN_065, INSN_066, INSN_067,
+        INSN_xoris, -- 100
+        -- pad to 102
+        INSN_065,
 
         -- Non-prefixed instructions that have a MLS:D prefixed form and
         -- their corresponding prefixed instructions.
         -- The non-prefixed versions have even indexes so that we can
         -- convert them to the prefixed version by setting bit 0
-        INSN_addi, -- 104
+        INSN_addi, -- 102
         INSN_paddi,
         INSN_lbz,
         INSN_plbz,
         INSN_lha,
         INSN_plha,
-        INSN_lhz, -- 110
+        INSN_lhz,
         INSN_plhz,
-        INSN_lwz,
+        INSN_lwz, -- 110
         INSN_plwz,
         INSN_stb,
         INSN_pstb,
@@ -161,15 +162,18 @@ package decode_types is
         INSN_pstw,
 
         -- Slots for non-prefixed opcodes that are 8LS:D when prefixed
-        INSN_lhzu, -- 120
+        INSN_lhzu,
         INSN_plwa,
+        INSN_lq, -- 120
+        INSN_plq,
         INSN_op57,
         INSN_pld,
+        INSN_op60,
+        INSN_pstq,
         INSN_op61,
         INSN_pstd,
 
         -- pad to 128 to simplify comparison logic
-        INSN_07e, INSN_07f,
 
         -- The following instructions have an RB operand but don't access FPRs
         INSN_add,
@@ -219,12 +223,13 @@ package decode_types is
         INSN_lhzcix,
         INSN_lhzx,
         INSN_lhzux,
+        INSN_lqarx,
         INSN_lwarx,
         INSN_lwax,
         INSN_lwaux,
         INSN_lwbrx,
-        INSN_lwzcix,
-        INSN_lwzx, -- 180
+        INSN_lwzcix, -- 180
+        INSN_lwzx,
         INSN_lwzux,
         INSN_modsd,
         INSN_modsw,
@@ -233,8 +238,8 @@ package decode_types is
         INSN_mulhw,
         INSN_mulhwu,
         INSN_mulhd,
-        INSN_mulhdu,
-        INSN_mullw, -- 190
+        INSN_mulhdu, -- 190
+        INSN_mullw,
         INSN_mulld,
         INSN_nand,
         INSN_nor,
@@ -243,8 +248,8 @@ package decode_types is
         INSN_pdepd,
         INSN_pextd,
         INSN_rldcl,
-        INSN_rldcr,
-        INSN_rlwnm, -- 200
+        INSN_rldcr, -- 200
+        INSN_rlwnm,
         INSN_slw,
         INSN_sld,
         INSN_sraw,
@@ -253,8 +258,8 @@ package decode_types is
         INSN_srd,
         INSN_stbcix,
         INSN_stbcx,
-        INSN_stbx,
-        INSN_stbux, -- 210
+        INSN_stbx, -- 210
+        INSN_stbux,
         INSN_stdbrx,
         INSN_stdcix,
         INSN_stdcx,
@@ -263,8 +268,9 @@ package decode_types is
         INSN_sthbrx,
         INSN_sthcix,
         INSN_sthcx,
-        INSN_sthx,
-        INSN_sthux, -- 220
+        INSN_sthx, -- 220
+        INSN_sthux,
+        INSN_stqcx,
         INSN_stwbrx,
         INSN_stwcix,
         INSN_stwcx,
@@ -272,15 +278,14 @@ package decode_types is
         INSN_stwux,
         INSN_subf,
         INSN_subfc,
-        INSN_subfe,
+        INSN_subfe, -- 230
         INSN_td,
-        INSN_tlbie, -- 230
+        INSN_tlbie,
         INSN_tlbiel,
         INSN_tw,
         INSN_xor,
 
         -- pad to 240 to simplify comparison logic
-        INSN_234, INSN_235,
         INSN_236, INSN_237, INSN_238, INSN_239,
 
         -- The following instructions have a third input addressed by RC
@@ -439,7 +444,9 @@ package decode_types is
     type length_t is (NONE, is1B, is2B, is4B, is8B);
 
     type repeat_t is (NONE,      -- instruction is not repeated
-                      DUPD);     -- update-form load
+                      DUPD,      -- update-form load
+                      DRSP,      -- double RS (RS, RS+1)
+                      DRTP);     -- double RT (RT, RT+1, or RT+1, RT)
 
     type decode_rom_t is record
 	unit         : unit_t;
@@ -523,6 +530,7 @@ package body decode_types is
             when INSN_lhau      => return "101011";
             when INSN_lhz       => return "101000";
             when INSN_lhzu      => return "101001";
+            when INSN_lq        => return "111000";
             when INSN_lwz       => return "100000";
             when INSN_lwzu      => return "100001";
             when INSN_mulli     => return "000111";
@@ -542,6 +550,7 @@ package body decode_types is
             when INSN_sth       => return "101100";
             when INSN_sthu      => return "101101";
             when INSN_stw       => return "100100";
+            when INSN_stq       => return "111110";
             when INSN_stwu      => return "100101";
             when INSN_subfic    => return "001000";
             when INSN_tdi       => return "000010";
@@ -587,6 +596,7 @@ package body decode_types is
             when INSN_fnmadd    => return "111111";
             when INSN_prefix    => return "000001";
             when INSN_op57      => return "111001";
+            when INSN_op60      => return "111100";
             when INSN_op61      => return "111101";
             when INSN_add       => return "011111";
             when INSN_addc      => return "011111";
@@ -654,6 +664,7 @@ package body decode_types is
             when INSN_lhzcix    => return "011111";
             when INSN_lhzux     => return "011111";
             when INSN_lhzx      => return "011111";
+            when INSN_lqarx     => return "011111";
             when INSN_lwarx     => return "011111";
             when INSN_lwaux     => return "011111";
             when INSN_lwax      => return "011111";
@@ -719,6 +730,7 @@ package body decode_types is
             when INSN_sthcx     => return "011111";
             when INSN_sthux     => return "011111";
             when INSN_sthx      => return "011111";
+            when INSN_stqcx     => return "011111";
             when INSN_stwbrx    => return "011111";
             when INSN_stwcix    => return "011111";
             when INSN_stwcx     => return "011111";
