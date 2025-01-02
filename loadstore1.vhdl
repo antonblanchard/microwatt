@@ -738,7 +738,8 @@ begin
         end if;
 
         interrupt := (r2.req.valid and r2.req.align_intr) or
-                     (d_in.error and d_in.cache_paradox) or m_in.err;
+                     (d_in.error and (d_in.cache_paradox or d_in.reserve_nc)) or
+                     m_in.err;
         if interrupt = '1' then
             v.req.valid := '0';
             v.busy := '0';
@@ -905,6 +906,7 @@ begin
                 -- signal an interrupt straight away
                 exception := '1';
                 dsisr(63 - 38) := not r2.req.load;
+                dsisr(63 - 37) := d_in.reserve_nc;
                 -- XXX there is no architected bit for this
                 -- (probably should be a machine check in fact)
                 dsisr(63 - 35) := d_in.cache_paradox;

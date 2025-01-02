@@ -353,6 +353,7 @@ architecture rtl of dcache is
         mmu_done         : std_ulogic;
         mmu_error        : std_ulogic;
         cache_paradox    : std_ulogic;
+        reserve_nc       : std_ulogic;
 
         -- Signal to complete a failed stcx.
         stcx_fail        : std_ulogic;
@@ -1125,7 +1126,7 @@ begin
                 else
                     req_op_flush <= '1';
                 end if;
-            elsif nc = '1' and is_hit = '1' then
+            elsif nc = '1' and (is_hit = '1' or r0.req.reserve = '1') then
                 req_op_bad <= '1';
             elsif r0.req.load = '0' then
                 req_op_store <= '1';   -- includes dcbz
@@ -1167,6 +1168,7 @@ begin
         d_out.store_done <= not r1.stcx_fail;
         d_out.error <= r1.ls_error;
         d_out.cache_paradox <= r1.cache_paradox;
+        d_out.reserve_nc <= r1.reserve_nc;
 
         -- Outputs to MMU
         m_out.done <= r1.mmu_done;
@@ -1354,16 +1356,16 @@ begin
             r1.hit_load_valid <= req_op_load_hit;
             r1.cache_hit <= req_op_load_hit or (req_op_store and req_is_hit);     -- causes PLRU update
 
+            r1.cache_paradox <= access_ok and req_nc and req_is_hit;
+            r1.reserve_nc <= access_ok and r0.req.reserve and req_nc;
             if req_op_bad = '1' then
                 report "Signalling ld/st error valid_ra=" & std_ulogic'image(valid_ra) &
                     " rc_ok=" & std_ulogic'image(rc_ok) & " perm_ok=" & std_ulogic'image(perm_ok);
                 r1.ls_error <= not r0.mmu_req;
                 r1.mmu_error <= r0.mmu_req;
-                r1.cache_paradox <= access_ok;
             else
                 r1.ls_error <= '0';
                 r1.mmu_error <= '0';
-                r1.cache_paradox <= '0';
             end if;
 
             -- Record TLB hit information for updating TLB PLRU

@@ -626,6 +626,7 @@ package common is
         store_done : std_ulogic;
         error : std_ulogic;
         cache_paradox : std_ulogic;
+        reserve_nc : std_ulogic;
     end record;
 
     type DcacheEventType is record
