@@ -1554,11 +1554,12 @@ begin
                     req.same_tag := req_same_tag;
 
                     -- Store the incoming request from r0, if it is a slow request
-                    -- Note that r1.full = 1 implies none of the req_op_* are 1
-                    if req_op_load_miss = '1' or req_op_store = '1' or req_op_flush = '1' or
-                        req_op_sync = '1' then
+                    -- Note that r1.full = 1 implies none of the req_op_* are 1.
+                    -- For the sake of timing we put any valid request in r1.req,
+                    -- but only set r1.full if it is a slow request.
+                    if req_go = '1' then
                         r1.req <= req;
-                        r1.full <= '1';
+                        r1.full <= req_op_load_miss or req_op_store or req_op_flush or req_op_sync;
                     end if;
                 end if;
 
