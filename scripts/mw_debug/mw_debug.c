@@ -24,28 +24,30 @@
 #define DBG_WB_DATA		0x01
 #define DBG_WB_CTRL		0x02
 
-#define DBG_CORE_CTRL		0x10
+unsigned int core;
+
+#define DBG_CORE_CTRL		(0x10 + (core << 4))
 #define  DBG_CORE_CTRL_STOP		(1 << 0)
 #define  DBG_CORE_CTRL_RESET		(1 << 1)
 #define  DBG_CORE_CTRL_ICRESET		(1 << 2)
 #define  DBG_CORE_CTRL_STEP		(1 << 3)
 #define  DBG_CORE_CTRL_START		(1 << 4)
 
-#define DBG_CORE_STAT		0x11
+#define DBG_CORE_STAT		(0x11 + (core << 4))
 #define  DBG_CORE_STAT_STOPPING		(1 << 0)
 #define  DBG_CORE_STAT_STOPPED		(1 << 1)
 #define  DBG_CORE_STAT_TERM		(1 << 2)
 
-#define DBG_CORE_NIA		0x12
-#define DBG_CORE_MSR		0x13
+#define DBG_CORE_NIA		(0x12 + (core << 4))
+#define DBG_CORE_MSR		(0x13 + (core << 4))
 
-#define DBG_CORE_GSPR_INDEX	0x14
-#define DBG_CORE_GSPR_DATA	0x15
+#define DBG_CORE_GSPR_INDEX	(0x14 + (core << 4))
+#define DBG_CORE_GSPR_DATA	(0x15 + (core << 4))
 
-#define DBG_LOG_ADDR		0x16
-#define DBG_LOG_DATA		0x17
-#define DBG_LOG_TRIGGER		0x18
-#define DBG_LOG_MTRIGGER	0x19
+#define DBG_LOG_ADDR		(0x16 + (core << 4))
+#define DBG_LOG_DATA		(0x17 + (core << 4))
+#define DBG_LOG_TRIGGER		(0x18 + (core << 4))
+#define DBG_LOG_MTRIGGER	(0x19 + (core << 4))
 
 static bool debug;
 
@@ -507,7 +509,7 @@ static void core_status(void)
 			statstr2 = " (terminated)";
 	} else if (stat & DBG_CORE_STAT_TERM)
 		statstr = "odd state (TERM but no STOP)";
-	printf("Core: %s%s\n", statstr, statstr2);
+	printf("Core%u: %s%s\n", core, statstr, statstr2);
 	printf(" NIA: %016" PRIx64 "\n", nia);
 	printf(" MSR: %016" PRIx64 "\n", msr);
 }
@@ -792,7 +794,7 @@ static void mtrig_set(uint64_t addr)
 
 static void usage(const char *cmd)
 {
-	fprintf(stderr, "Usage: %s -b <jtag|ecp5|sim> <command> <args>\n", cmd);
+	fprintf(stderr, "Usage: %s -b <jtag|ecp5|sim> [-c core#] <command> <args>\n", cmd);
 
 	fprintf(stderr, "\n");
 	fprintf(stderr, " CPU core:\n");
@@ -851,12 +853,20 @@ int main(int argc, char *argv[])
 			{ "target",	required_argument, 0, 't' },
 			{ "debug",	no_argument,       0, 'd' },
 			{ "frequency",	no_argument,       0, 's' },
+			{ "core",	required_argument, 0, 'c' },
 			{ 0, 0, 0, 0 }
 		};
-		c = getopt_long(argc, argv, "dhb:t:s:", lopts, &oindex);
+		c = getopt_long(argc, argv, "dhb:t:s:c:", lopts, &oindex);
 		if (c < 0)
 			break;
 		switch(c) {
+		case 'c':
+			core = atoi(optarg);
+			if (core >= 15) {
+				fprintf(stderr, "Core number out of range (max 14)\n");
+				exit(1);
+			}
+			break;
 		case 'h':
 			usage(progname);
 			break;
