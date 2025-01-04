@@ -1147,7 +1147,7 @@ begin
         -- side-effect flags or write enables when generating a trap).
         -- With v.trap = 1 we will assert both ex1.e.valid and ex1.e.interrupt
         -- to writeback, and it will complete the instruction and take
-        -- and interrupt.  It is OK for v.trap to depend on operand data.
+        -- an interrupt.  It is OK for v.trap to depend on operand data.
 
         illegal := '0';
         privileged := '0';
@@ -1585,7 +1585,7 @@ begin
 
         if e_in.unit = ALU then
             v.complete := e_in.valid and not v.exception and not owait;
-            v.bypass_valid := e_in.valid and not v.exception and not slow_op;
+            v.bypass_valid := e_in.valid and not slow_op;
         end if;
 
         actions <= v;
@@ -1631,7 +1631,7 @@ begin
         v.taken_branch_event := '0';
         v.br_mispredict := '0';
         v.busy := '0';
-        bypass_valid := '0';
+        bypass_valid := actions.bypass_valid;
 
         irq_valid := ex1.msr(MSR_EE) and (pmu_to_x.intr or ctrl.dec(63) or ext_irq_in);
 
@@ -1706,7 +1706,6 @@ begin
 	if go = '1' then
             v.se := actions.se;
             v.e.valid := actions.complete;
-            bypass_valid := actions.bypass_valid;
             v.taken_branch_event := actions.take_branch;
             v.trace_next := actions.do_trace or actions.ciabr_trace;
             v.trace_ciabr := actions.ciabr_trace;
@@ -1814,13 +1813,13 @@ begin
             v.fp_exception_next := '0';
         end if;
 
-        bypass_data.tag.valid <= v.e.write_enable and bypass_valid;
-        bypass_data.tag.tag <= v.e.instr_tag.tag;
+        bypass_data.tag.valid <= e_in.write_reg_enable and bypass_valid;
+        bypass_data.tag.tag <= e_in.instr_tag.tag;
         bypass_data.data <= alu_result;
 
-        bypass_cr_data.tag.valid <= v.e.write_cr_enable and bypass_valid;
-        bypass_cr_data.tag.tag <= v.e.instr_tag.tag;
-        bypass_cr_data.data <= v.e.write_cr_data;
+        bypass_cr_data.tag.valid <= e_in.output_cr and bypass_valid;
+        bypass_cr_data.tag.tag <= e_in.instr_tag.tag;
+        bypass_cr_data.data <= write_cr_data;
 
         -- Outputs to loadstore1 (async)
         lv.op := e_in.insn_type;
