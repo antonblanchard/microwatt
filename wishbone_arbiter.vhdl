@@ -4,7 +4,6 @@ use ieee.std_logic_1164.all;
 library work;
 use work.wishbone_types.all;
 
--- TODO: Use an array of master/slaves with parametric size
 entity wishbone_arbiter is
     generic(
 	NUM_MASTERS : positive := 3
@@ -28,18 +27,23 @@ begin
 
     busy <= wb_masters_in(selected).cyc;
 
-    wishbone_muxes: process(selected, candidate, busy, wb_slave_in, wb_masters_in)
+    wishbone_muxes: process(all)
 	variable early_sel : wb_arb_master_t;
     begin
 	early_sel := selected;
-	if busy = '0' then
+	if NUM_MASTERS <= 4 and busy = '0' then
 	    early_sel := candidate;
 	end if;
 	wb_slave_out <= wb_masters_in(early_sel);
 	for i in 0 to NUM_MASTERS-1 loop
 	    wb_masters_out(i).dat <= wb_slave_in.dat;
-	    wb_masters_out(i).ack <= wb_slave_in.ack when early_sel = i else '0';
-	    wb_masters_out(i).stall <= wb_slave_in.stall when early_sel = i else '1';
+            if early_sel = i and wb_masters_in(i).cyc = '1' then
+                wb_masters_out(i).ack <= wb_slave_in.ack;
+                wb_masters_out(i).stall <= wb_slave_in.stall;
+            else
+                wb_masters_out(i).ack <= '0';
+                wb_masters_out(i).stall <= '1';
+            end if;
 	end loop;
     end process;
 
