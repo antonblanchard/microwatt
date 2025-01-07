@@ -1,5 +1,6 @@
 -- Implements instructions that involve sorting bits,
 -- that is, cfuged, pextd and pdepd.
+-- Also does bperm, which is somewhat different.
 --
 -- cfuged: Sort the bits in the mask in RB into 0s at the left, 1s at the right
 --         and move the bits in RS in the same fashion to give the result
@@ -7,6 +8,7 @@
 --         corresponding bit in RB is 1
 -- pdepd:  Inverse of pextd; take the low-order bits of RS and spread them out
 --         to the bit positions which have a 1 in RB
+-- bperm:  Select 8 arbitrary bits 
 
 -- NB opc is bits 7-6 of the instruction:
 -- 00 = pdepd, 01 = pextd, 10 = cfuged
@@ -27,6 +29,8 @@ entity bit_sorter is
         go          : in std_ulogic;
         opc         : in std_ulogic_vector(1 downto 0);
         done        : out std_ulogic;
+        do_bperm    : in std_ulogic;
+        bperm_done  : out std_ulogic;
         result      : out std_ulogic_vector(63 downto 0)
         );
 end entity bit_sorter;
@@ -44,6 +48,13 @@ architecture behaviour of bit_sorter is
     signal sr_mr : std_ulogic_vector(63 downto 0);
     signal sr_vl : std_ulogic_vector(63 downto 0);
     signal sr_vr : std_ulogic_vector(63 downto 0);
+
+    signal is_bperm  : std_ulogic;
+    signal bpc       : unsigned(2 downto 0);
+    signal bp_done   : std_ulogic;
+    signal bperm_res : std_ulogic_vector(7 downto 0);
+    signal rs_sr     : std_ulogic_vector(63 downto 0);
+    signal rb_bp     : std_ulogic_vector(63 downto 0);
 
 begin
     bsort_r: process(clk)
@@ -96,7 +107,41 @@ begin
         end if;
     end process;
 
+    -- bit permutation
+    bperm_res(7) <= rb_bp(to_integer(unsigned(not rs_sr(5 downto 0)))) when not is_X(rs_sr)
+                    else 'X';
+
+    bperm_r: process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' then
+                is_bperm <= '0';
+                bp_done <= '0';
+                bperm_res(6 downto 0) <= (others => '0');
+                bpc <= to_unsigned(0, 3);
+            elsif do_bperm = '1' then
+                is_bperm <= '1';
+                bp_done <= '0';
+                bperm_res(6 downto 0) <= (others => '0');
+                bpc <= to_unsigned(0, 3);
+                rs_sr <= rs;
+                rb_bp <= rb;
+            elsif bp_done = '1' then
+                is_bperm <= '0';
+                bp_done <= '0';
+            elsif is_bperm = '1' then
+                bperm_res(6 downto 0) <= bperm_res(7 downto 1);
+                rs_sr <= x"00" & rs_sr(63 downto 8);
+                if bpc = "110" then
+                    bp_done <= '1';
+                end if;
+                bpc <= bpc + 1;
+            end if;
+        end if;
+    end process;
+
     done <= sd;
-    result <= val;
+    bperm_done <= bp_done;
+    result <= val when is_bperm = '0' else (56x"0" & bperm_res);
 
 end behaviour;

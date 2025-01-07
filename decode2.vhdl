@@ -227,7 +227,6 @@ architecture behaviour of decode2 is
         OP_PRTY     => "001",
         OP_CMPB     => "001",
         OP_EXTS     => "001",
-        OP_BPERM    => "001",
         OP_BREV     => "001",
         OP_BCD      => "001",
         OP_MTSPR    => "001",
@@ -256,6 +255,7 @@ architecture behaviour of decode2 is
         OP_DIVE    => "101",
         OP_MOD     => "101",
         OP_BSORT   => "100",
+        OP_BPERM   => "100",
         OP_ADDG6S  => "001",            -- misc_result
         OP_ISEL    => "010",
         OP_DARN    => "011",

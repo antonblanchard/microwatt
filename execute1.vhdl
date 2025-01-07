@@ -116,6 +116,7 @@ architecture behaviour of execute1 is
         start_mul : std_ulogic;
         start_div : std_ulogic;
         start_bsort : std_ulogic;
+        start_bperm : std_ulogic;
         do_trace : std_ulogic;
         ciabr_trace : std_ulogic;
         fp_intr : std_ulogic;
@@ -150,6 +151,7 @@ architecture behaviour of execute1 is
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         bsort_in_progress : std_ulogic;
+        bperm_in_progress : std_ulogic;
         no_instr_avail : std_ulogic;
         instr_dispatch : std_ulogic;
         ext_interrupt : std_ulogic;
@@ -174,7 +176,7 @@ architecture behaviour of execute1 is
          spr_select => spr_id_init, pmu_spr_num => 5x"0",
          redir_to_next => '0', advance_nia => '0', lr_from_next => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0',
-         bsort_in_progress => '0',
+         bsort_in_progress => '0', bperm_in_progress => '0',
          no_instr_avail => '0', instr_dispatch => '0', ext_interrupt => '0',
          taken_branch_event => '0', br_mispredict => '0',
          msr => 64x"0",
@@ -245,6 +247,8 @@ architecture behaviour of execute1 is
     -- bit-sort unit signals
     signal bsort_start : std_ulogic;
     signal bsort_done  : std_ulogic;
+    signal bperm_start : std_ulogic;
+    signal bperm_done : std_ulogic;
 
     -- random number generator signals
     signal random_raw  : std_ulogic_vector(63 downto 0);
@@ -515,6 +519,8 @@ begin
             go => bsort_start,
             opc => e_in.insn(7 downto 6),
             done => bsort_done,
+            do_bperm => bperm_start,
+            bperm_done => bperm_done,
             result => bsort_result
             );
 
@@ -1228,7 +1234,7 @@ begin
             when OP_CMPRB =>
             when OP_CMPEQB =>
             when OP_LOGIC | OP_XOR | OP_PRTY | OP_CMPB | OP_EXTS |
-                OP_BPERM | OP_BREV | OP_BCD =>
+                OP_BREV | OP_BCD =>
 
 	    when OP_B =>
                 v.take_branch := '1';
@@ -1430,6 +1436,11 @@ begin
 
             when OP_BSORT =>
                 v.start_bsort := '1';
+                slow_op := '1';
+                owait := '1';
+
+            when OP_BPERM =>
+                v.start_bperm := '1';
                 slow_op := '1';
                 owait := '1';
 
@@ -1718,6 +1729,7 @@ begin
             x_to_divider.valid <= actions.start_div;
             v.div_in_progress := actions.start_div;
             v.bsort_in_progress := actions.start_bsort;
+            v.bperm_in_progress := actions.start_bperm;
             v.br_mispredict := v.e.redirect and actions.direct_branch;
             v.advance_nia := actions.advance_nia;
             v.redir_to_next := actions.redir_to_next;
@@ -1728,7 +1740,8 @@ begin
             -- multiply is happening in order to stop following
             -- instructions from using the wrong XER value
             -- (and for simplicity in the OE=0 case).
-            v.busy := actions.start_div or actions.start_mul or actions.start_bsort;
+            v.busy := actions.start_div or actions.start_mul or
+                      actions.start_bsort or actions.start_bperm;
 
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
@@ -1740,6 +1753,7 @@ begin
         end if;
         is_scv := go and actions.se.scv_trap;
         bsort_start <= go and actions.start_bsort;
+        bperm_start <= go and actions.start_bperm;
         pmu_trace <= go and actions.do_trace;
 
         if not HAS_FPU and ex1.div_in_progress = '1' then
@@ -1779,6 +1793,13 @@ begin
             v.busy := not bsort_done;
             v.e.write_data := alu_result;
             bypass_valid := bsort_done;
+        end if;
+        if ex1.bperm_in_progress = '1' then
+            v.bperm_in_progress := not bperm_done;
+            v.e.valid := bperm_done;
+            v.busy := not bperm_done;
+            v.e.write_data := alu_result;
+            bypass_valid := bperm_done;
         end if;
 
         if v.e.write_xerc_enable = '1' and v.e.valid = '1' then
