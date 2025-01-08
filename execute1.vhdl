@@ -15,6 +15,7 @@ entity execute1 is
         SIM : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        CPU_INDEX : natural;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -702,7 +703,8 @@ begin
                 ex2 <= ex2in;
                 ctrl <= ctrl_tmp;
                 if valid_in = '1' then
-                    report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
+                    report "CPU " & natural'image(CPU_INDEX) & " execute " & to_hstring(e_in.nia) &
+                        " op=" & insn_type_t'image(e_in.insn_type) &
                         " wr=" & to_hstring(ex1in.e.write_reg) & " we=" & std_ulogic'image(ex1in.e.write_enable) &
                         " tag=" & integer'image(ex1in.e.instr_tag.tag) & std_ulogic'image(ex1in.e.instr_tag.valid) &
                         " 2nd=" & std_ulogic'image(e_in.second);
@@ -1874,6 +1876,7 @@ begin
         ctrl.heir when SPRSEL_HEIR,
         assemble_ctrl(ctrl, ex1.msr(MSR_PR)) when SPRSEL_CTRL,
         39x"0" & ctrl.dscr when SPRSEL_DSCR,
+        56x"0" & std_ulogic_vector(to_unsigned(CPU_INDEX, 8)) when SPRSEL_PIR,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
     stage2_stall <= l_in.l2stall or fp_in.f2stall;

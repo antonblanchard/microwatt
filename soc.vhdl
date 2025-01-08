@@ -351,6 +351,7 @@ begin
     processor: entity work.core
 	generic map(
 	    SIM => SIM,
+            CPU_INDEX => 0,
             HAS_FPU => HAS_FPU,
             HAS_BTC => HAS_BTC,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,

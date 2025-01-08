@@ -486,6 +486,8 @@ architecture behaviour of decode1 is
                 i.sel := SPRSEL_DSCR;
             when SPR_DSCR =>
                 i.sel := SPRSEL_DSCR;
+            when SPR_PIR =>
+                i.sel := SPRSEL_PIR;
             when others =>
                 i.valid := '0';
         end case;
