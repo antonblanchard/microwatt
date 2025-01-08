@@ -966,13 +966,16 @@ begin
     end generate;
 
     xics_icp: entity work.xics_icp
+        generic map(
+            NCPUS => NCPUS
+            )
 	port map(
 	    clk => system_clk,
 	    rst => rst_xics,
 	    wb_in => wb_xics_icp_in,
 	    wb_out => wb_xics_icp_out,
             ics_in => ics_to_icp,
-	    core_irq_out => core_ext_irq(0)
+	    core_irq_out => core_ext_irq
 	    );
 
     xics_ics: entity work.xics_ics

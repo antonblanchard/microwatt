@@ -25,6 +25,9 @@ use work.common.all;
 use work.wishbone_types.all;
 
 entity xics_icp is
+    generic (
+        NCPUS        : natural := 1
+        );
     port (
         clk          : in std_logic;
         rst          : in std_logic;
@@ -33,32 +36,41 @@ entity xics_icp is
         wb_out       : out wb_io_slave_out;
 
         ics_in       : in ics_to_icp_t;
-        core_irq_out : out std_ulogic
+        core_irq_out : out std_ulogic_vector(NCPUS-1 downto 0)
         );
 end xics_icp;
 
 architecture behaviour of xics_icp is
-    type reg_internal_t is record
+    type xics_presentation_t is record
         xisr       : std_ulogic_vector(23 downto 0);
         cppr       : std_ulogic_vector(7 downto 0);
         mfrr       : std_ulogic_vector(7 downto 0);
         irq        : std_ulogic;
+    end record;
+    constant xics_presentation_t_init : xics_presentation_t :=
+        (mfrr => x"ff", -- mask everything on reset
+         irq => '0',
+         others => (others => '0'));
+    subtype cpu_index_t is natural range 0 to NCPUS-1;
+    type xicp_array_t is array(cpu_index_t) of xics_presentation_t;
+
+    type reg_internal_t is record
+        icp        : xicp_array_t;
         wb_rd_data : std_ulogic_vector(31 downto 0);
         wb_ack     : std_ulogic;
     end record;
     constant reg_internal_init : reg_internal_t :=
         (wb_ack => '0',
-         mfrr => x"ff", -- mask everything on reset
-         irq => '0',
-         others => (others => '0'));
+         wb_rd_data => (others => '0'),
+         icp => (others => xics_presentation_t_init));
 
     signal r, r_next : reg_internal_t;
 
-    -- 8 bit offsets for each presentation
-    constant XIRR_POLL : std_ulogic_vector(7 downto 0) := x"00";
-    constant XIRR      : std_ulogic_vector(7 downto 0) := x"04";
-    constant RESV0     : std_ulogic_vector(7 downto 0) := x"08";
-    constant MFRR      : std_ulogic_vector(7 downto 0) := x"0c";
+    -- 4 bit offsets for each presentation register
+    constant XIRR_POLL : std_ulogic_vector(3 downto 0) := x"0";
+    constant XIRR      : std_ulogic_vector(3 downto 0) := x"4";
+    constant RESV0     : std_ulogic_vector(3 downto 0) := x"8";
+    constant MFRR      : std_ulogic_vector(3 downto 0) := x"c";
 
 begin
 
@@ -68,7 +80,9 @@ begin
             r <= r_next;
 
             -- We delay core_irq_out by a cycle to help with timing
-            core_irq_out <= r.irq;
+            for i in 0 to NCPUS-1 loop
+                core_irq_out(i) <= r.icp(i).irq;
+            end loop;
         end if;
     end process;
 
@@ -99,94 +113,105 @@ begin
 
         v.wb_ack := '0';
 
-        xirr_accept_rd := '0';
-
         be_in := bswap(wb_in.dat);
         be_out := (others => '0');
-
         if wb_in.cyc = '1' and wb_in.stb = '1' then
             v.wb_ack := '1'; -- always ack
-            if wb_in.we = '1' then -- write
-                -- writes to both XIRR are the same
-                case wb_in.adr(5 downto 0) & "00" is
-                when XIRR_POLL =>
-                    report "ICP XIRR_POLL write";
-                    v.cppr := be_in(31 downto 24);
-                when XIRR =>
-                    v.cppr := be_in(31 downto 24);
-                    if wb_in.sel = x"f"  then -- 4 byte
-                        report "ICP XIRR write word (EOI) :" & to_hstring(be_in);
-                    elsif wb_in.sel = x"1"  then -- 1 byte
-                        report "ICP XIRR write byte (CPPR):" & to_hstring(be_in(31 downto 24));
-                    else
-                        report "ICP XIRR UNSUPPORTED write ! sel=" & to_hstring(wb_in.sel);
-                    end if;
-                when MFRR =>
-                    v.mfrr := be_in(31 downto 24);
-                    if wb_in.sel = x"f" then -- 4 bytes
-                        report "ICP MFRR write word:" & to_hstring(be_in);
-                    elsif wb_in.sel = x"1" then -- 1 byte
-                        report "ICP MFRR write byte:" & to_hstring(be_in(31 downto 24));
-                    else
-                        report "ICP MFRR UNSUPPORTED write ! sel=" & to_hstring(wb_in.sel);
-                    end if;
-                when others =>                        
-                end case;
+        end if;
 
-            else -- read
+        for i in cpu_index_t loop
+            xirr_accept_rd := '0';
 
-                case wb_in.adr(5 downto 0) & "00" is
-                when XIRR_POLL =>
-                    report "ICP XIRR_POLL read";
-                    be_out := r.cppr & r.xisr;
-                when XIRR =>
-                    report "ICP XIRR read";
-                    be_out := r.cppr & r.xisr;
-                    if wb_in.sel = x"f" then
-                        xirr_accept_rd := '1';
-                    end if;
-                when MFRR =>
-                    report "ICP MFRR read";
-                    be_out(31 downto 24) := r.mfrr;
-                when others =>                        
-                end case;
+            if wb_in.cyc = '1' and wb_in.stb = '1' and
+                to_integer(unsigned(wb_in.adr(5 downto 2))) = i then
+                if wb_in.we = '1' then -- write
+                    -- writes to both XIRR are the same
+                    case wb_in.adr(1 downto 0) & "00" is
+                        when XIRR_POLL =>
+                            report "ICP XIRR_POLL write";
+                            v.icp(i).cppr := be_in(31 downto 24);
+                        when XIRR =>
+                            v.icp(i).cppr := be_in(31 downto 24);
+                            if wb_in.sel = x"f"  then -- 4 byte
+                                report "ICP " & natural'image(i) & " XIRR write word (EOI) :" &
+                                    to_hstring(be_in);
+                            elsif wb_in.sel = x"1"  then -- 1 byte
+                                report "ICP " & natural'image(i) & " XIRR write byte (CPPR):" &
+                                    to_hstring(be_in(31 downto 24));
+                            else
+                                report "ICP " & natural'image(i) & " XIRR UNSUPPORTED write ! sel=" &
+                                    to_hstring(wb_in.sel);
+                            end if;
+                        when MFRR =>
+                            v.icp(i).mfrr := be_in(31 downto 24);
+                            if wb_in.sel = x"f" then -- 4 bytes
+                                report "ICP " & natural'image(i) & " MFRR write word:" &
+                                    to_hstring(be_in);
+                            elsif wb_in.sel = x"1" then -- 1 byte
+                                report "ICP " & natural'image(i) & " MFRR write byte:" &
+                                    to_hstring(be_in(31 downto 24));
+                            else
+                                report "ICP " & natural'image(i) & " MFRR UNSUPPORTED write ! sel=" &
+                                    to_hstring(wb_in.sel);
+                            end if;
+                        when others =>                        
+                    end case;
+
+                else -- read
+
+                    case wb_in.adr(1 downto 0) & "00" is
+                        when XIRR_POLL =>
+                            report "ICP XIRR_POLL read";
+                            be_out := r.icp(i).cppr & r.icp(i).xisr;
+                        when XIRR =>
+                            report "ICP XIRR read";
+                            be_out := r.icp(i).cppr & r.icp(i).xisr;
+                            if wb_in.sel = x"f" then
+                                xirr_accept_rd := '1';
+                            end if;
+                        when MFRR =>
+                            report "ICP MFRR read";
+                            be_out(31 downto 24) := r.icp(i).mfrr;
+                        when others =>                        
+                    end case;
+                end if;
             end if;
-        end if;
 
-        pending_priority := x"ff";
-        v.xisr := x"000000";
-        v.irq := '0';
+            pending_priority := x"ff";
+            v.icp(i).xisr := x"000000";
+            v.icp(i).irq := '0';
 
-        if ics_in.pri /= x"ff" then
-            v.xisr := x"00001" & ics_in.src;
-            pending_priority := ics_in.pri;
-        end if;
-
-        -- Check MFRR
-        if unsigned(r.mfrr) < unsigned(pending_priority) then --
-            v.xisr := x"000002"; -- special XICS MFRR IRQ source number
-            pending_priority := r.mfrr;
-        end if;
-
-        -- Accept the interrupt
-        if xirr_accept_rd = '1' then
-            report "XICS: ICP ACCEPT" &
-                " cppr:" &  to_hstring(r.cppr) &
-                " xisr:" & to_hstring(r.xisr) &
-                " mfrr:" & to_hstring(r.mfrr);
-            v.cppr := pending_priority;
-        end if;
-
-        v.wb_rd_data := bswap(be_out);
-
-        if unsigned(pending_priority) < unsigned(v.cppr) then
-            if r.irq = '0' then
-                report "IRQ set";
+            if i = 0 and ics_in.pri /= x"ff" then
+                v.icp(i).xisr := x"00001" & ics_in.src;
+                pending_priority := ics_in.pri;
             end if;
-            v.irq := '1';
-        elsif r.irq = '1' then
-            report "IRQ clr";
-        end if;
+
+            -- Check MFRR
+            if unsigned(r.icp(i).mfrr) < unsigned(pending_priority) then --
+                v.icp(i).xisr := x"000002"; -- special XICS MFRR IRQ source number
+                pending_priority := r.icp(i).mfrr;
+            end if;
+
+            -- Accept the interrupt
+            if xirr_accept_rd = '1' then
+                report "XICS " & natural'image(i) & ": ICP ACCEPT" &
+                    " cppr:" &  to_hstring(r.icp(i).cppr) &
+                    " xisr:" & to_hstring(r.icp(i).xisr) &
+                    " mfrr:" & to_hstring(r.icp(i).mfrr);
+                v.icp(i).cppr := pending_priority;
+            end if;
+
+            v.wb_rd_data := bswap(be_out);
+
+            if unsigned(pending_priority) < unsigned(v.icp(i).cppr) then
+                if r.icp(i).irq = '0' then
+                    report "CPU " & natural'image(i) & " IRQ set";
+                end if;
+                v.icp(i).irq := '1';
+            elsif r.icp(i).irq = '1' then
+                report "CPU " & natural'image(i) & " IRQ clr";
+            end if;
+        end loop;
 
         if rst = '1' then
             v := reg_internal_init;
