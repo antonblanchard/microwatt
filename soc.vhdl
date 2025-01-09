@@ -271,6 +271,8 @@ architecture behaviour of soc is
 
     signal core_run_out       : std_ulogic_vector(NCPUS-1 downto 0);
 
+    signal timebase : std_ulogic_vector(63 downto 0);
+
     function wishbone_widen_data(wb : wb_io_master_out) return wishbone_master_out is
         variable wwb : wishbone_master_out;
     begin
@@ -350,6 +352,21 @@ begin
         end if;
     end process;
 
+    -- Timebase just increments at the system clock frequency.
+    -- There is currently no way to set it.
+    -- Ideally it would (appear to) run at 512MHz like IBM POWER systems,
+    -- but Linux seems to cope OK with it being 100MHz or whatever.
+    tbase: process(system_clk)
+    begin
+        if rising_edge(system_clk) then
+            if soc_reset = '1' then
+                timebase <= (others => '0');
+            else
+                timebase <= std_ulogic_vector(unsigned(timebase) + 1);
+            end if;
+        end if;
+    end process;
+
     -- Processor cores
     processors: for i in 0 to NCPUS-1 generate
         core: entity work.core
@@ -374,6 +391,7 @@ begin
 	    rst => rst_core(i),
 	    alt_reset => alt_reset_d,
             run_out => core_run_out(i),
+            timebase => timebase,
 	    wishbone_insn_in => wb_masters_in(i + NCPUS),
 	    wishbone_insn_out => wb_masters_out(i + NCPUS),
 	    wishbone_data_in => wb_masters_in(i),

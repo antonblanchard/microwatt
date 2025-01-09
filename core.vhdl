@@ -31,6 +31,9 @@ entity core is
 	-- Alternate reset (0xffff0000) for use by DRAM init fw
 	alt_reset    : in std_ulogic;
 
+        -- Global timebase
+        timebase     : in std_ulogic_vector(63 downto 0);
+
 	-- Wishbone interface
         wishbone_insn_in  : in wishbone_slave_out;
         wishbone_insn_out : out wishbone_master_out;
@@ -373,6 +376,7 @@ begin
         port map (
             clk => clk,
             rst => rst_ex1,
+            timebase => timebase,
             flush_in => flush,
 	    busy_out => ex1_busy_out,
             e_in => decode2_to_execute1,

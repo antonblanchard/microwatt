@@ -34,6 +34,8 @@ entity execute1 is
 	ext_irq_in : std_ulogic;
         interrupt_in : WritebackToExecute1Type;
 
+        timebase : std_ulogic_vector(63 downto 0);
+
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
         fp_out : out Execute1ToFPUType;
@@ -1901,8 +1903,8 @@ begin
 
     -- Slow SPR read mux
     with ex1.spr_select.sel select spr_result <=
-        ctrl.tb when SPRSEL_TB,
-        32x"0" & ctrl.tb(63 downto 32) when SPRSEL_TBU,
+        timebase when SPRSEL_TB,
+        32x"0" & timebase(63 downto 32) when SPRSEL_TBU,
         ctrl.dec when SPRSEL_DEC,
         32x"0" & PVR_MICROWATT when SPRSEL_PVR,
         log_wr_addr & ex2.log_addr_spr when SPRSEL_LOGA,
@@ -1956,16 +1958,14 @@ begin
         end if;
 
 	ctrl_tmp <= ctrl;
-	-- FIXME: run at 512MHz not core freq
-	ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
 	ctrl_tmp.dec <= std_ulogic_vector(unsigned(ctrl.dec) - 1);
 
         x_to_pmu.mfspr <= '0';
         x_to_pmu.mtspr <= '0';
-        x_to_pmu.tbbits(3) <= ctrl.tb(63 - 47);
-        x_to_pmu.tbbits(2) <= ctrl.tb(63 - 51);
-        x_to_pmu.tbbits(1) <= ctrl.tb(63 - 55);
-        x_to_pmu.tbbits(0) <= ctrl.tb(63 - 63);
+        x_to_pmu.tbbits(3) <= timebase(63 - 47);
+        x_to_pmu.tbbits(2) <= timebase(63 - 51);
+        x_to_pmu.tbbits(1) <= timebase(63 - 55);
+        x_to_pmu.tbbits(0) <= timebase(63 - 63);
         x_to_pmu.pmm_msr <= ctrl.msr(MSR_PMM);
         x_to_pmu.pr_msr <= ctrl.msr(MSR_PR);
 

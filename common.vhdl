@@ -264,7 +264,6 @@ package common is
     type ctrl_t is record
         wait_state: std_ulogic;
         run: std_ulogic;
-	tb: std_ulogic_vector(63 downto 0);
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
         cfar: std_ulogic_vector(63 downto 0);
