@@ -145,6 +145,7 @@ architecture behaviour of toplevel is
 
     -- Status
     signal run_out : std_ulogic;
+    signal run_outs : std_ulogic_vector(CPUS-1 downto 0);
 
     -- Reset signals:
     signal soc_rst : std_ulogic;
@@ -269,6 +270,7 @@ begin
             rst               => soc_rst,
             sw_soc_reset      => sw_rst,
             run_out           => run_out,
+            run_outs          => run_outs,
 
             -- UART signals
             uart0_txd         => uart_main_tx,
@@ -746,9 +748,9 @@ begin
     end process;
 
     led4 <= system_clk_locked;
-    led5 <= eth_clk_locked;
-    led6 <= not soc_rst;
-    led7 <= run_out;
+    led5 <= not soc_rst;
+    led6 <= run_outs(1) when CPUS > 1 else '0';
+    led7 <= run_outs(0);
 
     -- GPIO
     gpio_in(10) <= btn0;

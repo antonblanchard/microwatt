@@ -101,6 +101,7 @@ entity soc is
 	system_clk   : in  std_ulogic;
 
         run_out      : out std_ulogic;
+        run_outs     : out std_ulogic_vector(NCPUS-1 downto 0);
 
 	-- "Large" (64-bit) DRAM wishbone
 	wb_dram_in       : out wishbone_master_out;
@@ -393,6 +394,7 @@ begin
     end generate;
 
     run_out <= or (core_run_out);
+    run_outs <= core_run_out and not do_core_reset;
 
     -- Wishbone bus master arbiter & mux
     wb_masters_out(2*NCPUS)     <= wishbone_widen_data(wishbone_dma_out);
