@@ -673,6 +673,14 @@ begin
             v.e.illegal_suffix := d_in.illegal_suffix;
             v.e.misaligned_prefix := d_in.misaligned_prefix;
 
+            -- rotator control signals
+            v.e.right_shift := '1' when op = OP_SHR else '0';
+            v.e.rot_clear_left := '1' when op = OP_RLC or op = OP_RLCL else '0';
+            v.e.rot_clear_right := '1' when op = OP_RLC or op = OP_RLCR else '0';
+            v.e.rot_sign_ext := '1' when op = OP_EXTSWSLI else '0';
+
+            v.e.do_popcnt := '1' when op = OP_COUNTB and d_in.insn(7 downto 6) = "11" else '0';
+
             -- check for invalid forms that cause an illegal instruction interrupt
             -- Does RA = RT for a load quadword instr, or RB = RT for lqarx?
             if d_in.decode.repeat = DRTP and

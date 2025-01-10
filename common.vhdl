@@ -440,6 +440,11 @@ package common is
         illegal_form : std_ulogic;
         uses_tar : std_ulogic;
         uses_dscr : std_ulogic;
+        right_shift : std_ulogic;
+        rot_clear_left : std_ulogic;
+        rot_clear_right : std_ulogic;
+        rot_sign_ext : std_ulogic;
+        do_popcnt : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => ALU, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
@@ -462,6 +467,8 @@ package common is
          dec_ctr => '0',
          prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
          misaligned_prefix => '0', illegal_form => '0', uses_tar => '0', uses_dscr => '0',
+         right_shift => '0', rot_clear_left => '0', rot_clear_right => '0', rot_sign_ext => '0',
+         do_popcnt => '0',
          others => (others => '0'));
 
     type MultiplyInputType is record

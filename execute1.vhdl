@@ -210,12 +210,9 @@ architecture behaviour of execute1 is
     signal valid_in : std_ulogic;
     signal ctrl: ctrl_t := ctrl_t_init;
     signal ctrl_tmp: ctrl_t := ctrl_t_init;
-    signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
-    signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
-    signal do_popcnt: std_ulogic;
     signal countbits_result: std_ulogic_vector(63 downto 0);
     signal alu_result: std_ulogic_vector(63 downto 0);
     signal adder_result: std_ulogic_vector(63 downto 0);
@@ -454,11 +451,11 @@ begin
 	    shift => b_in(6 downto 0),
 	    insn => e_in.insn,
 	    is_32bit => e_in.is_32bit,
-	    right_shift => right_shift,
+	    right_shift => e_in.right_shift,
 	    arith => e_in.is_signed,
-	    clear_left => rot_clear_left,
-	    clear_right => rot_clear_right,
-            sign_ext_rs => rot_sign_ext,
+	    clear_left => e_in.rot_clear_left,
+	    clear_right => e_in.rot_clear_right,
+            sign_ext_rs => e_in.rot_sign_ext,
 	    result => rotator_result,
 	    carry_out => rotator_carry
 	    );
@@ -482,7 +479,7 @@ begin
             stall => stage2_stall,
 	    count_right => e_in.insn(10),
 	    is_32bit => e_in.is_32bit,
-            do_popcnt => do_popcnt,
+            do_popcnt => e_in.do_popcnt,
             datalen => e_in.data_len,
 	    result => countbits_result
 	    );
@@ -1647,14 +1644,6 @@ begin
         bypass_valid := actions.bypass_valid;
 
         irq_valid := ex1.msr(MSR_EE) and (pmu_to_x.intr or ctrl.dec(63) or ext_irq_in);
-
-	-- rotator control signals
-	right_shift <= '1' when e_in.insn_type = OP_SHR else '0';
-	rot_clear_left <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCL else '0';
-	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
-        rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
-
-        do_popcnt <= '1' when e_in.insn_type = OP_COUNTB and e_in.insn(7 downto 6) = "11" else '0';
 
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
