@@ -10,6 +10,7 @@ use work.wishbone_types.all;
 
 entity toplevel is
     generic (
+        CPUS               : natural  := 1;
         MEMORY_SIZE        : integer  := 16384;
         RAM_INIT_FILE      : string   := "firmware.hex";
         RESET_LOW          : boolean  := true;
@@ -241,6 +242,7 @@ begin
             MEMORY_SIZE        => BRAM_SIZE,
             RAM_INIT_FILE      => RAM_INIT_FILE,
             SIM                => false,
+            NCPUS              => CPUS,
             CLK_FREQ           => CLK_FREQUENCY,
             HAS_FPU            => HAS_FPU,
             HAS_BTC            => HAS_BTC,

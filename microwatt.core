@@ -335,6 +335,7 @@ targets:
     default_tool: vivado
     filesets: [core, arty_a7, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific, litesdcard]
     parameters:
+      - cpus
       - memory_size
       - ram_init_file
       - use_litedram=true
@@ -496,6 +497,12 @@ generate:
     parameters: {vendor : xilinx, frequency : 100e6}
 
 parameters:
+  cpus:
+    datatype    : int
+    description : Number of CPU cores to include in the SoC.
+    paramtype   : generic
+    default     : 1
+
   memory_size:
     datatype    : int
     description : On-chip memory size (bytes). If no_bram is set, this is the size carved out for the DRAM payload
