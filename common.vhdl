@@ -252,12 +252,14 @@ package common is
 
     -- For now, fixed 16 sources, make this either a parametric
     -- package of some sort or an unconstrainted array.
+    -- We don't know NCPUS or SRC_NUM here, so make this
+    -- large enough for 4 cpus and 16 interrupt sources for now.
     type ics_to_icp_t is record
         -- Level interrupts only, ICS just keeps prsenting the
         -- highest priority interrupt. Once handling edge, something
         -- smarter involving handshake & reject support will be needed
-        src : std_ulogic_vector(3 downto 0);
-        pri : std_ulogic_vector(7 downto 0);
+        src : std_ulogic_vector(15 downto 0);   -- 4 bits each for 4 cpus
+        pri : std_ulogic_vector(31 downto 0);   -- 8 bits each for 4 cpus
     end record;
 
     -- This needs to die...

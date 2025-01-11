@@ -980,6 +980,7 @@ begin
 
     xics_ics: entity work.xics_ics
 	generic map(
+            NCPUS     => NCPUS,
 	    SRC_NUM   => 16,
 	    PRIO_BITS => 3
 	    )

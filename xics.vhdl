@@ -181,9 +181,9 @@ begin
             v.icp(i).xisr := x"000000";
             v.icp(i).irq := '0';
 
-            if i = 0 and ics_in.pri /= x"ff" then
-                v.icp(i).xisr := x"00001" & ics_in.src;
-                pending_priority := ics_in.pri;
+            if ics_in.pri(8*i + 7 downto 8*i) /= x"ff" then
+                v.icp(i).xisr := x"00001" & ics_in.src(4*i + 3 downto 4*i);
+                pending_priority := ics_in.pri(8*i + 7 downto 8*i);
             end if;
 
             -- Check MFRR
@@ -235,6 +235,7 @@ use work.helpers.all;
 
 entity xics_ics is
     generic (
+        NCPUS      : natural := 1;
         SRC_NUM    : integer range 1 to 256  := 16;
         PRIO_BITS  : integer range 1 to 8    := 3
         );
@@ -253,10 +254,13 @@ end xics_ics;
 architecture rtl of xics_ics is
 
     constant SRC_NUM_BITS : natural := log2(SRC_NUM);
+    constant SERVER_NUM_BITS : natural := 2;
 
     subtype pri_t is std_ulogic_vector(PRIO_BITS-1 downto 0);
+    subtype server_t is unsigned(SERVER_NUM_BITS-1 downto 0);
     type xive_t is record
         pri : pri_t;
+        server : server_t;
     end record;
     constant pri_masked : pri_t := (others => '1');
 
@@ -333,6 +337,16 @@ architecture rtl of xics_ics is
         return p(nbits - 1 downto 0);
     end function;
 
+    function server_check(serv_in: std_ulogic_vector(7 downto 0)) return unsigned is
+        variable srv : server_t;
+    begin
+        srv := to_unsigned(0, SERVER_NUM_BITS);
+        if to_integer(unsigned(serv_in)) < NCPUS then
+            srv := unsigned(serv_in(SERVER_NUM_BITS - 1 downto 0));
+        end if;
+        return srv;
+    end;
+
 -- Register map
     --     0  : Config
     --     4  : Debug/diagnostics
@@ -391,16 +405,14 @@ begin
             be_out := (others => '0');
 
             if reg_is_xive = '1' then
-                be_out := int_level_l(reg_idx) &
-                          '0' &
-                          int_level_l(reg_idx) &
-                          '0' &
-                          x"00000" &
-                          prio_unpack(xives(reg_idx).pri);
+                be_out(31) := int_level_l(reg_idx);
+                be_out(29) := int_level_l(reg_idx);
+                be_out(8 + SERVER_NUM_BITS - 1 downto 8) := std_ulogic_vector(xives(reg_idx).server);
+                be_out(7 downto 0) := prio_unpack(xives(reg_idx).pri);
             elsif reg_is_config = '1' then
                 be_out := get_config;
             elsif reg_is_debug = '1' then
-                be_out := x"00000" & icp_out_next.src & icp_out_next.pri;
+                be_out := icp_out_next.src & icp_out_next.pri(15 downto 0);
             end if;
             wb_out.dat <= bswap(be_out);
             wb_out.ack <= wb_valid;
@@ -414,17 +426,20 @@ begin
         if rising_edge(clk) then
             if rst = '1' then
                 for i in 0 to SRC_NUM - 1 loop
-                    xives(i) <= (pri => pri_masked);
+                    xives(i) <= (pri => pri_masked, server => to_unsigned(0, SERVER_NUM_BITS));
                 end loop;
             elsif wb_valid = '1' and wb_in.we = '1' then
                 -- Byteswapped input
                 be_in := bswap(wb_in.dat);
                 if reg_is_xive then
-                    -- TODO: When adding support for other bits, make sure to
-                    -- properly implement wb_in.sel to allow partial writes.
-                    xives(reg_idx).pri <= prio_pack(be_in(7 downto 0));
-                    report "ICS irq " & integer'image(reg_idx) &
-                        " set to:" & to_hstring(be_in(7 downto 0));
+                    if wb_in.sel(3) = '1' then
+                        xives(reg_idx).pri <= prio_pack(be_in(7 downto 0));
+                        report "ICS irq " & integer'image(reg_idx) &
+                            " set to pri:" & to_hstring(be_in(7 downto 0));
+                    end if;
+                    if wb_in.sel(2) = '1' then
+                        xives(reg_idx).server <= server_check(be_in(15 downto 8));
+                    end if;
                 end if;
             end if;
         end if;
@@ -449,29 +464,36 @@ begin
         variable pending_pri : pri_vector_t;
         variable pending_at_pri : std_ulogic_vector(SRC_NUM - 1 downto 0);
     begin
-        -- Work out the most-favoured (lowest) priority of the pending interrupts
-        pending_pri := (others => '0');
-        for i in 0 to SRC_NUM - 1 loop
-            if int_level_l(i) = '1' then
-                pending_pri := pending_pri or prio_decode(xives(i).pri);
-            end if;
-        end loop;
-        max_pri := priority_encoder(pending_pri, PRIO_BITS);
+        icp_out_next.src <= (others => '0');
+        icp_out_next.pri <= (others => '0');
+        for cpu in 0 to NCPUS-1 loop
+            -- Work out the most-favoured (lowest) priority of the interrupts
+            -- that are pending and directed to this cpu
+            pending_pri := (others => '0');
+            for i in 0 to SRC_NUM - 1 loop
+                if int_level_l(i) = '1' and to_integer(xives(i).server) = cpu then
+                    pending_pri := pending_pri or prio_decode(xives(i).pri);
+                end if;
+            end loop;
+            max_pri := priority_encoder(pending_pri, PRIO_BITS);
 
-        -- Work out which interrupts are pending at that priority
-        pending_at_pri := (others => '0');
-        for i in 0 to SRC_NUM - 1 loop
-            if int_level_l(i) = '1' and xives(i).pri = max_pri then
-                pending_at_pri(i) := '1';
-            end if;
-        end loop;
-        max_idx := priority_encoder(pending_at_pri, SRC_NUM_BITS);
+            -- Work out which interrupts are pending at that priority
+            pending_at_pri := (others => '0');
+            for i in 0 to SRC_NUM - 1 loop
+                if int_level_l(i) = '1' and xives(i).pri = max_pri and
+                    to_integer(xives(i).server) = cpu then
+                    pending_at_pri(i) := '1';
+                end if;
+            end loop;
+            max_idx := priority_encoder(pending_at_pri, SRC_NUM_BITS);
 
-        if max_pri /= pri_masked then
-            report "MFI: " & integer'image(to_integer(unsigned(max_idx))) & " pri=" & to_hstring(prio_unpack(max_pri));
-        end if;
-        icp_out_next.src <= max_idx;
-        icp_out_next.pri <= prio_unpack(max_pri);
+            if max_pri /= pri_masked then
+                report "MFI: " & integer'image(to_integer(unsigned(max_idx))) & " pri=" & to_hstring(prio_unpack(max_pri)) &
+                    " srv=" & integer'image(cpu);
+            end if;
+            icp_out_next.src(4*cpu + 3 downto 4*cpu) <= max_idx;
+            icp_out_next.pri(8*cpu + 7 downto 8*cpu) <= prio_unpack(max_pri);
+        end loop;
     end process;
 
 end architecture rtl;
