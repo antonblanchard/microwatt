@@ -7,7 +7,6 @@
 extern unsigned long callit(unsigned long arg1, unsigned long arg2,
 			    unsigned long (*fn)(unsigned long, unsigned long),
 			    unsigned long msr, unsigned long *regs);
-
 #define MSR_FP	0x2000
 #define MSR_SE	0x400
 #define MSR_BE	0x200
@@ -16,6 +15,7 @@ extern unsigned long callit(unsigned long arg1, unsigned long arg2,
 #define SRR1	27
 #define SPRG0	272
 #define SPRG1	273
+#define CIABR	187
 
 static inline unsigned long mfmsr(void)
 {
@@ -218,6 +218,41 @@ int trace_test_9(void)
 	return 0;
 }
 
+extern unsigned long test10(unsigned long, unsigned long);
+
+int trace_test_10(void)
+{
+	unsigned long ret;
+	unsigned long regs[2];
+
+	mtspr(CIABR, (unsigned long)&test10 + 4 + 3);
+	ret = callit(1, 1, test10, mfmsr(), regs);
+	if (ret != 0xd00 || mfspr(SRR0) != (unsigned long)&test10 + 8)
+		return ret + 1;
+	if ((mfspr(SRR1) & 0x781f0000) != 0x40100000)
+		return ret + 2;
+	if (regs[0] != 2 || regs[1] != 3)
+		return 3;
+
+	/* test CIABR on a taken branch */
+	mtspr(CIABR, (unsigned long)&test10 + 20 + 3);
+	ret = callit(1, 1, test10, mfmsr(), regs);
+	if (ret != 0xd00 || mfspr(SRR0) != (unsigned long)&test10 + 32)
+		return ret + 4;
+	if ((mfspr(SRR1) & 0x781f0000) != 0x40100000)
+		return ret + 5;
+	if (regs[0] != 6 || regs[1] != 11)
+		return 6;
+
+	/* test CIABR with PRIV = problem state */
+	mtspr(CIABR, (unsigned long)&test10 + 1);
+	ret = callit(1, 1, test10, mfmsr(), regs);
+	if (ret != 0)
+		return ret + 7;
+	/* don't have page tables so can't actually run in problem state */
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -249,6 +284,7 @@ int main(void)
 	do_test(7, trace_test_7);
 	do_test(8, trace_test_8);
 	do_test(9, trace_test_9);
+	do_test(10, trace_test_10);
 
 	return fail;
 }

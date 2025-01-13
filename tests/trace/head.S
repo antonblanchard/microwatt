@@ -224,3 +224,16 @@ test8:
 test9:
 	sc
 	blr
+
+	.global	test10
+test10:
+	addi	%r3,%r3,1
+	addi	%r4,%r4,2
+	addi	%r3,%r3,4
+	addi	%r4,%r4,8
+	cmpd	%r3,%r4
+	bne	1f
+	nop
+	nop
+1:	li	%r3,-1
+	blr
