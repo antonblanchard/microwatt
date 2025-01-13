@@ -96,6 +96,7 @@ architecture behaviour of execute1 is
         set_heir : std_ulogic;
         write_ctrl : std_ulogic;
         write_dscr : std_ulogic;
+        write_ciabr : std_ulogic;
         enter_wait : std_ulogic;
         scv_trap : std_ulogic;
     end record;
@@ -116,6 +117,7 @@ architecture behaviour of execute1 is
         start_div : std_ulogic;
         start_bsort : std_ulogic;
         do_trace : std_ulogic;
+        ciabr_trace : std_ulogic;
         fp_intr : std_ulogic;
         res2_sel : std_ulogic_vector(1 downto 0);
         bypass_valid : std_ulogic;
@@ -133,6 +135,7 @@ architecture behaviour of execute1 is
         busy: std_ulogic;
         fp_exception_next : std_ulogic;
         trace_next : std_ulogic;
+        trace_ciabr : std_ulogic;
         prev_op : insn_type_t;
         prev_prefixed : std_ulogic;
         oe : std_ulogic;
@@ -165,8 +168,8 @@ architecture behaviour of execute1 is
     constant reg_stage1_type_init : reg_stage1_type :=
         (e => Execute1ToWritebackInit, se => side_effect_init,
          busy => '0',
-         fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
-         prev_prefixed => '0',
+         fp_exception_next => '0', trace_next => '0', trace_ciabr => '0',
+         prev_op => OP_ILLEGAL, prev_prefixed => '0',
          oe => '0', mul_select => "000", res2_sel => "00",
          spr_select => spr_id_init, pmu_spr_num => 5x"0",
          redir_to_next => '0', advance_nia => '0', lr_from_next => '0',
@@ -1157,6 +1160,13 @@ begin
         end if;
 
         v.do_trace := ex1.msr(MSR_SE);
+        -- see if we have a CIABR map
+        if ctrl.ciabr(0) = '1' and ctrl.ciabr(1) = not ex1.msr(MSR_PR) and
+            ctrl.ciabr(63 downto 2) = e_in.nia(63 downto 2) then
+            v.do_trace := '1';
+            v.ciabr_trace := '1';
+        end if;
+
         case_0: case e_in.insn_type is
 	    when OP_ILLEGAL =>
 		illegal := '1';
@@ -1392,6 +1402,8 @@ begin
                             v.se.write_ctrl := '1';
                         when SPRSEL_DSCR =>
                             v.se.write_dscr := '1';
+                        when SPRSEL_CIABR =>
+                            v.se.write_ciabr := '1';
                         when others =>
                     end case;
                 end if;
@@ -1655,12 +1667,14 @@ begin
                 v.e.srr1 := (others => '0');
                 v.e.srr1(47 - 33) := '1';
                 v.e.srr1(47 - 34) := ex1.prev_prefixed;
-                if ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or ex1.prev_op = OP_ICBT or
-                    ex1.prev_op = OP_DCBF then
+                if (ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or ex1.prev_op = OP_ICBT or
+                    ex1.prev_op = OP_DCBF) and ex1.trace_ciabr = '0' then
                     v.e.srr1(47 - 35) := '1';
-                elsif ex1.prev_op = OP_STORE or ex1.prev_op = OP_DCBZ then
+                elsif (ex1.prev_op = OP_STORE or ex1.prev_op = OP_DCBZ) and
+                    ex1.trace_ciabr = '0' then
                     v.e.srr1(47 - 36) := '1';
                 end if;
+                v.e.srr1(47 - 43) := ex1.trace_ciabr;
 
             elsif irq_valid = '1' then
                 -- Don't deliver the interrupt until we have a valid instruction
@@ -1694,6 +1708,7 @@ begin
             bypass_valid := actions.bypass_valid;
             v.taken_branch_event := actions.take_branch;
             v.trace_next := actions.do_trace;
+            v.trace_ciabr := actions.ciabr_trace;
             v.fp_exception_next := actions.fp_intr;
             v.res2_sel := actions.res2_sel;
             v.msr := actions.new_msr;
@@ -1877,6 +1892,7 @@ begin
         assemble_ctrl(ctrl, ex1.msr(MSR_PR)) when SPRSEL_CTRL,
         39x"0" & ctrl.dscr when SPRSEL_DSCR,
         56x"0" & std_ulogic_vector(to_unsigned(CPU_INDEX, 8)) when SPRSEL_PIR,
+        ctrl.ciabr when SPRSEL_CIABR,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
     stage2_stall <= l_in.l2stall or fp_in.f2stall;
@@ -2056,6 +2072,9 @@ begin
             end if;
             if ex1.se.write_dscr = '1' then
                 ctrl_tmp.dscr <= ex1.e.write_data(24 downto 0);
+            end if;
+            if ex1.se.write_ciabr = '1' then
+                ctrl_tmp.ciabr <= ex1.e.write_data;
             end if;
             if ex1.se.enter_wait = '1' then
                 ctrl_tmp.wait_state <= '1';

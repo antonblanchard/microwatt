@@ -64,6 +64,7 @@ package common is
     constant SPR_DSCR   : spr_num_t := 17;
     constant SPR_VRSAVE : spr_num_t := 256;
     constant SPR_PIR    : spr_num_t := 1023;
+    constant SPR_CIABR  : spr_num_t := 187;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -174,6 +175,7 @@ package common is
     constant SPRSEL_CTRL  : spr_selector := 4x"a";
     constant SPRSEL_DSCR  : spr_selector := 4x"b";
     constant SPRSEL_PIR   : spr_selector := 4x"c";
+    constant SPRSEL_CIABR : spr_selector := 4x"d";
     constant SPRSEL_XER   : spr_selector := 4x"f";
 
     -- FSCR and HFSCR bit numbers
@@ -275,6 +277,7 @@ package common is
         hfscr_fp: std_ulogic;
         heir: std_ulogic_vector(63 downto 0);
         dscr: std_ulogic_vector(24 downto 0);
+        ciabr: std_ulogic_vector(63 downto 0);
     end record;
     constant ctrl_t_init : ctrl_t :=
         (wait_state => '0', run => '1', xer_low => 18x"0",
