@@ -99,6 +99,8 @@ entity soc is
 	rst          : in  std_ulogic;
 	system_clk   : in  std_ulogic;
 
+        run_out      : out std_ulogic;
+
 	-- "Large" (64-bit) DRAM wishbone
 	wb_dram_in       : out wishbone_master_out;
 	wb_dram_out      : in wishbone_slave_out := wishbone_slave_out_init;
@@ -349,6 +351,7 @@ begin
     processor: entity work.core
 	generic map(
 	    SIM => SIM,
+            CPU_INDEX => 0,
             HAS_FPU => HAS_FPU,
             HAS_BTC => HAS_BTC,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
@@ -366,6 +369,7 @@ begin
 	    clk => system_clk,
 	    rst => rst_core,
 	    alt_reset => alt_reset_d,
+            run_out => run_out,
 	    wishbone_insn_in => wishbone_icore_in,
 	    wishbone_insn_out => wishbone_icore_out,
 	    wishbone_data_in => wishbone_dcore_in,

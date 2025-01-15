@@ -15,6 +15,7 @@ entity execute1 is
         SIM : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        CPU_INDEX : natural;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -45,6 +46,7 @@ entity execute1 is
 
         dbg_ctrl_out : out ctrl_t;
 
+        run_out      : out std_ulogic;
 	icache_inval : out std_ulogic;
 	terminate_out : out std_ulogic;
 
@@ -79,12 +81,23 @@ architecture behaviour of execute1 is
         write_xerlow : std_ulogic;
         write_dec : std_ulogic;
         write_cfar : std_ulogic;
+        set_cfar : std_ulogic;
         write_loga : std_ulogic;
         inc_loga : std_ulogic;
         write_pmuspr : std_ulogic;
         ramspr_write_even : std_ulogic;
         ramspr_write_odd : std_ulogic;
         mult_32s : std_ulogic;
+        write_fscr : std_ulogic;
+        write_ic : std_ulogic;
+        write_hfscr : std_ulogic;
+        write_hic : std_ulogic;
+        write_heir : std_ulogic;
+        set_heir : std_ulogic;
+        write_ctrl : std_ulogic;
+        write_dscr : std_ulogic;
+        enter_wait : std_ulogic;
+        scv_trap : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -101,16 +114,18 @@ architecture behaviour of execute1 is
         direct_branch : std_ulogic;
         start_mul : std_ulogic;
         start_div : std_ulogic;
+        start_bsort : std_ulogic;
         do_trace : std_ulogic;
         fp_intr : std_ulogic;
         res2_sel : std_ulogic_vector(1 downto 0);
         bypass_valid : std_ulogic;
         ramspr_odd_data : std_ulogic_vector(63 downto 0);
+        ic : std_ulogic_vector(3 downto 0);
     end record;
     constant actions_type_init : actions_type :=
         (e => Execute1ToWritebackInit, se => side_effect_init,
          new_msr => (others => '0'), res2_sel => "00",
-         ramspr_odd_data => 64x"0", others => '0');
+         ramspr_odd_data => 64x"0", ic => x"0", others => '0');
 
     type reg_stage1_type is record
 	e : Execute1ToWritebackType;
@@ -121,7 +136,7 @@ architecture behaviour of execute1 is
         prev_op : insn_type_t;
         prev_prefixed : std_ulogic;
         oe : std_ulogic;
-        mul_select : std_ulogic_vector(1 downto 0);
+        mul_select : std_ulogic_vector(2 downto 0);
         res2_sel : std_ulogic_vector(1 downto 0);
         spr_select : spr_id;
         pmu_spr_num : std_ulogic_vector(4 downto 0);
@@ -131,6 +146,7 @@ architecture behaviour of execute1 is
 	mul_in_progress : std_ulogic;
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
+        bsort_in_progress : std_ulogic;
         no_instr_avail : std_ulogic;
         instr_dispatch : std_ulogic;
         ext_interrupt : std_ulogic;
@@ -141,21 +157,28 @@ architecture behaviour of execute1 is
         xerc_valid : std_ulogic;
         ramspr_wraddr : ramspr_index;
         ramspr_odd_data : std_ulogic_vector(63 downto 0);
+        ic : std_ulogic_vector(3 downto 0);
+        prefixed : std_ulogic;
+        insn : std_ulogic_vector(31 downto 0);
+        prefix : std_ulogic_vector(25 downto 0);
     end record;
     constant reg_stage1_type_init : reg_stage1_type :=
         (e => Execute1ToWritebackInit, se => side_effect_init,
          busy => '0',
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
          prev_prefixed => '0',
-         oe => '0', mul_select => "00", res2_sel => "00",
+         oe => '0', mul_select => "000", res2_sel => "00",
          spr_select => spr_id_init, pmu_spr_num => 5x"0",
          redir_to_next => '0', advance_nia => '0', lr_from_next => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0',
+         bsort_in_progress => '0',
          no_instr_avail => '0', instr_dispatch => '0', ext_interrupt => '0',
          taken_branch_event => '0', br_mispredict => '0',
          msr => 64x"0",
          xerc => xerc_init, xerc_valid => '0',
-         ramspr_wraddr => (others => '0'), ramspr_odd_data => 64x"0");
+         ramspr_wraddr => (others => '0'), ramspr_odd_data => 64x"0",
+         ic => x"0",
+         prefixed => '0', insn => 32x"0", prefix => 26x"0");
 
     type reg_stage2_type is record
 	e : Execute1ToWritebackType;
@@ -190,7 +213,8 @@ architecture behaviour of execute1 is
     signal alu_result: std_ulogic_vector(63 downto 0);
     signal adder_result: std_ulogic_vector(63 downto 0);
     signal misc_result: std_ulogic_vector(63 downto 0);
-    signal muldiv_result: std_ulogic_vector(63 downto 0);
+    signal multicyc_result: std_ulogic_vector(63 downto 0);
+    signal bsort_result: std_ulogic_vector(63 downto 0);
     signal spr_result: std_ulogic_vector(63 downto 0);
     signal next_nia : std_ulogic_vector(63 downto 0);
     signal s1_sel : std_ulogic_vector(2 downto 0);
@@ -214,6 +238,10 @@ architecture behaviour of execute1 is
     -- divider signals
     signal x_to_divider: Execute1ToDividerType;
     signal divider_to_x: DividerToExecute1Type := DividerToExecute1Init;
+
+    -- bit-sort unit signals
+    signal bsort_start : std_ulogic;
+    signal bsort_done  : std_ulogic;
 
     -- random number generator signals
     signal random_raw  : std_ulogic_vector(63 downto 0);
@@ -322,6 +350,7 @@ architecture behaviour of execute1 is
 	--  48:63, and partial function MSR bits lie in the range
 	--  33:36 and 42:47. (Note this is IBM bit numbering).
 	msr_out := (others => '0');
+        msr_out(MSR_HV) := '1';         -- HV is always set
 	msr_out(63 downto 31) := msr(63 downto 31);
 	msr_out(26 downto 22) := msr(26 downto 22);
 	msr_out(15 downto 0)  := msr(15 downto 0);
@@ -332,6 +361,9 @@ architecture behaviour of execute1 is
         return std_ulogic_vector is
         variable srr1: std_ulogic_vector(63 downto 0);
     begin
+        srr1(63 downto 61) := msr(63 downto 61);
+        srr1(MSR_HV)       := '1';
+        srr1(59 downto 31) := msr(59 downto 31);
         srr1(63 downto 31) := msr(63 downto 31);
         srr1(30 downto 27) := flags(14 downto 11);
         srr1(26 downto 22) := msr(26 downto 22);
@@ -363,6 +395,39 @@ architecture behaviour of execute1 is
     begin
         return 32x"0" & xerc.so & xerc.ov & xerc.ca & "000000000" &
             xerc.ov32 & xerc.ca32 & xer_low(17 downto 0);
+    end;
+
+    function assemble_fscr(c: ctrl_t) return std_ulogic_vector is
+        variable ret : std_ulogic_vector(63 downto 0);
+    begin
+        ret := (others => '0');
+        ret(59 downto 56) := c.fscr_ic;
+        ret(FSCR_PREFIX) := c.fscr_pref;
+        ret(FSCR_SCV) := c.fscr_scv;
+        ret(FSCR_TAR) := c.fscr_tar;
+        ret(FSCR_DSCR) := c.fscr_dscr;
+        return ret;
+    end;
+
+    function assemble_hfscr(c: ctrl_t) return std_ulogic_vector is
+        variable ret : std_ulogic_vector(63 downto 0);
+    begin
+        ret := (others => '0');
+        ret(59 downto 56) := c.hfscr_ic;
+        ret(HFSCR_PREFIX) := c.hfscr_pref;
+        ret(HFSCR_TAR) := c.hfscr_tar;
+        ret(HFSCR_DSCR) := c.hfscr_dscr;
+        ret(HFSCR_FP) := c.hfscr_fp;
+        return ret;
+    end;
+
+    function assemble_ctrl(c: ctrl_t; msrpr: std_ulogic) return std_ulogic_vector is
+        variable ret : std_ulogic_vector(63 downto 0);
+    begin
+        ret := (others => '0');
+        ret(0) := c.run;
+        ret(15) := c.run and not msrpr;
+        return ret;
     end;
 
     -- Tell vivado to keep the hierarchy for the random module so that the
@@ -437,6 +502,18 @@ begin
                 );
     end generate;
 
+    bsort_0: entity work.bit_sorter
+        port map (
+            clk => clk,
+            rst => rst,
+            rs => c_in,
+            rb => b_in,
+            go => bsort_start,
+            opc => e_in.insn(7 downto 6),
+            done => bsort_done,
+            result => bsort_result
+            );
+
     random_0: entity work.random
         port map (
             clk => clk,
@@ -484,7 +561,7 @@ begin
     x_to_pmu.addr_v <= '0';
     x_to_pmu.spr_num <= ex1.pmu_spr_num;
     x_to_pmu.spr_val <= ex1.e.write_data;
-    x_to_pmu.run <= '1';
+    x_to_pmu.run <= ctrl.run;
 
     -- XER forwarding.  The CA and CA32 bits are only modified by instructions
     -- that are handled here, so for them we can just use the result most
@@ -501,7 +578,7 @@ begin
 
     -- N.B. the busy signal from each source includes the
     -- stage2 stall from that source in it.
-    busy_out <= l_in.busy or ex1.busy or fp_in.busy;
+    busy_out <= l_in.busy or ex1.busy or fp_in.busy or ctrl.wait_state;
 
     valid_in <= e_in.valid and not (busy_out or flush_in or ex1.e.redirect or ex1.e.interrupt);
 
@@ -533,7 +610,13 @@ begin
         even_wr_enab := (ex1.se.ramspr_write_even and doit) or interrupt_in.intr;
         odd_wr_enab  := (ex1.se.ramspr_write_odd and doit) or interrupt_in.intr;
         if interrupt_in.intr = '1' then
-            wr_addr := RAMSPR_SRR0;
+            if interrupt_in.hv_intr = '1' then
+                wr_addr := RAMSPR_HSRR0;
+            elsif interrupt_in.scv_int = '1' then
+                wr_addr := RAMSPR_LR;
+            else
+                wr_addr := RAMSPR_SRR0;
+            end if;
         else
             wr_addr := ex1.ramspr_wraddr;
         end if;
@@ -573,6 +656,9 @@ begin
         else
             ramspr_result <= ramspr_odd;
         end if;
+        if e_in.ramspr_32bit = '1' then
+            ramspr_result(63 downto 32) <= 32x"0";
+        end if;
     end process;
 
     ramspr_write: process(clk)
@@ -599,7 +685,7 @@ begin
         adder_result       when "000",
         logical_result     when "001",
         rotator_result     when "010",
-        muldiv_result      when "100",
+        multicyc_result    when "100",
         ramspr_result      when "101",
         misc_result        when others;
 
@@ -610,16 +696,18 @@ begin
                 ex1 <= reg_stage1_type_init;
                 ex2 <= reg_stage2_type_init;
                 ctrl <= ctrl_t_init;
-                ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
-                ex1.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
+                ctrl.msr <= (MSR_SF => '1', MSR_HV => '1', MSR_LE => '1', others => '0');
+                ex1.msr <= (MSR_SF => '1', MSR_HV => '1', MSR_LE => '1', others => '0');
             else
                 ex1 <= ex1in;
                 ex2 <= ex2in;
                 ctrl <= ctrl_tmp;
                 if valid_in = '1' then
-                    report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
+                    report "CPU " & natural'image(CPU_INDEX) & " execute " & to_hstring(e_in.nia) &
+                        " op=" & insn_type_t'image(e_in.insn_type) &
                         " wr=" & to_hstring(ex1in.e.write_reg) & " we=" & std_ulogic'image(ex1in.e.write_enable) &
-                        " tag=" & integer'image(ex1in.e.instr_tag.tag) & std_ulogic'image(ex1in.e.instr_tag.valid);
+                        " tag=" & integer'image(ex1in.e.instr_tag.tag) & std_ulogic'image(ex1in.e.instr_tag.valid) &
+                        " 2nd=" & std_ulogic'image(e_in.second);
                 end if;
                 -- We mustn't get stalled on a cycle where execute2 is
                 -- completing an instruction or generating an interrupt
@@ -638,7 +726,18 @@ begin
                     if dbg_spr_addr(7) = '1' then
                         dbg_spr_data <= ramspr_result;
                     else
-                        dbg_spr_data <= assemble_xer(xerc_in, ctrl.xer_low);
+                        case dbg_spr_addr(3 downto 0) is
+                            when SPRSEL_FSCR =>
+                                dbg_spr_data <= assemble_fscr(ctrl);
+                            when SPRSEL_HFSCR =>
+                                dbg_spr_data <= assemble_hfscr(ctrl);
+                            when SPRSEL_HEIR =>
+                                dbg_spr_data <= ctrl.heir;
+                            when SPRSEL_CFAR =>
+                                dbg_spr_data <= ctrl.cfar;
+                            when others =>
+                                dbg_spr_data <= assemble_xer(xerc_in, ctrl.xer_low);
+                        end case;
                     end if;
                     dbg_spr_ack <= '1';
                 end if;
@@ -769,17 +868,21 @@ begin
         x_to_mult_32s.subtract <= '0';
         x_to_mult_32s.addend <= (others => '0');
 
-        case ex1.mul_select is
-            when "00" =>
-                muldiv_result <= multiply_to_x.result(63 downto 0);
-            when "01" =>
-                muldiv_result <= multiply_to_x.result(127 downto 64);
-            when "10" =>
-                muldiv_result <= multiply_to_x.result(63 downto 32) &
-                                 multiply_to_x.result(63 downto 32);
-            when others =>
-                muldiv_result <= divider_to_x.write_reg_data;
-        end case;
+        if ex1.mul_select(2) = '0' then
+            case ex1.mul_select(1 downto 0) is
+                when "00" =>
+                    multicyc_result <= multiply_to_x.result(63 downto 0);
+                when "01" =>
+                    multicyc_result <= multiply_to_x.result(63 downto 32) &
+                                       multiply_to_x.result(63 downto 32);
+                when others =>
+                    multicyc_result <= multiply_to_x.result(127 downto 64);
+            end case;
+        elsif ex1.mul_select(0) = '1' and not HAS_FPU then
+            multicyc_result <= divider_to_x.write_reg_data;
+        else
+            multicyc_result <= bsort_result;
+        end if;
 
         -- Compute misc_result
         case e_in.sub_select is
@@ -1047,7 +1150,7 @@ begin
         slow_op := '0';
         owait := '0';
 
-        if e_in.illegal_suffix = '1' then
+        if e_in.illegal_suffix = '1' or e_in.illegal_form = '1' then
             illegal := '1';
         elsif ex1.msr(MSR_PR) = '1' and instr_is_privileged(e_in.insn_type, e_in.insn) then
             privileged := '1';
@@ -1058,18 +1161,20 @@ begin
 	    when OP_ILLEGAL =>
 		illegal := '1';
 	    when OP_SC =>
-		-- check bit 1 of the instruction is 1 so we know this is sc;
-                -- 0 would mean scv, so generate an illegal instruction interrupt
+		-- check bit 1 of the instruction to distinguish sc from scv
                 if e_in.insn(1) = '1' then
-                    v.trap := '1';
-                    v.advance_nia := '1';
+                    -- sc
                     v.e.intr_vec := 16#C00#;
                     if e_in.valid = '1' then
                         report "sc";
                     end if;
                 else
-                    illegal := '1';
+                    -- scv
+                    v.se.scv_trap := '1';
+                    v.e.intr_vec := to_integer(unsigned(e_in.insn(11 downto 5))) * 32;
                 end if;
+                v.trap := '1';
+                v.advance_nia := '1';
 	    when OP_ATTN =>
                 -- check bits 1-10 of the instruction to make sure it's attn
                 -- if not then it is illegal
@@ -1081,8 +1186,8 @@ begin
                 else
                     illegal := '1';
                 end if;
-	    when OP_NOP | OP_DCBF | OP_DCBST | OP_DCBT | OP_DCBTST | OP_ICBT =>
-            -- Do nothing
+	    when OP_NOP | OP_DCBST | OP_ICBT =>
+                -- Do nothing
 	    when OP_ADD =>
                 if e_in.output_carry = '1' then
                     if e_in.input_carry /= OV then
@@ -1126,7 +1231,7 @@ begin
                 if ex1.msr(MSR_BE) = '1' then
                     v.do_trace := '1';
                 end if;
-                v.se.write_cfar := '1';
+                v.se.set_cfar := '1';
             when OP_BC =>
                 -- If CTR is being decremented, it is in ramspr_odd.
 		bo := insn_bo(e_in.insn);
@@ -1145,7 +1250,7 @@ begin
                 if ex1.msr(MSR_BE) = '1' then
                     v.do_trace := '1';
                 end if;
-                v.se.write_cfar := v.take_branch;
+                v.se.set_cfar := v.take_branch;
             when OP_BCREG =>
                 -- If CTR is being decremented, it is in ramspr_odd.
                 -- The target address is in ramspr_result (LR, CTR or TAR).
@@ -1158,15 +1263,20 @@ begin
                 if ex1.msr(MSR_BE) = '1' then
                     v.do_trace := '1';
                 end if;
-                v.se.write_cfar := v.take_branch;
+                v.se.set_cfar := v.take_branch;
 
 	    when OP_RFID =>
+                -- rfid, hrfid and rfscv.
+                -- These all act the same given that we don't have
+                -- privileged non-hypervisor mode or ultravisor mode.
                 srr1 := ramspr_odd;
                 v.e.redir_mode := (srr1(MSR_IR) or srr1(MSR_PR)) & not srr1(MSR_PR) &
                                   not srr1(MSR_LE) & not srr1(MSR_SF);
                 -- Can't use msr_copy here because the partial function MSR
                 -- bits should be left unchanged, not zeroed.
-                v.new_msr(63 downto 31) := srr1(63 downto 31);
+                v.new_msr(63 downto 61) := srr1(63 downto 61);
+                v.new_msr(MSR_HV)       := '1';
+                v.new_msr(59 downto 31) := srr1(59 downto 31);
                 v.new_msr(26 downto 22) := srr1(26 downto 22);
                 v.new_msr(15 downto 0)  := srr1(15 downto 0);
                 if srr1(MSR_PR) = '1' then
@@ -1176,14 +1286,14 @@ begin
                 end if;
                 v.se.write_msr := '1';
                 v.e.redirect := '1';
-                v.se.write_cfar := '1';
+                v.se.set_cfar := '1';
                 if HAS_FPU then
                     v.fp_intr := fp_in.exception and
                                  (srr1(MSR_FE0) or srr1(MSR_FE1));
                 end if;
                 v.do_trace := '0';
 
-            when OP_CNTZ | OP_POPCNT =>
+            when OP_COUNTB =>
                 v.res2_sel := "01";
                 slow_op := '1';
 	    when OP_ISEL =>
@@ -1270,6 +1380,18 @@ begin
                             v.se.write_dec := '1';
                         when SPRSEL_LOGA =>
                             v.se.write_loga := '1';
+                        when SPRSEL_CFAR =>
+                            v.se.write_cfar := '1';
+                        when SPRSEL_FSCR =>
+                            v.se.write_fscr := '1';
+                        when SPRSEL_HFSCR =>
+                            v.se.write_hfscr := '1';
+                        when SPRSEL_HEIR =>
+                            v.se.write_heir := '1';
+                        when SPRSEL_CTRL =>
+                            v.se.write_ctrl := '1';
+                        when SPRSEL_DSCR =>
+                            v.se.write_dscr := '1';
                         when others =>
                     end case;
                 end if;
@@ -1292,6 +1414,11 @@ begin
 
 	    when OP_ICBI =>
 		v.se.icache_inval := '1';
+
+            when OP_BSORT =>
+                v.start_bsort := '1';
+                slow_op := '1';
+                owait := '1';
 
 	    when OP_MUL_L64 =>
                 if e_in.is_32bit = '1' then
@@ -1321,6 +1448,11 @@ begin
                     owait := '1';
                 end if;
 
+            when OP_WAIT =>
+                if e_in.insn(22 downto 21) = "00" then
+                    v.se.enter_wait := '1';
+                end if;
+
             when OP_FETCH_FAILED =>
                 -- Handling an ITLB miss doesn't count as having executed an instruction
                 v.do_trace := '0';
@@ -1331,7 +1463,25 @@ begin
                 end if;
         end case;
 
-        if misaligned = '1' then
+        if ex1.msr(MSR_PR) = '1' and e_in.prefixed = '1' and
+            (ctrl.hfscr_pref = '0' or ctrl.fscr_pref = '0') then
+            -- [Hypervisor] facility unavailable for prefixed instructions,
+            -- which has higher priority than the alignment interrupt for
+            -- misaligned prefixed instructions, which has higher priority than
+            -- other [hypervisor] facility unavailable interrupts (e.g. for
+            -- plfs with HFSCR[FP] = 0).
+            v.exception := '1';
+            v.ic := x"b";
+            if ctrl.hfscr_pref = '0' then
+                v.e.hv_intr := '1';
+                v.e.intr_vec := 16#f80#;
+                v.se.write_hic := '1';
+            else
+                v.e.intr_vec := 16#f60#;
+                v.se.write_ic := '1';
+            end if;
+
+        elsif misaligned = '1' then
             -- generate an alignment interrupt
             -- This is higher priority than illegal because a misaligned
             -- prefix will come down as an OP_ILLEGAL instruction.
@@ -1354,14 +1504,61 @@ begin
             end if;
 
         elsif illegal = '1' then
+            -- generate hypervisor emulation assistance interrupt (HEAI)
+            -- and write the offending instruction into HEIR
             v.exception := '1';
             v.e.srr1(47 - 34) := e_in.prefixed;
-            -- Since we aren't doing Hypervisor emulation assist (0xe40) we
-            -- set bit 44 to indicate we have an illegal
-            v.e.srr1(47 - 44) := '1';
+            v.e.intr_vec := 16#e40#;
+            v.e.hv_intr := '1';
+            v.se.set_heir := '1';
             if e_in.valid = '1' then
                 report "illegal instruction";
             end if;
+
+        elsif ex1.msr(MSR_PR) = '1' and v.se.scv_trap = '1' and
+            ctrl.fscr_scv = '0' then
+            -- Facility unavailable for scv instruction
+            v.exception := '1';
+            v.ic := x"c";
+            v.e.intr_vec := 16#f60#;
+            v.se.write_ic := '1';
+
+        elsif ex1.msr(MSR_PR) = '1' and e_in.uses_tar = '1' and
+            (ctrl.hfscr_tar = '0' or ctrl.fscr_tar = '0') then
+            -- [Hypervisor] facility unavailable for TAR access
+            v.exception := '1';
+            v.ic := x"8";
+            if ctrl.hfscr_tar = '0' then
+                v.e.hv_intr := '1';
+                v.e.intr_vec := 16#f80#;
+                v.se.write_hic := '1';
+            else
+                v.e.intr_vec := 16#f60#;
+                v.se.write_ic := '1';
+            end if;
+
+        elsif ex1.msr(MSR_PR) = '1' and e_in.uses_dscr = '1' and
+            (ctrl.hfscr_dscr = '0' or ctrl.fscr_dscr = '0') then
+            -- [Hypervisor] facility unavailable for DSCR access
+            v.exception := '1';
+            v.ic := x"2";
+            if ctrl.hfscr_dscr = '0' then
+                v.e.hv_intr := '1';
+                v.e.intr_vec := 16#f80#;
+                v.se.write_hic := '1';
+            else
+                v.e.intr_vec := 16#f60#;
+                v.se.write_ic := '1';
+            end if;
+
+        elsif HAS_FPU and ex1.msr(MSR_PR) = '1' and e_in.fac = FPU and
+            ctrl.hfscr_fp = '0' then
+            -- Hypervisor facility unavailable for FP instructions
+            v.exception := '1';
+            v.ic := x"0";
+            v.e.hv_intr := '1';
+            v.e.intr_vec := 16#f80#;
+            v.se.write_hic := '1';
 
         elsif HAS_FPU and ex1.msr(MSR_FP) = '0' and e_in.fac = FPU then
             -- generate a floating-point unavailable interrupt
@@ -1391,19 +1588,24 @@ begin
         variable fv : Execute1ToFPUType;
         variable go : std_ulogic;
         variable bypass_valid : std_ulogic;
+        variable is_scv : std_ulogic;
     begin
 	v := ex1;
-        if (ex1.busy or l_in.busy or fp_in.busy) = '0' then
+        if busy_out = '0' then
             v.e := actions.e;
             v.e.valid := '0';
             v.oe := e_in.oe;
             v.spr_select := e_in.spr_select;
             v.pmu_spr_num := e_in.insn(20 downto 16);
-            v.mul_select := e_in.sub_select(1 downto 0);
+            v.mul_select := e_in.sub_select;
             v.se := side_effect_init;
             v.ramspr_wraddr := e_in.ramspr_wraddr;
             v.lr_from_next := e_in.lr;
             v.ramspr_odd_data := actions.ramspr_odd_data;
+            v.ic := actions.ic;
+            v.prefixed := e_in.prefixed;
+            v.insn := e_in.insn;
+            v.prefix := e_in.prefix;
         end if;
 
         lv := Execute1ToLoadstore1Init;
@@ -1426,7 +1628,7 @@ begin
 	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
         rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
 
-        do_popcnt <= '1' when e_in.insn_type = OP_POPCNT else '0';
+        do_popcnt <= '1' when e_in.insn_type = OP_COUNTB and e_in.insn(7 downto 6) = "11" else '0';
 
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
@@ -1454,10 +1656,9 @@ begin
                 v.e.srr1(47 - 33) := '1';
                 v.e.srr1(47 - 34) := ex1.prev_prefixed;
                 if ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or ex1.prev_op = OP_ICBT or
-                    ex1.prev_op = OP_DCBT or ex1.prev_op = OP_DCBST or ex1.prev_op = OP_DCBF then
+                    ex1.prev_op = OP_DCBF then
                     v.e.srr1(47 - 35) := '1';
-                elsif ex1.prev_op = OP_STORE or ex1.prev_op = OP_DCBZ or
-                    ex1.prev_op = OP_DCBTST then
+                elsif ex1.prev_op = OP_STORE or ex1.prev_op = OP_DCBZ then
                     v.e.srr1(47 - 36) := '1';
                 end if;
 
@@ -1474,6 +1675,7 @@ begin
                     v.e.intr_vec := 16#500#;
                     report "IRQ valid: External";
                     v.ext_interrupt := '1';
+                    v.e.hv_intr := '1';
                 end if;
                 v.e.srr1 := (others => '0');
                 exception := '1';
@@ -1500,6 +1702,7 @@ begin
             v.mul_in_progress := actions.start_mul;
             x_to_divider.valid <= actions.start_div;
             v.div_in_progress := actions.start_div;
+            v.bsort_in_progress := actions.start_bsort;
             v.br_mispredict := v.e.redirect and actions.direct_branch;
             v.advance_nia := actions.advance_nia;
             v.redir_to_next := actions.redir_to_next;
@@ -1510,7 +1713,7 @@ begin
             -- multiply is happening in order to stop following
             -- instructions from using the wrong XER value
             -- (and for simplicity in the OE=0 case).
-            v.busy := actions.start_div or actions.start_mul;
+            v.busy := actions.start_div or actions.start_mul or actions.start_bsort;
 
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
@@ -1520,6 +1723,8 @@ begin
                 fv.valid := '1';
             end if;
         end if;
+        is_scv := go and actions.se.scv_trap;
+        bsort_start <= go and actions.start_bsort;
 
         if not HAS_FPU and ex1.div_in_progress = '1' then
             v.div_in_progress := not divider_to_x.valid;
@@ -1552,6 +1757,13 @@ begin
             end if;
             v.e.valid := '1';
         end if;
+        if ex1.bsort_in_progress = '1' then
+            v.bsort_in_progress := not bsort_done;
+            v.e.valid := bsort_done;
+            v.busy := not bsort_done;
+            v.e.write_data := alu_result;
+            bypass_valid := bsort_done;
+        end if;
 
         if v.e.write_xerc_enable = '1' and v.e.valid = '1' then
             v.xerc := v.e.xerc;
@@ -1560,6 +1772,7 @@ begin
 
         if (ex1.busy or l_in.busy or fp_in.busy) = '0' then
             v.e.interrupt := exception;
+            v.e.is_scv := is_scv;
         end if;
         if v.e.valid = '0' then
             v.e.redirect := '0';
@@ -1658,6 +1871,12 @@ begin
         log_wr_addr & ex2.log_addr_spr when SPRSEL_LOGA,
         log_rd_data when SPRSEL_LOGD,
         ctrl.cfar when SPRSEL_CFAR,
+        assemble_fscr(ctrl) when SPRSEL_FSCR,
+        assemble_hfscr(ctrl) when SPRSEL_HFSCR,
+        ctrl.heir when SPRSEL_HEIR,
+        assemble_ctrl(ctrl, ex1.msr(MSR_PR)) when SPRSEL_CTRL,
+        39x"0" & ctrl.dscr when SPRSEL_DSCR,
+        56x"0" & std_ulogic_vector(to_unsigned(CPU_INDEX, 8)) when SPRSEL_PIR,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
     stage2_stall <= l_in.l2stall or fp_in.f2stall;
@@ -1673,6 +1892,7 @@ begin
         variable cr_mask : std_ulogic_vector(7 downto 0);
         variable sign, zero : std_ulogic;
         variable rcnz_hi, rcnz_lo : std_ulogic;
+        variable irq_exc : std_ulogic;
     begin
 	-- Next insn adder used in a couple of places
 	next_nia <= std_ulogic_vector(unsigned(ex1.e.last_nia) + 4);
@@ -1792,6 +2012,8 @@ begin
                 ctrl_tmp.dec <= ex1.e.write_data;
             end if;
             if ex1.se.write_cfar = '1' then
+                ctrl_tmp.cfar <= ex1.e.write_data;
+            elsif ex1.se.set_cfar = '1' then
                 ctrl_tmp.cfar <= ex1.e.last_nia;
             end if;
             if ex1.se.write_loga = '1' then
@@ -1800,11 +2022,56 @@ begin
                 v.log_addr_spr := std_ulogic_vector(unsigned(ex2.log_addr_spr) + 1);
             end if;
             x_to_pmu.mtspr <= ex1.se.write_pmuspr;
+            if ex1.se.write_hfscr = '1' then
+                ctrl_tmp.hfscr_ic <= ex1.e.write_data(59 downto 56);
+                ctrl_tmp.hfscr_pref <= ex1.e.write_data(HFSCR_PREFIX);
+                ctrl_tmp.hfscr_tar <= ex1.e.write_data(HFSCR_TAR);
+                ctrl_tmp.hfscr_dscr <= ex1.e.write_data(HFSCR_DSCR);
+                ctrl_tmp.hfscr_fp <= ex1.e.write_data(HFSCR_FP);
+            elsif ex1.se.write_hic = '1' then
+                ctrl_tmp.hfscr_ic <= ex1.ic;
+            end if;
+            if ex1.se.write_fscr = '1' then
+                ctrl_tmp.fscr_ic <= ex1.e.write_data(59 downto 56);
+                ctrl_tmp.fscr_pref <= ex1.e.write_data(FSCR_PREFIX);
+                ctrl_tmp.fscr_scv <= ex1.e.write_data(FSCR_SCV);
+                ctrl_tmp.fscr_tar <= ex1.e.write_data(FSCR_TAR);
+                ctrl_tmp.fscr_dscr <= ex1.e.write_data(FSCR_DSCR);
+            elsif ex1.se.write_ic = '1' then
+                ctrl_tmp.fscr_ic <= ex1.ic;
+            end if;
+            if ex1.se.write_heir = '1' then
+                ctrl_tmp.heir <= ex1.e.write_data;
+            elsif ex1.se.set_heir = '1' then
+                ctrl_tmp.heir(31 downto 0) <= ex1.insn;
+                if ex1.prefixed = '1' then
+                    ctrl_tmp.heir(63 downto 58) <= 6x"01";
+                    ctrl_tmp.heir(57 downto 32) <= ex1.prefix;
+                else
+                    ctrl_tmp.heir(63 downto 32) <= (others => '0');
+                end if;
+            end if;
+            if ex1.se.write_ctrl = '1' then
+                ctrl_tmp.run <= ex1.e.write_data(0);
+            end if;
+            if ex1.se.write_dscr = '1' then
+                ctrl_tmp.dscr <= ex1.e.write_data(24 downto 0);
+            end if;
+            if ex1.se.enter_wait = '1' then
+                ctrl_tmp.wait_state <= '1';
+            end if;
+        end if;
+
+        -- pending exceptions clear any wait state
+        -- ex1.fp_exception_next is not tested because it is not possible to
+        -- get into wait state with a pending FP exception.
+        irq_exc := pmu_to_x.intr or ctrl.dec(63) or ext_irq_in;
+        if ex1.trace_next = '1' or irq_exc = '1' or interrupt_in.intr = '1' then
+            ctrl_tmp.wait_state <= '0';
         end if;
 
  	if interrupt_in.intr = '1' then
             ctrl_tmp.msr(MSR_SF) <= '1';
-            ctrl_tmp.msr(MSR_EE) <= '0';
             ctrl_tmp.msr(MSR_PR) <= '0';
             ctrl_tmp.msr(MSR_SE) <= '0';
             ctrl_tmp.msr(MSR_BE) <= '0';
@@ -1813,8 +2080,11 @@ begin
             ctrl_tmp.msr(MSR_FE1) <= '0';
             ctrl_tmp.msr(MSR_IR) <= '0';
             ctrl_tmp.msr(MSR_DR) <= '0';
-            ctrl_tmp.msr(MSR_RI) <= '0';
             ctrl_tmp.msr(MSR_LE) <= '1';
+            if interrupt_in.scv_int = '0' then
+                ctrl_tmp.msr(MSR_EE) <= '0';
+                ctrl_tmp.msr(MSR_RI) <= '0';
+            end if;
         end if;
 
         bypass_valid := ex1.e.valid;
@@ -1838,6 +2108,7 @@ begin
 	e_out <= ex2.e;
         e_out.msr <= msr_copy(ctrl.msr);
 
+        run_out <= ctrl.run;
         terminate_out <= ex2.se.terminate;
         icache_inval <= ex2.se.icache_inval;
 

@@ -74,25 +74,15 @@ ill_test_1:
 	EXCEPTION(0x500)
 	EXCEPTION(0x600)
 
+	// We shouldn't get a Program interrupt at 700, so fail
 	. = 0x700
 	mtsprg0	%r3
-	mtsprg1	%r4
 
-	// test for bit 44 being set for ILL
-	mfsrr1	%r3
-	li	%r4, 1
-	sldi	%r4, %r4, (63-44)
-	and.	%r4, %r4, %r3
-	li	%r4, 8 // PASS so skip 2 instructions
-	bne	1f
-	li	%r4, 4 // FAIL so only skip 1 instruction. Return will catch
-1:
 	mfsrr0	%r3
-	add	%r3, %r3, %r4 // skip some instructions
+	addi	%r3, %r3, 4 // skip one instruction, causing a fail
 	mtsrr0  %r3
 
 	mfsprg0	%r3
-	mfsprg1	%r4
 	rfid
 
 	EXCEPTION(0x800)
@@ -104,7 +94,18 @@ ill_test_1:
 	EXCEPTION(0xd00)
 	EXCEPTION(0xe00)
 	EXCEPTION(0xe20)
-	EXCEPTION(0xe40)
+
+	// We now expect a HEAI at e40 for illegal instructions
+	. = 0xe40
+	mthsprg0 %r3
+
+	mfhsrr0	%r3
+	addi	%r3, %r3, 8 // skip one instruction, causing success
+	mthsrr0 %r3
+
+	mfhsprg0 %r3
+	hrfid
+
 	EXCEPTION(0xe60)
 	EXCEPTION(0xe80)
 	EXCEPTION(0xf00)

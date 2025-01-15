@@ -232,12 +232,13 @@ architecture behaviour of decode2 is
         );
 
     constant subresult_select : mux_select_array_t := (
-        OP_MUL_L64 => "000",            -- muldiv_result
-        OP_MUL_H64 => "001",
-        OP_MUL_H32 => "010",
-        OP_DIV     => "011",
-        OP_DIVE    => "011",
-        OP_MOD     => "011",
+        OP_MUL_L64 => "000",            -- multicyc_result
+        OP_MUL_H64 => "010",
+        OP_MUL_H32 => "001",
+        OP_DIV     => "101",
+        OP_DIVE    => "101",
+        OP_MOD     => "101",
+        OP_BSORT   => "100",
         OP_ADDG6S  => "001",            -- misc_result
         OP_ISEL    => "010",
         OP_DARN    => "011",
@@ -347,7 +348,8 @@ begin
             elsif deferred = '0' then
                 if dc2in.e.valid = '1' then
                     report "execute " & to_hstring(dc2in.e.nia) &
-                        " tag=" & integer'image(dc2in.e.instr_tag.tag) & std_ulogic'image(dc2in.e.instr_tag.valid);
+                        " tag=" & integer'image(dc2in.e.instr_tag.tag) & std_ulogic'image(dc2in.e.instr_tag.valid) &
+                        " rpt=" & std_ulogic'image(dc2in.e.repeat) & " 2nd=" & std_ulogic'image(dc2in.e.second) & " wr=" & to_hstring(dc2in.e.write_reg);
                 end if;
                 dc2 <= dc2in;
             elsif dc2.read_rspr = '0' then
@@ -376,6 +378,31 @@ begin
         dec_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, d_in.prefix);
         dec_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn);
         dec_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn);
+        case d_in.decode.repeat is
+            when DUPD =>
+                if d_in.second = '1' then
+                    -- update-form loads, 2nd instruction writes RA
+                    dec_o.reg := dec_a.reg;
+                end if;
+            when DRSP =>
+                -- non-prefixed stq, stqcx do RS|1, RS in LE mode; others do RS, RS|1
+                if d_in.second = (d_in.big_endian or d_in.prefixed) then
+                    dec_c.reg(0) := '1';            -- do RS, RS|1
+                end if;
+            when DRTP =>
+                -- non-prefixed lq, lqarx do RT|1, RT in LE mode; others do RT, RT|1
+                if d_in.second = (d_in.big_endian or d_in.prefixed) then
+                    dec_o.reg(0) := '1';
+                end if;
+            when others =>
+        end case;
+        -- For the second instance of a doubled instruction, we ignore the RA
+        -- and RB operands, in order to avoid false dependencies on the output
+        -- of the first instance.
+        if d_in.second = '1' then
+            dec_a.reg_valid := '0';
+            dec_b.reg_valid := '0';
+        end if;
         if d_in.valid = '0' or d_in.illegal_suffix = '1' then
             dec_a.reg_valid := '0';
             dec_b.reg_valid := '0';
@@ -420,6 +447,8 @@ begin
             v.e.input_cr := d_in.decode.input_cr;
             v.e.output_cr := d_in.decode.output_cr;
 
+            v.e.spr_select := d_in.spr_info;
+
             -- Work out whether XER SO/OV/OV32 bits are set
             -- or used by this instruction
             v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
@@ -450,8 +479,15 @@ begin
                                 v.input_ov := '1';
                             when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
                                 unit := LDST;
+                            when SPR_TAR =>
+                                v.e.uses_tar := '1';
+                            when SPR_UDSCR =>
+                                v.e.uses_dscr := '1';
                             when others =>
                         end case;
+                        if d_in.spr_info.wonly = '1' then
+                            v.e.spr_select.valid := '0';
+                        end if;
                     end if;
                 when OP_MTSPR =>
                     if is_X(d_in.insn) then
@@ -468,9 +504,15 @@ begin
                                 if d_in.valid = '1' then
                                     v.sgl_pipe := '1';
                                 end if;
+                            when SPR_TAR =>
+                                v.e.uses_tar := '1';
+                            when SPR_UDSCR =>
+                                v.e.uses_dscr := '1';
                             when others =>
                         end case;
-                        if d_in.spr_info.valid = '1' and d_in.valid = '1' then
+                        if d_in.spr_info.ronly = '1' then
+                            v.e.spr_select.valid := '0';
+                        elsif d_in.spr_info.valid = '1' and d_in.valid = '1' then
                             v.sgl_pipe := '1';
                         end if;
                     end if;
@@ -496,12 +538,10 @@ begin
             end if;
             v.e.dec_ctr := decctr;
 
-            v.repeat := d_in.decode.repeat;
             if d_in.decode.repeat /= NONE then
                 v.e.repeat := '1';
             end if;
-
-            v.e.spr_select := d_in.spr_info;
+            v.e.second := d_in.second;
 
             if decctr = '1' then
                 -- read and write CTR
@@ -525,12 +565,14 @@ begin
                         v.e.ramspr_rd_odd := '1';
                     else
                         v.e.ramspr_even_rdaddr := RAMSPR_TAR;
+                        v.e.uses_tar := '1';
                     end if;
                     sprs_busy := '1';
                 when OP_MFSPR =>
                     v.e.ramspr_even_rdaddr := d_in.ram_spr.index;
                     v.e.ramspr_odd_rdaddr := d_in.ram_spr.index;
                     v.e.ramspr_rd_odd := d_in.ram_spr.isodd;
+                    v.e.ramspr_32bit := d_in.ram_spr.is32b;
                     v.e.spr_is_ram := d_in.ram_spr.valid;
                     sprs_busy := d_in.ram_spr.valid;
                 when OP_MTSPR =>
@@ -539,8 +581,19 @@ begin
                     v.e.ramspr_write_odd := d_in.ram_spr.valid and d_in.ram_spr.isodd;
                     v.e.spr_is_ram := d_in.ram_spr.valid;
                 when OP_RFID =>
-                    v.e.ramspr_even_rdaddr := RAMSPR_SRR0;
-                    v.e.ramspr_odd_rdaddr := RAMSPR_SRR1;
+                    if d_in.insn(7) = '1' then
+                        -- rfscv
+                        v.e.ramspr_even_rdaddr := RAMSPR_LR;
+                        v.e.ramspr_odd_rdaddr := RAMSPR_CTR;
+                    elsif d_in.insn(9) = '0' then
+                        -- rfid
+                        v.e.ramspr_even_rdaddr := RAMSPR_SRR0;
+                        v.e.ramspr_odd_rdaddr := RAMSPR_SRR1;
+                    else
+                        -- hrfid
+                        v.e.ramspr_even_rdaddr := RAMSPR_HSRR0;
+                        v.e.ramspr_odd_rdaddr := RAMSPR_HSRR1;
+                    end if;
                     sprs_busy := '1';
                 when others =>
             end case;
@@ -590,23 +643,28 @@ begin
             if op = OP_MFSPR then
                 if d_in.ram_spr.valid = '1' then
                     v.e.result_sel := "101";        -- ramspr_result
-                elsif d_in.spr_info.valid = '0' then
+                elsif d_in.spr_info.valid = '0' or d_in.spr_info.wonly = '1' then
                     -- Privileged mfspr to invalid/unimplemented SPR numbers
                     -- writes the contents of RT back to RT (i.e. it's a no-op)
                     v.e.result_sel := "001";        -- logical_result
                 end if;
             end if;
             v.e.prefixed := d_in.prefixed;
+            v.e.prefix := d_in.prefix;
             v.e.illegal_suffix := d_in.illegal_suffix;
             v.e.misaligned_prefix := d_in.misaligned_prefix;
 
-        elsif dc2.e.valid = '1' then
-            -- dc2.busy = 1 and dc2.e.valid = 1, thus this must be a repeated instruction.
-            -- Set up for the second iteration (if deferred = 1 this will all be ignored)
-            v.e.second := '1';
-            -- DUPD is the only possibility here:
-            -- update-form loads, 2nd instruction writes RA
-            v.e.write_reg := dc2.e.read_reg1;
+            -- check for invalid forms that cause an illegal instruction interrupt
+            -- Does RA = RT for a load quadword instr, or RB = RT for lqarx?
+            if d_in.decode.repeat = DRTP and
+                (insn_ra(d_in.insn) = insn_rt(d_in.insn) or
+                 (d_in.decode.reserve = '1' and insn_rb(d_in.insn) = insn_rt(d_in.insn))) then
+                v.e.illegal_form := '1';
+            end if;
+            -- Is RS/RT odd for a load/store quadword instruction?
+            if (d_in.decode.repeat = DRSP or d_in.decode.repeat = DRTP) and d_in.insn(21) = '1' then
+                v.e.illegal_form := '1';
+            end if;
         end if;
 
         -- issue control
@@ -695,7 +753,7 @@ begin
 
         v.e.valid := control_valid_out;
         v.e.instr_tag := instr_tag;
-        v.busy := valid_in and (not control_valid_out or (v.e.repeat and not v.e.second));
+        v.busy := valid_in and not control_valid_out;
 
         stall_out <= dc2.busy or deferred;
 

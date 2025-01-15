@@ -61,6 +61,9 @@ architecture behave of loadstore1 is
         dc_req       : std_ulogic;
         load         : std_ulogic;
         store        : std_ulogic;
+        flush        : std_ulogic;
+        touch        : std_ulogic;
+        sync         : std_ulogic;
         tlbie        : std_ulogic;
         dcbz         : std_ulogic;
         read_spr     : std_ulogic;
@@ -84,6 +87,9 @@ architecture behave of loadstore1 is
 	update       : std_ulogic;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
+        atomic_qw    : std_ulogic;
+        atomic_first : std_ulogic;
+        atomic_last  : std_ulogic;
         rc           : std_ulogic;
         nc           : std_ulogic;              -- non-cacheable access
         virt_mode    : std_ulogic;
@@ -97,7 +103,8 @@ architecture behave of loadstore1 is
         two_dwords   : std_ulogic;
         incomplete   : std_ulogic;
     end record;
-    constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0', tlbie => '0',
+    constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0',
+                                          flush => '0', touch => '0', sync => '0', tlbie => '0',
                                           dcbz => '0', read_spr => '0', write_spr => '0', mmu_op => '0',
                                           instr_fault => '0', do_update => '0',
                                           mode_32bit => '0', prefixed => '0',
@@ -108,6 +115,7 @@ architecture behave of loadstore1 is
                                           elt_length => x"0", byte_reverse => '0', brev_mask => "000",
                                           sign_extend => '0', update => '0',
                                           xerc => xerc_init, reserve => '0',
+                                          atomic_qw => '0', atomic_first => '0', atomic_last => '0',
                                           rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
                                           sprsel => "00", ric => "00", is_slbia => '0', align_intr => '0',
@@ -447,7 +455,10 @@ begin
         if l_in.second = '1' then
             -- for an update-form load, use the previous address
             -- as the value to write back to RA.
-            addr := r1.addr0;
+            -- for a quadword load or store, use with the previous
+            -- address + 8.
+            addr := std_ulogic_vector(unsigned(r1.addr0(63 downto 3)) + not l_in.update) &
+                    r1.addr0(2 downto 0);
         end if;
         if l_in.mode_32bit = '1' then
             addr(63 downto 32) := (others => '0');
@@ -463,7 +474,7 @@ begin
         addr_mask := std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1);
 
         -- Do length_to_sel and work out if we are doing 2 dwords
-        long_sel := xfer_data_sel(v.length, addr(2 downto 0));
+        long_sel := xfer_data_sel(l_in.length, addr(2 downto 0));
         v.byte_sel := long_sel(7 downto 0);
         v.second_bytes := long_sel(15 downto 8);
         if long_sel(15 downto 8) /= "00000000" then
@@ -472,23 +483,54 @@ begin
 
         -- check alignment for larx/stcx
         misaligned := or (addr_mask and addr(2 downto 0));
+        if l_in.repeat = '1' and l_in.update = '0' and addr(3) /= l_in.second then
+            misaligned := '1';
+        end if;
         v.align_intr := l_in.reserve and misaligned;
 
+        v.atomic_first := not misaligned and not l_in.second;
+        v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
+
+        -- is this a quadword load or store? i.e. lq plq stq pstq lqarx stqcx.
+        if l_in.repeat = '1' and l_in.update = '0' then
+            if misaligned = '0' then
+                -- Since the access is aligned we have to do it atomically
+                v.atomic_qw := '1';
+            else
+                -- We require non-prefixed lq in LE mode to be aligned in order
+                -- to avoid the case where RA = RT+1 and the second access faults
+                -- after the first has overwritten RA.
+                if l_in.op = OP_LOAD and l_in.byte_reverse = '0' and l_in.prefixed = '0' then
+                    v.align_intr := '1';
+                end if;
+            end if;
+        end if;
+
         case l_in.op is
+            when OP_SYNC =>
+                v.sync := '1';
             when OP_STORE =>
                 v.store := '1';
+                if l_in.length = "0000" then
+                    v.touch := '1';
+                end if;
             when OP_LOAD =>
-                -- Note: only RA updates have l_in.second = 1
-                if l_in.second = '0' then
+                if l_in.update = '0' or l_in.second = '0' then
                     v.load := '1';
                     if HAS_FPU and l_in.is_32bit = '1' then
                         -- Allow an extra cycle for SP->DP precision conversion
                         v.load_sp := '1';
                     end if;
+                    if l_in.length = "0000" then
+                        v.touch := '1';
+                    end if;
                 else
                     -- write back address to RA
                     v.do_update := '1';
                 end if;
+            when OP_DCBF =>
+                v.load := '1';
+                v.flush := '1';
             when OP_DCBZ =>
                 v.dcbz := '1';
                 v.align_intr := v.nc;
@@ -508,13 +550,13 @@ begin
                 v.mmu_op := '1';
             when others =>
         end case;
-        v.dc_req := l_in.valid and (v.load or v.store or v.dcbz) and not v.align_intr;
+        v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz) and not v.align_intr;
         v.incomplete := v.dc_req and v.two_dwords;
 
         -- Work out controls for load and store formatting
         brev_lenm1 := "000";
         if v.byte_reverse = '1' then
-            brev_lenm1 := unsigned(v.length(2 downto 0)) - 1;
+            brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
         end if;
         v.brev_mask := brev_lenm1;
 
@@ -699,7 +741,8 @@ begin
         end if;
 
         interrupt := (r2.req.valid and r2.req.align_intr) or
-                     (d_in.error and d_in.cache_paradox) or m_in.err;
+                     (d_in.error and (d_in.cache_paradox or d_in.reserve_nc)) or
+                     m_in.err;
         if interrupt = '1' then
             v.req.valid := '0';
             v.busy := '0';
@@ -855,7 +898,8 @@ begin
 
         if d_in.valid = '1' then
             if r2.req.incomplete = '0' then
-                write_enable := r2.req.load and not r2.req.load_sp;
+                write_enable := r2.req.load and not r2.req.load_sp and
+                                not r2.req.flush and not r2.req.touch;
                 -- stores write back rA update
                 do_update := r2.req.update and r2.req.store;
             end if;
@@ -865,6 +909,7 @@ begin
                 -- signal an interrupt straight away
                 exception := '1';
                 dsisr(63 - 38) := not r2.req.load;
+                dsisr(63 - 37) := d_in.reserve_nc;
                 -- XXX there is no architected bit for this
                 -- (probably should be a machine check in fact)
                 dsisr(63 - 35) := d_in.cache_paradox;
@@ -950,8 +995,14 @@ begin
             d_out.valid <= stage1_dcreq;
             d_out.load <= stage1_req.load;
             d_out.dcbz <= stage1_req.dcbz;
+            d_out.flush <= stage1_req.flush;
+            d_out.touch <= stage1_req.touch;
+            d_out.sync <= stage1_req.sync;
             d_out.nc <= stage1_req.nc;
             d_out.reserve <= stage1_req.reserve;
+            d_out.atomic_qw <= stage1_req.atomic_qw;
+            d_out.atomic_first <= stage1_req.atomic_first;
+            d_out.atomic_last <= stage1_req.atomic_last;
             d_out.addr <= stage1_req.addr;
             d_out.byte_sel <= stage1_req.byte_sel;
             d_out.virt_mode <= stage1_req.virt_mode;
@@ -960,8 +1011,14 @@ begin
             d_out.valid <= req;
             d_out.load <= r2.req.load;
             d_out.dcbz <= r2.req.dcbz;
+            d_out.flush <= r2.req.flush;
+            d_out.touch <= r2.req.touch;
+            d_out.sync <= r2.req.sync;
             d_out.nc <= r2.req.nc;
             d_out.reserve <= r2.req.reserve;
+            d_out.atomic_qw <= r2.req.atomic_qw;
+            d_out.atomic_first <= r2.req.atomic_first;
+            d_out.atomic_last <= r2.req.atomic_last;
             d_out.addr <= r2.req.addr;
             d_out.byte_sel <= r2.req.byte_sel;
             d_out.virt_mode <= r2.req.virt_mode;

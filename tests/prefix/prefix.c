@@ -7,6 +7,7 @@
 #define MSR_LE	0x1
 #define MSR_DR	0x10
 #define MSR_IR	0x20
+#define MSR_HV	0x1000000000000000ul
 #define MSR_SF	0x8000000000000000ul
 
 #define DSISR	18
@@ -32,6 +33,8 @@ extern long test_pstd(long arg);
 extern long test_psth(long arg);
 extern long test_pstw(long arg);
 extern long test_plfd(long arg);
+extern long test_plq(long arg);
+extern long test_pstq(long arg);
 
 static inline unsigned long mfspr(int sprnum)
 {
@@ -103,7 +106,7 @@ long int prefix_test_2(void)
 		return 1;
 	if (mfspr(SRR0) != (unsigned long)&test_paddi_mis + 8)
 		return 2;
-	if (mfspr(SRR1) != (MSR_SF | MSR_LE | (1ul << (63 - 35)) | (1ul << (63 - 34))))
+	if (mfspr(SRR1) != (MSR_SF | MSR_HV | MSR_LE | (1ul << (63 - 35)) | (1ul << (63 - 34))))
 		return 3;
 
 	ret = trapit((long)&x, test_plfd);
@@ -111,7 +114,7 @@ long int prefix_test_2(void)
 		return ret;
 	if (mfspr(SRR0) != (unsigned long)&test_plfd + 8)
 		return 6;
-	if (mfspr(SRR1) != (MSR_SF | MSR_LE | (1ul << (63 - 34))))
+	if (mfspr(SRR1) != (MSR_SF | MSR_HV | MSR_LE | (1ul << (63 - 34))))
 		return 7;
 	return 0;
 }
@@ -182,6 +185,39 @@ long int prefix_test_3(void)
 	return 0;
 }
 
+unsigned long qvar[2] __attribute__((__aligned__(16)));
+#define V1	0x678912345a5a2b2bull
+#define V2	0xa0549922bbccddeeull
+
+/* test plq and pstq */
+long int prefix_test_4(void)
+{
+	long int ret;
+	unsigned long x[2];
+
+	qvar[0] = V1;
+	qvar[1] = V2;
+	ret = trapit((long)&x, test_plq);
+	if (ret)
+		return ret | 1;
+	if (x[0] != V1 || x[1] != V2) {
+		print_hex(x[0], 16, " ");
+		print_hex(x[1], 16, " ");
+		return 2;
+	}
+	x[0] = ~V2;
+	x[1] = ~V1;
+	ret = trapit((long)&x, test_pstq);
+	if (ret)
+		return ret | 3;
+	if (qvar[0] != ~V2 || qvar[1] != ~V1) {
+		print_hex(qvar[0], 16, " ");
+		print_hex(qvar[1], 16, " ");
+		return 4;
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, long int (*test)(void))
@@ -209,6 +245,7 @@ int main(void)
 	do_test(1, prefix_test_1);
 	do_test(2, prefix_test_2);
 	do_test(3, prefix_test_3);
+	do_test(4, prefix_test_4);
 
 	return fail;
 }

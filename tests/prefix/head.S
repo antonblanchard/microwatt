@@ -245,3 +245,23 @@ test_pstw:
 	pstw	%r3,wvar(0)
 	li	%r3,0
 	blr
+
+	.globl	test_plq
+test_plq:
+	nop
+	nop
+	plq	%r4,qvar(0)
+	std	%r4,0(%r3)
+	std	%r5,8(%r3)
+	li	%r3,0
+	blr
+
+	.globl	test_pstq
+test_pstq:
+	nop
+	nop
+	ld	%r4,0(%r3)
+	ld	%r5,8(%r3)
+	pstq	%r4,qvar(0)
+	li	%r3,0
+	blr

@@ -121,6 +121,8 @@ architecture behaviour of predecoder is
         2#011110_01110# to 2#011110_01111# =>  INSN_rldimi,
         2#011110_10000# to 2#011110_10001# =>  INSN_rldcl,
         2#011110_10010# to 2#011110_10011# =>  INSN_rldcr,
+        -- major opcode 56
+        2#111000_00000# to 2#111000_11111# =>  INSN_lq,
         -- major opcode 58
         2#111010_00000#                    =>  INSN_ld,
         2#111010_00001#                    =>  INSN_ldu,
@@ -161,20 +163,28 @@ architecture behaviour of predecoder is
         -- major opcode 62
         2#111110_00000#                    =>  INSN_std,
         2#111110_00001#                    =>  INSN_stdu,
+        2#111110_00010#                    =>  INSN_stq,
         2#111110_00100#                    =>  INSN_std,
         2#111110_00101#                    =>  INSN_stdu,
+        2#111110_00110#                    =>  INSN_stq,
         2#111110_01000#                    =>  INSN_std,
         2#111110_01001#                    =>  INSN_stdu,
+        2#111110_01010#                    =>  INSN_stq,
         2#111110_01100#                    =>  INSN_std,
         2#111110_01101#                    =>  INSN_stdu,
+        2#111110_01110#                    =>  INSN_stq,
         2#111110_10000#                    =>  INSN_std,
         2#111110_10001#                    =>  INSN_stdu,
+        2#111110_10010#                    =>  INSN_stq,
         2#111110_10100#                    =>  INSN_std,
         2#111110_10101#                    =>  INSN_stdu,
+        2#111110_10110#                    =>  INSN_stq,
         2#111110_11000#                    =>  INSN_std,
         2#111110_11001#                    =>  INSN_stdu,
+        2#111110_11010#                    =>  INSN_stq,
         2#111110_11100#                    =>  INSN_std,
         2#111110_11101#                    =>  INSN_stdu,
+        2#111110_11110#                    =>  INSN_stq,
         -- major opcode 63
         2#111111_00100# to 2#111111_00101# =>  INSN_fdiv,
         2#111111_01000# to 2#111111_01001# =>  INSN_fsub,
@@ -190,8 +200,9 @@ architecture behaviour of predecoder is
         2#111111_11110# to 2#111111_11111# =>  INSN_fnmadd,
         -- prefix word, PO1
         2#000001_00000# to 2#000001_11111# =>  INSN_prefix,
-        -- Major opcodes 57 and 61 are SFFS load/store instructions when prefixed
+        -- Major opcodes 57, 60 and 61 are SFFS load/store instructions when prefixed
         2#111001_00000# to 2#111001_11111# =>  INSN_op57,
+        2#111100_00000# to 2#111100_11111# =>  INSN_op60,
         2#111101_00000# to 2#111101_11111# =>  INSN_op61,
         others                             =>  INSN_illegal
         );
@@ -219,6 +230,7 @@ architecture behaviour of predecoder is
         2#0_00101_11011#  =>  INSN_brd,
         2#0_01001_11010#  =>  INSN_cbcdtd,
         2#0_01000_11010#  =>  INSN_cdtbcd,
+        2#0_00110_11100#  =>  INSN_cfuged,
         2#0_00000_00000#  =>  INSN_cmp,
         2#0_01111_11100#  =>  INSN_cmpb,
         2#0_00111_00000#  =>  INSN_cmpeqb,
@@ -316,6 +328,7 @@ architecture behaviour of predecoder is
         2#0_11001_10101#  =>  INSN_lhzcix,
         2#0_01001_10111#  =>  INSN_lhzux,
         2#0_01000_10111#  =>  INSN_lhzx,
+        2#0_01000_10100#  =>  INSN_lqarx,
         2#0_00000_10100#  =>  INSN_lwarx,
         2#0_01011_10101#  =>  INSN_lwaux,
         2#0_01010_10101#  =>  INSN_lwax,
@@ -363,6 +376,8 @@ architecture behaviour of predecoder is
         2#0_00011_11100#  =>  INSN_nor,
         2#0_01101_11100#  =>  INSN_or,
         2#0_01100_11100#  =>  INSN_orc,
+        2#0_00100_11100#  =>  INSN_pdepd,
+        2#0_00101_11100#  =>  INSN_pextd,
         2#0_00011_11010#  =>  INSN_popcntb,
         2#0_01111_11010#  =>  INSN_popcntd,
         2#0_01011_11010#  =>  INSN_popcntw,
@@ -402,6 +417,7 @@ architecture behaviour of predecoder is
         2#0_10110_10110#  =>  INSN_sthcx,
         2#0_01101_10111#  =>  INSN_sthux,
         2#0_01100_10111#  =>  INSN_sthx,
+        2#0_00101_10110#  =>  INSN_stqcx,
         2#0_10100_10110#  =>  INSN_stwbrx,
         2#0_11100_10101#  =>  INSN_stwcix,
         2#0_00100_10110#  =>  INSN_stwcx,
@@ -447,6 +463,8 @@ architecture behaviour of predecoder is
         2#1_00100_11110#  =>  INSN_isync,
         2#1_00000_10000#  =>  INSN_mcrf,
         2#1_00000_11010#  =>  INSN_rfid,
+        2#1_00010_11010#  =>  INSN_rfscv,
+        2#1_01000_11010#  =>  INSN_rfid, -- hrfid
 
         -- Major opcode 59
         -- Address bits are 1, insn(10..6), 1, 0, insn(3..1)

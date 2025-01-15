@@ -9,6 +9,7 @@ use work.wishbone_types.all;
 entity core is
     generic (
         SIM : boolean := false;
+        CPU_INDEX : natural := 0;
 	DISABLE_FLATTEN : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
@@ -48,6 +49,7 @@ entity core is
 
 	ext_irq		: in std_ulogic;
 
+        run_out          : out std_ulogic;
 	terminated_out   : out std_logic
         );
 end core;
@@ -363,6 +365,7 @@ begin
     execute1_0: entity work.execute1
         generic map (
             SIM => SIM,
+            CPU_INDEX => CPU_INDEX,
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
@@ -390,6 +393,7 @@ begin
             ls_events => loadstore_events,
             dc_events => dcache_events,
             ic_events => icache_events,
+            run_out => run_out,
             terminate_out => terminate,
             dbg_spr_req => dbg_spr_req,
             dbg_spr_ack => dbg_spr_ack,

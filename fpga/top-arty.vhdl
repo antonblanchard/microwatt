@@ -142,6 +142,9 @@ end entity toplevel;
 
 architecture behaviour of toplevel is
 
+    -- Status
+    signal run_out : std_ulogic;
+
     -- Reset signals:
     signal soc_rst : std_ulogic;
     signal pll_rst : std_ulogic;
@@ -263,6 +266,7 @@ begin
             system_clk        => system_clk,
             rst               => soc_rst,
             sw_soc_reset      => sw_rst,
+            run_out           => run_out,
 
             -- UART signals
             uart0_txd         => uart_main_tx,
@@ -742,6 +746,7 @@ begin
     led4 <= system_clk_locked;
     led5 <= eth_clk_locked;
     led6 <= not soc_rst;
+    led7 <= run_out;
 
     -- GPIO
     gpio_in(10) <= btn0;

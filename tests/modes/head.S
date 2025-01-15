@@ -230,3 +230,63 @@ restore:
 	ld	%r0,16(%r1)
 	mtlr	%r0
 	blr
+
+	.global	do_lq
+do_lq:
+	lq	%r6,0(%r3)
+	std	%r6,0(%r4)
+	std	%r7,8(%r4)
+	li	%r3,0
+	blr
+
+	.global	do_lq_np	/* "non-preferred" form of lq */
+do_lq_np:
+	mr	%r7,%r3
+	lq	%r6,0(%r7)
+	std	%r6,0(%r4)
+	std	%r7,8(%r4)
+	li	%r3,0
+	blr
+
+	.global	do_lq_bad	/* illegal form of lq */
+do_lq_bad:
+	mr	%r6,%r3
+	.long	0xe0c60000	/* lq %r6,0(%r6) */
+	std	%r6,0(%r4)
+	std	%r7,8(%r4)
+	li	%r3,0
+	blr
+
+	.global	do_stq
+do_stq:
+	ld	%r8,0(%r4)
+	ld	%r9,8(%r4)
+	stq	%r8,0(%r3)
+	li	%r3,0
+	blr
+
+	/* big-endian versions of the above */
+	.global	do_lq_be
+do_lq_be:
+	.long	0x0000c3e0
+	.long	0x0000c4f8
+	.long	0x0800e4f8
+	.long	0x00006038
+	.long	0x2000804e
+
+	.global	do_lq_np_be	/* "non-preferred" form of lq */
+do_lq_np_be:
+	.long	0x781b677c
+	.long	0x0000c7e0
+	.long	0x0000c4f8
+	.long	0x0800e4f8
+	.long	0x00006038
+	.long	0x2000804e
+
+	.global	do_stq_be
+do_stq_be:
+	.long	0x000004e9
+	.long	0x080024e9
+	.long	0x020003f9
+	.long	0x00006038
+	.long	0x2000804e
