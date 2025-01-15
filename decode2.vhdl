@@ -477,7 +477,8 @@ begin
                         case decode_spr_num(d_in.insn) is
                             when SPR_XER =>
                                 v.input_ov := '1';
-                            when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                            when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR |
+                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 =>
                                 unit := LDST;
                             when SPR_TAR =>
                                 v.e.uses_tar := '1';
@@ -499,7 +500,8 @@ begin
                             when SPR_XER =>
                                 v.e.output_xer := '1';
                                 v.output_ov := '1';
-                            when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                            when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR |
+                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 =>
                                 unit := LDST;
                                 if d_in.valid = '1' then
                                     v.sgl_pipe := '1';

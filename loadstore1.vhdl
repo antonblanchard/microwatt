@@ -95,10 +95,11 @@ architecture behave of loadstore1 is
         virt_mode    : std_ulogic;
         priv_mode    : std_ulogic;
         load_sp      : std_ulogic;
-        sprsel       : std_ulogic_vector(1 downto 0);
+        sprsel       : std_ulogic_vector(2 downto 0);
         ric          : std_ulogic_vector(1 downto 0);
         is_slbia     : std_ulogic;
         align_intr   : std_ulogic;
+        dawr_intr    : std_ulogic;
         dword_index  : std_ulogic;
         two_dwords   : std_ulogic;
         incomplete   : std_ulogic;
@@ -119,7 +120,8 @@ architecture behave of loadstore1 is
                                           atomic_qw => '0', atomic_first => '0', atomic_last => '0',
                                           rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
-                                          sprsel => "00", ric => "00", is_slbia => '0', align_intr => '0',
+                                          sprsel => "000", ric => "00", is_slbia => '0', align_intr => '0',
+                                          dawr_intr => '0',
                                           dword_index => '0', two_dwords => '0', incomplete => '0',
                                           ea_valid => '0');
 
@@ -140,10 +142,14 @@ architecture behave of loadstore1 is
         one_cycle  : std_ulogic;
         wr_sel     : std_ulogic_vector(1 downto 0);
         addr0      : std_ulogic_vector(63 downto 0);
-        sprsel     : std_ulogic_vector(1 downto 0);
+        sprsel     : std_ulogic_vector(2 downto 0);
         dbg_spr    : std_ulogic_vector(63 downto 0);
         dbg_spr_ack: std_ulogic;
     end record;
+
+    constant num_dawr : positive := 2;
+    type dawr_array_t is array(0 to num_dawr - 1) of std_ulogic_vector(63 downto 3);
+    type dawrx_array_t is array(0 to num_dawr - 1) of std_ulogic_vector(15 downto 0);
 
     type reg_stage3_t is record
         state        : state_t;
@@ -166,6 +172,10 @@ architecture behave of loadstore1 is
         intr_vec     : integer range 0 to 16#fff#;
         srr1         : std_ulogic_vector(15 downto 0);
         events       : Loadstore1EventType;
+        dawr         : dawr_array_t;
+        dawrx        : dawrx_array_t;
+        dawr_uplim   : dawr_array_t;
+        dawr_upd     : std_ulogic;
     end record;
 
     signal req_in   : request_t;
@@ -185,6 +195,7 @@ architecture behave of loadstore1 is
     signal stage1_req          : request_t;
     signal stage1_dcreq        : std_ulogic;
     signal stage1_dreq         : std_ulogic;
+    signal stage1_dawr_match   : std_ulogic;
 
     -- Generate byte enables from sizes
     function length_to_sel(length : in std_logic_vector(3 downto 0)) return std_ulogic_vector is
@@ -287,6 +298,25 @@ architecture behave of loadstore1 is
         return fs2;
     end;
 
+    function dawrx_match_enable(dawrx : std_ulogic_vector(15 downto 0); virt_mode : std_ulogic;
+                                priv_mode : std_ulogic; is_store : std_ulogic)
+        return boolean is
+    begin
+        -- check PRIVM field; note priv_mode = '1' implies hypervisor mode
+        if (priv_mode = '0' and dawrx(0) = '0') or (priv_mode = '1' and dawrx(2) = '0') then
+            return false;
+        end if;
+        -- check WT/WTI fields
+        if dawrx(3) = '0' and virt_mode /= dawrx(4) then
+            return false;
+        end if;
+        -- check DW/DR fields
+        if (is_store = '0' and dawrx(5) = '0') or (is_store = '1' and dawrx(6) = '0') then
+            return false;
+        end if;
+        return true;
+    end;
+
 begin
     loadstore1_reg: process(clk)
     begin
@@ -302,7 +332,7 @@ begin
                 r1.req.instr_fault <= '0';
                 r1.req.load <= '0';
                 r1.req.priv_mode <= '0';
-                r1.req.sprsel <= "00";
+                r1.req.sprsel <= "000";
                 r1.req.ric <= "00";
                 r1.req.xerc <= xerc_init;
 
@@ -313,7 +343,7 @@ begin
                 r2.req.instr_fault <= '0';
                 r2.req.load <= '0';
                 r2.req.priv_mode <= '0';
-                r2.req.sprsel <= "00";
+                r2.req.sprsel <= "000";
                 r2.req.ric <= "00";
                 r2.req.xerc <= xerc_init;
 
@@ -330,12 +360,19 @@ begin
                 r3.stage1_en <= '1';
                 r3.events.load_complete <= '0';
                 r3.events.store_complete <= '0';
+                for i in 0 to num_dawr - 1 loop
+                    r3.dawr(i) <= (others => '0');
+                    r3.dawrx(i) <= (others => '0');
+                    r3.dawr_uplim(i) <= (others => '0');
+                end loop;
+                r3.dawr_upd <= '0';
                 flushing <= '0';
             else
                 r1 <= r1in;
                 r2 <= r2in;
                 r3 <= r3in;
-                flushing <= (flushing or (r1in.req.valid and r1in.req.align_intr)) and
+                flushing <= (flushing or (r1in.req.valid and
+                                          (r1in.req.align_intr or r1in.req.dawr_intr))) and
                             not flush;
             end if;
             stage1_dreq <= stage1_dcreq;
@@ -437,12 +474,15 @@ begin
         v.virt_mode := l_in.virt_mode;
         v.priv_mode := l_in.priv_mode;
         v.ric := l_in.insn(19 downto 18);
-        if sprn(1) = '1' then
+        if sprn(8 downto 7) = "01" then
+            -- debug registers DAWR[X][01]
+            v.sprsel := '1' & sprn(3) & sprn(0);
+        elsif sprn(1) = '1' then
             -- DSISR and DAR
-            v.sprsel := '1' & sprn(0);
+            v.sprsel := "01" & sprn(0);
         else
             -- PID and PTCR
-            v.sprsel := '0' & sprn(8);
+            v.sprsel := "00" & sprn(8);
         end if;
 
         lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
@@ -547,7 +587,7 @@ begin
                 v.ea_valid := '0';
             when OP_MTSPR =>
                 v.write_spr := '1';
-                v.mmu_op := not sprn(1);
+                v.mmu_op := not (sprn(1) or sprn(2));
                 v.ea_valid := '0';
             when OP_FETCH_FAILED =>
                 -- send it to the MMU to do the radix walk
@@ -659,8 +699,12 @@ begin
         variable byte_offset : unsigned(2 downto 0);
         variable interrupt : std_ulogic;
         variable dbg_spr_rd : std_ulogic;
-        variable sprsel : std_ulogic_vector(1 downto 0);
+        variable sprsel : std_ulogic_vector(2 downto 0);
         variable sprval : std_ulogic_vector(63 downto 0);
+        variable dawr_match : std_ulogic;
+        variable addr : std_ulogic_vector(63 downto 3);
+        variable addl : unsigned(64 downto 3);
+        variable addu : unsigned(64 downto 3);
     begin
         v := r2;
 
@@ -677,21 +721,47 @@ begin
 	    end if;
         end loop;
 
+        -- Test for DAWR0/1 matches
+        dawr_match := '0';
+        for i in 0 to 1 loop
+            addr := r1.req.addr(63 downto 3);
+            if r1.req.priv_mode = '1' and r3.dawrx(i)(7) = '1' then
+                -- HRAMMC=1 => trim top bit from address
+                addr(63) := '0';
+            end if;
+            addl := unsigned('0' & addr) - unsigned('0' & r3.dawr(i));
+            addu := unsigned('0' & r3.dawr_uplim(i)) - unsigned('0' & addr);
+            if addl(64) = '0' and addu(64) = '0' and
+                dawrx_match_enable(r3.dawrx(i), r1.req.virt_mode,
+                                   r1.req.priv_mode, r1.req.store) then
+                dawr_match := r1.req.valid and r1.req.dc_req and not r3.dawr_upd and
+                              not (r1.req.touch or r1.req.sync or r1.req.flush);
+            end if;
+        end loop;
+        stage1_dawr_match <= dawr_match;
+
         dbg_spr_rd := dbg_spr_req and not (r1.req.valid and r1.req.read_spr);
         if dbg_spr_rd = '0' then
             sprsel := r1.req.sprsel;
         else
-            sprsel := dbg_spr_addr;
+            sprsel := '0' & dbg_spr_addr;
         end if;
-        if sprsel(1) = '1' then
-            if sprsel(0) = '0' then
+        case sprsel is
+            when "100" =>
+                sprval := r3.dawr(0) & "000";
+            when "101" =>
+                sprval := r3.dawr(1) & "000";
+            when "110" =>
+                sprval := 48x"0" & r3.dawrx(0);
+            when "111" =>
+                sprval := 48x"0" & r3.dawrx(1);
+            when "010" =>
                 sprval := x"00000000" & r3.dsisr;
-            else
+            when "011" =>
                 sprval := r3.dar;
-            end if;
-        else
-            sprval := m_in.sprval;
-        end if;
+            when others =>
+                sprval := m_in.sprval;  -- MMU regs
+        end case;
         if dbg_spr_req = '0' then
             v.dbg_spr_ack := '0';
         elsif dbg_spr_rd = '1' and r2.dbg_spr_ack = '0' then
@@ -704,6 +774,7 @@ begin
                 v.req := r1.req;
                 v.addr0 := r1.addr0;
                 v.req.store_data := store_data;
+                v.req.dawr_intr := dawr_match;
                 v.wait_dc := r1.req.valid and r1.req.dc_req and not r1.req.load_sp and
                              not r1.req.incomplete;
                 v.wait_mmu := r1.req.valid and r1.req.mmu_op;
@@ -751,7 +822,7 @@ begin
         end if;
 
         interrupt := (r2.req.valid and r2.req.align_intr) or
-                     (d_in.error and (d_in.cache_paradox or d_in.reserve_nc)) or
+                     (d_in.error and (d_in.cache_paradox or d_in.reserve_nc or r2.req.dawr_intr)) or
                      m_in.err;
         if interrupt = '1' then
             v.req.valid := '0';
@@ -807,6 +878,15 @@ begin
         v.complete := '0';
         v.srr1 := (others => '0');
         v.events := (others => '0');
+
+        -- Evaluate DAWR upper limits after a clock edge
+        v.dawr_upd := '0';
+        if r3.dawr_upd = '1' then
+            for i in 0 to num_dawr - 1 loop
+                v.dawr_uplim(i) := std_ulogic_vector(unsigned(r3.dawr(i)) +
+                                                     unsigned(r3.dawrx(i)(15 downto 10)));
+            end loop;
+        end if;
 
         -- load data formatting
         -- shift and byte-reverse data bytes
@@ -887,12 +967,25 @@ begin
             if r2.req.load_sp = '1' and r2.req.dc_req = '0' then
                 write_enable := '1';
             end if;
-            if r2.req.write_spr = '1' and r2.req.mmu_op = '0' then
-                if r2.req.sprsel(0) = '0' then
-                    v.dsisr := r2.req.store_data(31 downto 0);
-                else
-                    v.dar := r2.req.store_data;
+            if r2.req.write_spr = '1' then
+                if r2.req.sprsel(2) = '1' then
+                    v.dawr_upd := '1';
                 end if;
+                case r2.req.sprsel is
+                    when "100" =>
+                        v.dawr(0) := r2.req.store_data(63 downto 3);
+                    when "101" =>
+                        v.dawr(1) := r2.req.store_data(63 downto 3);
+                    when "110" =>
+                        v.dawrx(0) := r2.req.store_data(15 downto 0);
+                    when "111" =>
+                        v.dawrx(1) := r2.req.store_data(15 downto 0);
+                    when "010" =>
+                        v.dsisr := r2.req.store_data(31 downto 0);
+                    when "011" =>
+                        v.dar := r2.req.store_data;
+                    when others =>
+                end case;
             end if;
         end if;
 
@@ -915,9 +1008,10 @@ begin
             end if;
         end if;
         if d_in.error = '1' then
-            if d_in.cache_paradox = '1' then
+            if d_in.cache_paradox = '1' or d_in.reserve_nc = '1' or r2.req.dawr_intr = '1' then
                 -- signal an interrupt straight away
                 exception := '1';
+                dsisr(63 - 41) := r2.req.dawr_intr;
                 dsisr(63 - 38) := not r2.req.load;
                 dsisr(63 - 37) := d_in.reserve_nc;
                 -- XXX there is no architected bit for this
@@ -970,6 +1064,7 @@ begin
                 v.srr1(47 - 34) := r2.req.prefixed;
                 v.dar := r2.req.addr;
                 if m_in.segerr = '0' then
+                    dsisr(63 - 38) := not r2.req.load;
                     v.intr_vec := 16#300#;
                     v.dsisr := dsisr;
                 else
@@ -1036,8 +1131,10 @@ begin
         end if;
         if stage1_dreq = '1' then
             d_out.data <= store_data;
+            d_out.dawr_match <= stage1_dawr_match;
         else
             d_out.data <= r2.req.store_data;
+            d_out.dawr_match <= r2.req.dawr_intr;
         end if;
         d_out.hold <= l_in.e2stall;
 

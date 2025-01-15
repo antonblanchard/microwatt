@@ -65,6 +65,10 @@ package common is
     constant SPR_VRSAVE : spr_num_t := 256;
     constant SPR_PIR    : spr_num_t := 1023;
     constant SPR_CIABR  : spr_num_t := 187;
+    constant SPR_DAWR0  : spr_num_t := 180;
+    constant SPR_DAWR1  : spr_num_t := 181;
+    constant SPR_DAWRX0 : spr_num_t := 188;
+    constant SPR_DAWRX1 : spr_num_t := 189;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -624,6 +628,7 @@ package common is
 	addr : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);          -- valid the cycle after .valid = 1
         byte_sel : std_ulogic_vector(7 downto 0);
+        dawr_match : std_ulogic;                        -- valid the cycle after .valid = 1
     end record;
     constant Loadstore1ToDcacheInit : Loadstore1ToDcacheType :=
         (addr => (others => '0'), data => (others => '0'), byte_sel => x"00",
