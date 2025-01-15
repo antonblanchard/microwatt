@@ -102,6 +102,7 @@ architecture behave of loadstore1 is
         dword_index  : std_ulogic;
         two_dwords   : std_ulogic;
         incomplete   : std_ulogic;
+        ea_valid     : std_ulogic;
     end record;
     constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0',
                                           flush => '0', touch => '0', sync => '0', tlbie => '0',
@@ -119,7 +120,8 @@ architecture behave of loadstore1 is
                                           rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
                                           sprsel => "00", ric => "00", is_slbia => '0', align_intr => '0',
-                                          dword_index => '0', two_dwords => '0', incomplete => '0');
+                                          dword_index => '0', two_dwords => '0', incomplete => '0',
+                                          ea_valid => '0');
 
     type reg_stage1_t is record
         req : request_t;
@@ -464,6 +466,7 @@ begin
             addr(63 downto 32) := (others => '0');
         end if;
         v.addr := addr;
+        v.ea_valid := l_in.valid;
 
         -- XXX Temporary hack. Mark the op as non-cachable if the address
         -- is the form 0xc------- for a real-mode access.
@@ -509,6 +512,7 @@ begin
         case l_in.op is
             when OP_SYNC =>
                 v.sync := '1';
+                v.ea_valid := '0';
             when OP_STORE =>
                 v.store := '1';
                 if l_in.length = "0000" then
@@ -536,14 +540,15 @@ begin
                 v.align_intr := v.nc;
             when OP_TLBIE =>
                 v.tlbie := '1';
-                v.addr := l_in.addr2;    -- address from RB for tlbie
                 v.is_slbia := l_in.insn(7);
                 v.mmu_op := '1';
             when OP_MFSPR =>
                 v.read_spr := '1';
+                v.ea_valid := '0';
             when OP_MTSPR =>
                 v.write_spr := '1';
                 v.mmu_op := not sprn(1);
+                v.ea_valid := '0';
             when OP_FETCH_FAILED =>
                 -- send it to the MMU to do the radix walk
                 v.instr_fault := '1';
@@ -1066,6 +1071,9 @@ begin
         -- update busy signal back to execute1
         e_out.busy <= busy;
         e_out.l2stall <= dc_stall or d_in.error or r2.busy;
+
+        e_out.ea_for_pmu <= req_in.addr;
+        e_out.ea_valid <= req_in.ea_valid;
 
         events <= r3.events;
 

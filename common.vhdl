@@ -529,6 +529,7 @@ package common is
         nia     : std_ulogic_vector(63 downto 0);
         addr    : std_ulogic_vector(63 downto 0);
         addr_v  : std_ulogic;
+        trace   : std_ulogic;
         occur   : PMUEventType;
     end record;
 
@@ -601,6 +602,8 @@ package common is
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
         l2stall : std_ulogic;
+        ea_for_pmu : std_ulogic_vector(63 downto 0);
+        ea_valid : std_ulogic;
     end record;
 
     type Loadstore1ToDcacheType is record

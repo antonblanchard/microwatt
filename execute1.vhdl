@@ -254,6 +254,7 @@ architecture behaviour of execute1 is
     -- PMU signals
     signal x_to_pmu : Execute1ToPMUType;
     signal pmu_to_x : PMUToExecute1Type;
+    signal pmu_trace : std_ulogic;
 
     -- signals for logging
     signal exception_log : std_ulogic;
@@ -560,11 +561,12 @@ begin
                        br_mispredict => ex2.br_mispredict,
                        others => '0');
     x_to_pmu.nia <= e_in.nia;
-    x_to_pmu.addr <= (others => '0');
-    x_to_pmu.addr_v <= '0';
+    x_to_pmu.addr <= l_in.ea_for_pmu;
+    x_to_pmu.addr_v <= l_in.ea_valid;
     x_to_pmu.spr_num <= ex1.pmu_spr_num;
     x_to_pmu.spr_val <= ex1.e.write_data;
     x_to_pmu.run <= ctrl.run;
+    x_to_pmu.trace <= pmu_trace;
 
     -- XER forwarding.  The CA and CA32 bits are only modified by instructions
     -- that are handled here, so for them we can just use the result most
@@ -1163,7 +1165,6 @@ begin
         -- see if we have a CIABR map
         if ctrl.ciabr(0) = '1' and ctrl.ciabr(1) = not ex1.msr(MSR_PR) and
             ctrl.ciabr(63 downto 2) = e_in.nia(63 downto 2) then
-            v.do_trace := '1';
             v.ciabr_trace := '1';
         end if;
 
@@ -1707,7 +1708,7 @@ begin
             v.e.valid := actions.complete;
             bypass_valid := actions.bypass_valid;
             v.taken_branch_event := actions.take_branch;
-            v.trace_next := actions.do_trace;
+            v.trace_next := actions.do_trace or actions.ciabr_trace;
             v.trace_ciabr := actions.ciabr_trace;
             v.fp_exception_next := actions.fp_intr;
             v.res2_sel := actions.res2_sel;
@@ -1740,6 +1741,7 @@ begin
         end if;
         is_scv := go and actions.se.scv_trap;
         bsort_start <= go and actions.start_bsort;
+        pmu_trace <= go and actions.do_trace;
 
         if not HAS_FPU and ex1.div_in_progress = '1' then
             v.div_in_progress := not divider_to_x.valid;
