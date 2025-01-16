@@ -702,8 +702,13 @@ begin
                 v.wait_dc := r1.req.valid and r1.req.dc_req and not r1.req.load_sp and
                              not r1.req.incomplete;
                 v.wait_mmu := r1.req.valid and r1.req.mmu_op;
-                v.busy := r1.req.valid and r1.req.mmu_op;
-                v.one_cycle := r1.req.valid and not (r1.req.dc_req or r1.req.mmu_op);
+                if r1.req.valid = '1' and r1.req.align_intr = '1' then
+                    v.busy := '1';
+                    v.one_cycle := '0';
+                else
+                    v.busy := r1.req.valid and r1.req.mmu_op;
+                    v.one_cycle := r1.req.valid and not (r1.req.dc_req or r1.req.mmu_op);
+                end if;
                 if r1.req.do_update = '1' or r1.req.store = '1' or r1.req.read_spr = '1' then
                     v.wr_sel := "00";
                 elsif r1.req.load_sp = '1' then
