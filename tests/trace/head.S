@@ -237,3 +237,17 @@ test10:
 	nop
 1:	li	%r3,-1
 	blr
+
+	.global test11
+test11:
+	stdx	%r3,%r3,%r4
+	stw	%r3,6(%r4)
+	dcbt	0,%r4
+	dcbf	0,%r4
+	dcbtst	0,%r4
+	sync
+	ld	%r3,0(%r4)
+	lwz	%r3,6(%r4)
+	lwz	%r3,27(%r4)
+	stb	%r3,26(%r4)
+	blr

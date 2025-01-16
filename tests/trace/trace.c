@@ -11,11 +11,17 @@ extern unsigned long callit(unsigned long arg1, unsigned long arg2,
 #define MSR_SE	0x400
 #define MSR_BE	0x200
 
+#define DSISR	18
+#define DAR	19
 #define SRR0	26
 #define SRR1	27
 #define SPRG0	272
 #define SPRG1	273
 #define CIABR	187
+#define DAWR0	180
+#define DAWR1	181
+#define DAWRX0	188
+#define DAWRX1	189
 #define SIAR	780
 #define SDAR	781
 
@@ -232,6 +238,7 @@ int trace_test_9(void)
 
 extern unsigned long test10(unsigned long, unsigned long);
 
+/* test CIABR */
 int trace_test_10(void)
 {
 	unsigned long ret;
@@ -265,6 +272,89 @@ int trace_test_10(void)
 	return 0;
 }
 
+/* test DAWR[X]{0,1} */
+#define MRD_SHIFT	10
+#define HRAMMC		0x80
+#define DW		0x40
+#define DR		0x20
+#define WT		0x10
+#define WTI		0x08
+#define PRIVM_HYP	0x04
+#define PRIVM_PNH	0x02
+#define PRIVM_PRO	0x01
+
+extern unsigned long test11(unsigned long, unsigned long);
+
+int trace_test_11(void)
+{
+	unsigned long ret;
+	unsigned long regs[2];
+	unsigned long x[4];
+
+	mtspr(DAWR0, (unsigned long)&x[0]);
+	mtspr(DAWRX0, (0 << MRD_SHIFT) + DW + PRIVM_HYP);
+	ret = callit(0, (unsigned long) &x, test11, mfmsr(), regs);
+	if (ret != 0x300)
+		return ret + 1;
+	if (mfspr(SRR0) != (unsigned long) &test11 || mfspr(DSISR) != 0x02400000 ||
+	    mfspr(DAR) != (unsigned long)&x[0])
+		return 2;
+
+	mtspr(DAWR0, (unsigned long)&x[1]);
+	ret = callit(0, (unsigned long) &x, test11, mfmsr(), regs);
+	if (ret != 0x300)
+		return ret + 3;
+	if (mfspr(SRR0) != (unsigned long) &test11 + 4 || mfspr(DSISR) != 0x02400000 ||
+	    mfspr(DAR) != (unsigned long)&x[1])
+		return 4;
+
+	mtspr(DAWR0, (unsigned long)&x[0]);
+	mtspr(DAWRX0, (0 << MRD_SHIFT) + DR + PRIVM_HYP);
+	ret = callit(0, (unsigned long) &x, test11, mfmsr(), regs);
+	if (ret != 0x300)
+		return ret + 5;
+	if (mfspr(SRR0) != (unsigned long) &test11 + 24 || mfspr(DSISR) != 0x00400000)
+		return 6;
+
+	mtspr(DAWR0, (unsigned long)&x[1]);
+	ret = callit(0, (unsigned long) &x, test11, mfmsr(), regs);
+	if (ret != 0x300)
+		return ret + 7;
+	if (mfspr(SRR0) != (unsigned long) &test11 + 28 || mfspr(DSISR) != 0x00400000)
+		return 8;
+
+	mtspr(DAWR0, (unsigned long)&x[3]);
+	ret = callit(0, (unsigned long) &x, test11, mfmsr(), regs);
+	if (ret != 0x300)
+		return ret + 9;
+	if (mfspr(SRR0) != (unsigned long) &test11 + 32 || mfspr(DSISR) != 0x00400000)
+		return 10;
+
+	mtspr(DAWR0, (unsigned long)&x[2]);
+	mtspr(DAWRX0, (1 << MRD_SHIFT) + DW + PRIVM_HYP);
+	ret = callit(0, (unsigned long) &x, test11, mfmsr(), regs);
+	if (ret != 0x300)
+		return ret + 11;
+	if (mfspr(SRR0) != (unsigned long) &test11 + 36 || mfspr(DSISR) != 0x02400000)
+		return 12;
+
+	mtspr(DAWR0, (unsigned long)&x[0]);
+	mtspr(DAWRX0, (3 << MRD_SHIFT) + DR + DW + WT + PRIVM_HYP);
+	ret = callit(0, (unsigned long) &x, test11, mfmsr(), regs);
+	if (ret != 0)
+		return ret + 13;
+
+	mtspr(DAWR0, (unsigned long)&x[0]);
+	mtspr(DAWRX0, (3 << MRD_SHIFT) + DR + DW + WT + WTI + PRIVM_HYP);
+	ret = callit(0, (unsigned long) &x, test11, mfmsr(), regs);
+	if (ret != 0x300)
+		return ret + 14;
+	if (mfspr(SRR0) != (unsigned long) &test11 || mfspr(DSISR) != 0x02400000)
+		return 15;
+
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -277,7 +367,7 @@ void do_test(int num, int (*test)(void))
 		print_string("PASS\r\n");
 	} else {
 		fail = 1;
-		print_string("FAIL ");
+		print_string(" FAIL ");
 		print_hex(ret, 4);
 		print_string("\r\n");
 	}
@@ -297,6 +387,7 @@ int main(void)
 	do_test(8, trace_test_8);
 	do_test(9, trace_test_9);
 	do_test(10, trace_test_10);
+	do_test(11, trace_test_11);
 
 	return fail;
 }
