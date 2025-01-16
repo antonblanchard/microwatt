@@ -16,6 +16,8 @@ extern unsigned long callit(unsigned long arg1, unsigned long arg2,
 #define SPRG0	272
 #define SPRG1	273
 #define CIABR	187
+#define SIAR	780
+#define SDAR	781
 
 static inline unsigned long mfmsr(void)
 {
@@ -80,6 +82,8 @@ int trace_test_1(void)
 		return ret + 2;
 	if (regs[0] != 3 || regs[1] != 2)
 		return 3;
+	if (mfspr(SIAR) != (unsigned long)&test1)
+		return 4;
 	return 0;
 }
 
@@ -98,6 +102,8 @@ int trace_test_2(void)
 		return ret + 2;
 	if (regs[0] != 3 || x != 3)
 		return 3;
+	if (mfspr(SIAR) != (unsigned long)&test2 || mfspr(SDAR) != (unsigned long)&x)
+		return 4;
 	return 0;
 }
 
@@ -116,6 +122,8 @@ int trace_test_3(void)
 		return ret + 2;
 	if (regs[0] != 11 || x != 11)
 		return 3;
+	if (mfspr(SIAR) != (unsigned long)&test3 || mfspr(SDAR) != (unsigned long)&x)
+		return 4;
 	return 0;
 }
 
@@ -169,6 +177,8 @@ int trace_test_6(void)
 		return ret + 2;
 	if (regs[0] != 11 || regs[1] != 55)
 		return 3;
+	if (mfspr(SIAR) != (unsigned long)&test6 + 8)
+		return 4;
 	return 0;
 }
 
@@ -186,6 +196,8 @@ int trace_test_7(void)
 		return ret + 2;
 	if (regs[0] != 11 || regs[1] != 1)
 		return 3;
+	if (mfspr(SIAR) != (unsigned long)&test7 + 8)
+		return 4;
 	return 0;
 }
 
