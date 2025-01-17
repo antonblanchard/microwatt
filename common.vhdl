@@ -64,6 +64,11 @@ package common is
     constant SPR_DSCR   : spr_num_t := 17;
     constant SPR_VRSAVE : spr_num_t := 256;
     constant SPR_PIR    : spr_num_t := 1023;
+    constant SPR_CIABR  : spr_num_t := 187;
+    constant SPR_DAWR0  : spr_num_t := 180;
+    constant SPR_DAWR1  : spr_num_t := 181;
+    constant SPR_DAWRX0 : spr_num_t := 188;
+    constant SPR_DAWRX1 : spr_num_t := 189;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -174,6 +179,7 @@ package common is
     constant SPRSEL_CTRL  : spr_selector := 4x"a";
     constant SPRSEL_DSCR  : spr_selector := 4x"b";
     constant SPRSEL_PIR   : spr_selector := 4x"c";
+    constant SPRSEL_CIABR : spr_selector := 4x"d";
     constant SPRSEL_XER   : spr_selector := 4x"f";
 
     -- FSCR and HFSCR bit numbers
@@ -275,6 +281,7 @@ package common is
         hfscr_fp: std_ulogic;
         heir: std_ulogic_vector(63 downto 0);
         dscr: std_ulogic_vector(24 downto 0);
+        ciabr: std_ulogic_vector(63 downto 0);
     end record;
     constant ctrl_t_init : ctrl_t :=
         (wait_state => '0', run => '1', xer_low => 18x"0",
@@ -526,6 +533,7 @@ package common is
         nia     : std_ulogic_vector(63 downto 0);
         addr    : std_ulogic_vector(63 downto 0);
         addr_v  : std_ulogic;
+        trace   : std_ulogic;
         occur   : PMUEventType;
     end record;
 
@@ -598,6 +606,8 @@ package common is
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
         l2stall : std_ulogic;
+        ea_for_pmu : std_ulogic_vector(63 downto 0);
+        ea_valid : std_ulogic;
     end record;
 
     type Loadstore1ToDcacheType is record
@@ -618,6 +628,7 @@ package common is
 	addr : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);          -- valid the cycle after .valid = 1
         byte_sel : std_ulogic_vector(7 downto 0);
+        dawr_match : std_ulogic;                        -- valid the cycle after .valid = 1
     end record;
     constant Loadstore1ToDcacheInit : Loadstore1ToDcacheType :=
         (addr => (others => '0'), data => (others => '0'), byte_sel => x"00",

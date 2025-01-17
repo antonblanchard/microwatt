@@ -224,3 +224,30 @@ test8:
 test9:
 	sc
 	blr
+
+	.global	test10
+test10:
+	addi	%r3,%r3,1
+	addi	%r4,%r4,2
+	addi	%r3,%r3,4
+	addi	%r4,%r4,8
+	cmpd	%r3,%r4
+	bne	1f
+	nop
+	nop
+1:	li	%r3,-1
+	blr
+
+	.global test11
+test11:
+	stdx	%r3,%r3,%r4
+	stw	%r3,6(%r4)
+	dcbt	0,%r4
+	dcbf	0,%r4
+	dcbtst	0,%r4
+	sync
+	ld	%r3,0(%r4)
+	lwz	%r3,6(%r4)
+	lwz	%r3,27(%r4)
+	stb	%r3,26(%r4)
+	blr

@@ -316,6 +316,7 @@ architecture rtl of dcache is
         hit_way   : way_t;
         same_tag  : std_ulogic;
         mmu_req   : std_ulogic;
+        dawr_m    : std_ulogic;
     end record;
 
     -- First stage register, contains state for stage 1 of load hits
@@ -635,6 +636,8 @@ begin
                 -- put directly into req.data in the dcache_slow process below.
                 r0.req.data <= d_in.data;
                 r0.d_valid <= r0.req.valid;
+                -- the dawr_match signal has the same timing as the data
+                r0.req.dawr_match <= d_in.dawr_match;
             end if;
         end if;
     end process;
@@ -953,12 +956,18 @@ begin
         variable snp_matches : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
         variable snoop_match : std_ulogic;
         variable hit_reload  : std_ulogic;
+        variable dawr_match  : std_ulogic;
     begin
 	-- Extract line, row and tag from request
         rindex := get_index(r0.req.addr);
         req_index <= rindex;
         req_row := get_row(r0.req.addr);
         req_tag <= get_tag(ra);
+        if r0.d_valid = '0' then
+            dawr_match := d_in.dawr_match;
+        else
+            dawr_match := r0.req.dawr_match;
+        end if;
 
         go := r0_valid and not (r0.tlbie or r0.tlbld) and not r1.ls_error;
         if is_X(r0.req.addr) then
@@ -1135,7 +1144,7 @@ begin
         rc_ok <= perm_attr.reference and (r0.req.load or perm_attr.changed);
         perm_ok <= (r0.req.priv_mode or not perm_attr.priv) and
                    (perm_attr.wr_perm or (r0.req.load and perm_attr.rd_perm));
-        access_ok <= valid_ra and perm_ok and rc_ok;
+        access_ok <= valid_ra and perm_ok and rc_ok and not dawr_match;
 
 	-- Combine the request and cache hit status to decide what
 	-- operation needs to be done

@@ -157,6 +157,7 @@ int resv_test_2(void)
 {
 	unsigned long x[3];
 	unsigned long offset, j, size, ret;
+	unsigned int instr;
 
 	x[0] = 1234;
 	x[1] = x[2] = 0;
@@ -169,6 +170,9 @@ int resv_test_2(void)
 			if (ret == 0x600) {
 				if ((offset & (size - 1)) == 0)
 					return j + 0x10;
+				instr = *(unsigned int *)mfspr(SRR0);
+				if ((instr & 0xfc00073f) != 0x7c000028)
+					return j + 0x40;
 			} else if (ret)
 				return ret;
 			ret = callit(size, (unsigned long)&x[0] + offset, do_stcx);
@@ -177,6 +181,9 @@ int resv_test_2(void)
 			if (ret == 0x600) {
 				if ((offset & (size - 1)) == 0)
 					return j + 0x30;
+				instr = *(unsigned int *)mfspr(SRR0);
+				if ((instr & 0xfc00033f) != 0x7c00012d)
+					return j + 0x50;
 			} else if (ret)
 				return ret;
 		}

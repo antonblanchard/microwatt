@@ -183,12 +183,12 @@ begin
                 end if;
                 if p_in.mtspr = '1' and p_in.spr_num(3 downto 0) = "1100" then
                     siar <= p_in.spr_val;
-                elsif doalert = '1' then
+                elsif doalert = '1' or p_in.trace = '1' then
                     siar <= p_in.nia;
                 end if;
                 if p_in.mtspr = '1' and p_in.spr_num(3 downto 0) = "1101" then
                     sdar <= p_in.spr_val;
-                elsif doalert = '1' then
+                elsif doalert = '1' or p_in.trace = '1' then
                     sdar <= p_in.addr;
                 end if;
                 if p_in.mtspr = '1' and p_in.spr_num(3 downto 0) = "0000" then
