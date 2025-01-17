@@ -52,6 +52,8 @@ architecture behave of loadstore1 is
                      MMU_WAIT           -- waiting for MMU to finish doing something
                      );
 
+    constant num_dawr : positive := 2;
+
     type byte_index_t is array(0 to 7) of unsigned(2 downto 0);
     subtype byte_trim_t is std_ulogic_vector(1 downto 0);
     type trim_ctl_t is array(0 to 7) of byte_trim_t;
@@ -130,6 +132,9 @@ architecture behave of loadstore1 is
         busy : std_ulogic;
         issued : std_ulogic;
         addr0 : std_ulogic_vector(63 downto 0);
+        dawr_ll : std_ulogic_vector(num_dawr-1 downto 0);
+        dawr_ul : std_ulogic_vector(num_dawr-1 downto 0);
+        dawr_ud : std_ulogic;
     end record;
 
     type reg_stage2_t is record
@@ -147,7 +152,6 @@ architecture behave of loadstore1 is
         dbg_spr_ack: std_ulogic;
     end record;
 
-    constant num_dawr : positive := 2;
     type dawr_array_t is array(0 to num_dawr - 1) of std_ulogic_vector(63 downto 3);
     type dawrx_array_t is array(0 to num_dawr - 1) of std_ulogic_vector(15 downto 0);
 
@@ -335,6 +339,9 @@ begin
                 r1.req.sprsel <= "000";
                 r1.req.ric <= "00";
                 r1.req.xerc <= xerc_init;
+                r1.dawr_ll <= (others => '0');
+                r1.dawr_ul <= (others => '0');
+                r1.dawr_ud <= '0';
 
                 r2.req.valid <= '0';
                 r2.busy <= '0';
@@ -617,6 +624,9 @@ begin
         variable req   : request_t;
         variable dcreq : std_ulogic;
         variable issue : std_ulogic;
+        variable addr : std_ulogic_vector(63 downto 3);
+        variable addl : unsigned(64 downto 3);
+        variable addu : unsigned(64 downto 3);
     begin
         v := r1;
         issue := '0';
@@ -661,6 +671,20 @@ begin
             end if;
         end if;
 
+        -- Do subtractions for DAWR0/1 matches
+        for i in 0 to 1 loop
+            addr := req.addr(63 downto 3);
+            if req.priv_mode = '1' and r3.dawrx(i)(7) = '1' then
+                -- HRAMMC=1 => trim top bit from address
+                addr(63) := '0';
+            end if;
+            addl := unsigned('0' & addr) - unsigned('0' & r3.dawr(i));
+            addu := unsigned('0' & r3.dawr_uplim(i)) - unsigned('0' & addr);
+            v.dawr_ll(i) := addl(64);
+            v.dawr_ul(i) := addu(64);
+        end loop;
+        v.dawr_ud := r3.dawr_upd;
+
         if flush = '1' then
             v.req.valid := '0';
             v.req.dc_req := '0';
@@ -702,9 +726,6 @@ begin
         variable sprsel : std_ulogic_vector(2 downto 0);
         variable sprval : std_ulogic_vector(63 downto 0);
         variable dawr_match : std_ulogic;
-        variable addr : std_ulogic_vector(63 downto 3);
-        variable addl : unsigned(64 downto 3);
-        variable addu : unsigned(64 downto 3);
     begin
         v := r2;
 
@@ -724,14 +745,7 @@ begin
         -- Test for DAWR0/1 matches
         dawr_match := '0';
         for i in 0 to 1 loop
-            addr := r1.req.addr(63 downto 3);
-            if r1.req.priv_mode = '1' and r3.dawrx(i)(7) = '1' then
-                -- HRAMMC=1 => trim top bit from address
-                addr(63) := '0';
-            end if;
-            addl := unsigned('0' & addr) - unsigned('0' & r3.dawr(i));
-            addu := unsigned('0' & r3.dawr_uplim(i)) - unsigned('0' & addr);
-            if addl(64) = '0' and addu(64) = '0' and
+            if r1.dawr_ll(i) = '0' and r1.dawr_ul(i) = '0' and r1.dawr_ud = '0' and
                 dawrx_match_enable(r3.dawrx(i), r1.req.virt_mode,
                                    r1.req.priv_mode, r1.req.store) then
                 dawr_match := r1.req.valid and r1.req.dc_req and not r3.dawr_upd and
