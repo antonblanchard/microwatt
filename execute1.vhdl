@@ -1844,6 +1844,8 @@ begin
         lv.byte_reverse := e_in.byte_reverse xnor ex1.msr(MSR_LE);
         lv.sign_extend := e_in.sign_extend;
         lv.update := e_in.update;
+        -- abuse e_in.is_signed to indicate hash store/check instructions
+        lv.hash := e_in.is_signed;
         lv.xerc := xerc_in;
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;

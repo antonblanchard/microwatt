@@ -205,11 +205,13 @@ package decode_types is
         INSN_divwe,
         INSN_divweu,
         INSN_eqv,
+        INSN_hashchk,
+        INSN_hashst,
         INSN_icbi,
         INSN_icbt,
-        INSN_isel,
+        INSN_isel, -- 160
         INSN_lbarx,
-        INSN_lbzcix, -- 160
+        INSN_lbzcix,
         INSN_lbzux,
         INSN_lbzx,
         INSN_ldarx,
@@ -217,9 +219,9 @@ package decode_types is
         INSN_ldcix,
         INSN_ldx,
         INSN_ldux,
-        INSN_lharx,
+        INSN_lharx, -- 170
         INSN_lhax,
-        INSN_lhaux, -- 170
+        INSN_lhaux,
         INSN_lhbrx,
         INSN_lhzcix,
         INSN_lhzx,
@@ -227,9 +229,9 @@ package decode_types is
         INSN_lqarx,
         INSN_lwarx,
         INSN_lwax,
-        INSN_lwaux,
+        INSN_lwaux, -- 180
         INSN_lwbrx,
-        INSN_lwzcix, -- 180
+        INSN_lwzcix,
         INSN_lwzx,
         INSN_lwzux,
         INSN_modsd,
@@ -237,9 +239,9 @@ package decode_types is
         INSN_moduw,
         INSN_modud,
         INSN_mulhw,
-        INSN_mulhwu,
+        INSN_mulhwu, -- 190
         INSN_mulhd,
-        INSN_mulhdu, -- 190
+        INSN_mulhdu,
         INSN_mullw,
         INSN_mulld,
         INSN_nand,
@@ -247,9 +249,9 @@ package decode_types is
         INSN_or,
         INSN_orc,
         INSN_pdepd,
-        INSN_pextd,
+        INSN_pextd, -- 200
         INSN_rldcl,
-        INSN_rldcr, -- 200
+        INSN_rldcr,
         INSN_rlwnm,
         INSN_slw,
         INSN_sld,
@@ -257,9 +259,9 @@ package decode_types is
         INSN_srad,
         INSN_srw,
         INSN_srd,
-        INSN_stbcix,
+        INSN_stbcix, -- 210
         INSN_stbcx,
-        INSN_stbx, -- 210
+        INSN_stbx,
         INSN_stbux,
         INSN_stdbrx,
         INSN_stdcix,
@@ -267,9 +269,9 @@ package decode_types is
         INSN_stdx,
         INSN_stdux,
         INSN_sthbrx,
-        INSN_sthcix,
+        INSN_sthcix, -- 220
         INSN_sthcx,
-        INSN_sthx, -- 220
+        INSN_sthx,
         INSN_sthux,
         INSN_stqcx,
         INSN_stwbrx,
@@ -277,9 +279,9 @@ package decode_types is
         INSN_stwcx,
         INSN_stwx,
         INSN_stwux,
-        INSN_subf,
+        INSN_subf, -- 230
         INSN_subfc,
-        INSN_subfe, -- 230
+        INSN_subfe,
         INSN_td,
         INSN_tlbie,
         INSN_tlbiel,
@@ -287,7 +289,7 @@ package decode_types is
         INSN_xor,
 
         -- pad to 240 to simplify comparison logic
-        INSN_236, INSN_237, INSN_238, INSN_239,
+        INSN_238, INSN_239,
 
         -- The following instructions have a third input addressed by RC
         INSN_maddld,
@@ -416,8 +418,9 @@ package decode_types is
 
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA);
     type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
-                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI, FRB);
-    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS);
+                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI,
+                           DSX, FRB);
+    type input_reg_c_t is (NONE, RS, RCR, RBC, FRC, FRS);
     type output_reg_a_t is (NONE, RT, RA, FRT);
     type rc_t is (NONE, ONE, RC, RCOE);
     type carry_in_t is (ZERO, CA, OV, ONE);
@@ -634,6 +637,8 @@ package body decode_types is
             when INSN_divwu     => return "011111";
             when INSN_divd      => return "011111";
             when INSN_divw      => return "011111";
+            when INSN_hashchk   => return "011111";
+            when INSN_hashst    => return "011111";
             when INSN_eieio     => return "011111";
             when INSN_eqv       => return "011111";
             when INSN_extsb     => return "011111";

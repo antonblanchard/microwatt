@@ -68,6 +68,8 @@ architecture behave of loadstore1 is
         sync         : std_ulogic;
         tlbie        : std_ulogic;
         dcbz         : std_ulogic;
+        hashst       : std_ulogic;
+        hashcmp      : std_ulogic;
         read_spr     : std_ulogic;
         write_spr    : std_ulogic;
         mmu_op       : std_ulogic;
@@ -97,7 +99,7 @@ architecture behave of loadstore1 is
         virt_mode    : std_ulogic;
         priv_mode    : std_ulogic;
         load_sp      : std_ulogic;
-        sprsel       : std_ulogic_vector(2 downto 0);
+        sprsel       : std_ulogic_vector(3 downto 0);
         ric          : std_ulogic_vector(1 downto 0);
         is_slbia     : std_ulogic;
         align_intr   : std_ulogic;
@@ -107,25 +109,14 @@ architecture behave of loadstore1 is
         incomplete   : std_ulogic;
         ea_valid     : std_ulogic;
     end record;
-    constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0',
-                                          flush => '0', touch => '0', sync => '0', tlbie => '0',
-                                          dcbz => '0', read_spr => '0', write_spr => '0', mmu_op => '0',
-                                          instr_fault => '0', do_update => '0',
-                                          mode_32bit => '0', prefixed => '0',
-                                          addr => (others => '0'),
+    constant request_init : request_t := (addr => (others => '0'),
                                           byte_sel => x"00", second_bytes => x"00",
                                           store_data => (others => '0'), instr_tag => instr_tag_init,
                                           write_reg => 6x"00", length => x"0",
-                                          elt_length => x"0", byte_reverse => '0', brev_mask => "000",
-                                          sign_extend => '0', update => '0',
-                                          xerc => xerc_init, reserve => '0',
-                                          atomic_qw => '0', atomic_first => '0', atomic_last => '0',
-                                          rc => '0', nc => '0',
-                                          virt_mode => '0', priv_mode => '0', load_sp => '0',
-                                          sprsel => "000", ric => "00", is_slbia => '0', align_intr => '0',
-                                          dawr_intr => '0',
-                                          dword_index => '0', two_dwords => '0', incomplete => '0',
-                                          ea_valid => '0');
+                                          elt_length => x"0", brev_mask => "000",
+                                          xerc => xerc_init,
+                                          sprsel => "0000", ric => "00",
+                                          others => '0');
 
     type reg_stage1_t is record
         req : request_t;
@@ -147,7 +138,7 @@ architecture behave of loadstore1 is
         one_cycle  : std_ulogic;
         wr_sel     : std_ulogic_vector(1 downto 0);
         addr0      : std_ulogic_vector(63 downto 0);
-        sprsel     : std_ulogic_vector(2 downto 0);
+        sprsel     : std_ulogic_vector(3 downto 0);
         dbg_spr    : std_ulogic_vector(63 downto 0);
         dbg_spr_ack: std_ulogic;
     end record;
@@ -180,6 +171,7 @@ architecture behave of loadstore1 is
         dawrx        : dawrx_array_t;
         dawr_uplim   : dawr_array_t;
         dawr_upd     : std_ulogic;
+        hashkeyr     : std_ulogic_vector(63 downto 0);
     end record;
 
     signal req_in   : request_t;
@@ -200,6 +192,28 @@ architecture behave of loadstore1 is
     signal stage1_dcreq        : std_ulogic;
     signal stage1_dreq         : std_ulogic;
     signal stage1_dawr_match   : std_ulogic;
+
+    type hw_array_4 is array(0 to 3) of std_ulogic_vector(15 downto 0);
+    type hw_array_8 is array(0 to 7) of std_ulogic_vector(15 downto 0);
+
+    type hash_reg_t is record
+        active : std_ulogic;
+        done   : std_ulogic;
+        step   : unsigned(2 downto 0);
+        z0     : std_ulogic_vector(30 downto 0);
+        key    : hw_array_4;
+        xleft  : hw_array_4;
+        xright : hw_array_4;
+    end record;
+    constant hash_reg_init : hash_reg_t := (
+        active => '0', done => '0', step => "000", z0 => (others => '0'),
+        key => (others => (others => '0')),
+        xleft => (others => (others => '0')), xright => (others => (others => '0')));
+
+    signal hash_r      : hash_reg_t;
+    signal hash_rin    : hash_reg_t;
+    signal hash_start  : std_ulogic;
+    signal hash_result : std_ulogic_vector(63 downto 0);
 
     -- Generate byte enables from sizes
     function length_to_sel(length : in std_logic_vector(3 downto 0)) return std_ulogic_vector is
@@ -336,7 +350,7 @@ begin
                 r1.req.instr_fault <= '0';
                 r1.req.load <= '0';
                 r1.req.priv_mode <= '0';
-                r1.req.sprsel <= "000";
+                r1.req.sprsel <= "0000";
                 r1.req.ric <= "00";
                 r1.req.xerc <= xerc_init;
                 r1.dawr_ll <= (others => '0');
@@ -350,7 +364,7 @@ begin
                 r2.req.instr_fault <= '0';
                 r2.req.load <= '0';
                 r2.req.priv_mode <= '0';
-                r2.req.sprsel <= "000";
+                r2.req.sprsel <= "0000";
                 r2.req.ric <= "00";
                 r2.req.xerc <= xerc_init;
 
@@ -448,6 +462,98 @@ begin
         end process;
     end generate;
 
+    -- This does the HashDigest computation from ISA Book I section 3.3.17
+    -- in 8 cycles.  In each cycle it does 4 steps of key expansion, and
+    -- 4 rounds of cipher for each of 4 lanes.
+    loadstore_hash_reg: process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' then
+                hash_r <= hash_reg_init;
+            else
+                if hash_r.done = '1' then
+                    report "hash_result = " & to_hstring(hash_result);
+                end if;
+                hash_r <= hash_rin;
+            end if;
+        end if;
+    end process;
+
+    loadstore_hash_comb: process(all)
+        variable hv     : hash_reg_t;
+        variable keys   : hw_array_8;
+        variable xl, xr : std_ulogic_vector(15 downto 0);
+        variable z, t   : std_ulogic_vector(15 downto 0);
+        variable fx     : std_ulogic_vector(15 downto 0);
+        variable ra, rb : std_ulogic_vector(63 downto 0);
+        variable key    : std_ulogic_vector(63 downto 0);
+        variable j, k   : integer;
+    begin
+        hv := hash_r;
+        hv.done := '0';
+        if hash_r.active = '1' then
+            -- Initialize keys to avoid yosys/ghdl incorrectly inferring latches
+            for i in 0 to 7 loop
+                keys(i) := (others => '0');
+            end loop;
+            -- generate the next 4 key words
+            for i in 0 to 3 loop
+                keys(i) := hash_r.key(i);
+            end loop;
+            for i in 4 to 7 loop
+                z := 15x"0" & hash_r.z0(34 - i);
+                t := (keys(i-1)(2 downto 0) & keys(i-1)(15 downto 3)) xor keys(i-3);
+                keys(i) := x"fffc" xor z xor keys(i-4) xor t xor (t(0) & t(15 downto 1));
+                hv.key(i-4) := keys(i);
+            end loop;
+            hv.z0 := hash_r.z0(26 downto 0) & "0000";
+            -- do 4 rounds for each of 4 lanes
+            for lane in 0 to 3 loop
+                xr := hash_r.xright(lane);
+                xl := hash_r.xleft(lane);
+                for i in 0 to 3 loop
+                    fx := ((xl(14 downto 0) & xl(15)) and (xl(7 downto 0) & xl(15 downto 8))) xor
+                          (xl(13 downto 0) & xl(15 downto 14));
+                    t := xr xor fx xor hash_r.key((i + lane) mod 4);
+                    xr := xl;
+                    xl := t;
+                end loop;
+                hv.xright(lane) := xr;
+                hv.xleft(lane) := xl;
+            end loop;
+            hv.step := hash_r.step + 1;
+            if hash_r.step = 3x"7" then
+                hv.active := '0';
+                hv.done := '1';
+            end if;
+        elsif hash_start = '1' then
+            -- start a new hash process
+            hv.z0 := 31x"7D12B0E6";     -- 0xFA2561CD >> 1
+            ra := l_in.addr1;
+            rb := l_in.data;
+            key := r3.hashkeyr;
+            for lane in 0 to 3 loop
+                j := lane * 16;
+                k := (3 - lane) * 16;
+                hv.xright(lane)(15 downto 8) := rb(j + 7 downto j);
+                hv.xright(lane)(7 downto 0)  := ra(k + 15 downto k + 8);
+                hv.xleft(lane)(15 downto 8)  := rb(j + 15 downto j + 8);
+                hv.xleft(lane)(7 downto 0)   := ra(k + 7 downto k);
+            end loop;
+            for i in 0 to 3 loop
+                j := (3 - i) * 16;
+                hv.key(i) := key(j + 15 downto j);
+            end loop;
+            hv.step := "000";
+            hv.active := '1';
+        end if;
+        -- only valid when hash_r.done = 1
+        hash_result <= (hash_r.xright(0) & hash_r.xleft(0) & hash_r.xright(1) & hash_r.xleft(1)) xor
+                       (hash_r.xright(2) & hash_r.xleft(2) & hash_r.xright(3) & hash_r.xleft(3));
+
+        hash_rin <= hv;
+    end process;
+
     -- Translate a load/store instruction into the internal request format
     -- XXX this should only depend on l_in, but actually depends on
     -- r1.addr0 as well (in the l_in.second = 1 case).
@@ -483,13 +589,16 @@ begin
         v.ric := l_in.insn(19 downto 18);
         if sprn(8 downto 7) = "01" then
             -- debug registers DAWR[X][01]
-            v.sprsel := '1' & sprn(3) & sprn(0);
+            v.sprsel := "01" & sprn(3) & sprn(0);
+        elsif sprn(2) = '1' then
+            -- HASH[P]KEYR
+            v.sprsel := "000" & sprn(0);
         elsif sprn(1) = '1' then
             -- DSISR and DAR
-            v.sprsel := "01" & sprn(0);
+            v.sprsel := "001" & sprn(0);
         else
             -- PID and PTCR
-            v.sprsel := "00" & sprn(8);
+            v.sprsel := "100" & sprn(8);
         end if;
 
         lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
@@ -536,7 +645,7 @@ begin
         if l_in.repeat = '1' and l_in.update = '0' and addr(3) /= l_in.second then
             misaligned := '1';
         end if;
-        v.align_intr := l_in.reserve and misaligned;
+        v.align_intr := (l_in.reserve or l_in.hash) and misaligned;
 
         v.atomic_first := not misaligned and not l_in.second;
         v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
@@ -565,6 +674,7 @@ begin
                 if l_in.length = "0000" then
                     v.touch := '1';
                 end if;
+                v.hashst := l_in.hash;
             when OP_LOAD =>
                 if l_in.update = '0' or l_in.second = '0' then
                     v.load := '1';
@@ -579,6 +689,7 @@ begin
                     -- write back address to RA
                     v.do_update := '1';
                 end if;
+                v.hashcmp := l_in.hash;
             when OP_DCBF =>
                 v.load := '1';
                 v.flush := '1';
@@ -631,6 +742,7 @@ begin
         v := r1;
         issue := '0';
         dcreq := '0';
+        hash_start <= '0';
 
         if r1.busy = '0' then
             req := req_in;
@@ -662,6 +774,7 @@ begin
             else
                 -- For the lfs conversion cycle, leave the request valid
                 -- for another cycle but with req.dc_req = 0.
+                -- (In other words we insert an extra dummy request.)
                 -- For an MMU request last cycle, we have nothing
                 -- to do in this cycle, so make it invalid.
                 if r1.req.load_sp = '0' then
@@ -695,9 +808,20 @@ begin
             -- we can change what's in r1 next cycle because the current thing
             -- in r1 will go into r2
             v.req := req;
+            if issue = '1' and (req.hashst or req.hashcmp) = '1' then
+                -- need to initiate and then wait for the hash computation
+                hash_start <= not r1.busy;
+                v.busy := not hash_r.done;
+                if hash_r.done = '0' then
+                    issue := '0';
+                else
+                    v.req.store_data := hash_result;
+                end if;
+            else
+                v.busy := (issue and (req.incomplete or req.load_sp)) or (req.valid and req.mmu_op);
+            end if;
             dcreq := issue;
             v.issued := issue;
-            v.busy := (issue and (req.incomplete or req.load_sp)) or (req.valid and req.mmu_op);
         else
             -- pipeline is stalled
             if r1.issued = '1' and d_in.error = '1' then
@@ -723,7 +847,7 @@ begin
         variable byte_offset : unsigned(2 downto 0);
         variable interrupt : std_ulogic;
         variable dbg_spr_rd : std_ulogic;
-        variable sprsel : std_ulogic_vector(2 downto 0);
+        variable sprsel : std_ulogic_vector(3 downto 0);
         variable sprval : std_ulogic_vector(63 downto 0);
         variable dawr_match : std_ulogic;
     begin
@@ -758,24 +882,30 @@ begin
         if dbg_spr_rd = '0' then
             sprsel := r1.req.sprsel;
         else
-            sprsel := '0' & dbg_spr_addr;
+            sprsel := "00" & dbg_spr_addr;
         end if;
-        case sprsel is
-            when "100" =>
-                sprval := r3.dawr(0) & "000";
-            when "101" =>
-                sprval := r3.dawr(1) & "000";
-            when "110" =>
-                sprval := 48x"0" & r3.dawrx(0);
-            when "111" =>
-                sprval := 48x"0" & r3.dawrx(1);
-            when "010" =>
-                sprval := x"00000000" & r3.dsisr;
-            when "011" =>
-                sprval := r3.dar;
-            when others =>
-                sprval := m_in.sprval;  -- MMU regs
-        end case;
+        if sprsel(3) = '1' then
+            sprval := m_in.sprval;  -- MMU regs
+        else
+            case sprsel(2 downto 0) is
+                when "100" =>
+                    sprval := r3.dawr(0) & "000";
+                when "101" =>
+                    sprval := r3.dawr(1) & "000";
+                when "110" =>
+                    sprval := 48x"0" & r3.dawrx(0);
+                when "111" =>
+                    sprval := 48x"0" & r3.dawrx(1);
+                when "000" =>
+                    sprval := r3.hashkeyr;
+                when "010" =>
+                    sprval := x"00000000" & r3.dsisr;
+                when "011" =>
+                    sprval := r3.dar;
+                when others =>
+                    sprval := (others => '0');
+            end case;
+        end if;
         if dbg_spr_req = '0' then
             v.dbg_spr_ack := '0';
         elsif dbg_spr_rd = '1' and r2.dbg_spr_ack = '0' then
@@ -790,9 +920,9 @@ begin
                 v.req.store_data := store_data;
                 v.req.dawr_intr := dawr_match;
                 v.wait_dc := r1.req.valid and r1.req.dc_req and not r1.req.load_sp and
-                             not r1.req.incomplete;
+                             not r1.req.incomplete and not r1.req.hashcmp;
                 v.wait_mmu := r1.req.valid and r1.req.mmu_op;
-                if r1.req.valid = '1' and r1.req.align_intr = '1' then
+                if r1.req.valid = '1' and (r1.req.align_intr or r1.req.hashcmp) = '1' then
                     v.busy := '1';
                     v.one_cycle := '0';
                 else
@@ -832,7 +962,9 @@ begin
             v.wait_mmu := '0';
         end if;
         if r2.busy = '1' and r2.wait_mmu = '0' then
-            v.busy := '0';
+            if r2.req.hashcmp = '0' or d_in.valid = '1' then
+                v.busy := '0';
+            end if;
         end if;
 
         interrupt := (r2.req.valid and r2.req.align_intr) or
@@ -877,6 +1009,7 @@ begin
         variable dsisr         : std_ulogic_vector(31 downto 0);
         variable itlb_fault    : std_ulogic;
         variable trim_ctl      : trim_ctl_t;
+        variable hashchk_trap  : std_ulogic;
     begin
         v := r3;
 
@@ -966,6 +1099,15 @@ begin
             v.load_data := data_permuted;
         end if;
 
+        hashchk_trap := '0';
+        if d_in.valid = '1' and r2.req.hashcmp = '1' then
+            if d_in.data = r2.req.store_data then
+                v.complete := '1';
+            else
+                hashchk_trap := '1';
+                exception := '1';
+            end if;
+        end if;
 
         if r2.req.valid = '1' then
             if r2.req.read_spr = '1' then
@@ -982,22 +1124,24 @@ begin
                 write_enable := '1';
             end if;
             if r2.req.write_spr = '1' then
-                if r2.req.sprsel(2) = '1' then
+                if r2.req.sprsel(3 downto 2) = "01" then
                     v.dawr_upd := '1';
                 end if;
                 case r2.req.sprsel is
-                    when "100" =>
+                    when "0100" =>
                         v.dawr(0) := r2.req.store_data(63 downto 3);
-                    when "101" =>
+                    when "0101" =>
                         v.dawr(1) := r2.req.store_data(63 downto 3);
-                    when "110" =>
+                    when "0110" =>
                         v.dawrx(0) := r2.req.store_data(15 downto 0);
-                    when "111" =>
+                    when "0111" =>
                         v.dawrx(1) := r2.req.store_data(15 downto 0);
-                    when "010" =>
+                    when "0010" =>
                         v.dsisr := r2.req.store_data(31 downto 0);
-                    when "011" =>
+                    when "0011" =>
                         v.dar := r2.req.store_data;
+                    when "0000" =>
+                        v.hashkeyr := r2.req.store_data;
                     when others =>
                 end case;
             end if;
@@ -1016,7 +1160,7 @@ begin
         if d_in.valid = '1' then
             if r2.req.incomplete = '0' then
                 write_enable := r2.req.load and not r2.req.load_sp and
-                                not r2.req.flush and not r2.req.touch;
+                                not r2.req.flush and not r2.req.touch and not r2.req.hashcmp;
                 -- stores write back rA update
                 do_update := r2.req.update and r2.req.store;
             end if;
@@ -1074,6 +1218,10 @@ begin
                 v.intr_vec := 16#600#;
                 v.srr1(47 - 34) := r2.req.prefixed;
                 v.dar := r2.req.addr;
+            elsif hashchk_trap = '1' then
+                v.intr_vec := 16#700#;
+                v.srr1(47 - 34) := r2.req.prefixed;
+                v.srr1(47 - 46) := '1';
             elsif r2.req.instr_fault = '0' then
                 v.srr1(47 - 34) := r2.req.prefixed;
                 v.dar := r2.req.addr;

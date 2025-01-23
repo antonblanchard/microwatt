@@ -199,6 +199,8 @@ architecture behaviour of decode1 is
         INSN_fsubs       =>  (FPU,  FPU,  OP_FP_ARITH,  FRA,        FRB,         NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE),
         INSN_ftdiv       =>  (FPU,  FPU,  OP_FP_CMP,    FRA,        FRB,         NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_ftsqrt      =>  (FPU,  FPU,  OP_FP_CMP,    NONE,       FRB,         NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_hashchk     =>  (LDST, NONE, OP_LOAD,      RA,         DSX,         RBC,  NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '1', NONE, '0', '0', NONE),
+        INSN_hashst      =>  (LDST, NONE, OP_STORE,     RA,         DSX,         RBC,  NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '1', NONE, '0', '0', NONE),
         INSN_icbi        =>  (ALU,  NONE, OP_ICBI,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE),
         INSN_icbt        =>  (ALU,  NONE, OP_ICBT,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_isel        =>  (ALU,  NONE, OP_ISEL,      RA_OR_ZERO, RB,          NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
@@ -695,6 +697,12 @@ begin
             -- (note we don't have access to the decode for the current instruction)
             if (icode = INSN_stq or icode = INSN_stqcx) and f_in.big_endian = '0' then
                 vr.reg_3_addr(0) := '1';
+            end if;
+            -- See if this is an instruction where we need to use the RS/RC
+            -- read port to read the RB operand, because we want to get an
+            -- immediate operand to execute1 via read_data2.
+            if (icode = INSN_hashst or icode = INSN_hashchk) then
+                vr.reg_3_addr := '0' & insn_rb(f_in.insn);
             end if;
             vr.read_1_enable := f_in.valid;
             vr.read_2_enable := f_in.valid and maybe_rb;
