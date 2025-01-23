@@ -434,6 +434,7 @@ package common is
         ramspr_32bit       : std_ulogic;
         dbg_spr_access : std_ulogic;
         dec_ctr : std_ulogic;
+        privileged : std_ulogic;
         prefixed : std_ulogic;
         prefix : std_ulogic_vector(25 downto 0);
         illegal_suffix : std_ulogic;
@@ -466,7 +467,7 @@ package common is
          ramspr_32bit => '0',
          dbg_spr_access => '0',
          dec_ctr => '0',
-         prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
+         privileged => '0', prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
          misaligned_prefix => '0', illegal_form => '0', uses_tar => '0', uses_dscr => '0',
          right_shift => '0', rot_clear_left => '0', rot_clear_right => '0', rot_sign_ext => '0',
          do_popcnt => '0',

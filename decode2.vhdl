@@ -674,6 +674,10 @@ begin
                     v.e.result_sel := "001";        -- logical_result
                 end if;
             end if;
+            v.e.privileged := d_in.decode.privileged;
+            if (op = OP_MFSPR or op = OP_MTSPR) and d_in.insn(20) = '1' then
+                v.e.privileged := '1';
+            end if;
             v.e.prefixed := d_in.prefixed;
             v.e.prefix := d_in.prefix;
             v.e.illegal_suffix := d_in.illegal_suffix;

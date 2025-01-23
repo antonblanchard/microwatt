@@ -290,18 +290,6 @@ architecture behaviour of execute1 is
         others => USER
         );
 
-    function instr_is_privileged(op: insn_type_t; insn: std_ulogic_vector(31 downto 0))
-        return boolean is
-    begin
-        if op_privilege(op) = SUPER then
-            return true;
-        elsif op = OP_MFSPR or op = OP_MTSPR then
-            return insn(20) = '1';
-        else
-            return false;
-        end if;
-    end;
-
     procedure set_carry(e: inout Execute1ToWritebackType;
 			carry32 : in std_ulogic;
 			carry : in std_ulogic) is
@@ -1162,8 +1150,8 @@ begin
 
         if e_in.illegal_suffix = '1' or e_in.illegal_form = '1' then
             illegal := '1';
-        elsif ex1.msr(MSR_PR) = '1' and instr_is_privileged(e_in.insn_type, e_in.insn) then
-            privileged := '1';
+        elsif ex1.msr(MSR_PR) = '1' then
+            privileged := e_in.privileged;
         end if;
 
         v.do_trace := ex1.msr(MSR_SE);

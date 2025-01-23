@@ -483,6 +483,7 @@ package decode_types is
 	rc           : rc_t;
 	lr           : std_ulogic;
 
+        privileged   : std_ulogic;
 	sgl_pipe     : std_ulogic;
         repeat       : repeat_t;
     end record;
@@ -493,7 +494,8 @@ package decode_types is
 						invert_a => '0', invert_out => '0', input_carry => ZERO, output_carry => '0',
 						length => NONE, byte_reverse => '0', sign_extend => '0',
 						update => '0', reserve => '0', is_32bit => '0',
-						is_signed => '0', rc => NONE, lr => '0', sgl_pipe => '0', repeat => NONE);
+						is_signed => '0', rc => NONE, lr => '0',
+                                                privileged => '0', sgl_pipe => '0', repeat => NONE);
 
     -- This function maps from insn_code values to primary opcode.
     -- With this, we don't have to store the primary opcode of each instruction
