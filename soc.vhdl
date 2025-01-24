@@ -67,6 +67,7 @@ entity soc is
 	RAM_INIT_FILE      : string;
 	CLK_FREQ           : positive;
 	SIM                : boolean;
+        NCPUS              : positive := 1;
         HAS_FPU            : boolean := true;
         HAS_BTC            : boolean := true;
 	DISABLE_FLATTEN_CORE : boolean := false;
@@ -148,20 +149,18 @@ end entity soc;
 
 architecture behaviour of soc is
 
+    subtype cpu_index_t is natural range 0 to NCPUS-1;
+    type dword_percpu_array is array(cpu_index_t) of std_ulogic_vector(63 downto 0);
+
     -- internal reset
     signal soc_reset : std_ulogic;
 
     -- Wishbone master signals:
-    signal wishbone_dcore_in  : wishbone_slave_out;
-    signal wishbone_dcore_out : wishbone_master_out;
-    signal wishbone_icore_in  : wishbone_slave_out;
-    signal wishbone_icore_out : wishbone_master_out;
-    signal wishbone_debug_in  : wishbone_slave_out;
-    signal wishbone_debug_out : wishbone_master_out;
+    signal wishbone_debug_in   : wishbone_slave_out;
+    signal wishbone_debug_out  : wishbone_master_out;
 
-    -- Arbiter array (ghdl doesnt' support assigning the array
-    -- elements in the entity instantiation)
-    constant NUM_WB_MASTERS : positive := 4;
+    -- Arbiter array
+    constant NUM_WB_MASTERS : positive := NCPUS * 2 + 2;
     signal wb_masters_out : wishbone_master_out_vector(0 to NUM_WB_MASTERS-1);
     signal wb_masters_in  : wishbone_slave_out_vector(0 to NUM_WB_MASTERS-1);
 
@@ -180,7 +179,7 @@ architecture behaviour of soc is
 
     -- Syscon signals
     signal dram_at_0     : std_ulogic;
-    signal do_core_reset    : std_ulogic;
+    signal do_core_reset : std_ulogic_vector(NCPUS-1 downto 0);
     signal alt_reset     : std_ulogic;
     signal wb_syscon_in  : wb_io_master_out;
     signal wb_syscon_out : wb_io_slave_out;
@@ -210,7 +209,7 @@ architecture behaviour of soc is
     signal wb_xics_ics_out  : wb_io_slave_out;
     signal int_level_in     : std_ulogic_vector(15 downto 0);
     signal ics_to_icp       : ics_to_icp_t;
-    signal core_ext_irq     : std_ulogic;
+    signal core_ext_irq     : std_ulogic_vector(NCPUS-1 downto 0) := (others => '0');
 
     -- GPIO signals:
     signal wb_gpio_in    : wb_io_master_out;
@@ -233,12 +232,12 @@ architecture behaviour of soc is
     signal dmi_wb_dout  : std_ulogic_vector(63 downto 0);
     signal dmi_wb_req   : std_ulogic;
     signal dmi_wb_ack   : std_ulogic;
-    signal dmi_core_dout  : std_ulogic_vector(63 downto 0);
-    signal dmi_core_req   : std_ulogic;
-    signal dmi_core_ack   : std_ulogic;
+    signal dmi_core_dout  : dword_percpu_array;
+    signal dmi_core_req   : std_ulogic_vector(NCPUS-1 downto 0);
+    signal dmi_core_ack   : std_ulogic_vector(NCPUS-1 downto 0);
 
     -- Delayed/latched resets and alt_reset
-    signal rst_core    : std_ulogic;
+    signal rst_core    : std_ulogic_vector(NCPUS-1 downto 0);
     signal rst_uart    : std_ulogic;
     signal rst_xics    : std_ulogic;
     signal rst_spi     : std_ulogic;
@@ -269,6 +268,10 @@ architecture behaviour of soc is
     signal io_cycle_spi_flash : std_ulogic;
     signal io_cycle_gpio      : std_ulogic;
     signal io_cycle_external  : std_ulogic;
+
+    signal core_run_out       : std_ulogic_vector(NCPUS-1 downto 0);
+
+    signal timebase : std_ulogic_vector(63 downto 0);
 
     function wishbone_widen_data(wb : wb_io_master_out) return wishbone_master_out is
         variable wwb : wishbone_master_out;
@@ -334,7 +337,9 @@ begin
     resets: process(system_clk)
     begin
         if rising_edge(system_clk) then
-            rst_core    <= soc_reset or do_core_reset;
+            for i in 0 to NCPUS-1 loop
+                rst_core(i) <= soc_reset or do_core_reset(i);
+            end loop;
             rst_uart    <= soc_reset;
             rst_spi     <= soc_reset;
             rst_xics    <= soc_reset;
@@ -347,11 +352,27 @@ begin
         end if;
     end process;
 
-    -- Processor core
-    processor: entity work.core
+    -- Timebase just increments at the system clock frequency.
+    -- There is currently no way to set it.
+    -- Ideally it would (appear to) run at 512MHz like IBM POWER systems,
+    -- but Linux seems to cope OK with it being 100MHz or whatever.
+    tbase: process(system_clk)
+    begin
+        if rising_edge(system_clk) then
+            if soc_reset = '1' then
+                timebase <= (others => '0');
+            else
+                timebase <= std_ulogic_vector(unsigned(timebase) + 1);
+            end if;
+        end if;
+    end process;
+
+    -- Processor cores
+    processors: for i in 0 to NCPUS-1 generate
+        core: entity work.core
 	generic map(
 	    SIM => SIM,
-            CPU_INDEX => 0,
+            CPU_INDEX => i,
             HAS_FPU => HAS_FPU,
             HAS_BTC => HAS_BTC,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
@@ -367,32 +388,32 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    rst => rst_core,
+	    rst => rst_core(i),
 	    alt_reset => alt_reset_d,
-            run_out => run_out,
-	    wishbone_insn_in => wishbone_icore_in,
-	    wishbone_insn_out => wishbone_icore_out,
-	    wishbone_data_in => wishbone_dcore_in,
-	    wishbone_data_out => wishbone_dcore_out,
+            run_out => core_run_out(i),
+            timebase => timebase,
+	    wishbone_insn_in => wb_masters_in(i + NCPUS),
+	    wishbone_insn_out => wb_masters_out(i + NCPUS),
+	    wishbone_data_in => wb_masters_in(i),
+	    wishbone_data_out => wb_masters_out(i),
             wb_snoop_in => wb_snoop,
 	    dmi_addr => dmi_addr(3 downto 0),
-	    dmi_dout => dmi_core_dout,
+	    dmi_dout => dmi_core_dout(i),
 	    dmi_din => dmi_dout,
 	    dmi_wr => dmi_wr,
-	    dmi_ack => dmi_core_ack,
-	    dmi_req => dmi_core_req,
-	    ext_irq => core_ext_irq
+	    dmi_ack => dmi_core_ack(i),
+	    dmi_req => dmi_core_req(i),
+	    ext_irq => core_ext_irq(i)
 	    );
+    end generate;
+
+    run_out <= or (core_run_out);
 
     -- Wishbone bus master arbiter & mux
-    wb_masters_out <= (0 => wishbone_dcore_out,
-		       1 => wishbone_icore_out,
-                       2 => wishbone_widen_data(wishbone_dma_out),
-		       3 => wishbone_debug_out);
-    wishbone_dcore_in <= wb_masters_in(0);
-    wishbone_icore_in <= wb_masters_in(1);
-    wishbone_dma_in   <= wishbone_narrow_data(wb_masters_in(2), wishbone_dma_out.adr);
-    wishbone_debug_in <= wb_masters_in(3);
+    wb_masters_out(2*NCPUS)     <= wishbone_widen_data(wishbone_dma_out);
+    wb_masters_out(2*NCPUS + 1) <= wishbone_debug_out;
+    wishbone_dma_in   <= wishbone_narrow_data(wb_masters_in(2*NCPUS), wishbone_dma_out.adr);
+    wishbone_debug_in <= wb_masters_in(2*NCPUS + 1);
     wishbone_arbiter_0: entity work.wishbone_arbiter
 	generic map(
 	    NUM_MASTERS => NUM_WB_MASTERS
@@ -780,6 +801,7 @@ begin
     -- Syscon slave
     syscon0: entity work.syscon
 	generic map(
+            NCPUS => NCPUS,
 	    HAS_UART => true,
 	    HAS_DRAM => HAS_DRAM,
 	    BRAM_SIZE => MEMORY_SIZE,
@@ -944,6 +966,9 @@ begin
     end generate;
 
     xics_icp: entity work.xics_icp
+        generic map(
+            NCPUS => NCPUS
+            )
 	port map(
 	    clk => system_clk,
 	    rst => rst_xics,
@@ -955,6 +980,7 @@ begin
 
     xics_ics: entity work.xics_ics
 	generic map(
+            NCPUS     => NCPUS,
 	    SRC_NUM   => 16,
 	    PRIO_BITS => 3
 	    )
@@ -1034,15 +1060,15 @@ begin
 	    );
 
     -- DMI interconnect
-    dmi_intercon: process(dmi_addr, dmi_req,
-			  dmi_wb_ack, dmi_wb_dout,
-			  dmi_core_ack, dmi_core_dout)
+    dmi_intercon: process(all)
 
 	-- DMI address map (each address is a full 64-bit register)
 	--
 	-- Offset:   Size:    Slave:
 	--  0         4       Wishbone
-	-- 10        16       Core
+	-- 10        16       Core 0
+        -- 20        16       Core 1
+        -- ... and so on for NCPUS cores
 
 	type slave_type is (SLAVE_WB,
 			    SLAVE_CORE,
@@ -1053,25 +1079,29 @@ begin
 	slave := SLAVE_NONE;
 	if std_match(dmi_addr, "000000--") then
 	    slave := SLAVE_WB;
-	elsif std_match(dmi_addr, "0001----") then
+        elsif not is_X(dmi_addr) and to_integer(unsigned(dmi_addr(7 downto 4))) <= NCPUS then
 	    slave := SLAVE_CORE;
 	end if;
 
 	-- DMI muxing
 	dmi_wb_req <= '0';
-	dmi_core_req <= '0';
+        dmi_core_req <= (others => '0');
+        dmi_din <= (others => '1');
+        dmi_ack <= dmi_req;
 	case slave is
 	when SLAVE_WB =>
 	    dmi_wb_req <= dmi_req;
 	    dmi_ack <= dmi_wb_ack;
 	    dmi_din <= dmi_wb_dout;
 	when SLAVE_CORE =>
-	    dmi_core_req <= dmi_req;
-	    dmi_ack <= dmi_core_ack;
-	    dmi_din <= dmi_core_dout;
+            for i in 0 to NCPUS-1 loop
+                if not is_X(dmi_addr) and to_integer(unsigned(dmi_addr(7 downto 4))) = i + 1 then
+                    dmi_core_req(i) <= dmi_req;
+                    dmi_ack <= dmi_core_ack(i);
+                    dmi_din <= dmi_core_dout(i);
+                end if;
+            end loop;
 	when others =>
-	    dmi_ack <= dmi_req;
-	    dmi_din <= (others => '1');
 	end case;
 
 	-- SIM magic exit

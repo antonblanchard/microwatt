@@ -201,6 +201,23 @@ architecture behaviour of decode2 is
         end case;
     end;
 
+    function andor (mask_a : std_ulogic; val_a : std_ulogic_vector(63 downto 0);
+                    mask_b : std_ulogic; val_b : std_ulogic_vector(63 downto 0);
+                    mask_c : std_ulogic; val_c : std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
+        variable t : std_ulogic_vector(63 downto 0) := (others => '0');
+    begin
+        if mask_a = '1' then
+            t := val_a;
+        end if;
+        if mask_b = '1' then
+            t := t or val_b;
+        end if;
+        if mask_c = '1' then
+            t := t or val_c;
+        end if;
+        return t;
+    end;
+
     -- control signals that are derived from insn_type
     type mux_select_array_t is array(insn_type_t) of std_ulogic_vector(2 downto 0);
 
@@ -210,7 +227,6 @@ architecture behaviour of decode2 is
         OP_PRTY     => "001",
         OP_CMPB     => "001",
         OP_EXTS     => "001",
-        OP_BPERM    => "001",
         OP_BREV     => "001",
         OP_BCD      => "001",
         OP_MTSPR    => "001",
@@ -239,6 +255,7 @@ architecture behaviour of decode2 is
         OP_DIVE    => "101",
         OP_MOD     => "101",
         OP_BSORT   => "100",
+        OP_BPERM   => "100",
         OP_ADDG6S  => "001",            -- misc_result
         OP_ISEL    => "010",
         OP_DARN    => "011",
@@ -269,15 +286,15 @@ architecture behaviour of decode2 is
 
     signal gpr_a_read_valid : std_ulogic;
     signal gpr_a_read       : gspr_index_t;
-    signal gpr_a_bypass     : std_ulogic_vector(1 downto 0);
+    signal gpr_a_bypass     : std_ulogic_vector(3 downto 0);
 
     signal gpr_b_read_valid : std_ulogic;
     signal gpr_b_read       : gspr_index_t;
-    signal gpr_b_bypass     : std_ulogic_vector(1 downto 0);
+    signal gpr_b_bypass     : std_ulogic_vector(3 downto 0);
 
     signal gpr_c_read_valid : std_ulogic;
     signal gpr_c_read       : gspr_index_t;
-    signal gpr_c_bypass     : std_ulogic_vector(1 downto 0);
+    signal gpr_c_bypass     : std_ulogic_vector(3 downto 0);
 
     signal cr_read_valid   : std_ulogic;
     signal cr_write_valid  : std_ulogic;
@@ -656,6 +673,14 @@ begin
             v.e.illegal_suffix := d_in.illegal_suffix;
             v.e.misaligned_prefix := d_in.misaligned_prefix;
 
+            -- rotator control signals
+            v.e.right_shift := '1' when op = OP_SHR else '0';
+            v.e.rot_clear_left := '1' when op = OP_RLC or op = OP_RLCL else '0';
+            v.e.rot_clear_right := '1' when op = OP_RLC or op = OP_RLCR else '0';
+            v.e.rot_sign_ext := '1' when op = OP_EXTSWSLI else '0';
+
+            v.e.do_popcnt := '1' when op = OP_COUNTB and d_in.insn(7 downto 6) = "11" else '0';
+
             -- check for invalid forms that cause an illegal instruction interrupt
             -- Does RA = RT for a load quadword instr, or RB = RT for lqarx?
             if d_in.decode.repeat = DRTP and
@@ -694,53 +719,38 @@ begin
         ov_write_valid <= v.output_ov;
 
         -- See if any of the operands can get their value via the bypass path.
-        if dc2.busy = '0' or gpr_a_bypass /= "00" then
-            case gpr_a_bypass is
-                when "01" =>
-                    v.e.read_data1 := execute_bypass.data;
-                when "10" =>
-                    v.e.read_data1 := execute2_bypass.data;
-                when "11" =>
-                    v.e.read_data1 := writeback_bypass.data;
-                when others =>
-                    if decoded_reg_a.reg_valid = '1' then
-                        v.e.read_data1 := r_in.read1_data;
-                    else
-                        v.e.read_data1 := decoded_reg_a.data;
-                    end if;
-            end case;
+        if gpr_a_bypass(0) = '1' then
+            v.e.read_data1 := andor(gpr_a_bypass(1), execute_bypass.data,
+                                    gpr_a_bypass(2), execute2_bypass.data,
+                                    gpr_a_bypass(3), writeback_bypass.data);
+        elsif dc2.busy = '0' then
+            if decoded_reg_a.reg_valid = '1' then
+                v.e.read_data1 := r_in.read1_data;
+            else
+                v.e.read_data1 := decoded_reg_a.data;
+            end if;
         end if;
-        if dc2.busy = '0' or gpr_b_bypass /= "00" then
-            case gpr_b_bypass is
-                when "01" =>
-                    v.e.read_data2 := execute_bypass.data;
-                when "10" =>
-                    v.e.read_data2 := execute2_bypass.data;
-                when "11" =>
-                    v.e.read_data2 := writeback_bypass.data;
-                when others =>
-                    if decoded_reg_b.reg_valid = '1' then
-                        v.e.read_data2 := r_in.read2_data;
-                    else
-                        v.e.read_data2 := decoded_reg_b.data;
-                    end if;
-            end case;
+        if gpr_b_bypass(0) = '1' then
+            v.e.read_data2 := andor(gpr_b_bypass(1), execute_bypass.data,
+                                    gpr_b_bypass(2), execute2_bypass.data,
+                                    gpr_b_bypass(3), writeback_bypass.data);
+        elsif dc2.busy = '0' then
+            if decoded_reg_b.reg_valid = '1' then
+                v.e.read_data2 := r_in.read2_data;
+            else
+                v.e.read_data2 := decoded_reg_b.data;
+            end if;
         end if;
-        if dc2.busy = '0' or gpr_c_bypass /= "00" then
-            case gpr_c_bypass is
-                when "01" =>
-                    v.e.read_data3 := execute_bypass.data;
-                when "10" =>
-                    v.e.read_data3 := execute2_bypass.data;
-                when "11" =>
-                    v.e.read_data3 := writeback_bypass.data;
-                when others =>
-                    if decoded_reg_c.reg_valid = '1' then
-                        v.e.read_data3 := r_in.read3_data;
-                    else
-                        v.e.read_data3 := decoded_reg_c.data;
-                    end if;
-            end case;
+        if gpr_c_bypass(0) = '1' then
+            v.e.read_data3 := andor(gpr_c_bypass(1), execute_bypass.data,
+                                    gpr_c_bypass(2), execute2_bypass.data,
+                                    gpr_c_bypass(3), writeback_bypass.data);
+        elsif dc2.busy = '0' then
+            if decoded_reg_c.reg_valid = '1' then
+                v.e.read_data3 := r_in.read3_data;
+            else
+                v.e.read_data3 := decoded_reg_c.data;
+            end if;
         end if;
 
         case cr_bypass is

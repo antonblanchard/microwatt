@@ -23,7 +23,6 @@ architecture behaviour of logical is
 
     signal par0, par1 : std_ulogic;
     signal parity   : std_ulogic_vector(63 downto 0);
-    signal permute  : std_ulogic_vector(7 downto 0);
 
     function bcd_to_dpd(bcd: std_ulogic_vector(11 downto 0)) return std_ulogic_vector is
         variable dpd: std_ulogic_vector(9 downto 0);
@@ -109,16 +108,6 @@ begin
             parity(32) <= par1;
         end if;
 
-        -- bit permutation
-        for i in 0 to 7 loop
-            j := i * 8;
-            if rs(j+7 downto j+6) = "00" then
-                permute(i) <= rb(to_integer(unsigned(not rs(j+5 downto j))));
-            else
-                permute(i) <= '0';
-            end if;
-        end loop;
-
         rb_adj := rb;
         if invert_in = '1' then
             rb_adj := not rb;
@@ -157,8 +146,6 @@ begin
                 tmp := parity;
             when OP_CMPB =>
                 tmp := ppc_cmpb(rs, rb);
-            when OP_BPERM =>
-                tmp := std_ulogic_vector(resize(unsigned(permute), 64));
             when OP_BCD =>
                 -- invert_in is abused to indicate direction of conversion
                 if invert_in = '0' then

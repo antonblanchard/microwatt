@@ -9,6 +9,7 @@ use work.wishbone_types.all;
 
 entity syscon is
     generic (
+        NCPUS            : positive := 1;
 	SIG_VALUE        : std_ulogic_vector(63 downto 0) := x"f00daa5500010001";
 	CLK_FREQ         : integer;
 	HAS_UART         : boolean;
@@ -33,7 +34,7 @@ entity syscon is
 
 	-- System control ports
 	dram_at_0  : out std_ulogic;
-	core_reset : out std_ulogic;
+	core_reset : out std_ulogic_vector(NCPUS-1 downto 0);
 	soc_reset  : out std_ulogic;
 	alt_reset  : out std_ulogic
 	);
@@ -56,6 +57,7 @@ architecture behaviour of syscon is
     constant SYS_REG_UART0_INFO   : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001000";
     constant SYS_REG_UART1_INFO   : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001001";
     constant SYS_REG_GIT_INFO     : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001010";
+    constant SYS_REG_CPU_CTRL     : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001011";
 
     -- Muxed reg read signal
     signal reg_out	: std_ulogic_vector(63 downto 0);
@@ -116,6 +118,7 @@ architecture behaviour of syscon is
     signal reg_uart0info : std_ulogic_vector(63 downto 0);
     signal reg_uart1info : std_ulogic_vector(63 downto 0);
     signal reg_gitinfo   : std_ulogic_vector(63 downto 0);
+    signal reg_cpuctrl   : std_ulogic_vector(63 downto 0);
     signal info_has_dram : std_ulogic;
     signal info_has_bram : std_ulogic;
     signal info_has_uart : std_ulogic;
@@ -134,7 +137,8 @@ begin
     -- Generated output signals
     dram_at_0 <= '1' when BRAM_SIZE = 0 else reg_ctrl(SYS_REG_CTRL_DRAM_AT_0);
     soc_reset <= reg_ctrl(SYS_REG_CTRL_SOC_RESET);
-    core_reset <= reg_ctrl(SYS_REG_CTRL_CORE_RESET);
+    core_reset <= not reg_cpuctrl(NCPUS-1 downto 0) when reg_ctrl(SYS_REG_CTRL_CORE_RESET) = '0'
+                  else (others => '1');
     alt_reset <= reg_ctrl(SYS_REG_CTRL_ALT_RESET);
 
 
@@ -187,6 +191,8 @@ begin
                     55 downto 0 => GIT_HASH,
                     others      => '0');
 
+    reg_cpuctrl(63 downto 8) <= std_ulogic_vector(to_unsigned(NCPUS, 56));
+
     -- Wishbone response
     wb_rsp.ack <= wishbone_in.cyc and wishbone_in.stb;
     with wishbone_in.adr(SYS_REG_BITS downto 1) select reg_out <=
@@ -201,6 +207,7 @@ begin
         reg_uart0info   when SYS_REG_UART0_INFO,
         reg_uart1info   when SYS_REG_UART1_INFO,
         reg_gitinfo     when SYS_REG_GIT_INFO,
+        reg_cpuctrl     when SYS_REG_CPU_CTRL,
 	(others => '0') when others;
     wb_rsp.dat   <= reg_out(63 downto 32) when wishbone_in.adr(0) = '1' else
                   reg_out(31 downto 0);
@@ -225,6 +232,7 @@ begin
 	    if (rst) then
 		reg_ctrl <= (SYS_REG_CTRL_ALT_RESET => ctrl_init_alt_reset,
                         others => '0');
+                reg_cpuctrl(7 downto 0) <= x"01";          -- enable cpu 0 only
 	    else
 		if wishbone_in.cyc and wishbone_in.stb and wishbone_in.we then
                     -- Change this if CTRL ever has more than 32 bits
@@ -233,6 +241,10 @@ begin
 			reg_ctrl(SYS_REG_CTRL_BITS-1 downto 0) <=
 			    wishbone_in.dat(SYS_REG_CTRL_BITS-1 downto 0);
 		    end if;
+                    if wishbone_in.adr(SYS_REG_BITS downto 1) = SYS_REG_CPU_CTRL and
+                        wishbone_in.adr(0) = '0' and wishbone_in.sel(0) = '1' then
+                        reg_cpuctrl(7 downto 0) <= wishbone_in.dat(7 downto 0);
+                    end if;
 		end if;
 
                 -- Reset auto-clear

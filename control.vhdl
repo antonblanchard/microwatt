@@ -45,9 +45,13 @@ entity control is
         valid_out           : out std_ulogic;
         stopped_out         : out std_ulogic;
 
-        gpr_bypass_a        : out std_ulogic_vector(1 downto 0);
-        gpr_bypass_b        : out std_ulogic_vector(1 downto 0);
-        gpr_bypass_c        : out std_ulogic_vector(1 downto 0);
+        -- Note on gpr_bypass_*: bits 1 to 3 are a 1-hot encoding of which
+        -- bypass source we may possibly need to use; bit 0 is 1 if the bypass
+        -- value should be used (i.e. any of bits 1-3 are 1 and the
+        -- corresponding gpr_x_read_valid_in is also 1).
+        gpr_bypass_a        : out std_ulogic_vector(3 downto 0);
+        gpr_bypass_b        : out std_ulogic_vector(3 downto 0);
+        gpr_bypass_c        : out std_ulogic_vector(3 downto 0);
         cr_bypass           : out std_ulogic_vector(1 downto 0);
 
         instr_tag_out       : out instr_tag_t
@@ -152,9 +156,9 @@ begin
         variable tag_s : instr_tag_t;
         variable tag_t : instr_tag_t;
         variable incr_tag : tag_number_t;
-        variable byp_a : std_ulogic_vector(1 downto 0);
-        variable byp_b : std_ulogic_vector(1 downto 0);
-        variable byp_c : std_ulogic_vector(1 downto 0);
+        variable byp_a : std_ulogic_vector(3 downto 0);
+        variable byp_b : std_ulogic_vector(3 downto 0);
+        variable byp_c : std_ulogic_vector(3 downto 0);
         variable tag_cr : instr_tag_t;
         variable byp_cr : std_ulogic_vector(1 downto 0);
         variable tag_ov : instr_tag_t;
@@ -163,57 +167,66 @@ begin
         tag_a := instr_tag_init;
         for i in tag_number_t loop
             if tag_regs(i).wr_gpr = '1' and tag_regs(i).recent = '1' and tag_regs(i).reg = gpr_a_read_in then
-                tag_a.valid := gpr_a_read_valid_in;
+                tag_a.valid := '1';
                 tag_a.tag := i;
             end if;
         end loop;
         tag_b := instr_tag_init;
         for i in tag_number_t loop
             if tag_regs(i).wr_gpr = '1' and tag_regs(i).recent = '1' and tag_regs(i).reg = gpr_b_read_in then
-                tag_b.valid := gpr_b_read_valid_in;
+                tag_b.valid := '1';
                 tag_b.tag := i;
             end if;
         end loop;
         tag_c := instr_tag_init;
         for i in tag_number_t loop
             if tag_regs(i).wr_gpr = '1' and tag_regs(i).recent = '1' and tag_regs(i).reg = gpr_c_read_in then
-                tag_c.valid := gpr_c_read_valid_in;
+                tag_c.valid := '1';
                 tag_c.tag := i;
             end if;
         end loop;
 
-        byp_a := "00";
+        byp_a := "0000";
         if EX1_BYPASS and tag_match(execute_next_tag, tag_a) then
-            byp_a := "01";
-        elsif EX1_BYPASS and tag_match(execute2_next_tag, tag_a) then
-            byp_a := "10";
-        elsif tag_match(complete_in, tag_a) then
-            byp_a := "11";
+            byp_a(1) := '1';
         end if;
-        byp_b := "00";
+        if EX1_BYPASS and tag_match(execute2_next_tag, tag_a) then
+            byp_a(2) := '1';
+        end if;
+        if tag_match(complete_in, tag_a) then
+            byp_a(3) := '1';
+        end if;
+        byp_a(0) := gpr_a_read_valid_in and (byp_a(1) or byp_a(2) or byp_a(3));
+        byp_b := "0000";
         if EX1_BYPASS and tag_match(execute_next_tag, tag_b) then
-            byp_b := "01";
-        elsif EX1_BYPASS and tag_match(execute2_next_tag, tag_b) then
-            byp_b := "10";
-        elsif tag_match(complete_in, tag_b) then
-            byp_b := "11";
+            byp_b(1) := '1';
         end if;
-        byp_c := "00";
+        if EX1_BYPASS and tag_match(execute2_next_tag, tag_b) then
+            byp_b(2) := '1';
+        end if;
+        if tag_match(complete_in, tag_b) then
+            byp_b(3) := '1';
+        end if;
+        byp_b(0) := gpr_b_read_valid_in and (byp_b(1) or byp_b(2) or byp_b(3));
+        byp_c := "0000";
         if EX1_BYPASS and tag_match(execute_next_tag, tag_c) then
-            byp_c := "01";
-        elsif EX1_BYPASS and tag_match(execute2_next_tag, tag_c) then
-            byp_c := "10";
-        elsif tag_match(complete_in, tag_c) then
-            byp_c := "11";
+            byp_c(1) := '1';
         end if;
+        if EX1_BYPASS and tag_match(execute2_next_tag, tag_c) then
+            byp_c(2) := '1';
+        end if;
+        if tag_match(complete_in, tag_c) then
+            byp_c(3) := '1';
+        end if;
+        byp_c(0) := gpr_c_read_valid_in and (byp_c(1) or byp_c(2) or byp_c(3));
 
         gpr_bypass_a <= byp_a;
         gpr_bypass_b <= byp_b;
         gpr_bypass_c <= byp_c;
 
-        gpr_tag_stall <= (tag_a.valid and not (or (byp_a))) or
-                         (tag_b.valid and not (or (byp_b))) or
-                         (tag_c.valid and not (or (byp_c)));
+        gpr_tag_stall <= (tag_a.valid and gpr_a_read_valid_in and not byp_a(0)) or
+                         (tag_b.valid and gpr_b_read_valid_in and not byp_b(0)) or
+                         (tag_c.valid and gpr_c_read_valid_in and not byp_c(0));
 
         incr_tag := curr_tag;
         instr_tag.tag <= curr_tag;

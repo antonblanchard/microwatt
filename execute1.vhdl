@@ -34,6 +34,8 @@ entity execute1 is
 	ext_irq_in : std_ulogic;
         interrupt_in : WritebackToExecute1Type;
 
+        timebase : std_ulogic_vector(63 downto 0);
+
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
         fp_out : out Execute1ToFPUType;
@@ -116,6 +118,7 @@ architecture behaviour of execute1 is
         start_mul : std_ulogic;
         start_div : std_ulogic;
         start_bsort : std_ulogic;
+        start_bperm : std_ulogic;
         do_trace : std_ulogic;
         ciabr_trace : std_ulogic;
         fp_intr : std_ulogic;
@@ -150,6 +153,7 @@ architecture behaviour of execute1 is
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         bsort_in_progress : std_ulogic;
+        bperm_in_progress : std_ulogic;
         no_instr_avail : std_ulogic;
         instr_dispatch : std_ulogic;
         ext_interrupt : std_ulogic;
@@ -174,7 +178,7 @@ architecture behaviour of execute1 is
          spr_select => spr_id_init, pmu_spr_num => 5x"0",
          redir_to_next => '0', advance_nia => '0', lr_from_next => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0',
-         bsort_in_progress => '0',
+         bsort_in_progress => '0', bperm_in_progress => '0',
          no_instr_avail => '0', instr_dispatch => '0', ext_interrupt => '0',
          taken_branch_event => '0', br_mispredict => '0',
          msr => 64x"0",
@@ -206,12 +210,9 @@ architecture behaviour of execute1 is
     signal valid_in : std_ulogic;
     signal ctrl: ctrl_t := ctrl_t_init;
     signal ctrl_tmp: ctrl_t := ctrl_t_init;
-    signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
-    signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
-    signal do_popcnt: std_ulogic;
     signal countbits_result: std_ulogic_vector(63 downto 0);
     signal alu_result: std_ulogic_vector(63 downto 0);
     signal adder_result: std_ulogic_vector(63 downto 0);
@@ -245,6 +246,8 @@ architecture behaviour of execute1 is
     -- bit-sort unit signals
     signal bsort_start : std_ulogic;
     signal bsort_done  : std_ulogic;
+    signal bperm_start : std_ulogic;
+    signal bperm_done : std_ulogic;
 
     -- random number generator signals
     signal random_raw  : std_ulogic_vector(63 downto 0);
@@ -448,11 +451,11 @@ begin
 	    shift => b_in(6 downto 0),
 	    insn => e_in.insn,
 	    is_32bit => e_in.is_32bit,
-	    right_shift => right_shift,
+	    right_shift => e_in.right_shift,
 	    arith => e_in.is_signed,
-	    clear_left => rot_clear_left,
-	    clear_right => rot_clear_right,
-            sign_ext_rs => rot_sign_ext,
+	    clear_left => e_in.rot_clear_left,
+	    clear_right => e_in.rot_clear_right,
+            sign_ext_rs => e_in.rot_sign_ext,
 	    result => rotator_result,
 	    carry_out => rotator_carry
 	    );
@@ -476,7 +479,7 @@ begin
             stall => stage2_stall,
 	    count_right => e_in.insn(10),
 	    is_32bit => e_in.is_32bit,
-            do_popcnt => do_popcnt,
+            do_popcnt => e_in.do_popcnt,
             datalen => e_in.data_len,
 	    result => countbits_result
 	    );
@@ -515,6 +518,8 @@ begin
             go => bsort_start,
             opc => e_in.insn(7 downto 6),
             done => bsort_done,
+            do_bperm => bperm_start,
+            bperm_done => bperm_done,
             result => bsort_result
             );
 
@@ -1147,7 +1152,7 @@ begin
         -- side-effect flags or write enables when generating a trap).
         -- With v.trap = 1 we will assert both ex1.e.valid and ex1.e.interrupt
         -- to writeback, and it will complete the instruction and take
-        -- and interrupt.  It is OK for v.trap to depend on operand data.
+        -- an interrupt.  It is OK for v.trap to depend on operand data.
 
         illegal := '0';
         privileged := '0';
@@ -1228,7 +1233,7 @@ begin
             when OP_CMPRB =>
             when OP_CMPEQB =>
             when OP_LOGIC | OP_XOR | OP_PRTY | OP_CMPB | OP_EXTS |
-                OP_BPERM | OP_BREV | OP_BCD =>
+                OP_BREV | OP_BCD =>
 
 	    when OP_B =>
                 v.take_branch := '1';
@@ -1433,6 +1438,11 @@ begin
                 slow_op := '1';
                 owait := '1';
 
+            when OP_BPERM =>
+                v.start_bperm := '1';
+                slow_op := '1';
+                owait := '1';
+
 	    when OP_MUL_L64 =>
                 if e_in.is_32bit = '1' then
                     v.se.mult_32s := '1';
@@ -1585,7 +1595,7 @@ begin
 
         if e_in.unit = ALU then
             v.complete := e_in.valid and not v.exception and not owait;
-            v.bypass_valid := e_in.valid and not v.exception and not slow_op;
+            v.bypass_valid := e_in.valid and not slow_op;
         end if;
 
         actions <= v;
@@ -1631,17 +1641,9 @@ begin
         v.taken_branch_event := '0';
         v.br_mispredict := '0';
         v.busy := '0';
-        bypass_valid := '0';
+        bypass_valid := actions.bypass_valid;
 
         irq_valid := ex1.msr(MSR_EE) and (pmu_to_x.intr or ctrl.dec(63) or ext_irq_in);
-
-	-- rotator control signals
-	right_shift <= '1' when e_in.insn_type = OP_SHR else '0';
-	rot_clear_left <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCL else '0';
-	rot_clear_right <= '1' when e_in.insn_type = OP_RLC or e_in.insn_type = OP_RLCR else '0';
-        rot_sign_ext <= '1' when e_in.insn_type = OP_EXTSWSLI else '0';
-
-        do_popcnt <= '1' when e_in.insn_type = OP_COUNTB and e_in.insn(7 downto 6) = "11" else '0';
 
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
@@ -1706,7 +1708,6 @@ begin
 	if go = '1' then
             v.se := actions.se;
             v.e.valid := actions.complete;
-            bypass_valid := actions.bypass_valid;
             v.taken_branch_event := actions.take_branch;
             v.trace_next := actions.do_trace or actions.ciabr_trace;
             v.trace_ciabr := actions.ciabr_trace;
@@ -1719,6 +1720,7 @@ begin
             x_to_divider.valid <= actions.start_div;
             v.div_in_progress := actions.start_div;
             v.bsort_in_progress := actions.start_bsort;
+            v.bperm_in_progress := actions.start_bperm;
             v.br_mispredict := v.e.redirect and actions.direct_branch;
             v.advance_nia := actions.advance_nia;
             v.redir_to_next := actions.redir_to_next;
@@ -1729,7 +1731,8 @@ begin
             -- multiply is happening in order to stop following
             -- instructions from using the wrong XER value
             -- (and for simplicity in the OE=0 case).
-            v.busy := actions.start_div or actions.start_mul or actions.start_bsort;
+            v.busy := actions.start_div or actions.start_mul or
+                      actions.start_bsort or actions.start_bperm;
 
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
@@ -1741,6 +1744,7 @@ begin
         end if;
         is_scv := go and actions.se.scv_trap;
         bsort_start <= go and actions.start_bsort;
+        bperm_start <= go and actions.start_bperm;
         pmu_trace <= go and actions.do_trace;
 
         if not HAS_FPU and ex1.div_in_progress = '1' then
@@ -1781,6 +1785,13 @@ begin
             v.e.write_data := alu_result;
             bypass_valid := bsort_done;
         end if;
+        if ex1.bperm_in_progress = '1' then
+            v.bperm_in_progress := not bperm_done;
+            v.e.valid := bperm_done;
+            v.busy := not bperm_done;
+            v.e.write_data := alu_result;
+            bypass_valid := bperm_done;
+        end if;
 
         if v.e.write_xerc_enable = '1' and v.e.valid = '1' then
             v.xerc := v.e.xerc;
@@ -1814,13 +1825,13 @@ begin
             v.fp_exception_next := '0';
         end if;
 
-        bypass_data.tag.valid <= v.e.write_enable and bypass_valid;
-        bypass_data.tag.tag <= v.e.instr_tag.tag;
+        bypass_data.tag.valid <= e_in.write_reg_enable and bypass_valid;
+        bypass_data.tag.tag <= e_in.instr_tag.tag;
         bypass_data.data <= alu_result;
 
-        bypass_cr_data.tag.valid <= v.e.write_cr_enable and bypass_valid;
-        bypass_cr_data.tag.tag <= v.e.instr_tag.tag;
-        bypass_cr_data.data <= v.e.write_cr_data;
+        bypass_cr_data.tag.valid <= e_in.output_cr and bypass_valid;
+        bypass_cr_data.tag.tag <= e_in.instr_tag.tag;
+        bypass_cr_data.data <= write_cr_data;
 
         -- Outputs to loadstore1 (async)
         lv.op := e_in.insn_type;
@@ -1881,8 +1892,8 @@ begin
 
     -- Slow SPR read mux
     with ex1.spr_select.sel select spr_result <=
-        ctrl.tb when SPRSEL_TB,
-        32x"0" & ctrl.tb(63 downto 32) when SPRSEL_TBU,
+        timebase when SPRSEL_TB,
+        32x"0" & timebase(63 downto 32) when SPRSEL_TBU,
         ctrl.dec when SPRSEL_DEC,
         32x"0" & PVR_MICROWATT when SPRSEL_PVR,
         log_wr_addr & ex2.log_addr_spr when SPRSEL_LOGA,
@@ -1936,16 +1947,14 @@ begin
         end if;
 
 	ctrl_tmp <= ctrl;
-	-- FIXME: run at 512MHz not core freq
-	ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
 	ctrl_tmp.dec <= std_ulogic_vector(unsigned(ctrl.dec) - 1);
 
         x_to_pmu.mfspr <= '0';
         x_to_pmu.mtspr <= '0';
-        x_to_pmu.tbbits(3) <= ctrl.tb(63 - 47);
-        x_to_pmu.tbbits(2) <= ctrl.tb(63 - 51);
-        x_to_pmu.tbbits(1) <= ctrl.tb(63 - 55);
-        x_to_pmu.tbbits(0) <= ctrl.tb(63 - 63);
+        x_to_pmu.tbbits(3) <= timebase(63 - 47);
+        x_to_pmu.tbbits(2) <= timebase(63 - 51);
+        x_to_pmu.tbbits(1) <= timebase(63 - 55);
+        x_to_pmu.tbbits(0) <= timebase(63 - 63);
         x_to_pmu.pmm_msr <= ctrl.msr(MSR_PMM);
         x_to_pmu.pr_msr <= ctrl.msr(MSR_PR);
 

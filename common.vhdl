@@ -252,19 +252,20 @@ package common is
 
     -- For now, fixed 16 sources, make this either a parametric
     -- package of some sort or an unconstrainted array.
+    -- We don't know NCPUS or SRC_NUM here, so make this
+    -- large enough for 4 cpus and 16 interrupt sources for now.
     type ics_to_icp_t is record
         -- Level interrupts only, ICS just keeps prsenting the
         -- highest priority interrupt. Once handling edge, something
         -- smarter involving handshake & reject support will be needed
-        src : std_ulogic_vector(3 downto 0);
-        pri : std_ulogic_vector(7 downto 0);
+        src : std_ulogic_vector(15 downto 0);   -- 4 bits each for 4 cpus
+        pri : std_ulogic_vector(31 downto 0);   -- 8 bits each for 4 cpus
     end record;
 
     -- This needs to die...
     type ctrl_t is record
         wait_state: std_ulogic;
         run: std_ulogic;
-	tb: std_ulogic_vector(63 downto 0);
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
         cfar: std_ulogic_vector(63 downto 0);
@@ -439,6 +440,11 @@ package common is
         illegal_form : std_ulogic;
         uses_tar : std_ulogic;
         uses_dscr : std_ulogic;
+        right_shift : std_ulogic;
+        rot_clear_left : std_ulogic;
+        rot_clear_right : std_ulogic;
+        rot_sign_ext : std_ulogic;
+        do_popcnt : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => ALU, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
@@ -461,6 +467,8 @@ package common is
          dec_ctr => '0',
          prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
          misaligned_prefix => '0', illegal_form => '0', uses_tar => '0', uses_dscr => '0',
+         right_shift => '0', rot_clear_left => '0', rot_clear_right => '0', rot_sign_ext => '0',
+         do_popcnt => '0',
          others => (others => '0'));
 
     type MultiplyInputType is record
