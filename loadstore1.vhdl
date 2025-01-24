@@ -172,6 +172,7 @@ architecture behave of loadstore1 is
         dawr_uplim   : dawr_array_t;
         dawr_upd     : std_ulogic;
         hashkeyr     : std_ulogic_vector(63 downto 0);
+        hashpkeyr    : std_ulogic_vector(63 downto 0);
     end record;
 
     signal req_in   : request_t;
@@ -387,6 +388,8 @@ begin
                     r3.dawr_uplim(i) <= (others => '0');
                 end loop;
                 r3.dawr_upd <= '0';
+                r3.hashkeyr <= (others => '0');
+                r3.hashpkeyr <= (others => '0');
                 flushing <= '0';
             else
                 r1 <= r1in;
@@ -531,7 +534,11 @@ begin
             hv.z0 := 31x"7D12B0E6";     -- 0xFA2561CD >> 1
             ra := l_in.addr1;
             rb := l_in.data;
-            key := r3.hashkeyr;
+            if l_in.insn(7) = '1' then
+                key := r3.hashkeyr;             -- hashst/hashchk
+            else
+                key := r3.hashpkeyr;            -- hashstp/hashchkp
+            end if;
             for lane in 0 to 3 loop
                 j := lane * 16;
                 k := (3 - lane) * 16;
@@ -898,6 +905,8 @@ begin
                     sprval := 48x"0" & r3.dawrx(1);
                 when "000" =>
                     sprval := r3.hashkeyr;
+                when "001" =>
+                    sprval := r3.hashpkeyr;
                 when "010" =>
                     sprval := x"00000000" & r3.dsisr;
                 when "011" =>
@@ -1142,6 +1151,8 @@ begin
                         v.dar := r2.req.store_data;
                     when "0000" =>
                         v.hashkeyr := r2.req.store_data;
+                    when "0001" =>
+                        v.hashpkeyr := r2.req.store_data;
                     when others =>
                 end case;
             end if;

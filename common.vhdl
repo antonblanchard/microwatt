@@ -70,6 +70,7 @@ package common is
     constant SPR_DAWRX0 : spr_num_t := 188;
     constant SPR_DAWRX1 : spr_num_t := 189;
     constant SPR_HASHKEYR  : spr_num_t := 468;
+    constant SPR_HASHPKEYR : spr_num_t := 469;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
