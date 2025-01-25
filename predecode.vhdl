@@ -364,15 +364,15 @@ architecture behaviour of predecoder is
         2#0_01110_11100#  =>  INSN_nand,
         2#0_00011_01000#  =>  INSN_neg,
         2#0_10011_01000#  =>  INSN_neg, -- nego
-        -- next 8 are reserved no-op instructions
+        -- next 4 are reserved no-op instructions
         2#0_10000_10010#  =>  INSN_rnop,
         2#0_10001_10010#  =>  INSN_rnop,
         2#0_10010_10010#  =>  INSN_rnop,
         2#0_10011_10010#  =>  INSN_rnop,
-        2#0_10100_10010#  =>  INSN_rnop,
-        2#0_10101_10010#  =>  INSN_rnop,
-        2#0_10110_10010#  =>  INSN_rnop,
-        2#0_10111_10010#  =>  INSN_rnop,
+        2#0_10110_10010#  =>  INSN_hashst,
+        2#0_10111_10010#  =>  INSN_hashchk,
+        2#0_10100_10010#  =>  INSN_hashstp,
+        2#0_10101_10010#  =>  INSN_hashchkp,
         2#0_00011_11100#  =>  INSN_nor,
         2#0_01101_11100#  =>  INSN_or,
         2#0_01100_11100#  =>  INSN_orc,

@@ -138,6 +138,8 @@ architecture behaviour of decode2 is
                 ret := ('0', (others => '0'), x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11));
             when CONST_SH32 =>
                 ret := ('0', (others => '0'), x"00000000000000" & "000" & insn_in(15 downto 11));
+            when DSX =>
+                ret := ('0', (others => '0'), 55x"7FFFFFFFFFFFFF" & insn_in(0) & insn_in(25 downto 21) & "000");
             when NONE =>
                 ret := ('0', (others => '0'), (others => '0'));
         end case;
@@ -165,6 +167,8 @@ architecture behaviour of decode2 is
                 else
                     return ('0', (others => '0'), (others => '0'));
                 end if;
+            when RBC =>
+                return ('1', gpr_to_gspr(insn_rb(insn_in)), (others => '0'));
             when NONE =>
                 return ('0', (others => '0'), (others => '0'));
         end case;
@@ -495,7 +499,8 @@ begin
                             when SPR_XER =>
                                 v.input_ov := '1';
                             when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR |
-                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 =>
+                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 |
+                                SPR_HASHKEYR | SPR_HASHPKEYR =>
                                 unit := LDST;
                             when SPR_TAR =>
                                 v.e.uses_tar := '1';
@@ -518,7 +523,8 @@ begin
                                 v.e.output_xer := '1';
                                 v.output_ov := '1';
                             when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR |
-                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 =>
+                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 |
+                                SPR_HASHKEYR | SPR_HASHPKEYR =>
                                 unit := LDST;
                                 if d_in.valid = '1' then
                                     v.sgl_pipe := '1';
@@ -667,6 +673,10 @@ begin
                     -- writes the contents of RT back to RT (i.e. it's a no-op)
                     v.e.result_sel := "001";        -- logical_result
                 end if;
+            end if;
+            v.e.privileged := d_in.decode.privileged;
+            if (op = OP_MFSPR or op = OP_MTSPR) and d_in.insn(20) = '1' then
+                v.e.privileged := '1';
             end if;
             v.e.prefixed := d_in.prefixed;
             v.e.prefix := d_in.prefix;

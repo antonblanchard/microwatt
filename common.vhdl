@@ -69,6 +69,8 @@ package common is
     constant SPR_DAWR1  : spr_num_t := 181;
     constant SPR_DAWRX0 : spr_num_t := 188;
     constant SPR_DAWRX1 : spr_num_t := 189;
+    constant SPR_HASHKEYR  : spr_num_t := 468;
+    constant SPR_HASHPKEYR : spr_num_t := 469;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -433,6 +435,7 @@ package common is
         ramspr_32bit       : std_ulogic;
         dbg_spr_access : std_ulogic;
         dec_ctr : std_ulogic;
+        privileged : std_ulogic;
         prefixed : std_ulogic;
         prefix : std_ulogic_vector(25 downto 0);
         illegal_suffix : std_ulogic;
@@ -465,7 +468,7 @@ package common is
          ramspr_32bit => '0',
          dbg_spr_access => '0',
          dec_ctr => '0',
-         prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
+         privileged => '0', prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
          misaligned_prefix => '0', illegal_form => '0', uses_tar => '0', uses_dscr => '0',
          right_shift => '0', rot_clear_left => '0', rot_clear_right => '0', rot_sign_ext => '0',
          do_popcnt => '0',
@@ -585,6 +588,7 @@ package common is
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
+        hash : std_ulogic;
 	xerc : xer_common_t;
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.
@@ -600,7 +604,7 @@ package common is
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
         (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
-         sign_extend => '0', update => '0', xerc => xerc_init,
+         sign_extend => '0', update => '0', hash => '0', xerc => xerc_init,
          reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
          insn => (others => '0'),
          instr_tag => instr_tag_init,
