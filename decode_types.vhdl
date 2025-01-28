@@ -205,81 +205,85 @@ package decode_types is
         INSN_divwe,
         INSN_divweu,
         INSN_eqv,
-        INSN_icbi,
+        INSN_hashchk,
+        INSN_hashchkp,
+        INSN_hashst,
+        INSN_hashstp,
+        INSN_icbi, -- 160
         INSN_icbt,
         INSN_isel,
         INSN_lbarx,
-        INSN_lbzcix, -- 160
+        INSN_lbzcix,
         INSN_lbzux,
         INSN_lbzx,
         INSN_ldarx,
         INSN_ldbrx,
         INSN_ldcix,
-        INSN_ldx,
+        INSN_ldx, -- 170
         INSN_ldux,
         INSN_lharx,
         INSN_lhax,
-        INSN_lhaux, -- 170
+        INSN_lhaux,
         INSN_lhbrx,
         INSN_lhzcix,
         INSN_lhzx,
         INSN_lhzux,
         INSN_lqarx,
-        INSN_lwarx,
+        INSN_lwarx, -- 180
         INSN_lwax,
         INSN_lwaux,
         INSN_lwbrx,
-        INSN_lwzcix, -- 180
+        INSN_lwzcix,
         INSN_lwzx,
         INSN_lwzux,
         INSN_modsd,
         INSN_modsw,
         INSN_moduw,
-        INSN_modud,
+        INSN_modud, -- 190
         INSN_mulhw,
         INSN_mulhwu,
         INSN_mulhd,
-        INSN_mulhdu, -- 190
+        INSN_mulhdu,
         INSN_mullw,
         INSN_mulld,
         INSN_nand,
         INSN_nor,
         INSN_or,
-        INSN_orc,
+        INSN_orc, -- 200
         INSN_pdepd,
         INSN_pextd,
         INSN_rldcl,
-        INSN_rldcr, -- 200
+        INSN_rldcr,
         INSN_rlwnm,
         INSN_slw,
         INSN_sld,
         INSN_sraw,
         INSN_srad,
-        INSN_srw,
+        INSN_srw, -- 210
         INSN_srd,
         INSN_stbcix,
         INSN_stbcx,
-        INSN_stbx, -- 210
+        INSN_stbx,
         INSN_stbux,
         INSN_stdbrx,
         INSN_stdcix,
         INSN_stdcx,
         INSN_stdx,
-        INSN_stdux,
+        INSN_stdux, -- 220
         INSN_sthbrx,
         INSN_sthcix,
         INSN_sthcx,
-        INSN_sthx, -- 220
+        INSN_sthx,
         INSN_sthux,
         INSN_stqcx,
         INSN_stwbrx,
         INSN_stwcix,
         INSN_stwcx,
-        INSN_stwx,
+        INSN_stwx, -- 230
         INSN_stwux,
         INSN_subf,
         INSN_subfc,
-        INSN_subfe, -- 230
+        INSN_subfe,
         INSN_td,
         INSN_tlbie,
         INSN_tlbiel,
@@ -287,7 +291,6 @@ package decode_types is
         INSN_xor,
 
         -- pad to 240 to simplify comparison logic
-        INSN_236, INSN_237, INSN_238, INSN_239,
 
         -- The following instructions have a third input addressed by RC
         INSN_maddld,
@@ -416,8 +419,9 @@ package decode_types is
 
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA);
     type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
-                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI, FRB);
-    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS);
+                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI,
+                           DSX, FRB);
+    type input_reg_c_t is (NONE, RS, RCR, RBC, FRC, FRS);
     type output_reg_a_t is (NONE, RT, RA, FRT);
     type rc_t is (NONE, ONE, RC, RCOE);
     type carry_in_t is (ZERO, CA, OV, ONE);
@@ -480,6 +484,7 @@ package decode_types is
 	rc           : rc_t;
 	lr           : std_ulogic;
 
+        privileged   : std_ulogic;
 	sgl_pipe     : std_ulogic;
         repeat       : repeat_t;
     end record;
@@ -490,7 +495,8 @@ package decode_types is
 						invert_a => '0', invert_out => '0', input_carry => ZERO, output_carry => '0',
 						length => NONE, byte_reverse => '0', sign_extend => '0',
 						update => '0', reserve => '0', is_32bit => '0',
-						is_signed => '0', rc => NONE, lr => '0', sgl_pipe => '0', repeat => NONE);
+						is_signed => '0', rc => NONE, lr => '0',
+                                                privileged => '0', sgl_pipe => '0', repeat => NONE);
 
     -- This function maps from insn_code values to primary opcode.
     -- With this, we don't have to store the primary opcode of each instruction
@@ -634,6 +640,10 @@ package body decode_types is
             when INSN_divwu     => return "011111";
             when INSN_divd      => return "011111";
             when INSN_divw      => return "011111";
+            when INSN_hashchk   => return "011111";
+            when INSN_hashchkp  => return "011111";
+            when INSN_hashst    => return "011111";
+            when INSN_hashstp   => return "011111";
             when INSN_eieio     => return "011111";
             when INSN_eqv       => return "011111";
             when INSN_extsb     => return "011111";
