@@ -72,9 +72,8 @@ architecture behaviour of decode2 is
     type decode_input_reg_t is record
         reg_valid : std_ulogic;
         reg       : gspr_index_t;
-        data      : std_ulogic_vector(63 downto 0);
     end record;
-    constant decode_input_reg_init : decode_input_reg_t := ('0', (others => '0'), (others => '0'));
+    constant decode_input_reg_init : decode_input_reg_t := ('0', (others => '0'));
 
     type decode_output_reg_t is record
         reg_valid : std_ulogic;
@@ -83,67 +82,87 @@ architecture behaviour of decode2 is
     constant decode_output_reg_init : decode_output_reg_t := ('0', (others => '0'));
 
     function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
-                                 prefix : std_ulogic_vector(25 downto 0);
-                                 instr_addr : std_ulogic_vector(63 downto 0))
+                                 prefix : std_ulogic_vector(25 downto 0))
         return decode_input_reg_t is
     begin
         if t = RA or ((t = RA_OR_ZERO or t = RA0_OR_CIA) and insn_ra(insn_in) /= "00000") then
-            return ('1', gpr_to_gspr(insn_ra(insn_in)), (others => '0'));
+            return ('1', gpr_to_gspr(insn_ra(insn_in)));
         elsif t = CIA or (t = RA0_OR_CIA and insn_prefix_r(prefix) = '1') then
-            return ('0', (others => '0'), instr_addr);
+            return ('0', (others => '0'));
         elsif HAS_FPU and t = FRA then
-            return ('1', fpr_to_gspr(insn_fra(insn_in)), (others => '0'));
+            return ('1', fpr_to_gspr(insn_fra(insn_in)));
         else
-            return ('0', (others => '0'), (others => '0'));
+            return ('0', (others => '0'));
         end if;
     end;
 
-    function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0);
-                                 prefix : std_ulogic_vector(25 downto 0))
+    function decode_a_const (t : input_reg_a_t; prefix : std_ulogic_vector(25 downto 0); ia : std_ulogic_vector(63 downto 0))
+        return std_ulogic_vector is
+    begin
+        if t = CIA or (t = RA0_OR_CIA and insn_prefix_r(prefix) = '1') then
+            return ia;
+        else
+            return 64x"0";
+        end if;
+    end;
+
+    function decode_b_const (t : const_sel_t; insn_in : std_ulogic_vector(31 downto 0);
+                           prefix : std_ulogic_vector(25 downto 0))
+        return std_ulogic_vector is
+        variable ret : std_ulogic_vector(63 downto 0);
+    begin
+        case t is
+            when CONST_UI =>
+                ret := std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64));
+            when CONST_SI =>
+                ret := std_ulogic_vector(resize(signed(insn_si(insn_in)), 64));
+            when CONST_PSI =>
+                ret := std_ulogic_vector(resize(signed(insn_prefixed_si(prefix, insn_in)), 64));
+            when CONST_SI_HI =>
+                ret := std_ulogic_vector(resize(signed(insn_si(insn_in)) & x"0000", 64));
+            when CONST_UI_HI =>
+                ret := std_ulogic_vector(resize(unsigned(insn_si(insn_in)) & x"0000", 64));
+            when CONST_LI =>
+                ret := std_ulogic_vector(resize(signed(insn_li(insn_in)) & "00", 64));
+            when CONST_BD =>
+                ret := std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64));
+            when CONST_DS =>
+                ret := std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64));
+            when CONST_DQ =>
+                ret := std_ulogic_vector(resize(signed(insn_dq(insn_in)) & "0000", 64));
+            when CONST_DXHI4 =>
+                ret := std_ulogic_vector(resize(signed(insn_dx(insn_in)) & x"0004", 64));
+            when CONST_M1 =>
+                ret := x"FFFFFFFFFFFFFFFF";
+            when CONST_SH =>
+                ret := x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11);
+            when CONST_SH32 =>
+                ret := x"00000000000000" & "000" & insn_in(15 downto 11);
+            when CONST_DSX =>
+                ret := 55x"7FFFFFFFFFFFFF" & insn_in(0) & insn_in(25 downto 21) & "000";
+            when others =>
+                ret := (others => '0');
+        end case;
+
+        return ret;
+    end;
+
+    function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0))
         return decode_input_reg_t is
         variable ret : decode_input_reg_t;
     begin
         case t is
             when RB =>
-                ret := ('1', gpr_to_gspr(insn_rb(insn_in)), (others => '0'));
+                ret := ('1', gpr_to_gspr(insn_rb(insn_in)));
             when FRB =>
                 if HAS_FPU then
-                    ret := ('1', fpr_to_gspr(insn_frb(insn_in)), (others => '0'));
+                    ret := ('1', fpr_to_gspr(insn_frb(insn_in)));
                 else
-                    ret := ('0', (others => '0'), (others => '0'));
+                    ret := ('0', (others => '0'));
                 end if;
-            when CONST_UI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
-            when CONST_SI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_si(insn_in)), 64)));
-            when CONST_PSI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_prefixed_si(prefix, insn_in)), 64)));
-            when CONST_SI_HI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_si(insn_in)) & x"0000", 64)));
-            when CONST_UI_HI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_si(insn_in)) & x"0000", 64)));
-            when CONST_LI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_li(insn_in)) & "00", 64)));
-            when CONST_BD =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64)));
-            when CONST_DS =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64)));
-            when CONST_DQ =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dq(insn_in)) & "0000", 64)));
-            when CONST_DXHI4 =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dx(insn_in)) & x"0004", 64)));
-            when CONST_M1 =>
-                ret := ('0', (others => '0'), x"FFFFFFFFFFFFFFFF");
-            when CONST_SH =>
-                ret := ('0', (others => '0'), x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11));
-            when CONST_SH32 =>
-                ret := ('0', (others => '0'), x"00000000000000" & "000" & insn_in(15 downto 11));
-            when DSX =>
-                ret := ('0', (others => '0'), 55x"7FFFFFFFFFFFFF" & insn_in(0) & insn_in(25 downto 21) & "000");
-            when NONE =>
-                ret := ('0', (others => '0'), (others => '0'));
+            when IMM =>
+                ret := ('0', (others => '0'));
         end case;
-
         return ret;
     end;
 
@@ -152,25 +171,25 @@ architecture behaviour of decode2 is
     begin
         case t is
             when RS =>
-                return ('1', gpr_to_gspr(insn_rs(insn_in)), (others => '0'));
+                return ('1', gpr_to_gspr(insn_rs(insn_in)));
             when RCR =>
-                return ('1', gpr_to_gspr(insn_rcreg(insn_in)), (others => '0'));
+                return ('1', gpr_to_gspr(insn_rcreg(insn_in)));
             when FRS =>
                 if HAS_FPU then
-                    return ('1', fpr_to_gspr(insn_frt(insn_in)), (others => '0'));
+                    return ('1', fpr_to_gspr(insn_frt(insn_in)));
                 else
-                    return ('0', (others => '0'), (others => '0'));
+                    return ('0', (others => '0'));
                 end if;
             when FRC =>
                 if HAS_FPU then
-                    return ('1', fpr_to_gspr(insn_frc(insn_in)), (others => '0'));
+                    return ('1', fpr_to_gspr(insn_frc(insn_in)));
                 else
-                    return ('0', (others => '0'), (others => '0'));
+                    return ('0', (others => '0'));
                 end if;
             when RBC =>
-                return ('1', gpr_to_gspr(insn_rb(insn_in)), (others => '0'));
+                return ('1', gpr_to_gspr(insn_rb(insn_in)));
             when NONE =>
-                return ('0', (others => '0'), (others => '0'));
+                return ('0', (others => '0'));
         end case;
     end;
 
@@ -395,8 +414,8 @@ begin
         variable dec_a, dec_b, dec_c : decode_input_reg_t;
         variable dec_o : decode_output_reg_t;
     begin
-        dec_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.prefix, d_in.nia);
-        dec_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, d_in.prefix);
+        dec_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.prefix);
+        dec_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn);
         dec_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn);
         dec_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn);
         case d_in.decode.repeat is
@@ -737,7 +756,7 @@ begin
             if decoded_reg_a.reg_valid = '1' then
                 v.e.read_data1 := r_in.read1_data;
             else
-                v.e.read_data1 := decoded_reg_a.data;
+                v.e.read_data1 := decode_a_const(d_in.decode.input_reg_a, d_in.prefix, d_in.nia);
             end if;
         end if;
         if gpr_b_bypass(0) = '1' then
@@ -748,7 +767,7 @@ begin
             if decoded_reg_b.reg_valid = '1' then
                 v.e.read_data2 := r_in.read2_data;
             else
-                v.e.read_data2 := decoded_reg_b.data;
+                v.e.read_data2 := decode_b_const(d_in.decode.const_sel, d_in.insn, d_in.prefix);
             end if;
         end if;
         if gpr_c_bypass(0) = '1' then
@@ -759,7 +778,7 @@ begin
             if decoded_reg_c.reg_valid = '1' then
                 v.e.read_data3 := r_in.read3_data;
             else
-                v.e.read_data3 := decoded_reg_c.data;
+                v.e.read_data3 := (others => '0');
             end if;
         end if;
 
