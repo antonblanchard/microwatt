@@ -1849,6 +1849,7 @@ begin
         lv.repeat := e_in.repeat;
         lv.second := e_in.second;
         lv.e2stall := fp_in.f2stall;
+        lv.hashkey := ramspr_odd;
 
         -- Outputs to FPU
         fv.op := e_in.insn_type;

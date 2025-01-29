@@ -141,6 +141,7 @@ package common is
     constant RAMSPR_HSPRG0 : ramspr_index := to_unsigned(4,3);
     constant RAMSPR_LR     : ramspr_index := to_unsigned(5,3);         -- must equal RAMSPR_CTR
     constant RAMSPR_TAR    : ramspr_index := to_unsigned(6,3);
+    constant RAMSPR_VRSAVE : ramspr_index := to_unsigned(7,3);
     -- Odd half:
     constant RAMSPR_SRR1   : ramspr_index := to_unsigned(0,3);
     constant RAMSPR_HSRR1  : ramspr_index := to_unsigned(1,3);
@@ -148,7 +149,8 @@ package common is
     constant RAMSPR_SPRG3  : ramspr_index := to_unsigned(3,3);
     constant RAMSPR_HSPRG1 : ramspr_index := to_unsigned(4,3);
     constant RAMSPR_CTR    : ramspr_index := to_unsigned(5,3);         -- must equal RAMSPR_LR
-    constant RAMSPR_VRSAVE : ramspr_index := to_unsigned(6,3);
+    constant RAMSPR_HASHKY : ramspr_index := to_unsigned(6,3);
+    constant RAMSPR_HASHPK : ramspr_index := to_unsigned(7,3);
 
     type ram_spr_info is record
         index : ramspr_index;
@@ -601,6 +603,7 @@ package common is
         second : std_ulogic;
         e2stall : std_ulogic;
         msr : std_ulogic_vector(63 downto 0);
+        hashkey : std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
         (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
@@ -613,7 +616,7 @@ package common is
          length => (others => '0'),
          mode_32bit => '0', is_32bit => '0', prefixed => '0',
          repeat => '0', second => '0', e2stall => '0',
-         msr => (others => '0'));
+         msr => (others => '0'), hashkey => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;

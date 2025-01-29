@@ -436,8 +436,13 @@ architecture behaviour of decode1 is
                 ret.isodd := '1';
             when SPR_VRSAVE =>
                 ret.index := RAMSPR_VRSAVE;
-                ret.isodd := '1';
                 ret.is32b := '1';
+            when SPR_HASHKEYR =>
+                ret.index := RAMSPR_HASHKY;
+                ret.isodd := '1';
+            when SPR_HASHPKEYR =>
+                ret.index := RAMSPR_HASHPK;
+                ret.isodd := '1';
             when others =>
                 ret.valid := '0';
         end case;

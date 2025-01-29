@@ -518,8 +518,7 @@ begin
                             when SPR_XER =>
                                 v.input_ov := '1';
                             when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR |
-                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 |
-                                SPR_HASHKEYR | SPR_HASHPKEYR =>
+                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 =>
                                 unit := LDST;
                             when SPR_TAR =>
                                 v.e.uses_tar := '1';
@@ -542,8 +541,7 @@ begin
                                 v.e.output_xer := '1';
                                 v.output_ov := '1';
                             when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR |
-                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 |
-                                SPR_HASHKEYR | SPR_HASHPKEYR =>
+                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 =>
                                 unit := LDST;
                                 if d_in.valid = '1' then
                                     v.sgl_pipe := '1';
@@ -639,6 +637,17 @@ begin
                         v.e.ramspr_odd_rdaddr := RAMSPR_HSRR1;
                     end if;
                     sprs_busy := '1';
+                when OP_LOAD | OP_STORE =>
+                    if d_in.decode.is_signed = '1' then
+                        -- hash{st,chk}[p]
+                        if d_in.insn(7) = '1' then
+                            v.e.ramspr_odd_rdaddr := RAMSPR_HASHKY;
+                        else
+                            v.e.ramspr_odd_rdaddr := RAMSPR_HASHPK;
+                        end if;
+                        v.e.ramspr_rd_odd := '1';
+                        sprs_busy := '1';
+                    end if;
                 when others =>
             end case;
             v.read_rspr := sprs_busy and d_in.valid;
