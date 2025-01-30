@@ -457,6 +457,7 @@ architecture behaviour of decode1 is
         i.ispmu := '0';
         i.ronly := '0';
         i.wonly := '0';
+        i.noop  := '0';
         case sprn is
             when SPR_TB =>
                 i.sel := SPRSEL_TB;
@@ -504,6 +505,8 @@ architecture behaviour of decode1 is
             when SPR_DEXCRU | SPR_HDEXCU =>
                 i.sel := SPRSEL_DEXCR;
                 i.ronly := '1';
+            when SPR_NOOP0 | SPR_NOOP1 | SPR_NOOP2 | SPR_NOOP3 =>
+                i.noop := '1';
             when others =>
                 i.valid := '0';
         end case;

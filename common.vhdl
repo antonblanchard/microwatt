@@ -75,6 +75,10 @@ package common is
     constant SPR_DEXCRU : spr_num_t := 812;
     constant SPR_HDEXCR : spr_num_t := 471;
     constant SPR_HDEXCU : spr_num_t := 455;
+    constant SPR_NOOP0  : spr_num_t := 808;
+    constant SPR_NOOP1  : spr_num_t := 809;
+    constant SPR_NOOP2  : spr_num_t := 810;
+    constant SPR_NOOP3  : spr_num_t := 811;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -171,6 +175,7 @@ package common is
         ispmu : std_ulogic;
         ronly : std_ulogic;
         wonly : std_ulogic;
+        noop  : std_ulogic;
     end record;
     constant spr_id_init : spr_id := (sel => "0000", others => '0');
 

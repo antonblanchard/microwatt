@@ -1332,7 +1332,7 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
-		if e_in.spr_is_ram = '1' then
+		if e_in.spr_is_ram = '1' or e_in.spr_select.noop = '1' then
                     if e_in.valid = '1' and not is_X(e_in.insn) then
                         report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
                             "=" & to_hstring(alu_result);
