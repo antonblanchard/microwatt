@@ -425,6 +425,32 @@ architecture behaviour of execute1 is
         return ret;
     end;
 
+    -- return contents of DEXCR or HDEXCR
+    -- top 32 bits are zeroed for access via non-privileged number
+    function assemble_dexcr(c: ctrl_t; insn: std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
+        variable ret : std_ulogic_vector(63 downto 0);
+        variable spr : std_ulogic_vector(9 downto 0);
+        variable dexh, dexl : aspect_bits_t;
+    begin
+        ret := (others => '0');
+        spr := insn(15 downto 11) & insn(20 downto 16);
+        if spr(9) = '1' then
+            dexh := c.dexcr_pnh;
+            dexl := c.dexcr_pro;
+        else
+            dexh := c.hdexcr_hyp;
+            dexl := c.hdexcr_enf;
+        end if;
+        if spr(4) = '0' then
+            dexl := (others => '0');
+        end if;
+        ret := dexh(DEXCR_SBHE) & "00" & dexh(DEXCR_IBRTPD) & dexh(DEXCR_SRAPD) &
+               dexh(DEXCR_NPHIE) & dexh(DEXCR_PHIE) & 25x"0" &
+               dexl(DEXCR_SBHE) & "00" & dexl(DEXCR_IBRTPD) & dexl(DEXCR_SRAPD) &
+               dexl(DEXCR_NPHIE) & dexl(DEXCR_PHIE) & 25x"0";
+        return ret;
+    end;
+
     -- Tell vivado to keep the hierarchy for the random module so that the
     -- net names in the xdc file match.
     attribute keep_hierarchy : string;
@@ -1600,6 +1626,7 @@ begin
         variable go : std_ulogic;
         variable bypass_valid : std_ulogic;
         variable is_scv : std_ulogic;
+        variable dex : aspect_bits_t;
     begin
 	v := ex1;
         if busy_out = '0' then
@@ -1735,6 +1762,13 @@ begin
         bperm_start <= go and actions.start_bperm;
         pmu_trace <= go and actions.do_trace;
 
+        -- evaluate DEXCR/HDEXCR bits that apply at present
+        if ex1.msr(MSR_PR) = '0' then
+            dex := ctrl.hdexcr_hyp;
+        else
+            dex := ctrl.dexcr_pro or ctrl.hdexcr_enf;
+        end if;
+
         if not HAS_FPU and ex1.div_in_progress = '1' then
             v.div_in_progress := not divider_to_x.valid;
             v.busy := not divider_to_x.valid;
@@ -1850,6 +1884,11 @@ begin
         lv.second := e_in.second;
         lv.e2stall := fp_in.f2stall;
         lv.hashkey := ramspr_odd;
+        if e_in.insn(7) = '0' then
+            lv.hash_enable := dex(DEXCR_PHIE);
+        else
+            lv.hash_enable := dex(DEXCR_NPHIE);
+        end if;
 
         -- Outputs to FPU
         fv.op := e_in.insn_type;
@@ -1897,6 +1936,7 @@ begin
         39x"0" & ctrl.dscr when SPRSEL_DSCR,
         56x"0" & std_ulogic_vector(to_unsigned(CPU_INDEX, 8)) when SPRSEL_PIR,
         ctrl.ciabr when SPRSEL_CIABR,
+        assemble_dexcr(ctrl, ex1.insn) when SPRSEL_DEXCR,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
     stage2_stall <= l_in.l2stall or fp_in.f2stall;

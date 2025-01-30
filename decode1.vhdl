@@ -499,6 +499,11 @@ architecture behaviour of decode1 is
                 i.sel := SPRSEL_PIR;
             when SPR_CIABR =>
                 i.sel := SPRSEL_CIABR;
+            when SPR_DEXCR | SPR_HDEXCR =>
+                i.sel := SPRSEL_DEXCR;
+            when SPR_DEXCRU | SPR_HDEXCU =>
+                i.sel := SPRSEL_DEXCR;
+                i.ronly := '1';
             when others =>
                 i.valid := '0';
         end case;
