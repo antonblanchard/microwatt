@@ -34,7 +34,7 @@ entity execute1 is
 	ext_irq_in : std_ulogic;
         interrupt_in : WritebackToExecute1Type;
 
-        timebase : std_ulogic_vector(63 downto 0);
+        tb_ctrl : timebase_ctrl;
 
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
@@ -101,6 +101,8 @@ architecture behaviour of execute1 is
         write_ciabr : std_ulogic;
         enter_wait : std_ulogic;
         scv_trap : std_ulogic;
+        write_tbl : std_ulogic;
+        write_tbu : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -278,6 +280,10 @@ architecture behaviour of execute1 is
     signal ramspr_odd_wr_enab : std_ulogic;
 
     signal stage2_stall : std_ulogic;
+
+    signal timebase : std_ulogic_vector(63 downto 0);
+    signal tb_next  : std_ulogic_vector(63 downto 0);
+    signal tb_carry : std_ulogic;
 
     type privilege_level is (USER, SUPER);
     type op_privilege_array is array(insn_type_t) of privilege_level;
@@ -552,6 +558,43 @@ begin
             p_in => x_to_pmu,
             p_out => pmu_to_x
             );
+
+    -- Timebase just increments at the system clock frequency.
+    -- Ideally it would (appear to) run at 512MHz like IBM POWER systems,
+    -- but Linux seems to cope OK with it being 100MHz or whatever.
+    tbase: process(clk)
+    begin
+        if rising_edge(clk) then
+            if tb_ctrl.reset = '1' then
+                timebase <= (others => '0');
+                tb_carry <= '0';
+            else
+                timebase <= tb_next;
+                tb_carry <= and(tb_next(31 downto 0));
+            end if;
+        end if;
+    end process;
+
+    tbase_comb: process(all)
+        variable thi, tlo : std_ulogic_vector(31 downto 0);
+        variable carry : std_ulogic;
+    begin
+        tlo := timebase(31 downto 0);
+        thi := timebase(63 downto 32);
+        carry := '0';
+        if stage2_stall = '0' and ex1.se.write_tbl = '1' then
+            tlo := ex1.e.write_data(31 downto 0);
+        elsif tb_ctrl.freeze = '0' then
+            tlo := std_ulogic_vector(unsigned(tlo) + 1);
+            carry := tb_carry;
+        end if;
+        if stage2_stall = '0' and ex1.se.write_tbu = '1' then
+            thi := ex1.e.write_data(31 downto 0);
+        else
+            thi := std_ulogic_vector(unsigned(thi) + carry);
+        end if;
+        tb_next <= thi & tlo;
+    end process;
 
     dbg_ctrl_out <= ctrl;
     log_rd_addr <= ex2.log_addr_spr;
@@ -1424,6 +1467,10 @@ begin
                             v.se.write_dscr := '1';
                         when SPRSEL_CIABR =>
                             v.se.write_ciabr := '1';
+                        when SPRSEL_TB =>
+                            v.se.write_tbl := '1';
+                        when SPRSEL_TBU =>
+                            v.se.write_tbu := '1';
                         when others =>
                     end case;
                 end if;

@@ -36,7 +36,9 @@ entity syscon is
 	dram_at_0  : out std_ulogic;
 	core_reset : out std_ulogic_vector(NCPUS-1 downto 0);
 	soc_reset  : out std_ulogic;
-	alt_reset  : out std_ulogic
+	alt_reset  : out std_ulogic;
+        tb_rdp     : out std_ulogic;
+        tb_frz     : out std_ulogic
 	);
 end entity syscon;
 
@@ -58,6 +60,7 @@ architecture behaviour of syscon is
     constant SYS_REG_UART1_INFO   : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001001";
     constant SYS_REG_GIT_INFO     : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001010";
     constant SYS_REG_CPU_CTRL     : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001011";
+    constant SYS_REG_TB_CTRL      : std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001100";
 
     -- Muxed reg read signal
     signal reg_out	: std_ulogic_vector(63 downto 0);
@@ -119,6 +122,7 @@ architecture behaviour of syscon is
     signal reg_uart1info : std_ulogic_vector(63 downto 0);
     signal reg_gitinfo   : std_ulogic_vector(63 downto 0);
     signal reg_cpuctrl   : std_ulogic_vector(63 downto 0);
+    signal reg_tbctrl    : std_ulogic_vector(63 downto 0);
     signal info_has_dram : std_ulogic;
     signal info_has_bram : std_ulogic;
     signal info_has_uart : std_ulogic;
@@ -130,6 +134,8 @@ architecture behaviour of syscon is
     signal info_fl_off   : std_ulogic_vector(31 downto 0);
     signal uinfo_16550   : std_ulogic;
     signal uinfo_freq    : std_ulogic_vector(31 downto 0);
+    signal tb_rdprot     : std_ulogic;
+    signal tb_freeze     : std_ulogic;
 
     -- Wishbone response latch
     signal wb_rsp        : wb_io_slave_out;
@@ -193,6 +199,8 @@ begin
 
     reg_cpuctrl(63 downto 8) <= std_ulogic_vector(to_unsigned(NCPUS, 56));
 
+    reg_tbctrl <= 62x"0" & tb_rdprot & tb_freeze;
+
     -- Wishbone response
     wb_rsp.ack <= wishbone_in.cyc and wishbone_in.stb;
     with wishbone_in.adr(SYS_REG_BITS downto 1) select reg_out <=
@@ -208,6 +216,7 @@ begin
         reg_uart1info   when SYS_REG_UART1_INFO,
         reg_gitinfo     when SYS_REG_GIT_INFO,
         reg_cpuctrl     when SYS_REG_CPU_CTRL,
+        reg_tbctrl      when SYS_REG_TB_CTRL,
 	(others => '0') when others;
     wb_rsp.dat   <= reg_out(63 downto 32) when wishbone_in.adr(0) = '1' else
                   reg_out(31 downto 0);
@@ -222,17 +231,23 @@ begin
         end if;
     end process;
 
+    -- Timebase control
+    tb_rdp <= tb_rdprot;
+    tb_frz <= tb_freeze;
+
     -- Initial state
     ctrl_init_alt_reset <= '1' when HAS_DRAM else '0';
 
     -- Register writes
-    regs_write: process(clk)
+    regs_write : process(clk)
     begin
 	if rising_edge(clk) then
 	    if (rst) then
 		reg_ctrl <= (SYS_REG_CTRL_ALT_RESET => ctrl_init_alt_reset,
                         others => '0');
                 reg_cpuctrl(7 downto 0) <= x"01";          -- enable cpu 0 only
+                tb_rdprot <= '0';
+                tb_freeze <= '0';
 	    else
 		if wishbone_in.cyc and wishbone_in.stb and wishbone_in.we then
                     -- Change this if CTRL ever has more than 32 bits
@@ -244,6 +259,11 @@ begin
                     if wishbone_in.adr(SYS_REG_BITS downto 1) = SYS_REG_CPU_CTRL and
                         wishbone_in.adr(0) = '0' and wishbone_in.sel(0) = '1' then
                         reg_cpuctrl(7 downto 0) <= wishbone_in.dat(7 downto 0);
+                    end if;
+                    if wishbone_in.adr(SYS_REG_BITS downto 1) = SYS_REG_TB_CTRL and
+                        wishbone_in.adr(0) = '0' and wishbone_in.sel(0) = '1' then
+                        tb_rdprot <= wishbone_in.dat(1);
+                        tb_freeze <= wishbone_in.dat(0);
                     end if;
 		end if;
 

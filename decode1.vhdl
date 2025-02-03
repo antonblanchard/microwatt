@@ -461,8 +461,16 @@ architecture behaviour of decode1 is
         case sprn is
             when SPR_TB =>
                 i.sel := SPRSEL_TB;
+                i.ronly := '1';
             when SPR_TBU =>
                 i.sel := SPRSEL_TBU;
+                i.ronly := '1';
+            when SPR_TBLW =>
+                i.sel := SPRSEL_TB;
+                i.wonly := '1';
+            when SPR_TBUW =>
+                i.sel := SPRSEL_TB;
+                i.wonly := '1';
             when SPR_DEC =>
                 i.sel := SPRSEL_DEC;
             when SPR_PVR =>

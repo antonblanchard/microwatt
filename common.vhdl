@@ -39,6 +39,8 @@ package common is
     constant SPR_DAR    : spr_num_t := 19;
     constant SPR_TB     : spr_num_t := 268;
     constant SPR_TBU    : spr_num_t := 269;
+    constant SPR_TBLW   : spr_num_t := 284;
+    constant SPR_TBUW   : spr_num_t := 285;
     constant SPR_DEC    : spr_num_t := 22;
     constant SPR_SRR0   : spr_num_t := 26;
     constant SPR_SRR1   : spr_num_t := 27;
@@ -320,6 +322,12 @@ package common is
          dexcr_pnh => aspect_bits_init, dexcr_pro => aspect_bits_init,
          hdexcr_hyp => aspect_bits_init, hdexcr_enf => aspect_bits_init,
          others => (others => '0'));
+
+    type timebase_ctrl is record
+        reset   : std_ulogic;
+        rd_prot : std_ulogic;           -- read-protect => userspace can't read TB
+        freeze  : std_ulogic;
+    end record;
 
     type Fetch1ToIcacheType is record
 	req: std_ulogic;

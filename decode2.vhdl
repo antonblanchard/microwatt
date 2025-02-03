@@ -27,6 +27,8 @@ entity decode2 is
 
         flush_in: in std_ulogic;
 
+        tb_ctrl : timebase_ctrl;
+
         d_in  : in Decode1ToDecode2Type;
 
         e_out : out Decode2ToExecute1Type;
@@ -706,6 +708,11 @@ begin
             end if;
             v.e.privileged := d_in.decode.privileged;
             if (op = OP_MFSPR or op = OP_MTSPR) and d_in.insn(20) = '1' then
+                v.e.privileged := '1';
+            end if;
+            -- Reading TB is privileged if syscon_tb_ctrl.rd_protect is 1
+            if tb_ctrl.rd_prot = '1' and op = OP_MFSPR and d_in.spr_info.valid = '1' and
+                 (d_in.spr_info.sel = SPRSEL_TB or d_in.spr_info.sel = SPRSEL_TBU) then
                 v.e.privileged := '1';
             end if;
             v.e.prefixed := d_in.prefixed;
