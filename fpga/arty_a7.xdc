@@ -65,7 +65,7 @@ set_property -dict { PACKAGE_PIN L14 IOSTANDARD LVCMOS33 } [get_ports { spi_flas
 set_property -dict { PACKAGE_PIN M14 IOSTANDARD LVCMOS33 } [get_ports { spi_flash_hold_n }];
 
 # Put registers into IOBs to improve timing
-set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/*sck_1*}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/*sck_1_reg}]
 set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/input_delay_1.dat_i_l*}]
 
 ################################################################################
@@ -92,7 +92,10 @@ set_property -dict { PACKAGE_PIN A18 IOSTANDARD LVCMOS33 } [get_ports { sdcard_c
 #set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { sdcard_wp }];
 
 # Put registers into IOBs to improve timing
-set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdcard_*}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdpads_data_i_reg*}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/xilinxsdrtristateimpl*_o_reg}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdcard_clk_reg}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdpads_cmd_i_reg}]
 
 ################################################################################
 # PMOD header JB (high-speed, no protection resisters)
@@ -177,7 +180,7 @@ set_property -dict { PACKAGE_PIN T18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_po
 set_property -dict { PACKAGE_PIN R18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io39 }];
 set_property -dict { PACKAGE_PIN P18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io40 }];
 set_property -dict { PACKAGE_PIN N17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io41 }];
-set_property -dict { PACKAGE_PIN M17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io42 }]; # A
+#set_property -dict { PACKAGE_PIN M17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io42 }]; # A
 set_property -dict { PACKAGE_PIN L18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io43 }]; # SCL
 set_property -dict { PACKAGE_PIN M18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io44 }]; # SDA
 #set_property -dict { PACKAGE_PIN C2  IOSTANDARD LVCMOS33 } [get_ports { shield_rst }];
