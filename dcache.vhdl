@@ -101,6 +101,7 @@ architecture rtl of dcache is
     subtype row_t is unsigned(ROW_BITS-1 downto 0);
     subtype index_t is unsigned(INDEX_BITS-1 downto 0);
     subtype way_t is unsigned(WAY_BITS-1 downto 0);
+    subtype way_expand_t is std_ulogic_vector(NUM_WAYS-1 downto 0);
     subtype row_in_line_t is unsigned(ROW_LINEBITS-1 downto 0);
 
     -- The cache data BRAM organized as described above for each way
@@ -149,7 +150,7 @@ architecture rtl of dcache is
     subtype tlb_pte_t is std_ulogic_vector(TLB_PTE_BITS - 1 downto 0);
     subtype tlb_way_ptes_t is std_ulogic_vector(TLB_PTE_WAY_BITS-1 downto 0);
     type tlb_ptes_t is array(tlb_index_t) of tlb_way_ptes_t;
-    type hit_way_set_t is array(tlb_way_t) of way_t;
+    type tlb_expand_t is array(tlb_way_t) of std_ulogic;
 
     signal dtlb_valids : tlb_valids_t;
     signal dtlb_tags : tlb_tags_t;
@@ -177,6 +178,13 @@ architecture rtl of dcache is
         pa.rd_perm := pte(2);
         pa.wr_perm := pte(1);
         return pa;
+    end;
+
+    function andor(mask : std_ulogic; in1 : std_ulogic_vector(7 downto 0);
+                   in2 : std_ulogic_vector(7 downto 0)) return std_ulogic_vector is
+        variable t : std_ulogic_vector(7 downto 0) := (others => mask);
+    begin
+        return in2 or (in1 and t);
     end;
 
     constant real_mode_perm_attr : perm_attr_t := (nocache => '0', others => '1');
@@ -401,6 +409,7 @@ architecture rtl of dcache is
     -- Async signals on incoming request
     signal req_index        : index_t;
     signal req_hit_way      : way_t;
+    signal req_hit_ways     : way_expand_t;
     signal req_is_hit       : std_ulogic;
     signal req_tag          : cache_tag_t;
     signal req_op_load_hit  : std_ulogic;
@@ -448,6 +457,7 @@ architecture rtl of dcache is
     signal tlb_read_valid : std_ulogic;
     signal tlb_hit : std_ulogic;
     signal tlb_hit_way : tlb_way_sig_t;
+    signal tlb_hit_expand : tlb_expand_t;
     signal pte : tlb_pte_t;
     signal ra : real_addr_t;
     signal valid_ra : std_ulogic;
@@ -741,33 +751,34 @@ begin
         variable hitway : tlb_way_sig_t;
         variable hit : std_ulogic;
         variable eatag : tlb_tag_t;
+        variable hitpte : tlb_pte_t;
     begin
         tlb_req_index <= unsigned(r0.req.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1
                                               downto TLB_LG_PGSZ));
         hitway := to_unsigned(0, TLB_WAY_BITS);
         hit := '0';
+        hitpte := (others => '0');
+        tlb_hit_expand <= (others => '0');
         eatag := r0.req.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
         for i in tlb_way_t loop
-            if tlb_read_valid = '1' and tlb_valid_way(i) = '1' and
+            if tlb_valid_way(i) = '1' and
                 read_tlb_tag(i, tlb_tag_way) = eatag then
                 hitway := to_unsigned(i, TLB_WAY_BITS);
-                hit := '1';
+                hit := tlb_read_valid;
+                hitpte := hitpte or read_tlb_pte(i, tlb_pte_way);
+                tlb_hit_expand(i) <= '1';
             end if;
         end loop;
         tlb_hit <= hit and r0_valid;
         tlb_hit_way <= hitway;
-        if tlb_hit = '1' then
-            pte <= read_tlb_pte(to_integer(hitway), tlb_pte_way);
-        else
-            pte <= (others => '0');
-        end if;
+        pte <= hitpte;
         valid_ra <= tlb_hit or not r0.req.virt_mode;
         tlb_miss <= r0_valid and r0.req.virt_mode and not tlb_hit;
         if r0.req.virt_mode = '1' then
-            ra <= pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
+            ra <= hitpte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
                   r0.req.addr(TLB_LG_PGSZ - 1 downto ROW_OFF_BITS) &
                   (ROW_OFF_BITS-1 downto 0 => '0');
-            perm_attr <= extract_perm_attr(pte);
+            perm_attr <= extract_perm_attr(hitpte);
         else
             ra <= r0.req.addr(REAL_ADDR_BITS - 1 downto ROW_OFF_BITS) &
                   (ROW_OFF_BITS-1 downto 0 => '0');
@@ -793,11 +804,13 @@ begin
                     dtlb_valids(i) <= (others => '0');
                 end loop;
             elsif tlbie = '1' then
-                if tlb_hit = '1' then
-                    assert not is_X(tlb_req_index);
-                    assert not is_X(tlb_hit_way);
-                    dtlb_valids(to_integer(tlb_req_index))(to_integer(tlb_hit_way)) <= '0';
-                end if;
+                for i in tlb_way_t loop
+                    if tlb_hit_expand(i) = '1' then
+                        assert not is_X(tlb_req_index);
+                        assert not is_X(tlb_hit_way);
+                        dtlb_valids(to_integer(tlb_req_index))(i) <= '0';
+                    end if;
+                end loop;
             elsif tlbwe = '1' then
                 assert not is_X(tlb_req_index);
                 repl_way := to_unsigned(0, TLB_WAY_BITS);
@@ -941,19 +954,15 @@ begin
         variable rindex      : index_t;
         variable is_hit      : std_ulogic;
         variable hit_way     : way_t;
+        variable hit_ways    : way_expand_t;
         variable go          : std_ulogic;
         variable nc          : std_ulogic;
         variable s_hit       : std_ulogic;
         variable s_tag       : cache_tag_t;
         variable s_pte       : tlb_pte_t;
         variable s_ra        : real_addr_t;
-        variable hit_set     : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
-        variable hit_way_set : hit_way_set_t;
-        variable rel_matches : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
         variable rel_match   : std_ulogic;
-        variable fwd_matches : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
         variable fwd_match   : std_ulogic;
-        variable snp_matches : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
         variable snoop_match : std_ulogic;
         variable hit_reload  : std_ulogic;
         variable dawr_match  : std_ulogic;
@@ -982,51 +991,44 @@ begin
         -- we compare each way with each of the real addresses from each way of
         -- the TLB, and then decide later which match to use.
         hit_way := to_unsigned(0, WAY_BITS);
+        hit_ways := (others => '0');
         is_hit := '0';
         rel_match := '0';
         fwd_match := '0';
         snoop_match := '0';
         if r0.req.virt_mode = '1' then
-            rel_matches := (others => '0');
-            fwd_matches := (others => '0');
-            snp_matches := (others => '0');
             for j in tlb_way_t loop
-                hit_way_set(j) := to_unsigned(0, WAY_BITS);
-                s_hit := '0';
-                s_pte := read_tlb_pte(j, tlb_pte_way);
-                s_ra := s_pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
-                        r0.req.addr(TLB_LG_PGSZ - 1 downto 0);
-                s_tag := get_tag(s_ra);
-                if go = '1' then
+                if tlb_valid_way(j) = '1' then
+                    s_hit := '0';
+                    s_pte := read_tlb_pte(j, tlb_pte_way);
+                    s_ra := s_pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
+                            r0.req.addr(TLB_LG_PGSZ - 1 downto 0);
+                    s_tag := get_tag(s_ra);
                     assert not is_X(s_tag);
-                end if;
-                for i in 0 to NUM_WAYS-1 loop
-                    if go = '1' and cache_valids(to_integer(rindex))(i) = '1' and
-                        read_tag(i, cache_tag_set) = s_tag and
-                        tlb_valid_way(j) = '1' then
-                        hit_way_set(j) := to_unsigned(i, WAY_BITS);
-                        s_hit := '1';
-                        if snoop_hits(i) = '1' then
-                            snp_matches(j) := '1';
+                    for i in 0 to NUM_WAYS-1 loop
+                        if cache_valids(to_integer(rindex))(i) = '1' and
+                            read_tag(i, cache_tag_set) = s_tag and
+                            tlb_hit_expand(j) = '1' then
+                            hit_ways(i) := '1';
+                            hit_way := to_unsigned(i, WAY_BITS);
+                            if go = '1' then
+                                is_hit := '1';
+                                if snoop_hits(i) = '1' then
+                                    snoop_match := '1';
+                                end if;
+                            end if;
+                        end if;
+                    end loop;
+                    if go = '1' and tlb_hit_expand(j) = '1' then
+                        if not is_X(r1.reload_tag) and s_tag = r1.reload_tag then
+                            rel_match := '1';
+                        end if;
+                        if s_tag = r1.forward_tag then
+                            fwd_match := '1';
                         end if;
                     end if;
-                end loop;
-                hit_set(j) := s_hit;
-                if go = '1' and not is_X(r1.reload_tag) and s_tag = r1.reload_tag then
-                    rel_matches(j) := '1';
-                end if;
-                if go = '1' and s_tag = r1.forward_tag then
-                    fwd_matches(j) := '1';
                 end if;
             end loop;
-            if tlb_hit = '1' and go = '1' then
-                assert not is_X(tlb_hit_way);
-                is_hit := hit_set(to_integer(tlb_hit_way));
-                hit_way := hit_way_set(to_integer(tlb_hit_way));
-                rel_match := rel_matches(to_integer(tlb_hit_way));
-                fwd_match := fwd_matches(to_integer(tlb_hit_way));
-                snoop_match := snp_matches(to_integer(tlb_hit_way));
-            end if;
         else
             s_tag := get_tag(r0.req.addr);
             if go = '1' then
@@ -1035,6 +1037,7 @@ begin
             for i in 0 to NUM_WAYS-1 loop
                 if go = '1' and cache_valids(to_integer(rindex))(i) = '1' and
                     read_tag(i, cache_tag_set) = s_tag then
+                    hit_ways(i) := '1';
                     hit_way := to_unsigned(i, WAY_BITS);
                     is_hit := '1';
                     if snoop_hits(i) = '1' then
@@ -1121,6 +1124,8 @@ begin
                       r1.rows_valid(to_integer(req_row(ROW_LINEBITS-1 downto 0))) or
                       use_forward_rl;
             hit_way := replace_way;
+            hit_ways := (others => '0');
+            hit_ways(to_integer(replace_way)) := '1';
             hit_reload := is_hit;
         elsif r0.req.load = '1' and r0.req.atomic_qw = '1' and r0.req.atomic_first = '0' and
             r0.req.nc = '0' and perm_attr.nocache = '0' and r1.prev_hit = '1' then
@@ -1132,10 +1137,13 @@ begin
             -- NB lq to noncacheable isn't required to be atomic per the ISA.
             is_hit := '1';
             hit_way := r1.prev_way;
+            hit_ways := (others => '0');
+            hit_ways(to_integer(r1.prev_way)) := '1';
         end if;
 
 	-- The way that matched on a hit	       
 	req_hit_way <= hit_way;
+        req_hit_ways <= hit_ways;
         req_is_hit <= is_hit;
         req_hit_reload <= hit_reload;
 
@@ -1357,6 +1365,7 @@ begin
         variable j        : integer;
         variable sel      : std_ulogic_vector(1 downto 0);
         variable data_out : std_ulogic_vector(63 downto 0);
+        variable byte_out : std_ulogic_vector(7 downto 0);
     begin
         if rising_edge(clk) then
             if r0_valid = '1' then
@@ -1386,11 +1395,12 @@ begin
                     when "10" =>
                         data_out(j + 7 downto j) := r1.forward_data(j + 7 downto j);
                     when others =>
-                        if is_X(req_hit_way) then
-                            data_out(j + 7 downto j) := (others => 'X');
-                        else
-                            data_out(j + 7 downto j) := cache_out(to_integer(req_hit_way))(j + 7 downto j);
-                        end if;
+                        byte_out := (others => '0');
+                        for w in 0 to NUM_WAYS-1 loop
+                            byte_out := andor(req_hit_ways(w), cache_out(w)(j + 7 downto j),
+                                              byte_out);
+                        end loop;
+                        data_out(j + 7 downto j) := byte_out;
                 end case;
             end loop;
             r1.data_out <= data_out;
