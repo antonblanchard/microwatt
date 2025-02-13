@@ -418,9 +418,10 @@ package decode_types is
     constant INSN_first_fp_nonmls : insn_code := INSN_stfdu;
 
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA);
-    type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
+    type input_reg_b_t is (IMM, RB, FRB);
+    type const_sel_t is   (NONE, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
                            CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI,
-                           DSX, FRB);
+                           CONST_DSX);
     type input_reg_c_t is (NONE, RS, RCR, RBC, FRC, FRS);
     type output_reg_a_t is (NONE, RT, RA, FRT);
     type rc_t is (NONE, ONE, RC, RCOE);
@@ -459,6 +460,7 @@ package decode_types is
 	insn_type    : insn_type_t;
 	input_reg_a  : input_reg_a_t;
 	input_reg_b  : input_reg_b_t;
+        const_sel    : const_sel_t;
 	input_reg_c  : input_reg_c_t;
 	output_reg_a : output_reg_a_t;
 
@@ -490,7 +492,7 @@ package decode_types is
     end record;
     constant decode_rom_init : decode_rom_t := (unit => ALU, facility => NONE,
 						insn_type => OP_ILLEGAL, input_reg_a => NONE,
-						input_reg_b => NONE, input_reg_c => NONE,
+						input_reg_b => IMM, const_sel => NONE, input_reg_c => NONE,
 						output_reg_a => NONE, input_cr => '0', output_cr => '0',
 						invert_a => '0', invert_out => '0', input_carry => ZERO, output_carry => '0',
 						length => NONE, byte_reverse => '0', sign_extend => '0',

@@ -91,12 +91,14 @@ begin
 
     popcnt_r: process(clk)
     begin
-        if rising_edge(clk) and stall = '0' then
-            for i in 0 to 7 loop
-                pc8_r(i) <= pc8(i);
-            end loop;
-            dlen_r <= datalen;
-            pcnt_r <= do_popcnt;
+        if rising_edge(clk) then
+            if stall = '0' then
+                for i in 0 to 7 loop
+                    pc8_r(i) <= pc8(i);
+                end loop;
+                dlen_r <= datalen;
+                pcnt_r <= do_popcnt;
+            end if;
         end if;
     end process;
 
