@@ -8,8 +8,8 @@
 //
 // Filename   : liteeth_core.v
 // Device     : 
-// LiteX sha1 : 87137c30
-// Date       : 2024-04-05 17:38:49
+// LiteX sha1 : bc1f1f52b
+// Date       : 2025-02-15 16:17:45
 //------------------------------------------------------------------------------
 
 `timescale 1ns / 1ps
@@ -88,7 +88,8 @@ MACCore
 │    │    │    │    └─── converter_0* (Converter)
 │    │    │    │    │    └─── _downconverter_0* (_DownConverter)
 │    │    │    └─── liteethmactxlastbe_0* (LiteEthMACTXLastBE)
-│    │    │    │    └─── fsm (FSM)
+│    │    │    │    └─── last_handler (LiteEthLastHandler)
+│    │    │    │    │    └─── fsm (FSM)
 │    │    │    └─── liteethmacpaddinginserter_0* (LiteEthMACPaddingInserter)
 │    │    │    │    └─── fsm (FSM)
 │    │    │    └─── liteethmaccrc32inserter_0* (LiteEthMACCRC32Inserter)
@@ -145,9 +146,11 @@ MACCore
 │    │    │    └─── ev (SharedIRQ)
 │    │    └─── sram_0* (SRAM)
 │    │    └─── sram_1* (SRAM)
+│    │    └─── decoder_0* (Decoder)
 │    │    └─── sram_2* (SRAM)
 │    │    └─── sram_3* (SRAM)
-│    │    └─── decoder_0* (Decoder)
+│    │    └─── decoder_1* (Decoder)
+│    └─── ev (SharedIRQ)
 └─── csr_bridge (Wishbone2CSR)
 │    └─── fsm (FSM)
 └─── csr_bankarray (CSRBankArray)
@@ -189,1475 +192,1465 @@ MACCore
 // Signals
 //------------------------------------------------------------------------------
 
-wire   [13:0] builder_adr;
-wire   [39:0] builder_complexslicelowerer_slice_proxy;
-reg    [19:0] builder_count = 20'd1000000;
-wire   [31:0] builder_csrbank0_bus_errors_r;
-reg           builder_csrbank0_bus_errors_re = 1'd0;
-wire   [31:0] builder_csrbank0_bus_errors_w;
-reg           builder_csrbank0_bus_errors_we = 1'd0;
-wire    [1:0] builder_csrbank0_reset0_r;
-reg           builder_csrbank0_reset0_re = 1'd0;
-wire    [1:0] builder_csrbank0_reset0_w;
-reg           builder_csrbank0_reset0_we = 1'd0;
-wire   [31:0] builder_csrbank0_scratch0_r;
-reg           builder_csrbank0_scratch0_re = 1'd0;
-wire   [31:0] builder_csrbank0_scratch0_w;
-reg           builder_csrbank0_scratch0_we = 1'd0;
-wire          builder_csrbank0_sel;
-wire          builder_csrbank1_preamble_crc_r;
-reg           builder_csrbank1_preamble_crc_re = 1'd0;
-wire          builder_csrbank1_preamble_crc_w;
-reg           builder_csrbank1_preamble_crc_we = 1'd0;
-wire   [31:0] builder_csrbank1_rx_datapath_crc_errors_r;
-reg           builder_csrbank1_rx_datapath_crc_errors_re = 1'd0;
-wire   [31:0] builder_csrbank1_rx_datapath_crc_errors_w;
-reg           builder_csrbank1_rx_datapath_crc_errors_we = 1'd0;
-wire   [31:0] builder_csrbank1_rx_datapath_preamble_errors_r;
-reg           builder_csrbank1_rx_datapath_preamble_errors_re = 1'd0;
-wire   [31:0] builder_csrbank1_rx_datapath_preamble_errors_w;
-reg           builder_csrbank1_rx_datapath_preamble_errors_we = 1'd0;
-wire          builder_csrbank1_sel;
-wire          builder_csrbank1_sram_reader_ev_enable0_r;
-reg           builder_csrbank1_sram_reader_ev_enable0_re = 1'd0;
-wire          builder_csrbank1_sram_reader_ev_enable0_w;
-reg           builder_csrbank1_sram_reader_ev_enable0_we = 1'd0;
-wire          builder_csrbank1_sram_reader_ev_pending_r;
-reg           builder_csrbank1_sram_reader_ev_pending_re = 1'd0;
-wire          builder_csrbank1_sram_reader_ev_pending_w;
-reg           builder_csrbank1_sram_reader_ev_pending_we = 1'd0;
-wire          builder_csrbank1_sram_reader_ev_status_r;
-reg           builder_csrbank1_sram_reader_ev_status_re = 1'd0;
-wire          builder_csrbank1_sram_reader_ev_status_w;
-reg           builder_csrbank1_sram_reader_ev_status_we = 1'd0;
-wire   [10:0] builder_csrbank1_sram_reader_length0_r;
-reg           builder_csrbank1_sram_reader_length0_re = 1'd0;
-wire   [10:0] builder_csrbank1_sram_reader_length0_w;
-reg           builder_csrbank1_sram_reader_length0_we = 1'd0;
-wire    [1:0] builder_csrbank1_sram_reader_level_r;
-reg           builder_csrbank1_sram_reader_level_re = 1'd0;
-wire    [1:0] builder_csrbank1_sram_reader_level_w;
-reg           builder_csrbank1_sram_reader_level_we = 1'd0;
-wire          builder_csrbank1_sram_reader_ready_r;
-reg           builder_csrbank1_sram_reader_ready_re = 1'd0;
-wire          builder_csrbank1_sram_reader_ready_w;
-reg           builder_csrbank1_sram_reader_ready_we = 1'd0;
-wire          builder_csrbank1_sram_reader_slot0_r;
-reg           builder_csrbank1_sram_reader_slot0_re = 1'd0;
-wire          builder_csrbank1_sram_reader_slot0_w;
-reg           builder_csrbank1_sram_reader_slot0_we = 1'd0;
-wire   [31:0] builder_csrbank1_sram_writer_errors_r;
-reg           builder_csrbank1_sram_writer_errors_re = 1'd0;
-wire   [31:0] builder_csrbank1_sram_writer_errors_w;
-reg           builder_csrbank1_sram_writer_errors_we = 1'd0;
-wire          builder_csrbank1_sram_writer_ev_enable0_r;
-reg           builder_csrbank1_sram_writer_ev_enable0_re = 1'd0;
-wire          builder_csrbank1_sram_writer_ev_enable0_w;
-reg           builder_csrbank1_sram_writer_ev_enable0_we = 1'd0;
-wire          builder_csrbank1_sram_writer_ev_pending_r;
-reg           builder_csrbank1_sram_writer_ev_pending_re = 1'd0;
-wire          builder_csrbank1_sram_writer_ev_pending_w;
-reg           builder_csrbank1_sram_writer_ev_pending_we = 1'd0;
-wire          builder_csrbank1_sram_writer_ev_status_r;
-reg           builder_csrbank1_sram_writer_ev_status_re = 1'd0;
-wire          builder_csrbank1_sram_writer_ev_status_w;
-reg           builder_csrbank1_sram_writer_ev_status_we = 1'd0;
-wire   [10:0] builder_csrbank1_sram_writer_length_r;
-reg           builder_csrbank1_sram_writer_length_re = 1'd0;
-wire   [10:0] builder_csrbank1_sram_writer_length_w;
-reg           builder_csrbank1_sram_writer_length_we = 1'd0;
-wire          builder_csrbank1_sram_writer_slot_r;
-reg           builder_csrbank1_sram_writer_slot_re = 1'd0;
-wire          builder_csrbank1_sram_writer_slot_w;
-reg           builder_csrbank1_sram_writer_slot_we = 1'd0;
-wire          builder_csrbank2_crg_reset0_r;
-reg           builder_csrbank2_crg_reset0_re = 1'd0;
-wire          builder_csrbank2_crg_reset0_w;
-reg           builder_csrbank2_crg_reset0_we = 1'd0;
-wire          builder_csrbank2_mdio_r_r;
-reg           builder_csrbank2_mdio_r_re = 1'd0;
-wire          builder_csrbank2_mdio_r_w;
-reg           builder_csrbank2_mdio_r_we = 1'd0;
-wire    [2:0] builder_csrbank2_mdio_w0_r;
-reg           builder_csrbank2_mdio_w0_re = 1'd0;
-wire    [2:0] builder_csrbank2_mdio_w0_w;
-reg           builder_csrbank2_mdio_w0_we = 1'd0;
-wire          builder_csrbank2_sel;
-wire   [31:0] builder_dat_r;
-wire   [31:0] builder_dat_w;
-wire          builder_done;
-reg           builder_error = 1'd0;
-wire          builder_grant;
-reg           builder_interface0_ack = 1'd0;
-wire   [29:0] builder_interface0_adr;
-wire   [13:0] builder_interface0_bank_bus_adr;
-reg    [31:0] builder_interface0_bank_bus_dat_r = 32'd0;
-wire   [31:0] builder_interface0_bank_bus_dat_w;
-wire          builder_interface0_bank_bus_we;
-wire    [1:0] builder_interface0_bte;
-wire    [2:0] builder_interface0_cti;
-wire          builder_interface0_cyc;
-reg    [31:0] builder_interface0_dat_r = 32'd0;
-wire   [31:0] builder_interface0_dat_w;
-reg           builder_interface0_err = 1'd0;
-wire    [3:0] builder_interface0_sel;
-wire          builder_interface0_stb;
-wire          builder_interface0_we;
-reg    [13:0] builder_interface1_adr = 14'd0;
-wire   [13:0] builder_interface1_bank_bus_adr;
-reg    [31:0] builder_interface1_bank_bus_dat_r = 32'd0;
-wire   [31:0] builder_interface1_bank_bus_dat_w;
-wire          builder_interface1_bank_bus_we;
-wire   [31:0] builder_interface1_dat_r;
-reg    [31:0] builder_interface1_dat_w = 32'd0;
-reg           builder_interface1_we = 1'd0;
-wire   [13:0] builder_interface2_bank_bus_adr;
-reg    [31:0] builder_interface2_bank_bus_dat_r = 32'd0;
-wire   [31:0] builder_interface2_bank_bus_dat_w;
-wire          builder_interface2_bank_bus_we;
-reg     [1:0] builder_liteethmacsramreader_next_state = 2'd0;
-reg     [1:0] builder_liteethmacsramreader_state = 2'd0;
-reg     [2:0] builder_liteethmacsramwriter_next_state = 3'd0;
-reg     [2:0] builder_liteethmacsramwriter_state = 3'd0;
-reg           builder_next_state = 1'd0;
-wire          builder_request;
-wire          builder_rst_meta0;
-wire          builder_rst_meta1;
-reg     [1:0] builder_rxdatapath_bufferizeendpoints_next_state = 2'd0;
-reg     [1:0] builder_rxdatapath_bufferizeendpoints_state = 2'd0;
-reg           builder_rxdatapath_liteethmacpreamblechecker_next_state = 1'd0;
-reg           builder_rxdatapath_liteethmacpreamblechecker_state = 1'd0;
-reg    [29:0] builder_self0 = 30'd0;
-reg    [31:0] builder_self1 = 32'd0;
-reg     [3:0] builder_self2 = 4'd0;
-reg           builder_self3 = 1'd0;
-reg           builder_self4 = 1'd0;
-reg           builder_self5 = 1'd0;
-reg     [2:0] builder_self6 = 3'd0;
-reg     [1:0] builder_self7 = 2'd0;
-reg           builder_shared_ack = 1'd0;
-wire   [29:0] builder_shared_adr;
-wire    [1:0] builder_shared_bte;
-wire    [2:0] builder_shared_cti;
-wire          builder_shared_cyc;
-reg    [31:0] builder_shared_dat_r = 32'd0;
-wire   [31:0] builder_shared_dat_w;
-wire          builder_shared_err;
-wire    [3:0] builder_shared_sel;
-wire          builder_shared_stb;
-wire          builder_shared_we;
-reg     [1:0] builder_slave_sel = 2'd0;
-reg     [1:0] builder_slave_sel_r = 2'd0;
-reg           builder_state = 1'd0;
-wire   [31:0] builder_t_slice_proxy0;
-wire   [31:0] builder_t_slice_proxy1;
-wire   [31:0] builder_t_slice_proxy10;
-wire   [31:0] builder_t_slice_proxy11;
-wire   [31:0] builder_t_slice_proxy12;
-wire   [31:0] builder_t_slice_proxy13;
-wire   [31:0] builder_t_slice_proxy14;
-wire   [31:0] builder_t_slice_proxy15;
-wire   [31:0] builder_t_slice_proxy16;
-wire   [31:0] builder_t_slice_proxy17;
-wire   [31:0] builder_t_slice_proxy18;
-wire   [31:0] builder_t_slice_proxy19;
-wire   [31:0] builder_t_slice_proxy2;
-wire   [31:0] builder_t_slice_proxy20;
-wire   [31:0] builder_t_slice_proxy21;
-wire   [31:0] builder_t_slice_proxy22;
-wire   [31:0] builder_t_slice_proxy23;
-wire   [31:0] builder_t_slice_proxy24;
-wire   [31:0] builder_t_slice_proxy25;
-wire   [31:0] builder_t_slice_proxy26;
-wire   [31:0] builder_t_slice_proxy27;
-wire   [31:0] builder_t_slice_proxy28;
-wire   [31:0] builder_t_slice_proxy29;
-wire   [31:0] builder_t_slice_proxy3;
-wire   [31:0] builder_t_slice_proxy30;
-wire   [31:0] builder_t_slice_proxy31;
-wire   [31:0] builder_t_slice_proxy32;
-wire   [31:0] builder_t_slice_proxy33;
-wire   [31:0] builder_t_slice_proxy34;
-wire   [31:0] builder_t_slice_proxy35;
-wire   [31:0] builder_t_slice_proxy36;
-wire   [31:0] builder_t_slice_proxy37;
-wire   [31:0] builder_t_slice_proxy38;
-wire   [31:0] builder_t_slice_proxy39;
-wire   [31:0] builder_t_slice_proxy4;
-wire   [31:0] builder_t_slice_proxy40;
-wire   [31:0] builder_t_slice_proxy41;
-wire   [31:0] builder_t_slice_proxy42;
-wire   [31:0] builder_t_slice_proxy43;
-wire   [31:0] builder_t_slice_proxy44;
-wire   [31:0] builder_t_slice_proxy45;
-wire   [31:0] builder_t_slice_proxy46;
-wire   [31:0] builder_t_slice_proxy47;
-wire   [31:0] builder_t_slice_proxy48;
-wire   [31:0] builder_t_slice_proxy49;
-wire   [31:0] builder_t_slice_proxy5;
-wire   [31:0] builder_t_slice_proxy50;
-wire   [31:0] builder_t_slice_proxy51;
-wire   [31:0] builder_t_slice_proxy52;
-wire   [31:0] builder_t_slice_proxy53;
-wire   [31:0] builder_t_slice_proxy54;
-wire   [31:0] builder_t_slice_proxy55;
-wire   [31:0] builder_t_slice_proxy56;
-wire   [31:0] builder_t_slice_proxy57;
-wire   [31:0] builder_t_slice_proxy58;
-wire   [31:0] builder_t_slice_proxy59;
-wire   [31:0] builder_t_slice_proxy6;
-wire   [31:0] builder_t_slice_proxy60;
-wire   [31:0] builder_t_slice_proxy61;
-wire   [31:0] builder_t_slice_proxy62;
-wire   [31:0] builder_t_slice_proxy63;
-wire   [31:0] builder_t_slice_proxy7;
-wire   [31:0] builder_t_slice_proxy8;
-wire   [31:0] builder_t_slice_proxy9;
-reg     [1:0] builder_txdatapath_bufferizeendpoints_next_state = 2'd0;
-reg     [1:0] builder_txdatapath_bufferizeendpoints_state = 2'd0;
-reg           builder_txdatapath_liteethmacgap_next_state = 1'd0;
-reg           builder_txdatapath_liteethmacgap_state = 1'd0;
-reg           builder_txdatapath_liteethmacpaddinginserter_next_state = 1'd0;
-reg           builder_txdatapath_liteethmacpaddinginserter_state = 1'd0;
-reg     [1:0] builder_txdatapath_liteethmacpreambleinserter_next_state = 2'd0;
-reg     [1:0] builder_txdatapath_liteethmacpreambleinserter_state = 2'd0;
-reg           builder_txdatapath_liteethmactxlastbe_next_state = 1'd0;
-reg           builder_txdatapath_liteethmactxlastbe_state = 1'd0;
-wire          builder_wait;
-wire          builder_we;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl00 = 1'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl01 = 1'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl10 = 6'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl11 = 6'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl20 = 6'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl21 = 6'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl30 = 1'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl31 = 1'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl40 = 1'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg           builder_xilinxmultiregimpl41 = 1'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl50 = 6'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl51 = 6'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl60 = 6'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg     [5:0] builder_xilinxmultiregimpl61 = 6'd0;
+wire   [13:0] adr;
+wire          core_bufferizeendpoints_pipe_valid_sink_first;
+wire          core_bufferizeendpoints_pipe_valid_sink_last;
+wire    [7:0] core_bufferizeendpoints_pipe_valid_sink_payload_data;
+wire          core_bufferizeendpoints_pipe_valid_sink_payload_error;
+wire          core_bufferizeendpoints_pipe_valid_sink_payload_last_be;
+wire          core_bufferizeendpoints_pipe_valid_sink_ready;
+wire          core_bufferizeendpoints_pipe_valid_sink_valid;
+reg           core_bufferizeendpoints_pipe_valid_source_first = 1'd0;
+reg           core_bufferizeendpoints_pipe_valid_source_last = 1'd0;
+reg     [7:0] core_bufferizeendpoints_pipe_valid_source_payload_data = 8'd0;
+reg           core_bufferizeendpoints_pipe_valid_source_payload_error = 1'd0;
+reg           core_bufferizeendpoints_pipe_valid_source_payload_last_be = 1'd0;
+wire          core_bufferizeendpoints_pipe_valid_source_ready;
+reg           core_bufferizeendpoints_pipe_valid_source_valid = 1'd0;
+wire          core_bufferizeendpoints_sink_sink_first;
+wire          core_bufferizeendpoints_sink_sink_last;
+wire    [7:0] core_bufferizeendpoints_sink_sink_payload_data;
+wire          core_bufferizeendpoints_sink_sink_payload_error;
+wire          core_bufferizeendpoints_sink_sink_payload_last_be;
+wire          core_bufferizeendpoints_sink_sink_ready;
+wire          core_bufferizeendpoints_sink_sink_valid;
+wire          core_bufferizeendpoints_source_source_first;
+wire          core_bufferizeendpoints_source_source_last;
+wire    [7:0] core_bufferizeendpoints_source_source_payload_data;
+wire          core_bufferizeendpoints_source_source_payload_error;
+wire          core_bufferizeendpoints_source_source_payload_last_be;
+wire          core_bufferizeendpoints_source_source_ready;
+wire          core_bufferizeendpoints_source_source_valid;
+reg           core_crc_errors_re = 1'd0;
+reg    [31:0] core_crc_errors_status = 32'd0;
+wire          core_crc_errors_we;
+wire          core_liteethmaccrc32checker_crc_be;
+reg           core_liteethmaccrc32checker_crc_ce = 1'd0;
+reg    [31:0] core_liteethmaccrc32checker_crc_crc_next = 32'd0;
+wire   [31:0] core_liteethmaccrc32checker_crc_crc_prev;
+wire    [7:0] core_liteethmaccrc32checker_crc_data0;
+wire    [7:0] core_liteethmaccrc32checker_crc_data1;
+reg           core_liteethmaccrc32checker_crc_error0 = 1'd0;
+reg           core_liteethmaccrc32checker_crc_error1 = 1'd0;
+reg           core_liteethmaccrc32checker_crc_error1_next_value1 = 1'd0;
+reg           core_liteethmaccrc32checker_crc_error1_next_value_ce1 = 1'd0;
+reg    [31:0] core_liteethmaccrc32checker_crc_reg = 32'd4294967295;
+reg           core_liteethmaccrc32checker_crc_reset = 1'd0;
+reg    [31:0] core_liteethmaccrc32checker_crc_value = 32'd0;
+reg           core_liteethmaccrc32checker_error = 1'd0;
+wire          core_liteethmaccrc32checker_fifo_full;
+wire          core_liteethmaccrc32checker_fifo_in;
+wire          core_liteethmaccrc32checker_fifo_out;
+reg           core_liteethmaccrc32checker_fifo_reset = 1'd0;
+reg           core_liteethmaccrc32checker_last_be = 1'd0;
+reg           core_liteethmaccrc32checker_last_be_next_value0 = 1'd0;
+reg           core_liteethmaccrc32checker_last_be_next_value_ce0 = 1'd0;
+wire          core_liteethmaccrc32checker_sink_sink_first;
+wire          core_liteethmaccrc32checker_sink_sink_last;
+wire    [7:0] core_liteethmaccrc32checker_sink_sink_payload_data;
+wire          core_liteethmaccrc32checker_sink_sink_payload_error;
+wire          core_liteethmaccrc32checker_sink_sink_payload_last_be;
+reg           core_liteethmaccrc32checker_sink_sink_ready = 1'd0;
+wire          core_liteethmaccrc32checker_sink_sink_valid;
+wire          core_liteethmaccrc32checker_source_source_first;
+reg           core_liteethmaccrc32checker_source_source_last = 1'd0;
+wire    [7:0] core_liteethmaccrc32checker_source_source_payload_data;
+reg           core_liteethmaccrc32checker_source_source_payload_error = 1'd0;
+reg           core_liteethmaccrc32checker_source_source_payload_last_be = 1'd0;
+wire          core_liteethmaccrc32checker_source_source_ready;
+reg           core_liteethmaccrc32checker_source_source_valid = 1'd0;
+reg     [2:0] core_liteethmaccrc32checker_syncfifo_consume = 3'd0;
+wire          core_liteethmaccrc32checker_syncfifo_do_read;
+wire          core_liteethmaccrc32checker_syncfifo_fifo_in_first;
+wire          core_liteethmaccrc32checker_syncfifo_fifo_in_last;
+wire    [7:0] core_liteethmaccrc32checker_syncfifo_fifo_in_payload_data;
+wire          core_liteethmaccrc32checker_syncfifo_fifo_in_payload_error;
+wire          core_liteethmaccrc32checker_syncfifo_fifo_in_payload_last_be;
+wire          core_liteethmaccrc32checker_syncfifo_fifo_out_first;
+wire          core_liteethmaccrc32checker_syncfifo_fifo_out_last;
+wire    [7:0] core_liteethmaccrc32checker_syncfifo_fifo_out_payload_data;
+wire          core_liteethmaccrc32checker_syncfifo_fifo_out_payload_error;
+wire          core_liteethmaccrc32checker_syncfifo_fifo_out_payload_last_be;
+reg     [2:0] core_liteethmaccrc32checker_syncfifo_level = 3'd0;
+reg     [2:0] core_liteethmaccrc32checker_syncfifo_produce = 3'd0;
+wire    [2:0] core_liteethmaccrc32checker_syncfifo_rdport_adr;
+wire   [11:0] core_liteethmaccrc32checker_syncfifo_rdport_dat_r;
+reg           core_liteethmaccrc32checker_syncfifo_replace = 1'd0;
+wire          core_liteethmaccrc32checker_syncfifo_sink_first;
+wire          core_liteethmaccrc32checker_syncfifo_sink_last;
+wire    [7:0] core_liteethmaccrc32checker_syncfifo_sink_payload_data;
+wire          core_liteethmaccrc32checker_syncfifo_sink_payload_error;
+wire          core_liteethmaccrc32checker_syncfifo_sink_payload_last_be;
+wire          core_liteethmaccrc32checker_syncfifo_sink_ready;
+reg           core_liteethmaccrc32checker_syncfifo_sink_valid = 1'd0;
+wire          core_liteethmaccrc32checker_syncfifo_source_first;
+wire          core_liteethmaccrc32checker_syncfifo_source_last;
+wire    [7:0] core_liteethmaccrc32checker_syncfifo_source_payload_data;
+wire          core_liteethmaccrc32checker_syncfifo_source_payload_error;
+wire          core_liteethmaccrc32checker_syncfifo_source_payload_last_be;
+reg           core_liteethmaccrc32checker_syncfifo_source_ready = 1'd0;
+wire          core_liteethmaccrc32checker_syncfifo_source_valid;
+wire   [11:0] core_liteethmaccrc32checker_syncfifo_syncfifo_din;
+wire   [11:0] core_liteethmaccrc32checker_syncfifo_syncfifo_dout;
+wire          core_liteethmaccrc32checker_syncfifo_syncfifo_re;
+wire          core_liteethmaccrc32checker_syncfifo_syncfifo_readable;
+wire          core_liteethmaccrc32checker_syncfifo_syncfifo_we;
+wire          core_liteethmaccrc32checker_syncfifo_syncfifo_writable;
+reg     [2:0] core_liteethmaccrc32checker_syncfifo_wrport_adr = 3'd0;
+wire   [11:0] core_liteethmaccrc32checker_syncfifo_wrport_dat_r;
+wire   [11:0] core_liteethmaccrc32checker_syncfifo_wrport_dat_w;
+wire          core_liteethmaccrc32checker_syncfifo_wrport_we;
+reg           core_preamble_errors_re = 1'd0;
+reg    [31:0] core_preamble_errors_status = 32'd0;
+wire          core_preamble_errors_we;
+wire          core_pulsesynchronizer0_i;
+wire          core_pulsesynchronizer0_o;
+reg           core_pulsesynchronizer0_toggle_i = 1'd0;
+wire          core_pulsesynchronizer0_toggle_o;
+reg           core_pulsesynchronizer0_toggle_o_r = 1'd0;
+wire          core_pulsesynchronizer1_i;
+wire          core_pulsesynchronizer1_o;
+reg           core_pulsesynchronizer1_toggle_i = 1'd0;
+wire          core_pulsesynchronizer1_toggle_o;
+reg           core_pulsesynchronizer1_toggle_o_r = 1'd0;
+reg           core_re = 1'd0;
+wire   [41:0] core_rx_cdc_cdc_asyncfifo_din;
+wire   [41:0] core_rx_cdc_cdc_asyncfifo_dout;
+wire          core_rx_cdc_cdc_asyncfifo_re;
+wire          core_rx_cdc_cdc_asyncfifo_readable;
+wire          core_rx_cdc_cdc_asyncfifo_we;
+wire          core_rx_cdc_cdc_asyncfifo_writable;
+wire    [5:0] core_rx_cdc_cdc_consume_wdomain;
+wire          core_rx_cdc_cdc_fifo_in_first;
+wire          core_rx_cdc_cdc_fifo_in_last;
+wire   [31:0] core_rx_cdc_cdc_fifo_in_payload_data;
+wire    [3:0] core_rx_cdc_cdc_fifo_in_payload_error;
+wire    [3:0] core_rx_cdc_cdc_fifo_in_payload_last_be;
+wire          core_rx_cdc_cdc_fifo_out_first;
+wire          core_rx_cdc_cdc_fifo_out_last;
+wire   [31:0] core_rx_cdc_cdc_fifo_out_payload_data;
+wire    [3:0] core_rx_cdc_cdc_fifo_out_payload_error;
+wire    [3:0] core_rx_cdc_cdc_fifo_out_payload_last_be;
+wire          core_rx_cdc_cdc_graycounter0_ce;
+(* dont_touch = "true" *)
+reg     [5:0] core_rx_cdc_cdc_graycounter0_q = 6'd0;
+reg     [5:0] core_rx_cdc_cdc_graycounter0_q_binary = 6'd0;
+wire    [5:0] core_rx_cdc_cdc_graycounter0_q_next;
+reg     [5:0] core_rx_cdc_cdc_graycounter0_q_next_binary = 6'd0;
+wire          core_rx_cdc_cdc_graycounter1_ce;
+(* dont_touch = "true" *)
+reg     [5:0] core_rx_cdc_cdc_graycounter1_q = 6'd0;
+reg     [5:0] core_rx_cdc_cdc_graycounter1_q_binary = 6'd0;
+wire    [5:0] core_rx_cdc_cdc_graycounter1_q_next;
+reg     [5:0] core_rx_cdc_cdc_graycounter1_q_next_binary = 6'd0;
+wire    [5:0] core_rx_cdc_cdc_produce_rdomain;
+wire    [4:0] core_rx_cdc_cdc_rdport_adr;
+wire   [41:0] core_rx_cdc_cdc_rdport_dat_r;
+wire          core_rx_cdc_cdc_sink_first;
+wire          core_rx_cdc_cdc_sink_last;
+wire   [31:0] core_rx_cdc_cdc_sink_payload_data;
+wire    [3:0] core_rx_cdc_cdc_sink_payload_error;
+wire    [3:0] core_rx_cdc_cdc_sink_payload_last_be;
+wire          core_rx_cdc_cdc_sink_ready;
+wire          core_rx_cdc_cdc_sink_valid;
+wire          core_rx_cdc_cdc_source_first;
+wire          core_rx_cdc_cdc_source_last;
+wire   [31:0] core_rx_cdc_cdc_source_payload_data;
+wire    [3:0] core_rx_cdc_cdc_source_payload_error;
+wire    [3:0] core_rx_cdc_cdc_source_payload_last_be;
+wire          core_rx_cdc_cdc_source_ready;
+wire          core_rx_cdc_cdc_source_valid;
+wire    [4:0] core_rx_cdc_cdc_wrport_adr;
+wire   [41:0] core_rx_cdc_cdc_wrport_dat_r;
+wire   [41:0] core_rx_cdc_cdc_wrport_dat_w;
+wire          core_rx_cdc_cdc_wrport_we;
+wire          core_rx_cdc_sink_sink_first;
+wire          core_rx_cdc_sink_sink_last;
+wire   [31:0] core_rx_cdc_sink_sink_payload_data;
+wire    [3:0] core_rx_cdc_sink_sink_payload_error;
+wire    [3:0] core_rx_cdc_sink_sink_payload_last_be;
+wire          core_rx_cdc_sink_sink_ready;
+wire          core_rx_cdc_sink_sink_valid;
+wire          core_rx_cdc_source_source_first;
+wire          core_rx_cdc_source_source_last;
+wire   [31:0] core_rx_cdc_source_source_payload_data;
+wire    [3:0] core_rx_cdc_source_source_payload_error;
+wire    [3:0] core_rx_cdc_source_source_payload_last_be;
+wire          core_rx_cdc_source_source_ready;
+wire          core_rx_cdc_source_source_valid;
+reg     [1:0] core_rx_converter_converter_demux = 2'd0;
+wire          core_rx_converter_converter_load_part;
+wire          core_rx_converter_converter_sink_first;
+wire          core_rx_converter_converter_sink_last;
+wire    [9:0] core_rx_converter_converter_sink_payload_data;
+wire          core_rx_converter_converter_sink_ready;
+wire          core_rx_converter_converter_sink_valid;
+reg           core_rx_converter_converter_source_first = 1'd0;
+reg           core_rx_converter_converter_source_last = 1'd0;
+reg    [39:0] core_rx_converter_converter_source_payload_data = 40'd0;
+reg     [2:0] core_rx_converter_converter_source_payload_valid_token_count = 3'd0;
+wire          core_rx_converter_converter_source_ready;
+wire          core_rx_converter_converter_source_valid;
+reg           core_rx_converter_converter_strobe_all = 1'd0;
+wire          core_rx_converter_sink_first;
+wire          core_rx_converter_sink_last;
+wire    [7:0] core_rx_converter_sink_payload_data;
+wire          core_rx_converter_sink_payload_error;
+wire          core_rx_converter_sink_payload_last_be;
+wire          core_rx_converter_sink_ready;
+wire          core_rx_converter_sink_valid;
+wire          core_rx_converter_source_first;
+wire          core_rx_converter_source_last;
+reg    [31:0] core_rx_converter_source_payload_data = 32'd0;
+reg     [3:0] core_rx_converter_source_payload_error = 4'd0;
+reg     [3:0] core_rx_converter_source_payload_last_be = 4'd0;
+wire          core_rx_converter_source_ready;
+wire          core_rx_converter_source_source_first;
+wire          core_rx_converter_source_source_last;
+wire   [39:0] core_rx_converter_source_source_payload_data;
+wire          core_rx_converter_source_source_ready;
+wire          core_rx_converter_source_source_valid;
+wire          core_rx_converter_source_valid;
+wire          core_rx_last_be_sink_first;
+wire          core_rx_last_be_sink_last;
+wire    [7:0] core_rx_last_be_sink_payload_data;
+wire          core_rx_last_be_sink_payload_error;
+wire          core_rx_last_be_sink_payload_last_be;
+wire          core_rx_last_be_sink_ready;
+wire          core_rx_last_be_sink_valid;
+wire          core_rx_last_be_source_first;
+wire          core_rx_last_be_source_last;
+wire    [7:0] core_rx_last_be_source_payload_data;
+wire          core_rx_last_be_source_payload_error;
+reg           core_rx_last_be_source_payload_last_be = 1'd0;
+wire          core_rx_last_be_source_ready;
+wire          core_rx_last_be_source_valid;
+wire          core_rx_padding_sink_first;
+wire          core_rx_padding_sink_last;
+wire    [7:0] core_rx_padding_sink_payload_data;
+wire          core_rx_padding_sink_payload_error;
+wire          core_rx_padding_sink_payload_last_be;
+wire          core_rx_padding_sink_ready;
+wire          core_rx_padding_sink_valid;
+wire          core_rx_padding_source_first;
+wire          core_rx_padding_source_last;
+wire    [7:0] core_rx_padding_source_payload_data;
+wire          core_rx_padding_source_payload_error;
+wire          core_rx_padding_source_payload_last_be;
+wire          core_rx_padding_source_ready;
+wire          core_rx_padding_source_valid;
+reg           core_rx_preamble_error = 1'd0;
+reg    [63:0] core_rx_preamble_preamble = 64'd15372286728091293013;
+wire          core_rx_preamble_sink_first;
+wire          core_rx_preamble_sink_last;
+wire    [7:0] core_rx_preamble_sink_payload_data;
+wire          core_rx_preamble_sink_payload_error;
+wire          core_rx_preamble_sink_payload_last_be;
+reg           core_rx_preamble_sink_ready = 1'd0;
+wire          core_rx_preamble_sink_valid;
+reg           core_rx_preamble_source_first = 1'd0;
+reg           core_rx_preamble_source_last = 1'd0;
+wire    [7:0] core_rx_preamble_source_payload_data;
+reg           core_rx_preamble_source_payload_error = 1'd0;
+wire          core_rx_preamble_source_payload_last_be;
+wire          core_rx_preamble_source_ready;
+reg           core_rx_preamble_source_valid = 1'd0;
+wire          core_sink_first;
+wire          core_sink_last;
+wire   [31:0] core_sink_payload_data;
+wire    [3:0] core_sink_payload_error;
+wire    [3:0] core_sink_payload_last_be;
+wire          core_sink_ready;
+wire          core_sink_valid;
+wire          core_source_first;
+wire          core_source_last;
+wire   [31:0] core_source_payload_data;
+wire    [3:0] core_source_payload_error;
+wire    [3:0] core_source_payload_last_be;
+wire          core_source_ready;
+wire          core_source_valid;
+reg           core_status = 1'd1;
+wire   [41:0] core_tx_cdc_cdc_asyncfifo_din;
+wire   [41:0] core_tx_cdc_cdc_asyncfifo_dout;
+wire          core_tx_cdc_cdc_asyncfifo_re;
+wire          core_tx_cdc_cdc_asyncfifo_readable;
+wire          core_tx_cdc_cdc_asyncfifo_we;
+wire          core_tx_cdc_cdc_asyncfifo_writable;
+wire    [5:0] core_tx_cdc_cdc_consume_wdomain;
+wire          core_tx_cdc_cdc_fifo_in_first;
+wire          core_tx_cdc_cdc_fifo_in_last;
+wire   [31:0] core_tx_cdc_cdc_fifo_in_payload_data;
+wire    [3:0] core_tx_cdc_cdc_fifo_in_payload_error;
+wire    [3:0] core_tx_cdc_cdc_fifo_in_payload_last_be;
+wire          core_tx_cdc_cdc_fifo_out_first;
+wire          core_tx_cdc_cdc_fifo_out_last;
+wire   [31:0] core_tx_cdc_cdc_fifo_out_payload_data;
+wire    [3:0] core_tx_cdc_cdc_fifo_out_payload_error;
+wire    [3:0] core_tx_cdc_cdc_fifo_out_payload_last_be;
+wire          core_tx_cdc_cdc_graycounter0_ce;
+(* dont_touch = "true" *)
+reg     [5:0] core_tx_cdc_cdc_graycounter0_q = 6'd0;
+reg     [5:0] core_tx_cdc_cdc_graycounter0_q_binary = 6'd0;
+wire    [5:0] core_tx_cdc_cdc_graycounter0_q_next;
+reg     [5:0] core_tx_cdc_cdc_graycounter0_q_next_binary = 6'd0;
+wire          core_tx_cdc_cdc_graycounter1_ce;
+(* dont_touch = "true" *)
+reg     [5:0] core_tx_cdc_cdc_graycounter1_q = 6'd0;
+reg     [5:0] core_tx_cdc_cdc_graycounter1_q_binary = 6'd0;
+wire    [5:0] core_tx_cdc_cdc_graycounter1_q_next;
+reg     [5:0] core_tx_cdc_cdc_graycounter1_q_next_binary = 6'd0;
+wire    [5:0] core_tx_cdc_cdc_produce_rdomain;
+wire    [4:0] core_tx_cdc_cdc_rdport_adr;
+wire   [41:0] core_tx_cdc_cdc_rdport_dat_r;
+wire          core_tx_cdc_cdc_sink_first;
+wire          core_tx_cdc_cdc_sink_last;
+wire   [31:0] core_tx_cdc_cdc_sink_payload_data;
+wire    [3:0] core_tx_cdc_cdc_sink_payload_error;
+wire    [3:0] core_tx_cdc_cdc_sink_payload_last_be;
+wire          core_tx_cdc_cdc_sink_ready;
+wire          core_tx_cdc_cdc_sink_valid;
+wire          core_tx_cdc_cdc_source_first;
+wire          core_tx_cdc_cdc_source_last;
+wire   [31:0] core_tx_cdc_cdc_source_payload_data;
+wire    [3:0] core_tx_cdc_cdc_source_payload_error;
+wire    [3:0] core_tx_cdc_cdc_source_payload_last_be;
+wire          core_tx_cdc_cdc_source_ready;
+wire          core_tx_cdc_cdc_source_valid;
+wire    [4:0] core_tx_cdc_cdc_wrport_adr;
+wire   [41:0] core_tx_cdc_cdc_wrport_dat_r;
+wire   [41:0] core_tx_cdc_cdc_wrport_dat_w;
+wire          core_tx_cdc_cdc_wrport_we;
+wire          core_tx_cdc_sink_sink_first;
+wire          core_tx_cdc_sink_sink_last;
+wire   [31:0] core_tx_cdc_sink_sink_payload_data;
+wire    [3:0] core_tx_cdc_sink_sink_payload_error;
+wire    [3:0] core_tx_cdc_sink_sink_payload_last_be;
+wire          core_tx_cdc_sink_sink_ready;
+wire          core_tx_cdc_sink_sink_valid;
+wire          core_tx_cdc_source_source_first;
+wire          core_tx_cdc_source_source_last;
+wire   [31:0] core_tx_cdc_source_source_payload_data;
+wire    [3:0] core_tx_cdc_source_source_payload_error;
+wire    [3:0] core_tx_cdc_source_source_payload_last_be;
+wire          core_tx_cdc_source_source_ready;
+wire          core_tx_cdc_source_source_valid;
+wire          core_tx_converter_converter_first;
+wire          core_tx_converter_converter_last;
+reg     [1:0] core_tx_converter_converter_mux = 2'd0;
+wire          core_tx_converter_converter_sink_first;
+wire          core_tx_converter_converter_sink_last;
+reg    [39:0] core_tx_converter_converter_sink_payload_data = 40'd0;
+wire          core_tx_converter_converter_sink_ready;
+wire          core_tx_converter_converter_sink_valid;
+wire          core_tx_converter_converter_source_first;
+wire          core_tx_converter_converter_source_last;
+reg     [9:0] core_tx_converter_converter_source_payload_data = 10'd0;
+wire          core_tx_converter_converter_source_payload_valid_token_count;
+wire          core_tx_converter_converter_source_ready;
+wire          core_tx_converter_converter_source_valid;
+wire          core_tx_converter_sink_first;
+wire          core_tx_converter_sink_last;
+wire   [31:0] core_tx_converter_sink_payload_data;
+wire    [3:0] core_tx_converter_sink_payload_error;
+wire    [3:0] core_tx_converter_sink_payload_last_be;
+wire          core_tx_converter_sink_ready;
+wire          core_tx_converter_sink_valid;
+wire          core_tx_converter_source_first;
+wire          core_tx_converter_source_last;
+wire    [7:0] core_tx_converter_source_payload_data;
+wire          core_tx_converter_source_payload_error;
+wire          core_tx_converter_source_payload_last_be;
+wire          core_tx_converter_source_ready;
+wire          core_tx_converter_source_source_first;
+wire          core_tx_converter_source_source_last;
+wire    [9:0] core_tx_converter_source_source_payload_data;
+wire          core_tx_converter_source_source_ready;
+wire          core_tx_converter_source_source_valid;
+wire          core_tx_converter_source_valid;
+wire          core_tx_crc_be;
+reg           core_tx_crc_ce = 1'd0;
+reg     [1:0] core_tx_crc_cnt = 2'd3;
+wire          core_tx_crc_cnt_done;
+reg    [31:0] core_tx_crc_crc_next = 32'd0;
+reg    [31:0] core_tx_crc_crc_packet = 32'd0;
+reg    [31:0] core_tx_crc_crc_packet_clockdomainsrenamer1_next_value0 = 32'd0;
+reg           core_tx_crc_crc_packet_clockdomainsrenamer1_next_value_ce0 = 1'd0;
+wire   [31:0] core_tx_crc_crc_prev;
+wire    [7:0] core_tx_crc_data0;
+wire    [7:0] core_tx_crc_data1;
+reg           core_tx_crc_error = 1'd0;
+reg           core_tx_crc_is_ongoing0 = 1'd0;
+reg           core_tx_crc_is_ongoing1 = 1'd0;
+reg           core_tx_crc_last_be = 1'd0;
+reg           core_tx_crc_last_be_clockdomainsrenamer1_next_value1 = 1'd0;
+reg           core_tx_crc_last_be_clockdomainsrenamer1_next_value_ce1 = 1'd0;
+wire          core_tx_crc_pipe_valid_sink_first;
+wire          core_tx_crc_pipe_valid_sink_last;
+wire    [7:0] core_tx_crc_pipe_valid_sink_payload_data;
+wire          core_tx_crc_pipe_valid_sink_payload_error;
+wire          core_tx_crc_pipe_valid_sink_payload_last_be;
+wire          core_tx_crc_pipe_valid_sink_ready;
+wire          core_tx_crc_pipe_valid_sink_valid;
+reg           core_tx_crc_pipe_valid_source_first = 1'd0;
+reg           core_tx_crc_pipe_valid_source_last = 1'd0;
+reg     [7:0] core_tx_crc_pipe_valid_source_payload_data = 8'd0;
+reg           core_tx_crc_pipe_valid_source_payload_error = 1'd0;
+reg           core_tx_crc_pipe_valid_source_payload_last_be = 1'd0;
+wire          core_tx_crc_pipe_valid_source_ready;
+reg           core_tx_crc_pipe_valid_source_valid = 1'd0;
+reg    [31:0] core_tx_crc_reg = 32'd4294967295;
+reg           core_tx_crc_reset = 1'd0;
+wire          core_tx_crc_sink_first;
+wire          core_tx_crc_sink_last;
+wire    [7:0] core_tx_crc_sink_payload_data;
+wire          core_tx_crc_sink_payload_error;
+wire          core_tx_crc_sink_payload_last_be;
+reg           core_tx_crc_sink_ready = 1'd0;
+wire          core_tx_crc_sink_sink_first;
+wire          core_tx_crc_sink_sink_last;
+wire    [7:0] core_tx_crc_sink_sink_payload_data;
+wire          core_tx_crc_sink_sink_payload_error;
+wire          core_tx_crc_sink_sink_payload_last_be;
+wire          core_tx_crc_sink_sink_ready;
+wire          core_tx_crc_sink_sink_valid;
+wire          core_tx_crc_sink_valid;
+reg           core_tx_crc_source_first = 1'd0;
+reg           core_tx_crc_source_last = 1'd0;
+reg     [7:0] core_tx_crc_source_payload_data = 8'd0;
+reg           core_tx_crc_source_payload_error = 1'd0;
+reg           core_tx_crc_source_payload_last_be = 1'd0;
+wire          core_tx_crc_source_ready;
+wire          core_tx_crc_source_source_first;
+wire          core_tx_crc_source_source_last;
+wire    [7:0] core_tx_crc_source_source_payload_data;
+wire          core_tx_crc_source_source_payload_error;
+wire          core_tx_crc_source_source_payload_last_be;
+wire          core_tx_crc_source_source_ready;
+wire          core_tx_crc_source_source_valid;
+reg           core_tx_crc_source_valid = 1'd0;
+reg    [31:0] core_tx_crc_value = 32'd0;
+reg     [3:0] core_tx_gap_counter = 4'd0;
+reg     [3:0] core_tx_gap_counter_clockdomainsrenamer3_next_value = 4'd0;
+reg           core_tx_gap_counter_clockdomainsrenamer3_next_value_ce = 1'd0;
+wire          core_tx_gap_sink_first;
+wire          core_tx_gap_sink_last;
+wire    [7:0] core_tx_gap_sink_payload_data;
+wire          core_tx_gap_sink_payload_error;
+wire          core_tx_gap_sink_payload_last_be;
+reg           core_tx_gap_sink_ready = 1'd0;
+wire          core_tx_gap_sink_valid;
+reg           core_tx_gap_source_first = 1'd0;
+reg           core_tx_gap_source_last = 1'd0;
+reg     [7:0] core_tx_gap_source_payload_data = 8'd0;
+reg           core_tx_gap_source_payload_error = 1'd0;
+reg           core_tx_gap_source_payload_last_be = 1'd0;
+wire          core_tx_gap_source_ready;
+reg           core_tx_gap_source_valid = 1'd0;
+wire          core_tx_last_be_last_handler_sink_first;
+wire          core_tx_last_be_last_handler_sink_last;
+wire    [7:0] core_tx_last_be_last_handler_sink_payload_data;
+wire          core_tx_last_be_last_handler_sink_payload_error;
+wire          core_tx_last_be_last_handler_sink_payload_last_be;
+reg           core_tx_last_be_last_handler_sink_ready = 1'd0;
+wire          core_tx_last_be_last_handler_sink_valid;
+reg           core_tx_last_be_last_handler_source_first = 1'd0;
+reg           core_tx_last_be_last_handler_source_last = 1'd0;
+reg     [7:0] core_tx_last_be_last_handler_source_payload_data = 8'd0;
+reg           core_tx_last_be_last_handler_source_payload_error = 1'd0;
+reg           core_tx_last_be_last_handler_source_payload_last_be = 1'd0;
+wire          core_tx_last_be_last_handler_source_ready;
+reg           core_tx_last_be_last_handler_source_valid = 1'd0;
+wire          core_tx_last_be_sink_sink_first;
+wire          core_tx_last_be_sink_sink_last;
+wire    [7:0] core_tx_last_be_sink_sink_payload_data;
+wire          core_tx_last_be_sink_sink_payload_error;
+wire          core_tx_last_be_sink_sink_payload_last_be;
+wire          core_tx_last_be_sink_sink_ready;
+wire          core_tx_last_be_sink_sink_valid;
+wire          core_tx_last_be_source_source_first;
+wire          core_tx_last_be_source_source_last;
+wire    [7:0] core_tx_last_be_source_source_payload_data;
+wire          core_tx_last_be_source_source_payload_error;
+wire          core_tx_last_be_source_source_payload_last_be;
+wire          core_tx_last_be_source_source_ready;
+wire          core_tx_last_be_source_source_valid;
+reg    [15:0] core_tx_padding_counter = 16'd0;
+reg    [15:0] core_tx_padding_counter_clockdomainsrenamer0_next_value = 16'd0;
+reg           core_tx_padding_counter_clockdomainsrenamer0_next_value_ce = 1'd0;
+wire          core_tx_padding_counter_done;
+wire          core_tx_padding_sink_first;
+wire          core_tx_padding_sink_last;
+wire    [7:0] core_tx_padding_sink_payload_data;
+wire          core_tx_padding_sink_payload_error;
+wire          core_tx_padding_sink_payload_last_be;
+reg           core_tx_padding_sink_ready = 1'd0;
+wire          core_tx_padding_sink_valid;
+reg           core_tx_padding_source_first = 1'd0;
+reg           core_tx_padding_source_last = 1'd0;
+reg     [7:0] core_tx_padding_source_payload_data = 8'd0;
+reg           core_tx_padding_source_payload_error = 1'd0;
+reg           core_tx_padding_source_payload_last_be = 1'd0;
+wire          core_tx_padding_source_ready;
+reg           core_tx_padding_source_valid = 1'd0;
+reg     [2:0] core_tx_preamble_count = 3'd0;
+reg     [2:0] core_tx_preamble_count_clockdomainsrenamer2_next_value = 3'd0;
+reg           core_tx_preamble_count_clockdomainsrenamer2_next_value_ce = 1'd0;
+reg    [63:0] core_tx_preamble_preamble = 64'd15372286728091293013;
+wire          core_tx_preamble_sink_first;
+wire          core_tx_preamble_sink_last;
+wire    [7:0] core_tx_preamble_sink_payload_data;
+wire          core_tx_preamble_sink_payload_error;
+wire          core_tx_preamble_sink_payload_last_be;
+reg           core_tx_preamble_sink_ready = 1'd0;
+wire          core_tx_preamble_sink_valid;
+reg           core_tx_preamble_source_first = 1'd0;
+reg           core_tx_preamble_source_last = 1'd0;
+reg     [7:0] core_tx_preamble_source_payload_data = 8'd0;
+reg           core_tx_preamble_source_payload_error = 1'd0;
+wire          core_tx_preamble_source_payload_last_be;
+wire          core_tx_preamble_source_ready;
+reg           core_tx_preamble_source_valid = 1'd0;
+wire          core_we;
+reg    [19:0] count = 20'd1000000;
+wire   [31:0] csrbank0_bus_errors_r;
+reg           csrbank0_bus_errors_re = 1'd0;
+wire   [31:0] csrbank0_bus_errors_w;
+reg           csrbank0_bus_errors_we = 1'd0;
+wire    [1:0] csrbank0_reset0_r;
+reg           csrbank0_reset0_re = 1'd0;
+wire    [1:0] csrbank0_reset0_w;
+reg           csrbank0_reset0_we = 1'd0;
+wire   [31:0] csrbank0_scratch0_r;
+reg           csrbank0_scratch0_re = 1'd0;
+wire   [31:0] csrbank0_scratch0_w;
+reg           csrbank0_scratch0_we = 1'd0;
+wire          csrbank0_sel;
+wire          csrbank1_preamble_crc_r;
+reg           csrbank1_preamble_crc_re = 1'd0;
+wire          csrbank1_preamble_crc_w;
+reg           csrbank1_preamble_crc_we = 1'd0;
+wire   [31:0] csrbank1_rx_datapath_crc_errors_r;
+reg           csrbank1_rx_datapath_crc_errors_re = 1'd0;
+wire   [31:0] csrbank1_rx_datapath_crc_errors_w;
+reg           csrbank1_rx_datapath_crc_errors_we = 1'd0;
+wire   [31:0] csrbank1_rx_datapath_preamble_errors_r;
+reg           csrbank1_rx_datapath_preamble_errors_re = 1'd0;
+wire   [31:0] csrbank1_rx_datapath_preamble_errors_w;
+reg           csrbank1_rx_datapath_preamble_errors_we = 1'd0;
+wire          csrbank1_sel;
+wire          csrbank1_sram_reader_ev_enable0_r;
+reg           csrbank1_sram_reader_ev_enable0_re = 1'd0;
+wire          csrbank1_sram_reader_ev_enable0_w;
+reg           csrbank1_sram_reader_ev_enable0_we = 1'd0;
+wire          csrbank1_sram_reader_ev_pending_r;
+reg           csrbank1_sram_reader_ev_pending_re = 1'd0;
+wire          csrbank1_sram_reader_ev_pending_w;
+reg           csrbank1_sram_reader_ev_pending_we = 1'd0;
+wire          csrbank1_sram_reader_ev_status_r;
+reg           csrbank1_sram_reader_ev_status_re = 1'd0;
+wire          csrbank1_sram_reader_ev_status_w;
+reg           csrbank1_sram_reader_ev_status_we = 1'd0;
+wire   [10:0] csrbank1_sram_reader_length0_r;
+reg           csrbank1_sram_reader_length0_re = 1'd0;
+wire   [10:0] csrbank1_sram_reader_length0_w;
+reg           csrbank1_sram_reader_length0_we = 1'd0;
+wire    [1:0] csrbank1_sram_reader_level_r;
+reg           csrbank1_sram_reader_level_re = 1'd0;
+wire    [1:0] csrbank1_sram_reader_level_w;
+reg           csrbank1_sram_reader_level_we = 1'd0;
+wire          csrbank1_sram_reader_ready_r;
+reg           csrbank1_sram_reader_ready_re = 1'd0;
+wire          csrbank1_sram_reader_ready_w;
+reg           csrbank1_sram_reader_ready_we = 1'd0;
+wire          csrbank1_sram_reader_slot0_r;
+reg           csrbank1_sram_reader_slot0_re = 1'd0;
+wire          csrbank1_sram_reader_slot0_w;
+reg           csrbank1_sram_reader_slot0_we = 1'd0;
+wire   [31:0] csrbank1_sram_writer_errors_r;
+reg           csrbank1_sram_writer_errors_re = 1'd0;
+wire   [31:0] csrbank1_sram_writer_errors_w;
+reg           csrbank1_sram_writer_errors_we = 1'd0;
+wire          csrbank1_sram_writer_ev_enable0_r;
+reg           csrbank1_sram_writer_ev_enable0_re = 1'd0;
+wire          csrbank1_sram_writer_ev_enable0_w;
+reg           csrbank1_sram_writer_ev_enable0_we = 1'd0;
+wire          csrbank1_sram_writer_ev_pending_r;
+reg           csrbank1_sram_writer_ev_pending_re = 1'd0;
+wire          csrbank1_sram_writer_ev_pending_w;
+reg           csrbank1_sram_writer_ev_pending_we = 1'd0;
+wire          csrbank1_sram_writer_ev_status_r;
+reg           csrbank1_sram_writer_ev_status_re = 1'd0;
+wire          csrbank1_sram_writer_ev_status_w;
+reg           csrbank1_sram_writer_ev_status_we = 1'd0;
+wire   [10:0] csrbank1_sram_writer_length_r;
+reg           csrbank1_sram_writer_length_re = 1'd0;
+wire   [10:0] csrbank1_sram_writer_length_w;
+reg           csrbank1_sram_writer_length_we = 1'd0;
+wire          csrbank1_sram_writer_slot_r;
+reg           csrbank1_sram_writer_slot_re = 1'd0;
+wire          csrbank1_sram_writer_slot_w;
+reg           csrbank1_sram_writer_slot_we = 1'd0;
+wire          csrbank2_crg_reset0_r;
+reg           csrbank2_crg_reset0_re = 1'd0;
+wire          csrbank2_crg_reset0_w;
+reg           csrbank2_crg_reset0_we = 1'd0;
+wire          csrbank2_mdio_r_r;
+reg           csrbank2_mdio_r_re = 1'd0;
+wire          csrbank2_mdio_r_w;
+reg           csrbank2_mdio_r_we = 1'd0;
+wire    [2:0] csrbank2_mdio_w0_r;
+reg           csrbank2_mdio_w0_re = 1'd0;
+wire    [2:0] csrbank2_mdio_w0_w;
+reg           csrbank2_mdio_w0_we = 1'd0;
+wire          csrbank2_sel;
+wire   [31:0] dat_r;
+wire   [31:0] dat_w;
+wire          done;
+reg           error = 1'd0;
 (* dont_touch = "true" *)
 wire          eth_rx_clk;
 wire          eth_rx_rst;
 (* dont_touch = "true" *)
 wire          eth_tx_clk;
 wire          eth_tx_rst;
-wire          main_bufferizeendpoints_pipe_valid_sink_first;
-wire          main_bufferizeendpoints_pipe_valid_sink_last;
-wire    [7:0] main_bufferizeendpoints_pipe_valid_sink_payload_data;
-wire          main_bufferizeendpoints_pipe_valid_sink_payload_error;
-wire          main_bufferizeendpoints_pipe_valid_sink_payload_last_be;
-wire          main_bufferizeendpoints_pipe_valid_sink_ready;
-wire          main_bufferizeendpoints_pipe_valid_sink_valid;
-reg           main_bufferizeendpoints_pipe_valid_source_first = 1'd0;
-reg           main_bufferizeendpoints_pipe_valid_source_last = 1'd0;
-reg     [7:0] main_bufferizeendpoints_pipe_valid_source_payload_data = 8'd0;
-reg           main_bufferizeendpoints_pipe_valid_source_payload_error = 1'd0;
-reg           main_bufferizeendpoints_pipe_valid_source_payload_last_be = 1'd0;
-wire          main_bufferizeendpoints_pipe_valid_source_ready;
-reg           main_bufferizeendpoints_pipe_valid_source_valid = 1'd0;
-wire          main_bufferizeendpoints_sink_sink_first;
-wire          main_bufferizeendpoints_sink_sink_last;
-wire    [7:0] main_bufferizeendpoints_sink_sink_payload_data;
-wire          main_bufferizeendpoints_sink_sink_payload_error;
-wire          main_bufferizeendpoints_sink_sink_payload_last_be;
-wire          main_bufferizeendpoints_sink_sink_ready;
-wire          main_bufferizeendpoints_sink_sink_valid;
-wire          main_bufferizeendpoints_source_source_first;
-wire          main_bufferizeendpoints_source_source_last;
-wire    [7:0] main_bufferizeendpoints_source_source_payload_data;
-wire          main_bufferizeendpoints_source_source_payload_error;
-wire          main_bufferizeendpoints_source_source_payload_last_be;
-wire          main_bufferizeendpoints_source_source_ready;
-wire          main_bufferizeendpoints_source_source_valid;
-wire          main_bus_ack;
-wire   [29:0] main_bus_adr;
-wire    [1:0] main_bus_bte;
-wire    [2:0] main_bus_cti;
-wire          main_bus_cyc;
-wire   [31:0] main_bus_dat_r;
-wire   [31:0] main_bus_dat_w;
-wire          main_bus_err;
-wire    [3:0] main_bus_sel;
-wire          main_bus_stb;
-wire          main_bus_we;
-reg           main_crc_errors_re = 1'd0;
-reg    [31:0] main_crc_errors_status = 32'd0;
-wire          main_crc_errors_we;
-reg           main_interface0_ack = 1'd0;
-wire   [29:0] main_interface0_adr;
-wire    [1:0] main_interface0_bte;
-wire    [2:0] main_interface0_cti;
-wire          main_interface0_cyc;
-wire   [31:0] main_interface0_dat_r;
-wire   [31:0] main_interface0_dat_w;
-reg           main_interface0_err = 1'd0;
-wire    [3:0] main_interface0_sel;
-wire          main_interface0_stb;
-wire          main_interface0_we;
-reg           main_interface1_ack = 1'd0;
-wire   [29:0] main_interface1_adr;
-wire    [1:0] main_interface1_bte;
-wire    [2:0] main_interface1_cti;
-wire          main_interface1_cyc;
-wire   [31:0] main_interface1_dat_r;
-wire   [31:0] main_interface1_dat_w;
-reg           main_interface1_err = 1'd0;
-wire    [3:0] main_interface1_sel;
-wire          main_interface1_stb;
-wire          main_interface1_we;
-reg           main_interface2_ack = 1'd0;
-wire   [29:0] main_interface2_adr;
-wire    [1:0] main_interface2_bte;
-wire    [2:0] main_interface2_cti;
-wire          main_interface2_cyc;
-wire   [31:0] main_interface2_dat_r;
-wire   [31:0] main_interface2_dat_w;
-reg           main_interface2_err = 1'd0;
-wire    [3:0] main_interface2_sel;
-wire          main_interface2_stb;
-wire          main_interface2_we;
-reg           main_interface3_ack = 1'd0;
-wire   [29:0] main_interface3_adr;
-wire    [1:0] main_interface3_bte;
-wire    [2:0] main_interface3_cti;
-wire          main_interface3_cyc;
-wire   [31:0] main_interface3_dat_r;
-wire   [31:0] main_interface3_dat_w;
-reg           main_interface3_err = 1'd0;
-wire    [3:0] main_interface3_sel;
-wire          main_interface3_stb;
-wire          main_interface3_we;
-reg     [3:0] main_length_inc = 4'd0;
-wire          main_liteethmaccrc32checker_crc_be;
-reg           main_liteethmaccrc32checker_crc_ce = 1'd0;
-reg    [31:0] main_liteethmaccrc32checker_crc_crc_next = 32'd0;
-wire   [31:0] main_liteethmaccrc32checker_crc_crc_prev;
-wire    [7:0] main_liteethmaccrc32checker_crc_data0;
-wire    [7:0] main_liteethmaccrc32checker_crc_data1;
-reg           main_liteethmaccrc32checker_crc_error0 = 1'd0;
-reg           main_liteethmaccrc32checker_crc_error1 = 1'd0;
-reg           main_liteethmaccrc32checker_crc_error1_next_value1 = 1'd0;
-reg           main_liteethmaccrc32checker_crc_error1_next_value_ce1 = 1'd0;
-reg    [31:0] main_liteethmaccrc32checker_crc_reg = 32'd4294967295;
-reg           main_liteethmaccrc32checker_crc_reset = 1'd0;
-reg    [31:0] main_liteethmaccrc32checker_crc_value = 32'd0;
-reg           main_liteethmaccrc32checker_error = 1'd0;
-wire          main_liteethmaccrc32checker_fifo_full;
-wire          main_liteethmaccrc32checker_fifo_in;
-wire          main_liteethmaccrc32checker_fifo_out;
-reg           main_liteethmaccrc32checker_fifo_reset = 1'd0;
-reg           main_liteethmaccrc32checker_last_be = 1'd0;
-reg           main_liteethmaccrc32checker_last_be_next_value0 = 1'd0;
-reg           main_liteethmaccrc32checker_last_be_next_value_ce0 = 1'd0;
-wire          main_liteethmaccrc32checker_sink_sink_first;
-wire          main_liteethmaccrc32checker_sink_sink_last;
-wire    [7:0] main_liteethmaccrc32checker_sink_sink_payload_data;
-wire          main_liteethmaccrc32checker_sink_sink_payload_error;
-wire          main_liteethmaccrc32checker_sink_sink_payload_last_be;
-reg           main_liteethmaccrc32checker_sink_sink_ready = 1'd0;
-wire          main_liteethmaccrc32checker_sink_sink_valid;
-wire          main_liteethmaccrc32checker_source_source_first;
-reg           main_liteethmaccrc32checker_source_source_last = 1'd0;
-wire    [7:0] main_liteethmaccrc32checker_source_source_payload_data;
-reg           main_liteethmaccrc32checker_source_source_payload_error = 1'd0;
-reg           main_liteethmaccrc32checker_source_source_payload_last_be = 1'd0;
-wire          main_liteethmaccrc32checker_source_source_ready;
-reg           main_liteethmaccrc32checker_source_source_valid = 1'd0;
-reg     [2:0] main_liteethmaccrc32checker_syncfifo_consume = 3'd0;
-wire          main_liteethmaccrc32checker_syncfifo_do_read;
-wire          main_liteethmaccrc32checker_syncfifo_fifo_in_first;
-wire          main_liteethmaccrc32checker_syncfifo_fifo_in_last;
-wire    [7:0] main_liteethmaccrc32checker_syncfifo_fifo_in_payload_data;
-wire          main_liteethmaccrc32checker_syncfifo_fifo_in_payload_error;
-wire          main_liteethmaccrc32checker_syncfifo_fifo_in_payload_last_be;
-wire          main_liteethmaccrc32checker_syncfifo_fifo_out_first;
-wire          main_liteethmaccrc32checker_syncfifo_fifo_out_last;
-wire    [7:0] main_liteethmaccrc32checker_syncfifo_fifo_out_payload_data;
-wire          main_liteethmaccrc32checker_syncfifo_fifo_out_payload_error;
-wire          main_liteethmaccrc32checker_syncfifo_fifo_out_payload_last_be;
-reg     [2:0] main_liteethmaccrc32checker_syncfifo_level = 3'd0;
-reg     [2:0] main_liteethmaccrc32checker_syncfifo_produce = 3'd0;
-wire    [2:0] main_liteethmaccrc32checker_syncfifo_rdport_adr;
-wire   [11:0] main_liteethmaccrc32checker_syncfifo_rdport_dat_r;
-reg           main_liteethmaccrc32checker_syncfifo_replace = 1'd0;
-wire          main_liteethmaccrc32checker_syncfifo_sink_first;
-wire          main_liteethmaccrc32checker_syncfifo_sink_last;
-wire    [7:0] main_liteethmaccrc32checker_syncfifo_sink_payload_data;
-wire          main_liteethmaccrc32checker_syncfifo_sink_payload_error;
-wire          main_liteethmaccrc32checker_syncfifo_sink_payload_last_be;
-wire          main_liteethmaccrc32checker_syncfifo_sink_ready;
-reg           main_liteethmaccrc32checker_syncfifo_sink_valid = 1'd0;
-wire          main_liteethmaccrc32checker_syncfifo_source_first;
-wire          main_liteethmaccrc32checker_syncfifo_source_last;
-wire    [7:0] main_liteethmaccrc32checker_syncfifo_source_payload_data;
-wire          main_liteethmaccrc32checker_syncfifo_source_payload_error;
-wire          main_liteethmaccrc32checker_syncfifo_source_payload_last_be;
-reg           main_liteethmaccrc32checker_syncfifo_source_ready = 1'd0;
-wire          main_liteethmaccrc32checker_syncfifo_source_valid;
-wire   [11:0] main_liteethmaccrc32checker_syncfifo_syncfifo_din;
-wire   [11:0] main_liteethmaccrc32checker_syncfifo_syncfifo_dout;
-wire          main_liteethmaccrc32checker_syncfifo_syncfifo_re;
-wire          main_liteethmaccrc32checker_syncfifo_syncfifo_readable;
-wire          main_liteethmaccrc32checker_syncfifo_syncfifo_we;
-wire          main_liteethmaccrc32checker_syncfifo_syncfifo_writable;
-reg     [2:0] main_liteethmaccrc32checker_syncfifo_wrport_adr = 3'd0;
-wire   [11:0] main_liteethmaccrc32checker_syncfifo_wrport_dat_r;
-wire   [11:0] main_liteethmaccrc32checker_syncfifo_wrport_dat_w;
-wire          main_liteethmaccrc32checker_syncfifo_wrport_we;
-reg           main_maccore__r_re = 1'd0;
-reg           main_maccore__r_status = 1'd0;
-wire          main_maccore__r_we;
-reg           main_maccore__w_re = 1'd0;
-reg     [2:0] main_maccore__w_storage = 3'd0;
-wire          main_maccore_bus_error;
-reg    [31:0] main_maccore_bus_errors = 32'd0;
-reg           main_maccore_bus_errors_re = 1'd0;
-wire   [31:0] main_maccore_bus_errors_status;
-wire          main_maccore_bus_errors_we;
-wire          main_maccore_cpu_rst;
-reg     [8:0] main_maccore_crg_counter = 9'd0;
-wire          main_maccore_crg_counter_ce;
-wire          main_maccore_crg_counter_done;
-wire          main_maccore_crg_reset0;
-wire          main_maccore_crg_reset1;
-reg           main_maccore_crg_reset_re = 1'd0;
-reg           main_maccore_crg_reset_storage = 1'd0;
-wire          main_maccore_data_oe;
-wire          main_maccore_data_r;
-wire          main_maccore_data_w;
-reg           main_maccore_int_rst = 1'd1;
-reg           main_maccore_liteethphymiirx_converter_demux = 1'd0;
-wire          main_maccore_liteethphymiirx_converter_load_part;
-reg           main_maccore_liteethphymiirx_converter_sink_first = 1'd0;
-wire          main_maccore_liteethphymiirx_converter_sink_last;
-reg     [3:0] main_maccore_liteethphymiirx_converter_sink_payload_data = 4'd0;
-wire          main_maccore_liteethphymiirx_converter_sink_ready;
-reg           main_maccore_liteethphymiirx_converter_sink_valid = 1'd0;
-reg           main_maccore_liteethphymiirx_converter_source_first = 1'd0;
-reg           main_maccore_liteethphymiirx_converter_source_last = 1'd0;
-reg     [7:0] main_maccore_liteethphymiirx_converter_source_payload_data = 8'd0;
-reg     [1:0] main_maccore_liteethphymiirx_converter_source_payload_valid_token_count = 2'd0;
-wire          main_maccore_liteethphymiirx_converter_source_ready;
-wire          main_maccore_liteethphymiirx_converter_source_valid;
-reg           main_maccore_liteethphymiirx_converter_strobe_all = 1'd0;
-reg           main_maccore_liteethphymiirx_reset = 1'd0;
-wire          main_maccore_liteethphymiirx_source_first;
-wire          main_maccore_liteethphymiirx_source_last;
-wire    [7:0] main_maccore_liteethphymiirx_source_payload_data;
-reg           main_maccore_liteethphymiirx_source_payload_error = 1'd0;
-reg           main_maccore_liteethphymiirx_source_payload_last_be = 1'd0;
-wire          main_maccore_liteethphymiirx_source_ready;
-wire          main_maccore_liteethphymiirx_source_source_first;
-wire          main_maccore_liteethphymiirx_source_source_last;
-wire    [7:0] main_maccore_liteethphymiirx_source_source_payload_data;
-wire          main_maccore_liteethphymiirx_source_source_ready;
-wire          main_maccore_liteethphymiirx_source_source_valid;
-wire          main_maccore_liteethphymiirx_source_valid;
-wire          main_maccore_liteethphymiitx_converter_first;
-wire          main_maccore_liteethphymiitx_converter_last;
-reg           main_maccore_liteethphymiitx_converter_mux = 1'd0;
-reg           main_maccore_liteethphymiitx_converter_sink_first = 1'd0;
-reg           main_maccore_liteethphymiitx_converter_sink_last = 1'd0;
-wire    [7:0] main_maccore_liteethphymiitx_converter_sink_payload_data;
-wire          main_maccore_liteethphymiitx_converter_sink_ready;
-wire          main_maccore_liteethphymiitx_converter_sink_valid;
-wire          main_maccore_liteethphymiitx_converter_source_first;
-wire          main_maccore_liteethphymiitx_converter_source_last;
-reg     [3:0] main_maccore_liteethphymiitx_converter_source_payload_data = 4'd0;
-wire          main_maccore_liteethphymiitx_converter_source_payload_valid_token_count;
-wire          main_maccore_liteethphymiitx_converter_source_ready;
-wire          main_maccore_liteethphymiitx_converter_source_valid;
-wire          main_maccore_liteethphymiitx_sink_first;
-wire          main_maccore_liteethphymiitx_sink_last;
-wire    [7:0] main_maccore_liteethphymiitx_sink_payload_data;
-wire          main_maccore_liteethphymiitx_sink_payload_error;
-wire          main_maccore_liteethphymiitx_sink_payload_last_be;
-wire          main_maccore_liteethphymiitx_sink_ready;
-wire          main_maccore_liteethphymiitx_sink_valid;
-wire          main_maccore_liteethphymiitx_source_source_first;
-wire          main_maccore_liteethphymiitx_source_source_last;
-wire    [3:0] main_maccore_liteethphymiitx_source_source_payload_data;
-wire          main_maccore_liteethphymiitx_source_source_ready;
-wire          main_maccore_liteethphymiitx_source_source_valid;
-wire          main_maccore_mdc;
-wire          main_maccore_oe;
-reg           main_maccore_r = 1'd0;
-reg           main_maccore_reset_re = 1'd0;
-reg     [1:0] main_maccore_reset_storage = 2'd0;
-reg           main_maccore_scratch_re = 1'd0;
-reg    [31:0] main_maccore_scratch_storage = 32'd305419896;
-reg           main_maccore_soc_rst = 1'd0;
-wire          main_maccore_w;
-reg           main_preamble_errors_re = 1'd0;
-reg    [31:0] main_preamble_errors_status = 32'd0;
-wire          main_preamble_errors_we;
-wire          main_pulsesynchronizer0_i;
-wire          main_pulsesynchronizer0_o;
-reg           main_pulsesynchronizer0_toggle_i = 1'd0;
-wire          main_pulsesynchronizer0_toggle_o;
-reg           main_pulsesynchronizer0_toggle_o_r = 1'd0;
-wire          main_pulsesynchronizer1_i;
-wire          main_pulsesynchronizer1_o;
-reg           main_pulsesynchronizer1_toggle_i = 1'd0;
-wire          main_pulsesynchronizer1_toggle_o;
-reg           main_pulsesynchronizer1_toggle_o_r = 1'd0;
-reg    [31:0] main_rd_data = 32'd0;
-reg           main_re = 1'd0;
-reg           main_read = 1'd0;
-wire   [41:0] main_rx_cdc_cdc_asyncfifo_din;
-wire   [41:0] main_rx_cdc_cdc_asyncfifo_dout;
-wire          main_rx_cdc_cdc_asyncfifo_re;
-wire          main_rx_cdc_cdc_asyncfifo_readable;
-wire          main_rx_cdc_cdc_asyncfifo_we;
-wire          main_rx_cdc_cdc_asyncfifo_writable;
-wire    [5:0] main_rx_cdc_cdc_consume_wdomain;
-wire          main_rx_cdc_cdc_fifo_in_first;
-wire          main_rx_cdc_cdc_fifo_in_last;
-wire   [31:0] main_rx_cdc_cdc_fifo_in_payload_data;
-wire    [3:0] main_rx_cdc_cdc_fifo_in_payload_error;
-wire    [3:0] main_rx_cdc_cdc_fifo_in_payload_last_be;
-wire          main_rx_cdc_cdc_fifo_out_first;
-wire          main_rx_cdc_cdc_fifo_out_last;
-wire   [31:0] main_rx_cdc_cdc_fifo_out_payload_data;
-wire    [3:0] main_rx_cdc_cdc_fifo_out_payload_error;
-wire    [3:0] main_rx_cdc_cdc_fifo_out_payload_last_be;
-wire          main_rx_cdc_cdc_graycounter0_ce;
-(* dont_touch = "true" *)
-reg     [5:0] main_rx_cdc_cdc_graycounter0_q = 6'd0;
-reg     [5:0] main_rx_cdc_cdc_graycounter0_q_binary = 6'd0;
-wire    [5:0] main_rx_cdc_cdc_graycounter0_q_next;
-reg     [5:0] main_rx_cdc_cdc_graycounter0_q_next_binary = 6'd0;
-wire          main_rx_cdc_cdc_graycounter1_ce;
-(* dont_touch = "true" *)
-reg     [5:0] main_rx_cdc_cdc_graycounter1_q = 6'd0;
-reg     [5:0] main_rx_cdc_cdc_graycounter1_q_binary = 6'd0;
-wire    [5:0] main_rx_cdc_cdc_graycounter1_q_next;
-reg     [5:0] main_rx_cdc_cdc_graycounter1_q_next_binary = 6'd0;
-wire    [5:0] main_rx_cdc_cdc_produce_rdomain;
-wire    [4:0] main_rx_cdc_cdc_rdport_adr;
-wire   [41:0] main_rx_cdc_cdc_rdport_dat_r;
-wire          main_rx_cdc_cdc_sink_first;
-wire          main_rx_cdc_cdc_sink_last;
-wire   [31:0] main_rx_cdc_cdc_sink_payload_data;
-wire    [3:0] main_rx_cdc_cdc_sink_payload_error;
-wire    [3:0] main_rx_cdc_cdc_sink_payload_last_be;
-wire          main_rx_cdc_cdc_sink_ready;
-wire          main_rx_cdc_cdc_sink_valid;
-wire          main_rx_cdc_cdc_source_first;
-wire          main_rx_cdc_cdc_source_last;
-wire   [31:0] main_rx_cdc_cdc_source_payload_data;
-wire    [3:0] main_rx_cdc_cdc_source_payload_error;
-wire    [3:0] main_rx_cdc_cdc_source_payload_last_be;
-wire          main_rx_cdc_cdc_source_ready;
-wire          main_rx_cdc_cdc_source_valid;
-wire    [4:0] main_rx_cdc_cdc_wrport_adr;
-wire   [41:0] main_rx_cdc_cdc_wrport_dat_r;
-wire   [41:0] main_rx_cdc_cdc_wrport_dat_w;
-wire          main_rx_cdc_cdc_wrport_we;
-wire          main_rx_cdc_sink_sink_first;
-wire          main_rx_cdc_sink_sink_last;
-wire   [31:0] main_rx_cdc_sink_sink_payload_data;
-wire    [3:0] main_rx_cdc_sink_sink_payload_error;
-wire    [3:0] main_rx_cdc_sink_sink_payload_last_be;
-wire          main_rx_cdc_sink_sink_ready;
-wire          main_rx_cdc_sink_sink_valid;
-wire          main_rx_cdc_source_source_first;
-wire          main_rx_cdc_source_source_last;
-wire   [31:0] main_rx_cdc_source_source_payload_data;
-wire    [3:0] main_rx_cdc_source_source_payload_error;
-wire    [3:0] main_rx_cdc_source_source_payload_last_be;
-wire          main_rx_cdc_source_source_ready;
-wire          main_rx_cdc_source_source_valid;
-reg     [1:0] main_rx_converter_converter_demux = 2'd0;
-wire          main_rx_converter_converter_load_part;
-wire          main_rx_converter_converter_sink_first;
-wire          main_rx_converter_converter_sink_last;
-wire    [9:0] main_rx_converter_converter_sink_payload_data;
-wire          main_rx_converter_converter_sink_ready;
-wire          main_rx_converter_converter_sink_valid;
-reg           main_rx_converter_converter_source_first = 1'd0;
-reg           main_rx_converter_converter_source_last = 1'd0;
-reg    [39:0] main_rx_converter_converter_source_payload_data = 40'd0;
-reg     [2:0] main_rx_converter_converter_source_payload_valid_token_count = 3'd0;
-wire          main_rx_converter_converter_source_ready;
-wire          main_rx_converter_converter_source_valid;
-reg           main_rx_converter_converter_strobe_all = 1'd0;
-wire          main_rx_converter_sink_first;
-wire          main_rx_converter_sink_last;
-wire    [7:0] main_rx_converter_sink_payload_data;
-wire          main_rx_converter_sink_payload_error;
-wire          main_rx_converter_sink_payload_last_be;
-wire          main_rx_converter_sink_ready;
-wire          main_rx_converter_sink_valid;
-wire          main_rx_converter_source_first;
-wire          main_rx_converter_source_last;
-reg    [31:0] main_rx_converter_source_payload_data = 32'd0;
-reg     [3:0] main_rx_converter_source_payload_error = 4'd0;
-reg     [3:0] main_rx_converter_source_payload_last_be = 4'd0;
-wire          main_rx_converter_source_ready;
-wire          main_rx_converter_source_source_first;
-wire          main_rx_converter_source_source_last;
-wire   [39:0] main_rx_converter_source_source_payload_data;
-wire          main_rx_converter_source_source_ready;
-wire          main_rx_converter_source_source_valid;
-wire          main_rx_converter_source_valid;
-wire          main_rx_last_be_sink_first;
-wire          main_rx_last_be_sink_last;
-wire    [7:0] main_rx_last_be_sink_payload_data;
-wire          main_rx_last_be_sink_payload_error;
-wire          main_rx_last_be_sink_payload_last_be;
-wire          main_rx_last_be_sink_ready;
-wire          main_rx_last_be_sink_valid;
-wire          main_rx_last_be_source_first;
-wire          main_rx_last_be_source_last;
-wire    [7:0] main_rx_last_be_source_payload_data;
-wire          main_rx_last_be_source_payload_error;
-reg           main_rx_last_be_source_payload_last_be = 1'd0;
-wire          main_rx_last_be_source_ready;
-wire          main_rx_last_be_source_valid;
-wire          main_rx_padding_sink_first;
-wire          main_rx_padding_sink_last;
-wire    [7:0] main_rx_padding_sink_payload_data;
-wire          main_rx_padding_sink_payload_error;
-wire          main_rx_padding_sink_payload_last_be;
-wire          main_rx_padding_sink_ready;
-wire          main_rx_padding_sink_valid;
-wire          main_rx_padding_source_first;
-wire          main_rx_padding_source_last;
-wire    [7:0] main_rx_padding_source_payload_data;
-wire          main_rx_padding_source_payload_error;
-wire          main_rx_padding_source_payload_last_be;
-wire          main_rx_padding_source_ready;
-wire          main_rx_padding_source_valid;
-reg           main_rx_preamble_error = 1'd0;
-reg    [63:0] main_rx_preamble_preamble = 64'd15372286728091293013;
-wire          main_rx_preamble_sink_first;
-wire          main_rx_preamble_sink_last;
-wire    [7:0] main_rx_preamble_sink_payload_data;
-wire          main_rx_preamble_sink_payload_error;
-wire          main_rx_preamble_sink_payload_last_be;
-reg           main_rx_preamble_sink_ready = 1'd0;
-wire          main_rx_preamble_sink_valid;
-reg           main_rx_preamble_source_first = 1'd0;
-reg           main_rx_preamble_source_last = 1'd0;
-wire    [7:0] main_rx_preamble_source_payload_data;
-reg           main_rx_preamble_source_payload_error = 1'd0;
-wire          main_rx_preamble_source_payload_last_be;
-wire          main_rx_preamble_source_ready;
-reg           main_rx_preamble_source_valid = 1'd0;
-wire          main_sink_first;
-wire          main_sink_last;
-wire   [31:0] main_sink_payload_data;
-wire    [3:0] main_sink_payload_error;
-wire    [3:0] main_sink_payload_last_be;
-wire          main_sink_ready;
-wire          main_sink_sink_first;
-wire          main_sink_sink_last;
-wire   [31:0] main_sink_sink_payload_data;
-wire    [3:0] main_sink_sink_payload_error;
-wire    [3:0] main_sink_sink_payload_last_be;
-wire          main_sink_sink_ready;
-wire          main_sink_sink_valid;
-wire          main_sink_valid;
-reg     [3:0] main_slave_sel = 4'd0;
-reg     [3:0] main_slave_sel_r = 4'd0;
-reg           main_slot = 1'd0;
-reg           main_slot_liteethmacsramwriter_next_value = 1'd0;
-reg           main_slot_liteethmacsramwriter_next_value_ce = 1'd0;
-wire          main_source_first;
-wire          main_source_last;
-wire   [31:0] main_source_payload_data;
-wire    [3:0] main_source_payload_error;
-wire    [3:0] main_source_payload_last_be;
-wire          main_source_ready;
-wire          main_source_source_first;
-wire          main_source_source_last;
-wire   [31:0] main_source_source_payload_data;
-wire    [3:0] main_source_source_payload_error;
-wire    [3:0] main_source_source_payload_last_be;
-wire          main_source_source_ready;
-wire          main_source_source_valid;
-wire          main_source_valid;
-wire    [8:0] main_sram0_adr;
-reg           main_sram0_adr_burst = 1'd0;
-wire   [31:0] main_sram0_dat_r;
-wire          main_sram0_sink_valid;
-reg           main_sram100_storage = 1'd0;
-reg           main_sram101_re = 1'd0;
-reg    [10:0] main_sram102_storage = 11'd0;
-reg           main_sram103_re = 1'd0;
-wire          main_sram104_irq;
-wire          main_sram105_status;
-reg           main_sram106_pending = 1'd0;
-reg           main_sram107_trigger = 1'd0;
-reg           main_sram108_clear = 1'd0;
-wire          main_sram109_event0;
-wire   [10:0] main_sram10_status;
-reg           main_sram110_status = 1'd0;
-wire          main_sram111_we;
-reg           main_sram112_re = 1'd0;
-wire          main_sram113_event0;
-reg           main_sram114_status = 1'd0;
-wire          main_sram115_we;
-reg           main_sram116_re = 1'd0;
-reg           main_sram117_r = 1'd0;
-wire          main_sram118_event0;
-reg           main_sram119_storage = 1'd0;
-wire          main_sram11_we;
-reg           main_sram120_re = 1'd0;
-reg    [10:0] main_sram122_length = 11'd0;
-reg    [10:0] main_sram122_length_liteethmacsramreader_next_value = 11'd0;
-reg           main_sram122_length_liteethmacsramreader_next_value_ce = 1'd0;
-wire          main_sram123_sink_valid;
-wire          main_sram124_sink_ready;
-reg           main_sram125_sink_first = 1'd0;
-reg           main_sram126_sink_last = 1'd0;
-wire          main_sram127_sink_payload_slot;
-wire   [10:0] main_sram128_sink_payload_length;
-wire          main_sram129_source_valid;
-reg           main_sram12_re = 1'd0;
-reg           main_sram130_source_ready = 1'd0;
-wire          main_sram131_source_first;
-wire          main_sram132_source_last;
-wire          main_sram133_source_payload_slot;
-wire   [10:0] main_sram134_source_payload_length;
-wire          main_sram135_we;
-wire          main_sram136_writable;
-wire          main_sram137_re;
-wire          main_sram138_readable;
-wire   [13:0] main_sram139_din;
-reg    [31:0] main_sram13_status = 32'd0;
-reg    [31:0] main_sram13_status_liteethmacsramwriter_f_next_value = 32'd0;
-reg           main_sram13_status_liteethmacsramwriter_f_next_value_ce = 1'd0;
-wire   [13:0] main_sram140_dout;
-reg     [1:0] main_sram141_level = 2'd0;
-reg           main_sram142_replace = 1'd0;
-reg           main_sram143_produce = 1'd0;
-reg           main_sram144_consume = 1'd0;
-reg           main_sram145_adr = 1'd0;
-wire   [13:0] main_sram146_dat_r;
-wire          main_sram147_we;
-wire   [13:0] main_sram148_dat_w;
-wire          main_sram149_do_read;
-wire          main_sram14_we;
-wire          main_sram150_adr;
-wire   [13:0] main_sram151_dat_r;
-wire          main_sram152_fifo_in_payload_slot;
-wire   [10:0] main_sram153_fifo_in_payload_length;
-wire          main_sram154_fifo_in_first;
-wire          main_sram155_fifo_in_last;
-wire          main_sram156_fifo_out_payload_slot;
-wire   [10:0] main_sram157_fifo_out_payload_length;
-wire          main_sram158_fifo_out_first;
-wire          main_sram159_fifo_out_last;
-reg           main_sram15_re = 1'd0;
-wire    [8:0] main_sram161_adr;
-wire   [31:0] main_sram162_dat_r;
-wire          main_sram163_re;
-wire    [8:0] main_sram164_adr;
-wire   [31:0] main_sram165_dat_r;
-wire          main_sram166_re;
-wire          main_sram167_irq;
-wire          main_sram16_irq;
-wire          main_sram17_status;
-wire          main_sram18_pending;
-wire          main_sram19_trigger;
-wire    [8:0] main_sram1_adr;
-reg           main_sram1_adr_burst = 1'd0;
-wire   [31:0] main_sram1_dat_r;
-reg           main_sram1_sink_ready = 1'd1;
-reg           main_sram20_clear = 1'd0;
-wire          main_sram21_available;
-reg           main_sram22_status = 1'd0;
-wire          main_sram23_we;
-reg           main_sram24_re = 1'd0;
-wire          main_sram25_available;
-reg           main_sram26_status = 1'd0;
-wire          main_sram27_we;
-reg           main_sram28_re = 1'd0;
-reg           main_sram29_r = 1'd0;
-wire    [8:0] main_sram2_adr;
-reg           main_sram2_adr_burst = 1'd0;
-wire   [31:0] main_sram2_dat_r;
-wire   [31:0] main_sram2_dat_w;
-wire          main_sram2_sink_first;
-reg     [3:0] main_sram2_we = 4'd0;
-wire          main_sram30_available;
-reg           main_sram31_storage = 1'd0;
-reg           main_sram32_re = 1'd0;
-reg    [10:0] main_sram35_length = 11'd0;
-reg    [10:0] main_sram35_length_liteethmacsramwriter_t_next_value = 11'd0;
-reg           main_sram35_length_liteethmacsramwriter_t_next_value_ce = 1'd0;
-reg           main_sram37_sink_valid = 1'd0;
-wire          main_sram38_sink_ready;
-reg           main_sram39_sink_first = 1'd0;
-wire    [8:0] main_sram3_adr;
-reg           main_sram3_adr_burst = 1'd0;
-wire   [31:0] main_sram3_dat_r;
-wire   [31:0] main_sram3_dat_w;
-wire          main_sram3_sink_last;
-reg     [3:0] main_sram3_we = 4'd0;
-reg           main_sram40_sink_last = 1'd0;
-reg           main_sram41_sink_payload_slot = 1'd0;
-reg    [10:0] main_sram42_sink_payload_length = 11'd0;
-wire          main_sram43_source_valid;
-wire          main_sram44_source_ready;
-wire          main_sram45_source_first;
-wire          main_sram46_source_last;
-wire          main_sram47_source_payload_slot;
-wire   [10:0] main_sram48_source_payload_length;
-wire          main_sram49_we;
-wire   [31:0] main_sram4_sink_payload_data;
-wire          main_sram50_writable;
-wire          main_sram51_re;
-wire          main_sram52_readable;
-wire   [13:0] main_sram53_din;
-wire   [13:0] main_sram54_dout;
-reg     [1:0] main_sram55_level = 2'd0;
-reg           main_sram56_replace = 1'd0;
-reg           main_sram57_produce = 1'd0;
-reg           main_sram58_consume = 1'd0;
-reg           main_sram59_adr = 1'd0;
-wire    [3:0] main_sram5_sink_payload_last_be;
-wire   [13:0] main_sram60_dat_r;
-wire          main_sram61_we;
-wire   [13:0] main_sram62_dat_w;
-wire          main_sram63_do_read;
-wire          main_sram64_adr;
-wire   [13:0] main_sram65_dat_r;
-wire          main_sram66_fifo_in_payload_slot;
-wire   [10:0] main_sram67_fifo_in_payload_length;
-wire          main_sram68_fifo_in_first;
-wire          main_sram69_fifo_in_last;
-wire    [3:0] main_sram6_sink_payload_error;
-wire          main_sram70_fifo_out_payload_slot;
-wire   [10:0] main_sram71_fifo_out_payload_length;
-wire          main_sram72_fifo_out_first;
-wire          main_sram73_fifo_out_last;
-reg     [8:0] main_sram75_adr = 9'd0;
-wire   [31:0] main_sram76_dat_r;
-reg           main_sram77_we = 1'd0;
-reg    [31:0] main_sram78_dat_w = 32'd0;
-reg     [8:0] main_sram79_adr = 9'd0;
-wire          main_sram7_status;
-wire   [31:0] main_sram80_dat_r;
-reg           main_sram81_we = 1'd0;
-reg    [31:0] main_sram82_dat_w = 32'd0;
-reg           main_sram83_source_valid = 1'd0;
-wire          main_sram84_source_ready;
-reg           main_sram85_source_first = 1'd0;
-reg           main_sram86_source_last = 1'd0;
-wire   [31:0] main_sram87_source_payload_data;
-reg     [3:0] main_sram88_source_payload_last_be = 4'd0;
-reg     [3:0] main_sram89_source_payload_error = 4'd0;
-wire          main_sram8_we;
-wire          main_sram94_status;
-wire          main_sram95_we;
-reg           main_sram96_re = 1'd0;
-wire    [1:0] main_sram97_status;
-wire          main_sram98_we;
-reg           main_sram99_re = 1'd0;
-reg           main_sram9_re = 1'd0;
-wire          main_start_r;
-reg           main_start_re = 1'd0;
-reg           main_start_w = 1'd0;
-reg           main_start_we = 1'd0;
-reg           main_status = 1'd1;
-wire   [41:0] main_tx_cdc_cdc_asyncfifo_din;
-wire   [41:0] main_tx_cdc_cdc_asyncfifo_dout;
-wire          main_tx_cdc_cdc_asyncfifo_re;
-wire          main_tx_cdc_cdc_asyncfifo_readable;
-wire          main_tx_cdc_cdc_asyncfifo_we;
-wire          main_tx_cdc_cdc_asyncfifo_writable;
-wire    [5:0] main_tx_cdc_cdc_consume_wdomain;
-wire          main_tx_cdc_cdc_fifo_in_first;
-wire          main_tx_cdc_cdc_fifo_in_last;
-wire   [31:0] main_tx_cdc_cdc_fifo_in_payload_data;
-wire    [3:0] main_tx_cdc_cdc_fifo_in_payload_error;
-wire    [3:0] main_tx_cdc_cdc_fifo_in_payload_last_be;
-wire          main_tx_cdc_cdc_fifo_out_first;
-wire          main_tx_cdc_cdc_fifo_out_last;
-wire   [31:0] main_tx_cdc_cdc_fifo_out_payload_data;
-wire    [3:0] main_tx_cdc_cdc_fifo_out_payload_error;
-wire    [3:0] main_tx_cdc_cdc_fifo_out_payload_last_be;
-wire          main_tx_cdc_cdc_graycounter0_ce;
-(* dont_touch = "true" *)
-reg     [5:0] main_tx_cdc_cdc_graycounter0_q = 6'd0;
-reg     [5:0] main_tx_cdc_cdc_graycounter0_q_binary = 6'd0;
-wire    [5:0] main_tx_cdc_cdc_graycounter0_q_next;
-reg     [5:0] main_tx_cdc_cdc_graycounter0_q_next_binary = 6'd0;
-wire          main_tx_cdc_cdc_graycounter1_ce;
-(* dont_touch = "true" *)
-reg     [5:0] main_tx_cdc_cdc_graycounter1_q = 6'd0;
-reg     [5:0] main_tx_cdc_cdc_graycounter1_q_binary = 6'd0;
-wire    [5:0] main_tx_cdc_cdc_graycounter1_q_next;
-reg     [5:0] main_tx_cdc_cdc_graycounter1_q_next_binary = 6'd0;
-wire    [5:0] main_tx_cdc_cdc_produce_rdomain;
-wire    [4:0] main_tx_cdc_cdc_rdport_adr;
-wire   [41:0] main_tx_cdc_cdc_rdport_dat_r;
-wire          main_tx_cdc_cdc_sink_first;
-wire          main_tx_cdc_cdc_sink_last;
-wire   [31:0] main_tx_cdc_cdc_sink_payload_data;
-wire    [3:0] main_tx_cdc_cdc_sink_payload_error;
-wire    [3:0] main_tx_cdc_cdc_sink_payload_last_be;
-wire          main_tx_cdc_cdc_sink_ready;
-wire          main_tx_cdc_cdc_sink_valid;
-wire          main_tx_cdc_cdc_source_first;
-wire          main_tx_cdc_cdc_source_last;
-wire   [31:0] main_tx_cdc_cdc_source_payload_data;
-wire    [3:0] main_tx_cdc_cdc_source_payload_error;
-wire    [3:0] main_tx_cdc_cdc_source_payload_last_be;
-wire          main_tx_cdc_cdc_source_ready;
-wire          main_tx_cdc_cdc_source_valid;
-wire    [4:0] main_tx_cdc_cdc_wrport_adr;
-wire   [41:0] main_tx_cdc_cdc_wrport_dat_r;
-wire   [41:0] main_tx_cdc_cdc_wrport_dat_w;
-wire          main_tx_cdc_cdc_wrport_we;
-wire          main_tx_cdc_sink_sink_first;
-wire          main_tx_cdc_sink_sink_last;
-wire   [31:0] main_tx_cdc_sink_sink_payload_data;
-wire    [3:0] main_tx_cdc_sink_sink_payload_error;
-wire    [3:0] main_tx_cdc_sink_sink_payload_last_be;
-wire          main_tx_cdc_sink_sink_ready;
-wire          main_tx_cdc_sink_sink_valid;
-wire          main_tx_cdc_source_source_first;
-wire          main_tx_cdc_source_source_last;
-wire   [31:0] main_tx_cdc_source_source_payload_data;
-wire    [3:0] main_tx_cdc_source_source_payload_error;
-wire    [3:0] main_tx_cdc_source_source_payload_last_be;
-wire          main_tx_cdc_source_source_ready;
-wire          main_tx_cdc_source_source_valid;
-wire          main_tx_converter_converter_first;
-wire          main_tx_converter_converter_last;
-reg     [1:0] main_tx_converter_converter_mux = 2'd0;
-wire          main_tx_converter_converter_sink_first;
-wire          main_tx_converter_converter_sink_last;
-reg    [39:0] main_tx_converter_converter_sink_payload_data = 40'd0;
-wire          main_tx_converter_converter_sink_ready;
-wire          main_tx_converter_converter_sink_valid;
-wire          main_tx_converter_converter_source_first;
-wire          main_tx_converter_converter_source_last;
-reg     [9:0] main_tx_converter_converter_source_payload_data = 10'd0;
-wire          main_tx_converter_converter_source_payload_valid_token_count;
-wire          main_tx_converter_converter_source_ready;
-wire          main_tx_converter_converter_source_valid;
-wire          main_tx_converter_sink_first;
-wire          main_tx_converter_sink_last;
-wire   [31:0] main_tx_converter_sink_payload_data;
-wire    [3:0] main_tx_converter_sink_payload_error;
-wire    [3:0] main_tx_converter_sink_payload_last_be;
-wire          main_tx_converter_sink_ready;
-wire          main_tx_converter_sink_valid;
-wire          main_tx_converter_source_first;
-wire          main_tx_converter_source_last;
-wire    [7:0] main_tx_converter_source_payload_data;
-wire          main_tx_converter_source_payload_error;
-wire          main_tx_converter_source_payload_last_be;
-wire          main_tx_converter_source_ready;
-wire          main_tx_converter_source_source_first;
-wire          main_tx_converter_source_source_last;
-wire    [9:0] main_tx_converter_source_source_payload_data;
-wire          main_tx_converter_source_source_ready;
-wire          main_tx_converter_source_source_valid;
-wire          main_tx_converter_source_valid;
-wire          main_tx_crc_be;
-reg           main_tx_crc_ce = 1'd0;
-reg     [1:0] main_tx_crc_cnt = 2'd3;
-wire          main_tx_crc_cnt_done;
-reg    [31:0] main_tx_crc_crc_next = 32'd0;
-reg    [31:0] main_tx_crc_crc_packet = 32'd0;
-reg    [31:0] main_tx_crc_crc_packet_clockdomainsrenamer1_next_value0 = 32'd0;
-reg           main_tx_crc_crc_packet_clockdomainsrenamer1_next_value_ce0 = 1'd0;
-wire   [31:0] main_tx_crc_crc_prev;
-wire    [7:0] main_tx_crc_data0;
-wire    [7:0] main_tx_crc_data1;
-reg           main_tx_crc_error = 1'd0;
-reg           main_tx_crc_is_ongoing0 = 1'd0;
-reg           main_tx_crc_is_ongoing1 = 1'd0;
-reg           main_tx_crc_last_be = 1'd0;
-reg           main_tx_crc_last_be_clockdomainsrenamer1_next_value1 = 1'd0;
-reg           main_tx_crc_last_be_clockdomainsrenamer1_next_value_ce1 = 1'd0;
-wire          main_tx_crc_pipe_valid_sink_first;
-wire          main_tx_crc_pipe_valid_sink_last;
-wire    [7:0] main_tx_crc_pipe_valid_sink_payload_data;
-wire          main_tx_crc_pipe_valid_sink_payload_error;
-wire          main_tx_crc_pipe_valid_sink_payload_last_be;
-wire          main_tx_crc_pipe_valid_sink_ready;
-wire          main_tx_crc_pipe_valid_sink_valid;
-reg           main_tx_crc_pipe_valid_source_first = 1'd0;
-reg           main_tx_crc_pipe_valid_source_last = 1'd0;
-reg     [7:0] main_tx_crc_pipe_valid_source_payload_data = 8'd0;
-reg           main_tx_crc_pipe_valid_source_payload_error = 1'd0;
-reg           main_tx_crc_pipe_valid_source_payload_last_be = 1'd0;
-wire          main_tx_crc_pipe_valid_source_ready;
-reg           main_tx_crc_pipe_valid_source_valid = 1'd0;
-reg    [31:0] main_tx_crc_reg = 32'd4294967295;
-reg           main_tx_crc_reset = 1'd0;
-wire          main_tx_crc_sink_first;
-wire          main_tx_crc_sink_last;
-wire    [7:0] main_tx_crc_sink_payload_data;
-wire          main_tx_crc_sink_payload_error;
-wire          main_tx_crc_sink_payload_last_be;
-reg           main_tx_crc_sink_ready = 1'd0;
-wire          main_tx_crc_sink_sink_first;
-wire          main_tx_crc_sink_sink_last;
-wire    [7:0] main_tx_crc_sink_sink_payload_data;
-wire          main_tx_crc_sink_sink_payload_error;
-wire          main_tx_crc_sink_sink_payload_last_be;
-wire          main_tx_crc_sink_sink_ready;
-wire          main_tx_crc_sink_sink_valid;
-wire          main_tx_crc_sink_valid;
-reg           main_tx_crc_source_first = 1'd0;
-reg           main_tx_crc_source_last = 1'd0;
-reg     [7:0] main_tx_crc_source_payload_data = 8'd0;
-reg           main_tx_crc_source_payload_error = 1'd0;
-reg           main_tx_crc_source_payload_last_be = 1'd0;
-wire          main_tx_crc_source_ready;
-wire          main_tx_crc_source_source_first;
-wire          main_tx_crc_source_source_last;
-wire    [7:0] main_tx_crc_source_source_payload_data;
-wire          main_tx_crc_source_source_payload_error;
-wire          main_tx_crc_source_source_payload_last_be;
-wire          main_tx_crc_source_source_ready;
-wire          main_tx_crc_source_source_valid;
-reg           main_tx_crc_source_valid = 1'd0;
-reg    [31:0] main_tx_crc_value = 32'd0;
-reg     [3:0] main_tx_gap_counter = 4'd0;
-reg     [3:0] main_tx_gap_counter_clockdomainsrenamer3_next_value = 4'd0;
-reg           main_tx_gap_counter_clockdomainsrenamer3_next_value_ce = 1'd0;
-wire          main_tx_gap_sink_first;
-wire          main_tx_gap_sink_last;
-wire    [7:0] main_tx_gap_sink_payload_data;
-wire          main_tx_gap_sink_payload_error;
-wire          main_tx_gap_sink_payload_last_be;
-reg           main_tx_gap_sink_ready = 1'd0;
-wire          main_tx_gap_sink_valid;
-reg           main_tx_gap_source_first = 1'd0;
-reg           main_tx_gap_source_last = 1'd0;
-reg     [7:0] main_tx_gap_source_payload_data = 8'd0;
-reg           main_tx_gap_source_payload_error = 1'd0;
-reg           main_tx_gap_source_payload_last_be = 1'd0;
-wire          main_tx_gap_source_ready;
-reg           main_tx_gap_source_valid = 1'd0;
-wire          main_tx_last_be_sink_first;
-wire          main_tx_last_be_sink_last;
-wire    [7:0] main_tx_last_be_sink_payload_data;
-wire          main_tx_last_be_sink_payload_error;
-wire          main_tx_last_be_sink_payload_last_be;
-reg           main_tx_last_be_sink_ready = 1'd0;
-wire          main_tx_last_be_sink_valid;
-reg           main_tx_last_be_source_first = 1'd0;
-reg           main_tx_last_be_source_last = 1'd0;
-reg     [7:0] main_tx_last_be_source_payload_data = 8'd0;
-reg           main_tx_last_be_source_payload_error = 1'd0;
-reg           main_tx_last_be_source_payload_last_be = 1'd0;
-wire          main_tx_last_be_source_ready;
-reg           main_tx_last_be_source_valid = 1'd0;
-reg    [15:0] main_tx_padding_counter = 16'd0;
-reg    [15:0] main_tx_padding_counter_clockdomainsrenamer0_next_value = 16'd0;
-reg           main_tx_padding_counter_clockdomainsrenamer0_next_value_ce = 1'd0;
-wire          main_tx_padding_counter_done;
-wire          main_tx_padding_sink_first;
-wire          main_tx_padding_sink_last;
-wire    [7:0] main_tx_padding_sink_payload_data;
-wire          main_tx_padding_sink_payload_error;
-wire          main_tx_padding_sink_payload_last_be;
-reg           main_tx_padding_sink_ready = 1'd0;
-wire          main_tx_padding_sink_valid;
-reg           main_tx_padding_source_first = 1'd0;
-reg           main_tx_padding_source_last = 1'd0;
-reg     [7:0] main_tx_padding_source_payload_data = 8'd0;
-reg           main_tx_padding_source_payload_error = 1'd0;
-reg           main_tx_padding_source_payload_last_be = 1'd0;
-wire          main_tx_padding_source_ready;
-reg           main_tx_padding_source_valid = 1'd0;
-reg     [2:0] main_tx_preamble_count = 3'd0;
-reg     [2:0] main_tx_preamble_count_clockdomainsrenamer2_next_value = 3'd0;
-reg           main_tx_preamble_count_clockdomainsrenamer2_next_value_ce = 1'd0;
-reg    [63:0] main_tx_preamble_preamble = 64'd15372286728091293013;
-wire          main_tx_preamble_sink_first;
-wire          main_tx_preamble_sink_last;
-wire    [7:0] main_tx_preamble_sink_payload_data;
-wire          main_tx_preamble_sink_payload_error;
-wire          main_tx_preamble_sink_payload_last_be;
-reg           main_tx_preamble_sink_ready = 1'd0;
-wire          main_tx_preamble_sink_valid;
-reg           main_tx_preamble_source_first = 1'd0;
-reg           main_tx_preamble_source_last = 1'd0;
-reg     [7:0] main_tx_preamble_source_payload_data = 8'd0;
-reg           main_tx_preamble_source_payload_error = 1'd0;
-wire          main_tx_preamble_source_payload_last_be;
-wire          main_tx_preamble_source_ready;
-reg           main_tx_preamble_source_valid = 1'd0;
-wire          main_wb_bus_ack;
-wire   [29:0] main_wb_bus_adr;
-wire    [1:0] main_wb_bus_bte;
-wire    [2:0] main_wb_bus_cti;
-wire          main_wb_bus_cyc;
-wire   [31:0] main_wb_bus_dat_r;
-wire   [31:0] main_wb_bus_dat_w;
-wire          main_wb_bus_err;
-wire    [3:0] main_wb_bus_sel;
-wire          main_wb_bus_stb;
-wire          main_wb_bus_we;
-wire          main_we;
-wire   [31:0] main_wr_data;
-reg           main_write = 1'd0;
+wire          grant;
+reg           interface0_ack = 1'd0;
+wire   [29:0] interface0_adr;
+wire   [13:0] interface0_bank_bus_adr;
+reg    [31:0] interface0_bank_bus_dat_r = 32'd0;
+wire   [31:0] interface0_bank_bus_dat_w;
+wire          interface0_bank_bus_re;
+wire          interface0_bank_bus_we;
+wire    [1:0] interface0_bte;
+wire    [2:0] interface0_cti;
+wire          interface0_cyc;
+reg    [31:0] interface0_dat_r = 32'd0;
+wire   [31:0] interface0_dat_w;
+reg           interface0_err = 1'd0;
+wire    [3:0] interface0_sel;
+wire          interface0_stb;
+wire          interface0_we;
+reg    [13:0] interface1_adr = 14'd0;
+wire   [13:0] interface1_bank_bus_adr;
+reg    [31:0] interface1_bank_bus_dat_r = 32'd0;
+wire   [31:0] interface1_bank_bus_dat_w;
+wire          interface1_bank_bus_re;
+wire          interface1_bank_bus_we;
+wire   [31:0] interface1_dat_r;
+reg    [31:0] interface1_dat_w = 32'd0;
+reg           interface1_re = 1'd0;
+reg           interface1_we = 1'd0;
+wire   [13:0] interface2_bank_bus_adr;
+reg    [31:0] interface2_bank_bus_dat_r = 32'd0;
+wire   [31:0] interface2_bank_bus_dat_w;
+wire          interface2_bank_bus_re;
+wire          interface2_bank_bus_we;
+reg     [1:0] liteethmacsramreader_next_state = 2'd0;
+reg     [1:0] liteethmacsramreader_state = 2'd0;
+reg     [2:0] liteethmacsramwriter_next_state = 3'd0;
+reg     [2:0] liteethmacsramwriter_state = 3'd0;
+reg           maccore__r_re = 1'd0;
+reg           maccore__r_status = 1'd0;
+wire          maccore__r_we;
+reg           maccore__w_re = 1'd0;
+reg     [2:0] maccore__w_storage = 3'd0;
+wire          maccore_bus_error;
+reg    [31:0] maccore_bus_errors = 32'd0;
+reg           maccore_bus_errors_re = 1'd0;
+wire   [31:0] maccore_bus_errors_status;
+wire          maccore_bus_errors_we;
+wire          maccore_cpu_rst;
+reg     [8:0] maccore_crg_counter = 9'd0;
+wire          maccore_crg_counter_ce;
+wire          maccore_crg_counter_done;
+wire          maccore_crg_reset0;
+wire          maccore_crg_reset1;
+reg           maccore_crg_reset_re = 1'd0;
+reg           maccore_crg_reset_storage = 1'd0;
+wire          maccore_data_oe;
+wire          maccore_data_r;
+wire          maccore_data_w;
+reg           maccore_int_rst = 1'd1;
+reg           maccore_liteethphymiirx_converter_demux = 1'd0;
+wire          maccore_liteethphymiirx_converter_load_part;
+reg           maccore_liteethphymiirx_converter_sink_first = 1'd0;
+wire          maccore_liteethphymiirx_converter_sink_last;
+reg     [3:0] maccore_liteethphymiirx_converter_sink_payload_data = 4'd0;
+wire          maccore_liteethphymiirx_converter_sink_ready;
+reg           maccore_liteethphymiirx_converter_sink_valid = 1'd0;
+reg           maccore_liteethphymiirx_converter_source_first = 1'd0;
+reg           maccore_liteethphymiirx_converter_source_last = 1'd0;
+reg     [7:0] maccore_liteethphymiirx_converter_source_payload_data = 8'd0;
+reg     [1:0] maccore_liteethphymiirx_converter_source_payload_valid_token_count = 2'd0;
+wire          maccore_liteethphymiirx_converter_source_ready;
+wire          maccore_liteethphymiirx_converter_source_valid;
+reg           maccore_liteethphymiirx_converter_strobe_all = 1'd0;
+reg           maccore_liteethphymiirx_reset = 1'd0;
+wire          maccore_liteethphymiirx_source_first;
+wire          maccore_liteethphymiirx_source_last;
+wire    [7:0] maccore_liteethphymiirx_source_payload_data;
+reg           maccore_liteethphymiirx_source_payload_error = 1'd0;
+reg           maccore_liteethphymiirx_source_payload_last_be = 1'd0;
+wire          maccore_liteethphymiirx_source_ready;
+wire          maccore_liteethphymiirx_source_source_first;
+wire          maccore_liteethphymiirx_source_source_last;
+wire    [7:0] maccore_liteethphymiirx_source_source_payload_data;
+wire          maccore_liteethphymiirx_source_source_ready;
+wire          maccore_liteethphymiirx_source_source_valid;
+wire          maccore_liteethphymiirx_source_valid;
+wire          maccore_liteethphymiitx_converter_first;
+wire          maccore_liteethphymiitx_converter_last;
+reg           maccore_liteethphymiitx_converter_mux = 1'd0;
+reg           maccore_liteethphymiitx_converter_sink_first = 1'd0;
+reg           maccore_liteethphymiitx_converter_sink_last = 1'd0;
+wire    [7:0] maccore_liteethphymiitx_converter_sink_payload_data;
+wire          maccore_liteethphymiitx_converter_sink_ready;
+wire          maccore_liteethphymiitx_converter_sink_valid;
+wire          maccore_liteethphymiitx_converter_source_first;
+wire          maccore_liteethphymiitx_converter_source_last;
+reg     [3:0] maccore_liteethphymiitx_converter_source_payload_data = 4'd0;
+wire          maccore_liteethphymiitx_converter_source_payload_valid_token_count;
+wire          maccore_liteethphymiitx_converter_source_ready;
+wire          maccore_liteethphymiitx_converter_source_valid;
+wire          maccore_liteethphymiitx_sink_first;
+wire          maccore_liteethphymiitx_sink_last;
+wire    [7:0] maccore_liteethphymiitx_sink_payload_data;
+wire          maccore_liteethphymiitx_sink_payload_error;
+wire          maccore_liteethphymiitx_sink_payload_last_be;
+wire          maccore_liteethphymiitx_sink_ready;
+wire          maccore_liteethphymiitx_sink_valid;
+wire          maccore_liteethphymiitx_source_source_first;
+wire          maccore_liteethphymiitx_source_source_last;
+wire    [3:0] maccore_liteethphymiitx_source_source_payload_data;
+wire          maccore_liteethphymiitx_source_source_ready;
+wire          maccore_liteethphymiitx_source_source_valid;
+wire          maccore_mdc;
+wire          maccore_oe;
+reg           maccore_r = 1'd0;
+reg           maccore_reset_re = 1'd0;
+reg     [1:0] maccore_reset_storage = 2'd0;
+reg           maccore_scratch_re = 1'd0;
+reg    [31:0] maccore_scratch_storage = 32'd305419896;
+reg           maccore_soc_rst = 1'd0;
+wire          maccore_w;
+reg           next_state = 1'd0;
 wire          por_clk;
+wire          re;
+wire          request;
+wire          rst_meta0;
+wire          rst_meta1;
+reg     [1:0] rxdatapath_bufferizeendpoints_next_state = 2'd0;
+reg     [1:0] rxdatapath_bufferizeendpoints_state = 2'd0;
+reg           rxdatapath_liteethmacpreamblechecker_next_state = 1'd0;
+reg           rxdatapath_liteethmacpreamblechecker_state = 1'd0;
+reg    [29:0] self0 = 30'd0;
+reg    [31:0] self1 = 32'd0;
+reg     [3:0] self2 = 4'd0;
+reg           self3 = 1'd0;
+reg           self4 = 1'd0;
+reg           self5 = 1'd0;
+reg     [2:0] self6 = 3'd0;
+reg     [1:0] self7 = 2'd0;
+reg           shared_ack = 1'd0;
+wire   [29:0] shared_adr;
+wire    [1:0] shared_bte;
+wire    [2:0] shared_cti;
+wire          shared_cyc;
+reg    [31:0] shared_dat_r = 32'd0;
+wire   [31:0] shared_dat_w;
+wire          shared_err;
+wire    [3:0] shared_sel;
+wire          shared_stb;
+wire          shared_we;
+reg     [2:0] slave_sel = 3'd0;
+reg     [2:0] slave_sel_r = 3'd0;
+reg           state = 1'd0;
 (* dont_touch = "true" *)
 wire          sys_clk;
 wire          sys_rst;
+reg     [1:0] txdatapath_bufferizeendpoints_next_state = 2'd0;
+reg     [1:0] txdatapath_bufferizeendpoints_state = 2'd0;
+reg           txdatapath_liteethmacgap_next_state = 1'd0;
+reg           txdatapath_liteethmacgap_state = 1'd0;
+reg           txdatapath_liteethmacpaddinginserter_next_state = 1'd0;
+reg           txdatapath_liteethmacpaddinginserter_state = 1'd0;
+reg     [1:0] txdatapath_liteethmacpreambleinserter_next_state = 2'd0;
+reg     [1:0] txdatapath_liteethmacpreambleinserter_state = 2'd0;
+reg           txdatapath_liteethmactxlastbe_next_state = 1'd0;
+reg           txdatapath_liteethmactxlastbe_state = 1'd0;
+wire          wait_1;
+wire          wb_bus_ack;
+wire   [29:0] wb_bus_adr;
+wire    [1:0] wb_bus_bte;
+wire    [2:0] wb_bus_cti;
+wire          wb_bus_cyc;
+wire   [31:0] wb_bus_dat_r;
+wire   [31:0] wb_bus_dat_w;
+wire          wb_bus_err;
+wire    [3:0] wb_bus_sel;
+wire          wb_bus_stb;
+wire          wb_bus_we;
+wire          we;
+wire          wishbone_interface_bus_rx_ack;
+wire   [29:0] wishbone_interface_bus_rx_adr;
+wire    [1:0] wishbone_interface_bus_rx_bte;
+wire    [2:0] wishbone_interface_bus_rx_cti;
+wire          wishbone_interface_bus_rx_cyc;
+wire   [31:0] wishbone_interface_bus_rx_dat_r;
+wire   [31:0] wishbone_interface_bus_rx_dat_w;
+wire          wishbone_interface_bus_rx_err;
+wire    [3:0] wishbone_interface_bus_rx_sel;
+wire          wishbone_interface_bus_rx_stb;
+wire          wishbone_interface_bus_rx_we;
+wire          wishbone_interface_bus_tx_ack;
+wire   [29:0] wishbone_interface_bus_tx_adr;
+wire    [1:0] wishbone_interface_bus_tx_bte;
+wire    [2:0] wishbone_interface_bus_tx_cti;
+wire          wishbone_interface_bus_tx_cyc;
+wire   [31:0] wishbone_interface_bus_tx_dat_r;
+wire   [31:0] wishbone_interface_bus_tx_dat_w;
+wire          wishbone_interface_bus_tx_err;
+wire    [3:0] wishbone_interface_bus_tx_sel;
+wire          wishbone_interface_bus_tx_stb;
+wire          wishbone_interface_bus_tx_we;
+reg     [1:0] wishbone_interface_decoder0_slave_sel = 2'd0;
+reg     [1:0] wishbone_interface_decoder0_slave_sel_r = 2'd0;
+reg     [1:0] wishbone_interface_decoder1_slave_sel = 2'd0;
+reg     [1:0] wishbone_interface_decoder1_slave_sel_r = 2'd0;
+wire          wishbone_interface_ev_irq;
+reg           wishbone_interface_interface0_ack = 1'd0;
+wire   [29:0] wishbone_interface_interface0_adr;
+wire    [1:0] wishbone_interface_interface0_bte;
+wire    [2:0] wishbone_interface_interface0_cti;
+wire          wishbone_interface_interface0_cyc;
+wire   [31:0] wishbone_interface_interface0_dat_r;
+wire   [31:0] wishbone_interface_interface0_dat_w;
+reg           wishbone_interface_interface0_err = 1'd0;
+wire    [3:0] wishbone_interface_interface0_sel;
+wire          wishbone_interface_interface0_stb;
+wire          wishbone_interface_interface0_we;
+reg           wishbone_interface_interface1_ack = 1'd0;
+wire   [29:0] wishbone_interface_interface1_adr;
+wire    [1:0] wishbone_interface_interface1_bte;
+wire    [2:0] wishbone_interface_interface1_cti;
+wire          wishbone_interface_interface1_cyc;
+wire   [31:0] wishbone_interface_interface1_dat_r;
+wire   [31:0] wishbone_interface_interface1_dat_w;
+reg           wishbone_interface_interface1_err = 1'd0;
+wire    [3:0] wishbone_interface_interface1_sel;
+wire          wishbone_interface_interface1_stb;
+wire          wishbone_interface_interface1_we;
+reg           wishbone_interface_interface2_ack = 1'd0;
+wire   [29:0] wishbone_interface_interface2_adr;
+wire    [1:0] wishbone_interface_interface2_bte;
+wire    [2:0] wishbone_interface_interface2_cti;
+wire          wishbone_interface_interface2_cyc;
+wire   [31:0] wishbone_interface_interface2_dat_r;
+wire   [31:0] wishbone_interface_interface2_dat_w;
+reg           wishbone_interface_interface2_err = 1'd0;
+wire    [3:0] wishbone_interface_interface2_sel;
+wire          wishbone_interface_interface2_stb;
+wire          wishbone_interface_interface2_we;
+reg           wishbone_interface_interface3_ack = 1'd0;
+wire   [29:0] wishbone_interface_interface3_adr;
+wire    [1:0] wishbone_interface_interface3_bte;
+wire    [2:0] wishbone_interface_interface3_cti;
+wire          wishbone_interface_interface3_cyc;
+wire   [31:0] wishbone_interface_interface3_dat_r;
+wire   [31:0] wishbone_interface_interface3_dat_w;
+reg           wishbone_interface_interface3_err = 1'd0;
+wire    [3:0] wishbone_interface_interface3_sel;
+wire          wishbone_interface_interface3_stb;
+wire          wishbone_interface_interface3_we;
+reg           wishbone_interface_reader_cmd_fifo_consume = 1'd0;
+wire          wishbone_interface_reader_cmd_fifo_do_read;
+wire          wishbone_interface_reader_cmd_fifo_fifo_in_first;
+wire          wishbone_interface_reader_cmd_fifo_fifo_in_last;
+wire   [10:0] wishbone_interface_reader_cmd_fifo_fifo_in_payload_length;
+wire          wishbone_interface_reader_cmd_fifo_fifo_in_payload_slot;
+wire          wishbone_interface_reader_cmd_fifo_fifo_out_first;
+wire          wishbone_interface_reader_cmd_fifo_fifo_out_last;
+wire   [10:0] wishbone_interface_reader_cmd_fifo_fifo_out_payload_length;
+wire          wishbone_interface_reader_cmd_fifo_fifo_out_payload_slot;
+reg     [1:0] wishbone_interface_reader_cmd_fifo_level = 2'd0;
+reg           wishbone_interface_reader_cmd_fifo_produce = 1'd0;
+wire          wishbone_interface_reader_cmd_fifo_rdport_adr;
+wire   [13:0] wishbone_interface_reader_cmd_fifo_rdport_dat_r;
+reg           wishbone_interface_reader_cmd_fifo_replace = 1'd0;
+reg           wishbone_interface_reader_cmd_fifo_sink_first = 1'd0;
+reg           wishbone_interface_reader_cmd_fifo_sink_last = 1'd0;
+wire   [10:0] wishbone_interface_reader_cmd_fifo_sink_payload_length;
+wire          wishbone_interface_reader_cmd_fifo_sink_payload_slot;
+wire          wishbone_interface_reader_cmd_fifo_sink_ready;
+wire          wishbone_interface_reader_cmd_fifo_sink_valid;
+wire          wishbone_interface_reader_cmd_fifo_source_first;
+wire          wishbone_interface_reader_cmd_fifo_source_last;
+wire   [10:0] wishbone_interface_reader_cmd_fifo_source_payload_length;
+wire          wishbone_interface_reader_cmd_fifo_source_payload_slot;
+reg           wishbone_interface_reader_cmd_fifo_source_ready = 1'd0;
+wire          wishbone_interface_reader_cmd_fifo_source_valid;
+wire   [13:0] wishbone_interface_reader_cmd_fifo_syncfifo_din;
+wire   [13:0] wishbone_interface_reader_cmd_fifo_syncfifo_dout;
+wire          wishbone_interface_reader_cmd_fifo_syncfifo_re;
+wire          wishbone_interface_reader_cmd_fifo_syncfifo_readable;
+wire          wishbone_interface_reader_cmd_fifo_syncfifo_we;
+wire          wishbone_interface_reader_cmd_fifo_syncfifo_writable;
+reg           wishbone_interface_reader_cmd_fifo_wrport_adr = 1'd0;
+wire   [13:0] wishbone_interface_reader_cmd_fifo_wrport_dat_r;
+wire   [13:0] wishbone_interface_reader_cmd_fifo_wrport_dat_w;
+wire          wishbone_interface_reader_cmd_fifo_wrport_we;
+reg           wishbone_interface_reader_enable_re = 1'd0;
+reg           wishbone_interface_reader_enable_storage = 1'd0;
+wire          wishbone_interface_reader_event00;
+wire          wishbone_interface_reader_event01;
+wire          wishbone_interface_reader_event02;
+reg           wishbone_interface_reader_eventsourcepulse_clear = 1'd0;
+reg           wishbone_interface_reader_eventsourcepulse_pending = 1'd0;
+wire          wishbone_interface_reader_eventsourcepulse_status;
+reg           wishbone_interface_reader_eventsourcepulse_trigger = 1'd0;
+wire          wishbone_interface_reader_irq;
+reg    [10:0] wishbone_interface_reader_length = 11'd0;
+reg    [10:0] wishbone_interface_reader_length_liteethmacsramreader_next_value = 11'd0;
+reg           wishbone_interface_reader_length_liteethmacsramreader_next_value_ce = 1'd0;
+reg           wishbone_interface_reader_length_re = 1'd0;
+reg    [10:0] wishbone_interface_reader_length_storage = 11'd0;
+reg           wishbone_interface_reader_level_re = 1'd0;
+wire    [1:0] wishbone_interface_reader_level_status;
+wire          wishbone_interface_reader_level_we;
+wire    [8:0] wishbone_interface_reader_memory0_adr;
+wire   [31:0] wishbone_interface_reader_memory0_dat_r;
+wire          wishbone_interface_reader_memory0_re;
+wire    [8:0] wishbone_interface_reader_memory1_adr;
+wire   [31:0] wishbone_interface_reader_memory1_dat_r;
+wire          wishbone_interface_reader_memory1_re;
+reg           wishbone_interface_reader_pending_r = 1'd0;
+reg           wishbone_interface_reader_pending_re = 1'd0;
+wire          wishbone_interface_reader_pending_status;
+wire          wishbone_interface_reader_pending_we;
+reg    [31:0] wishbone_interface_reader_rd_data = 32'd0;
+reg           wishbone_interface_reader_read = 1'd0;
+reg           wishbone_interface_reader_ready_re = 1'd0;
+wire          wishbone_interface_reader_ready_status;
+wire          wishbone_interface_reader_ready_we;
+reg           wishbone_interface_reader_slot_re = 1'd0;
+reg           wishbone_interface_reader_slot_storage = 1'd0;
+reg           wishbone_interface_reader_source_source_first = 1'd0;
+reg           wishbone_interface_reader_source_source_last = 1'd0;
+wire   [31:0] wishbone_interface_reader_source_source_payload_data;
+reg     [3:0] wishbone_interface_reader_source_source_payload_error = 4'd0;
+reg     [3:0] wishbone_interface_reader_source_source_payload_last_be = 4'd0;
+wire          wishbone_interface_reader_source_source_ready;
+reg           wishbone_interface_reader_source_source_valid = 1'd0;
+wire          wishbone_interface_reader_start_r;
+reg           wishbone_interface_reader_start_re = 1'd0;
+reg           wishbone_interface_reader_start_w = 1'd0;
+reg           wishbone_interface_reader_start_we = 1'd0;
+reg           wishbone_interface_reader_status_re = 1'd0;
+wire          wishbone_interface_reader_status_status;
+wire          wishbone_interface_reader_status_we;
+wire          wishbone_interface_sink_first;
+wire          wishbone_interface_sink_last;
+wire   [31:0] wishbone_interface_sink_payload_data;
+wire    [3:0] wishbone_interface_sink_payload_error;
+wire    [3:0] wishbone_interface_sink_payload_last_be;
+wire          wishbone_interface_sink_ready;
+wire          wishbone_interface_sink_valid;
+wire          wishbone_interface_source_first;
+wire          wishbone_interface_source_last;
+wire   [31:0] wishbone_interface_source_payload_data;
+wire    [3:0] wishbone_interface_source_payload_error;
+wire    [3:0] wishbone_interface_source_payload_last_be;
+wire          wishbone_interface_source_ready;
+wire          wishbone_interface_source_valid;
+wire    [8:0] wishbone_interface_sram0_adr;
+reg           wishbone_interface_sram0_adr_burst = 1'd0;
+wire   [31:0] wishbone_interface_sram0_dat_r;
+wire    [8:0] wishbone_interface_sram1_adr;
+reg           wishbone_interface_sram1_adr_burst = 1'd0;
+wire   [31:0] wishbone_interface_sram1_dat_r;
+wire    [8:0] wishbone_interface_sram2_adr;
+reg           wishbone_interface_sram2_adr_burst = 1'd0;
+wire   [31:0] wishbone_interface_sram2_dat_r;
+wire   [31:0] wishbone_interface_sram2_dat_w;
+reg     [3:0] wishbone_interface_sram2_we = 4'd0;
+wire    [8:0] wishbone_interface_sram3_adr;
+reg           wishbone_interface_sram3_adr_burst = 1'd0;
+wire   [31:0] wishbone_interface_sram3_dat_r;
+wire   [31:0] wishbone_interface_sram3_dat_w;
+reg     [3:0] wishbone_interface_sram3_we = 4'd0;
+wire          wishbone_interface_writer_available0;
+wire          wishbone_interface_writer_available1;
+wire          wishbone_interface_writer_available2;
+reg           wishbone_interface_writer_available_clear = 1'd0;
+wire          wishbone_interface_writer_available_pending;
+wire          wishbone_interface_writer_available_status;
+wire          wishbone_interface_writer_available_trigger;
+reg           wishbone_interface_writer_enable_re = 1'd0;
+reg           wishbone_interface_writer_enable_storage = 1'd0;
+reg           wishbone_interface_writer_errors_re = 1'd0;
+reg    [31:0] wishbone_interface_writer_errors_status = 32'd0;
+reg    [31:0] wishbone_interface_writer_errors_status_liteethmacsramwriter_f_next_value = 32'd0;
+reg           wishbone_interface_writer_errors_status_liteethmacsramwriter_f_next_value_ce = 1'd0;
+wire          wishbone_interface_writer_errors_we;
+wire          wishbone_interface_writer_irq;
+reg    [10:0] wishbone_interface_writer_length = 11'd0;
+reg     [3:0] wishbone_interface_writer_length_inc = 4'd0;
+reg    [10:0] wishbone_interface_writer_length_liteethmacsramwriter_t_next_value = 11'd0;
+reg           wishbone_interface_writer_length_liteethmacsramwriter_t_next_value_ce = 1'd0;
+reg           wishbone_interface_writer_length_re = 1'd0;
+wire   [10:0] wishbone_interface_writer_length_status;
+wire          wishbone_interface_writer_length_we;
+reg     [8:0] wishbone_interface_writer_memory0_adr = 9'd0;
+wire   [31:0] wishbone_interface_writer_memory0_dat_r;
+reg    [31:0] wishbone_interface_writer_memory0_dat_w = 32'd0;
+reg           wishbone_interface_writer_memory0_we = 1'd0;
+reg     [8:0] wishbone_interface_writer_memory1_adr = 9'd0;
+wire   [31:0] wishbone_interface_writer_memory1_dat_r;
+reg    [31:0] wishbone_interface_writer_memory1_dat_w = 32'd0;
+reg           wishbone_interface_writer_memory1_we = 1'd0;
+reg           wishbone_interface_writer_pending_r = 1'd0;
+reg           wishbone_interface_writer_pending_re = 1'd0;
+wire          wishbone_interface_writer_pending_status;
+wire          wishbone_interface_writer_pending_we;
+wire          wishbone_interface_writer_sink_sink_first;
+wire          wishbone_interface_writer_sink_sink_last;
+wire   [31:0] wishbone_interface_writer_sink_sink_payload_data;
+wire    [3:0] wishbone_interface_writer_sink_sink_payload_error;
+wire    [3:0] wishbone_interface_writer_sink_sink_payload_last_be;
+reg           wishbone_interface_writer_sink_sink_ready = 1'd1;
+wire          wishbone_interface_writer_sink_sink_valid;
+reg           wishbone_interface_writer_slot = 1'd0;
+reg           wishbone_interface_writer_slot_liteethmacsramwriter_next_value = 1'd0;
+reg           wishbone_interface_writer_slot_liteethmacsramwriter_next_value_ce = 1'd0;
+reg           wishbone_interface_writer_slot_re = 1'd0;
+wire          wishbone_interface_writer_slot_status;
+wire          wishbone_interface_writer_slot_we;
+reg           wishbone_interface_writer_stat_fifo_consume = 1'd0;
+wire          wishbone_interface_writer_stat_fifo_do_read;
+wire          wishbone_interface_writer_stat_fifo_fifo_in_first;
+wire          wishbone_interface_writer_stat_fifo_fifo_in_last;
+wire   [10:0] wishbone_interface_writer_stat_fifo_fifo_in_payload_length;
+wire          wishbone_interface_writer_stat_fifo_fifo_in_payload_slot;
+wire          wishbone_interface_writer_stat_fifo_fifo_out_first;
+wire          wishbone_interface_writer_stat_fifo_fifo_out_last;
+wire   [10:0] wishbone_interface_writer_stat_fifo_fifo_out_payload_length;
+wire          wishbone_interface_writer_stat_fifo_fifo_out_payload_slot;
+reg     [1:0] wishbone_interface_writer_stat_fifo_level = 2'd0;
+reg           wishbone_interface_writer_stat_fifo_produce = 1'd0;
+wire          wishbone_interface_writer_stat_fifo_rdport_adr;
+wire   [13:0] wishbone_interface_writer_stat_fifo_rdport_dat_r;
+reg           wishbone_interface_writer_stat_fifo_replace = 1'd0;
+reg           wishbone_interface_writer_stat_fifo_sink_first = 1'd0;
+reg           wishbone_interface_writer_stat_fifo_sink_last = 1'd0;
+reg    [10:0] wishbone_interface_writer_stat_fifo_sink_payload_length = 11'd0;
+reg           wishbone_interface_writer_stat_fifo_sink_payload_slot = 1'd0;
+wire          wishbone_interface_writer_stat_fifo_sink_ready;
+reg           wishbone_interface_writer_stat_fifo_sink_valid = 1'd0;
+wire          wishbone_interface_writer_stat_fifo_source_first;
+wire          wishbone_interface_writer_stat_fifo_source_last;
+wire   [10:0] wishbone_interface_writer_stat_fifo_source_payload_length;
+wire          wishbone_interface_writer_stat_fifo_source_payload_slot;
+wire          wishbone_interface_writer_stat_fifo_source_ready;
+wire          wishbone_interface_writer_stat_fifo_source_valid;
+wire   [13:0] wishbone_interface_writer_stat_fifo_syncfifo_din;
+wire   [13:0] wishbone_interface_writer_stat_fifo_syncfifo_dout;
+wire          wishbone_interface_writer_stat_fifo_syncfifo_re;
+wire          wishbone_interface_writer_stat_fifo_syncfifo_readable;
+wire          wishbone_interface_writer_stat_fifo_syncfifo_we;
+wire          wishbone_interface_writer_stat_fifo_syncfifo_writable;
+reg           wishbone_interface_writer_stat_fifo_wrport_adr = 1'd0;
+wire   [13:0] wishbone_interface_writer_stat_fifo_wrport_dat_r;
+wire   [13:0] wishbone_interface_writer_stat_fifo_wrport_dat_w;
+wire          wishbone_interface_writer_stat_fifo_wrport_we;
+reg           wishbone_interface_writer_status_re = 1'd0;
+wire          wishbone_interface_writer_status_status;
+wire          wishbone_interface_writer_status_we;
+wire   [31:0] wishbone_interface_writer_wr_data;
+reg           wishbone_interface_writer_write = 1'd0;
+(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
+reg           xilinxmultiregimpl00 = 1'd0;
+(* async_reg = "true", dont_touch = "true" *)
+reg           xilinxmultiregimpl01 = 1'd0;
+(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
+reg     [5:0] xilinxmultiregimpl10 = 6'd0;
+(* async_reg = "true", dont_touch = "true" *)
+reg     [5:0] xilinxmultiregimpl11 = 6'd0;
+(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
+reg     [5:0] xilinxmultiregimpl20 = 6'd0;
+(* async_reg = "true", dont_touch = "true" *)
+reg     [5:0] xilinxmultiregimpl21 = 6'd0;
+(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
+reg           xilinxmultiregimpl30 = 1'd0;
+(* async_reg = "true", dont_touch = "true" *)
+reg           xilinxmultiregimpl31 = 1'd0;
+(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
+reg           xilinxmultiregimpl40 = 1'd0;
+(* async_reg = "true", dont_touch = "true" *)
+reg           xilinxmultiregimpl41 = 1'd0;
+(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
+reg     [5:0] xilinxmultiregimpl50 = 6'd0;
+(* async_reg = "true", dont_touch = "true" *)
+reg     [5:0] xilinxmultiregimpl51 = 6'd0;
+(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
+reg     [5:0] xilinxmultiregimpl60 = 6'd0;
+(* async_reg = "true", dont_touch = "true" *)
+reg     [5:0] xilinxmultiregimpl61 = 6'd0;
 
 //------------------------------------------------------------------------------
 // Combinatorial Logic
 //------------------------------------------------------------------------------
 
-assign main_wb_bus_adr = wishbone_adr;
-assign main_wb_bus_dat_w = wishbone_dat_w;
-assign wishbone_dat_r = main_wb_bus_dat_r;
-assign main_wb_bus_sel = wishbone_sel;
-assign main_wb_bus_cyc = wishbone_cyc;
-assign main_wb_bus_stb = wishbone_stb;
-assign wishbone_ack = main_wb_bus_ack;
-assign main_wb_bus_we = wishbone_we;
-assign main_wb_bus_cti = wishbone_cti;
-assign main_wb_bus_bte = wishbone_bte;
-assign wishbone_err = main_wb_bus_err;
-assign interrupt = main_sram167_irq;
-assign main_maccore_bus_error = builder_error;
-assign builder_shared_adr = builder_self0;
-assign builder_shared_dat_w = builder_self1;
-assign builder_shared_sel = builder_self2;
-assign builder_shared_cyc = builder_self3;
-assign builder_shared_stb = builder_self4;
-assign builder_shared_we = builder_self5;
-assign builder_shared_cti = builder_self6;
-assign builder_shared_bte = builder_self7;
-assign main_wb_bus_dat_r = builder_shared_dat_r;
-assign main_wb_bus_ack = (builder_shared_ack & (builder_grant == 1'd0));
-assign main_wb_bus_err = (builder_shared_err & (builder_grant == 1'd0));
-assign builder_request = {main_wb_bus_cyc};
-assign builder_grant = 1'd0;
+assign wb_bus_adr = wishbone_adr;
+assign wb_bus_dat_w = wishbone_dat_w;
+assign wishbone_dat_r = wb_bus_dat_r;
+assign wb_bus_sel = wishbone_sel;
+assign wb_bus_cyc = wishbone_cyc;
+assign wb_bus_stb = wishbone_stb;
+assign wishbone_ack = wb_bus_ack;
+assign wb_bus_we = wishbone_we;
+assign wb_bus_cti = wishbone_cti;
+assign wb_bus_bte = wishbone_bte;
+assign wishbone_err = wb_bus_err;
+assign interrupt = wishbone_interface_ev_irq;
+assign maccore_bus_error = error;
+assign shared_adr = self0;
+assign shared_dat_w = self1;
+assign shared_sel = self2;
+assign shared_cyc = self3;
+assign shared_stb = self4;
+assign shared_we = self5;
+assign shared_cti = self6;
+assign shared_bte = self7;
+assign wb_bus_dat_r = shared_dat_r;
+assign wb_bus_ack = (shared_ack & (grant == 1'd0));
+assign wb_bus_err = (shared_err & (grant == 1'd0));
+assign request = {wb_bus_cyc};
+assign grant = 1'd0;
 always @(*) begin
-    builder_slave_sel <= 2'd0;
-    builder_slave_sel[0] <= (builder_shared_adr[29:11] == 4'd8);
-    builder_slave_sel[1] <= (builder_shared_adr[29:14] == 1'd0);
+    slave_sel <= 3'd0;
+    slave_sel[0] <= (shared_adr[29:10] == 5'd16);
+    slave_sel[1] <= (shared_adr[29:10] == 5'd17);
+    slave_sel[2] <= (shared_adr[29:14] == 1'd0);
 end
-assign main_bus_adr = builder_shared_adr;
-assign main_bus_dat_w = builder_shared_dat_w;
-assign main_bus_sel = builder_shared_sel;
-assign main_bus_stb = builder_shared_stb;
-assign main_bus_we = builder_shared_we;
-assign main_bus_cti = builder_shared_cti;
-assign main_bus_bte = builder_shared_bte;
-assign builder_interface0_adr = builder_shared_adr;
-assign builder_interface0_dat_w = builder_shared_dat_w;
-assign builder_interface0_sel = builder_shared_sel;
-assign builder_interface0_stb = builder_shared_stb;
-assign builder_interface0_we = builder_shared_we;
-assign builder_interface0_cti = builder_shared_cti;
-assign builder_interface0_bte = builder_shared_bte;
-assign main_bus_cyc = (builder_shared_cyc & builder_slave_sel[0]);
-assign builder_interface0_cyc = (builder_shared_cyc & builder_slave_sel[1]);
-assign builder_shared_err = (main_bus_err | builder_interface0_err);
-assign builder_wait = ((builder_shared_stb & builder_shared_cyc) & (~builder_shared_ack));
+assign wishbone_interface_bus_rx_adr = shared_adr;
+assign wishbone_interface_bus_rx_dat_w = shared_dat_w;
+assign wishbone_interface_bus_rx_sel = shared_sel;
+assign wishbone_interface_bus_rx_stb = shared_stb;
+assign wishbone_interface_bus_rx_we = shared_we;
+assign wishbone_interface_bus_rx_cti = shared_cti;
+assign wishbone_interface_bus_rx_bte = shared_bte;
+assign wishbone_interface_bus_tx_adr = shared_adr;
+assign wishbone_interface_bus_tx_dat_w = shared_dat_w;
+assign wishbone_interface_bus_tx_sel = shared_sel;
+assign wishbone_interface_bus_tx_stb = shared_stb;
+assign wishbone_interface_bus_tx_we = shared_we;
+assign wishbone_interface_bus_tx_cti = shared_cti;
+assign wishbone_interface_bus_tx_bte = shared_bte;
+assign interface0_adr = shared_adr;
+assign interface0_dat_w = shared_dat_w;
+assign interface0_sel = shared_sel;
+assign interface0_stb = shared_stb;
+assign interface0_we = shared_we;
+assign interface0_cti = shared_cti;
+assign interface0_bte = shared_bte;
+assign wishbone_interface_bus_rx_cyc = (shared_cyc & slave_sel[0]);
+assign wishbone_interface_bus_tx_cyc = (shared_cyc & slave_sel[1]);
+assign interface0_cyc = (shared_cyc & slave_sel[2]);
+assign shared_err = ((wishbone_interface_bus_rx_err | wishbone_interface_bus_tx_err) | interface0_err);
+assign wait_1 = ((shared_stb & shared_cyc) & (~shared_ack));
 always @(*) begin
-    builder_error <= 1'd0;
-    builder_shared_ack <= 1'd0;
-    builder_shared_dat_r <= 32'd0;
-    builder_shared_ack <= (main_bus_ack | builder_interface0_ack);
-    builder_shared_dat_r <= (({32{builder_slave_sel_r[0]}} & main_bus_dat_r) | ({32{builder_slave_sel_r[1]}} & builder_interface0_dat_r));
-    if (builder_done) begin
-        builder_shared_dat_r <= 32'd4294967295;
-        builder_shared_ack <= 1'd1;
-        builder_error <= 1'd1;
+    error <= 1'd0;
+    shared_ack <= 1'd0;
+    shared_dat_r <= 32'd0;
+    shared_ack <= ((wishbone_interface_bus_rx_ack | wishbone_interface_bus_tx_ack) | interface0_ack);
+    shared_dat_r <= ((({32{slave_sel_r[0]}} & wishbone_interface_bus_rx_dat_r) | ({32{slave_sel_r[1]}} & wishbone_interface_bus_tx_dat_r)) | ({32{slave_sel_r[2]}} & interface0_dat_r));
+    if (done) begin
+        shared_dat_r <= 32'd4294967295;
+        shared_ack <= 1'd1;
+        error <= 1'd1;
     end
 end
-assign builder_done = (builder_count == 1'd0);
-assign main_maccore_bus_errors_status = main_maccore_bus_errors;
+assign done = (count == 1'd0);
+assign maccore_bus_errors_status = maccore_bus_errors;
 assign sys_clk = sys_clock;
 assign por_clk = sys_clock;
-assign sys_rst = main_maccore_int_rst;
+assign sys_rst = maccore_int_rst;
 assign eth_rx_clk = mii_clocks_rx;
 assign eth_tx_clk = mii_clocks_tx;
-assign main_maccore_crg_reset0 = (main_maccore_crg_reset_storage | main_maccore_crg_reset1);
-assign mii_rst_n = (~main_maccore_crg_reset0);
-assign main_maccore_crg_counter_done = (main_maccore_crg_counter == 9'd256);
-assign main_maccore_crg_counter_ce = (~main_maccore_crg_counter_done);
-assign main_maccore_crg_reset1 = (~main_maccore_crg_counter_done);
-assign main_maccore_liteethphymiitx_converter_sink_valid = main_maccore_liteethphymiitx_sink_valid;
-assign main_maccore_liteethphymiitx_converter_sink_payload_data = main_maccore_liteethphymiitx_sink_payload_data;
-assign main_maccore_liteethphymiitx_sink_ready = main_maccore_liteethphymiitx_converter_sink_ready;
-assign main_maccore_liteethphymiitx_source_source_ready = 1'd1;
-assign main_maccore_liteethphymiitx_source_source_valid = main_maccore_liteethphymiitx_converter_source_valid;
-assign main_maccore_liteethphymiitx_converter_source_ready = main_maccore_liteethphymiitx_source_source_ready;
-assign main_maccore_liteethphymiitx_source_source_first = main_maccore_liteethphymiitx_converter_source_first;
-assign main_maccore_liteethphymiitx_source_source_last = main_maccore_liteethphymiitx_converter_source_last;
-assign main_maccore_liteethphymiitx_source_source_payload_data = main_maccore_liteethphymiitx_converter_source_payload_data;
-assign main_maccore_liteethphymiitx_converter_first = (main_maccore_liteethphymiitx_converter_mux == 1'd0);
-assign main_maccore_liteethphymiitx_converter_last = (main_maccore_liteethphymiitx_converter_mux == 1'd1);
-assign main_maccore_liteethphymiitx_converter_source_valid = main_maccore_liteethphymiitx_converter_sink_valid;
-assign main_maccore_liteethphymiitx_converter_source_first = (main_maccore_liteethphymiitx_converter_sink_first & main_maccore_liteethphymiitx_converter_first);
-assign main_maccore_liteethphymiitx_converter_source_last = (main_maccore_liteethphymiitx_converter_sink_last & main_maccore_liteethphymiitx_converter_last);
-assign main_maccore_liteethphymiitx_converter_sink_ready = (main_maccore_liteethphymiitx_converter_last & main_maccore_liteethphymiitx_converter_source_ready);
+assign maccore_crg_reset0 = (maccore_crg_reset_storage | maccore_crg_reset1);
+assign mii_rst_n = (~maccore_crg_reset0);
+assign maccore_crg_counter_done = (maccore_crg_counter == 9'd256);
+assign maccore_crg_counter_ce = (~maccore_crg_counter_done);
+assign maccore_crg_reset1 = (~maccore_crg_counter_done);
+assign maccore_liteethphymiitx_converter_sink_valid = maccore_liteethphymiitx_sink_valid;
+assign maccore_liteethphymiitx_converter_sink_payload_data = maccore_liteethphymiitx_sink_payload_data;
+assign maccore_liteethphymiitx_sink_ready = maccore_liteethphymiitx_converter_sink_ready;
+assign maccore_liteethphymiitx_source_source_ready = 1'd1;
+assign maccore_liteethphymiitx_source_source_valid = maccore_liteethphymiitx_converter_source_valid;
+assign maccore_liteethphymiitx_converter_source_ready = maccore_liteethphymiitx_source_source_ready;
+assign maccore_liteethphymiitx_source_source_first = maccore_liteethphymiitx_converter_source_first;
+assign maccore_liteethphymiitx_source_source_last = maccore_liteethphymiitx_converter_source_last;
+assign maccore_liteethphymiitx_source_source_payload_data = maccore_liteethphymiitx_converter_source_payload_data;
+assign maccore_liteethphymiitx_converter_first = (maccore_liteethphymiitx_converter_mux == 1'd0);
+assign maccore_liteethphymiitx_converter_last = (maccore_liteethphymiitx_converter_mux == 1'd1);
+assign maccore_liteethphymiitx_converter_source_valid = maccore_liteethphymiitx_converter_sink_valid;
+assign maccore_liteethphymiitx_converter_source_first = (maccore_liteethphymiitx_converter_sink_first & maccore_liteethphymiitx_converter_first);
+assign maccore_liteethphymiitx_converter_source_last = (maccore_liteethphymiitx_converter_sink_last & maccore_liteethphymiitx_converter_last);
+assign maccore_liteethphymiitx_converter_sink_ready = (maccore_liteethphymiitx_converter_last & maccore_liteethphymiitx_converter_source_ready);
 always @(*) begin
-    main_maccore_liteethphymiitx_converter_source_payload_data <= 4'd0;
-    case (main_maccore_liteethphymiitx_converter_mux)
+    maccore_liteethphymiitx_converter_source_payload_data <= 4'd0;
+    case (maccore_liteethphymiitx_converter_mux)
         1'd0: begin
-            main_maccore_liteethphymiitx_converter_source_payload_data <= main_maccore_liteethphymiitx_converter_sink_payload_data[3:0];
+            maccore_liteethphymiitx_converter_source_payload_data <= maccore_liteethphymiitx_converter_sink_payload_data[3:0];
         end
         default: begin
-            main_maccore_liteethphymiitx_converter_source_payload_data <= main_maccore_liteethphymiitx_converter_sink_payload_data[7:4];
+            maccore_liteethphymiitx_converter_source_payload_data <= maccore_liteethphymiitx_converter_sink_payload_data[7:4];
         end
     endcase
 end
-assign main_maccore_liteethphymiitx_converter_source_payload_valid_token_count = main_maccore_liteethphymiitx_converter_last;
-assign main_maccore_liteethphymiirx_converter_sink_last = (~mii_rx_dv);
-assign main_maccore_liteethphymiirx_source_valid = main_maccore_liteethphymiirx_source_source_valid;
-assign main_maccore_liteethphymiirx_source_source_ready = main_maccore_liteethphymiirx_source_ready;
-assign main_maccore_liteethphymiirx_source_first = main_maccore_liteethphymiirx_source_source_first;
-assign main_maccore_liteethphymiirx_source_last = main_maccore_liteethphymiirx_source_source_last;
-assign main_maccore_liteethphymiirx_source_payload_data = main_maccore_liteethphymiirx_source_source_payload_data;
-assign main_maccore_liteethphymiirx_source_source_valid = main_maccore_liteethphymiirx_converter_source_valid;
-assign main_maccore_liteethphymiirx_converter_source_ready = main_maccore_liteethphymiirx_source_source_ready;
-assign main_maccore_liteethphymiirx_source_source_first = main_maccore_liteethphymiirx_converter_source_first;
-assign main_maccore_liteethphymiirx_source_source_last = main_maccore_liteethphymiirx_converter_source_last;
-assign main_maccore_liteethphymiirx_source_source_payload_data = main_maccore_liteethphymiirx_converter_source_payload_data;
-assign main_maccore_liteethphymiirx_converter_sink_ready = ((~main_maccore_liteethphymiirx_converter_strobe_all) | main_maccore_liteethphymiirx_converter_source_ready);
-assign main_maccore_liteethphymiirx_converter_source_valid = main_maccore_liteethphymiirx_converter_strobe_all;
-assign main_maccore_liteethphymiirx_converter_load_part = (main_maccore_liteethphymiirx_converter_sink_valid & main_maccore_liteethphymiirx_converter_sink_ready);
-assign mii_mdc = main_maccore__w_storage[0];
-assign main_maccore_data_oe = main_maccore__w_storage[1];
-assign main_maccore_data_w = main_maccore__w_storage[2];
-assign main_sink_valid = main_source_source_valid;
-assign main_source_source_ready = main_sink_ready;
-assign main_sink_first = main_source_source_first;
-assign main_sink_last = main_source_source_last;
-assign main_sink_payload_data = main_source_source_payload_data;
-assign main_sink_payload_last_be = main_source_source_payload_last_be;
-assign main_sink_payload_error = main_source_source_payload_error;
-assign main_sink_sink_valid = main_source_valid;
-assign main_source_ready = main_sink_sink_ready;
-assign main_sink_sink_first = main_source_first;
-assign main_sink_sink_last = main_source_last;
-assign main_sink_sink_payload_data = main_source_payload_data;
-assign main_sink_sink_payload_last_be = main_source_payload_last_be;
-assign main_sink_sink_payload_error = main_source_payload_error;
-assign main_tx_cdc_cdc_sink_valid = main_tx_cdc_sink_sink_valid;
-assign main_tx_cdc_sink_sink_ready = main_tx_cdc_cdc_sink_ready;
-assign main_tx_cdc_cdc_sink_first = main_tx_cdc_sink_sink_first;
-assign main_tx_cdc_cdc_sink_last = main_tx_cdc_sink_sink_last;
-assign main_tx_cdc_cdc_sink_payload_data = main_tx_cdc_sink_sink_payload_data;
-assign main_tx_cdc_cdc_sink_payload_last_be = main_tx_cdc_sink_sink_payload_last_be;
-assign main_tx_cdc_cdc_sink_payload_error = main_tx_cdc_sink_sink_payload_error;
-assign main_tx_cdc_source_source_valid = main_tx_cdc_cdc_source_valid;
-assign main_tx_cdc_cdc_source_ready = main_tx_cdc_source_source_ready;
-assign main_tx_cdc_source_source_first = main_tx_cdc_cdc_source_first;
-assign main_tx_cdc_source_source_last = main_tx_cdc_cdc_source_last;
-assign main_tx_cdc_source_source_payload_data = main_tx_cdc_cdc_source_payload_data;
-assign main_tx_cdc_source_source_payload_last_be = main_tx_cdc_cdc_source_payload_last_be;
-assign main_tx_cdc_source_source_payload_error = main_tx_cdc_cdc_source_payload_error;
-assign main_tx_cdc_cdc_asyncfifo_din = {main_tx_cdc_cdc_fifo_in_last, main_tx_cdc_cdc_fifo_in_first, main_tx_cdc_cdc_fifo_in_payload_error, main_tx_cdc_cdc_fifo_in_payload_last_be, main_tx_cdc_cdc_fifo_in_payload_data};
-assign {main_tx_cdc_cdc_fifo_out_last, main_tx_cdc_cdc_fifo_out_first, main_tx_cdc_cdc_fifo_out_payload_error, main_tx_cdc_cdc_fifo_out_payload_last_be, main_tx_cdc_cdc_fifo_out_payload_data} = main_tx_cdc_cdc_asyncfifo_dout;
-assign main_tx_cdc_cdc_sink_ready = main_tx_cdc_cdc_asyncfifo_writable;
-assign main_tx_cdc_cdc_asyncfifo_we = main_tx_cdc_cdc_sink_valid;
-assign main_tx_cdc_cdc_fifo_in_first = main_tx_cdc_cdc_sink_first;
-assign main_tx_cdc_cdc_fifo_in_last = main_tx_cdc_cdc_sink_last;
-assign main_tx_cdc_cdc_fifo_in_payload_data = main_tx_cdc_cdc_sink_payload_data;
-assign main_tx_cdc_cdc_fifo_in_payload_last_be = main_tx_cdc_cdc_sink_payload_last_be;
-assign main_tx_cdc_cdc_fifo_in_payload_error = main_tx_cdc_cdc_sink_payload_error;
-assign main_tx_cdc_cdc_source_valid = main_tx_cdc_cdc_asyncfifo_readable;
-assign main_tx_cdc_cdc_source_first = main_tx_cdc_cdc_fifo_out_first;
-assign main_tx_cdc_cdc_source_last = main_tx_cdc_cdc_fifo_out_last;
-assign main_tx_cdc_cdc_source_payload_data = main_tx_cdc_cdc_fifo_out_payload_data;
-assign main_tx_cdc_cdc_source_payload_last_be = main_tx_cdc_cdc_fifo_out_payload_last_be;
-assign main_tx_cdc_cdc_source_payload_error = main_tx_cdc_cdc_fifo_out_payload_error;
-assign main_tx_cdc_cdc_asyncfifo_re = main_tx_cdc_cdc_source_ready;
-assign main_tx_cdc_cdc_graycounter0_ce = (main_tx_cdc_cdc_asyncfifo_writable & main_tx_cdc_cdc_asyncfifo_we);
-assign main_tx_cdc_cdc_graycounter1_ce = (main_tx_cdc_cdc_asyncfifo_readable & main_tx_cdc_cdc_asyncfifo_re);
-assign main_tx_cdc_cdc_asyncfifo_writable = (((main_tx_cdc_cdc_graycounter0_q[5] == main_tx_cdc_cdc_consume_wdomain[5]) | (main_tx_cdc_cdc_graycounter0_q[4] == main_tx_cdc_cdc_consume_wdomain[4])) | (main_tx_cdc_cdc_graycounter0_q[3:0] != main_tx_cdc_cdc_consume_wdomain[3:0]));
-assign main_tx_cdc_cdc_asyncfifo_readable = (main_tx_cdc_cdc_graycounter1_q != main_tx_cdc_cdc_produce_rdomain);
-assign main_tx_cdc_cdc_wrport_adr = main_tx_cdc_cdc_graycounter0_q_binary[4:0];
-assign main_tx_cdc_cdc_wrport_dat_w = main_tx_cdc_cdc_asyncfifo_din;
-assign main_tx_cdc_cdc_wrport_we = main_tx_cdc_cdc_graycounter0_ce;
-assign main_tx_cdc_cdc_rdport_adr = main_tx_cdc_cdc_graycounter1_q_next_binary[4:0];
-assign main_tx_cdc_cdc_asyncfifo_dout = main_tx_cdc_cdc_rdport_dat_r;
+assign maccore_liteethphymiitx_converter_source_payload_valid_token_count = maccore_liteethphymiitx_converter_last;
+assign maccore_liteethphymiirx_converter_sink_last = (~mii_rx_dv);
+assign maccore_liteethphymiirx_source_valid = maccore_liteethphymiirx_source_source_valid;
+assign maccore_liteethphymiirx_source_source_ready = maccore_liteethphymiirx_source_ready;
+assign maccore_liteethphymiirx_source_first = maccore_liteethphymiirx_source_source_first;
+assign maccore_liteethphymiirx_source_last = maccore_liteethphymiirx_source_source_last;
+assign maccore_liteethphymiirx_source_payload_data = maccore_liteethphymiirx_source_source_payload_data;
+assign maccore_liteethphymiirx_source_source_valid = maccore_liteethphymiirx_converter_source_valid;
+assign maccore_liteethphymiirx_converter_source_ready = maccore_liteethphymiirx_source_source_ready;
+assign maccore_liteethphymiirx_source_source_first = maccore_liteethphymiirx_converter_source_first;
+assign maccore_liteethphymiirx_source_source_last = maccore_liteethphymiirx_converter_source_last;
+assign maccore_liteethphymiirx_source_source_payload_data = maccore_liteethphymiirx_converter_source_payload_data;
+assign maccore_liteethphymiirx_converter_sink_ready = ((~maccore_liteethphymiirx_converter_strobe_all) | maccore_liteethphymiirx_converter_source_ready);
+assign maccore_liteethphymiirx_converter_source_valid = maccore_liteethphymiirx_converter_strobe_all;
+assign maccore_liteethphymiirx_converter_load_part = (maccore_liteethphymiirx_converter_sink_valid & maccore_liteethphymiirx_converter_sink_ready);
+assign mii_mdc = maccore__w_storage[0];
+assign maccore_data_oe = maccore__w_storage[1];
+assign maccore_data_w = maccore__w_storage[2];
+assign core_sink_valid = wishbone_interface_source_valid;
+assign wishbone_interface_source_ready = core_sink_ready;
+assign core_sink_first = wishbone_interface_source_first;
+assign core_sink_last = wishbone_interface_source_last;
+assign core_sink_payload_data = wishbone_interface_source_payload_data;
+assign core_sink_payload_last_be = wishbone_interface_source_payload_last_be;
+assign core_sink_payload_error = wishbone_interface_source_payload_error;
+assign wishbone_interface_sink_valid = core_source_valid;
+assign core_source_ready = wishbone_interface_sink_ready;
+assign wishbone_interface_sink_first = core_source_first;
+assign wishbone_interface_sink_last = core_source_last;
+assign wishbone_interface_sink_payload_data = core_source_payload_data;
+assign wishbone_interface_sink_payload_last_be = core_source_payload_last_be;
+assign wishbone_interface_sink_payload_error = core_source_payload_error;
+assign core_tx_cdc_cdc_sink_valid = core_tx_cdc_sink_sink_valid;
+assign core_tx_cdc_sink_sink_ready = core_tx_cdc_cdc_sink_ready;
+assign core_tx_cdc_cdc_sink_first = core_tx_cdc_sink_sink_first;
+assign core_tx_cdc_cdc_sink_last = core_tx_cdc_sink_sink_last;
+assign core_tx_cdc_cdc_sink_payload_data = core_tx_cdc_sink_sink_payload_data;
+assign core_tx_cdc_cdc_sink_payload_last_be = core_tx_cdc_sink_sink_payload_last_be;
+assign core_tx_cdc_cdc_sink_payload_error = core_tx_cdc_sink_sink_payload_error;
+assign core_tx_cdc_source_source_valid = core_tx_cdc_cdc_source_valid;
+assign core_tx_cdc_cdc_source_ready = core_tx_cdc_source_source_ready;
+assign core_tx_cdc_source_source_first = core_tx_cdc_cdc_source_first;
+assign core_tx_cdc_source_source_last = core_tx_cdc_cdc_source_last;
+assign core_tx_cdc_source_source_payload_data = core_tx_cdc_cdc_source_payload_data;
+assign core_tx_cdc_source_source_payload_last_be = core_tx_cdc_cdc_source_payload_last_be;
+assign core_tx_cdc_source_source_payload_error = core_tx_cdc_cdc_source_payload_error;
+assign core_tx_cdc_cdc_asyncfifo_din = {core_tx_cdc_cdc_fifo_in_last, core_tx_cdc_cdc_fifo_in_first, core_tx_cdc_cdc_fifo_in_payload_error, core_tx_cdc_cdc_fifo_in_payload_last_be, core_tx_cdc_cdc_fifo_in_payload_data};
+assign {core_tx_cdc_cdc_fifo_out_last, core_tx_cdc_cdc_fifo_out_first, core_tx_cdc_cdc_fifo_out_payload_error, core_tx_cdc_cdc_fifo_out_payload_last_be, core_tx_cdc_cdc_fifo_out_payload_data} = core_tx_cdc_cdc_asyncfifo_dout;
+assign core_tx_cdc_cdc_sink_ready = core_tx_cdc_cdc_asyncfifo_writable;
+assign core_tx_cdc_cdc_asyncfifo_we = core_tx_cdc_cdc_sink_valid;
+assign core_tx_cdc_cdc_fifo_in_first = core_tx_cdc_cdc_sink_first;
+assign core_tx_cdc_cdc_fifo_in_last = core_tx_cdc_cdc_sink_last;
+assign core_tx_cdc_cdc_fifo_in_payload_data = core_tx_cdc_cdc_sink_payload_data;
+assign core_tx_cdc_cdc_fifo_in_payload_last_be = core_tx_cdc_cdc_sink_payload_last_be;
+assign core_tx_cdc_cdc_fifo_in_payload_error = core_tx_cdc_cdc_sink_payload_error;
+assign core_tx_cdc_cdc_source_valid = core_tx_cdc_cdc_asyncfifo_readable;
+assign core_tx_cdc_cdc_source_first = core_tx_cdc_cdc_fifo_out_first;
+assign core_tx_cdc_cdc_source_last = core_tx_cdc_cdc_fifo_out_last;
+assign core_tx_cdc_cdc_source_payload_data = core_tx_cdc_cdc_fifo_out_payload_data;
+assign core_tx_cdc_cdc_source_payload_last_be = core_tx_cdc_cdc_fifo_out_payload_last_be;
+assign core_tx_cdc_cdc_source_payload_error = core_tx_cdc_cdc_fifo_out_payload_error;
+assign core_tx_cdc_cdc_asyncfifo_re = core_tx_cdc_cdc_source_ready;
+assign core_tx_cdc_cdc_graycounter0_ce = (core_tx_cdc_cdc_asyncfifo_writable & core_tx_cdc_cdc_asyncfifo_we);
+assign core_tx_cdc_cdc_graycounter1_ce = (core_tx_cdc_cdc_asyncfifo_readable & core_tx_cdc_cdc_asyncfifo_re);
+assign core_tx_cdc_cdc_asyncfifo_writable = (((core_tx_cdc_cdc_graycounter0_q[5] == core_tx_cdc_cdc_consume_wdomain[5]) | (core_tx_cdc_cdc_graycounter0_q[4] == core_tx_cdc_cdc_consume_wdomain[4])) | (core_tx_cdc_cdc_graycounter0_q[3:0] != core_tx_cdc_cdc_consume_wdomain[3:0]));
+assign core_tx_cdc_cdc_asyncfifo_readable = (core_tx_cdc_cdc_graycounter1_q != core_tx_cdc_cdc_produce_rdomain);
+assign core_tx_cdc_cdc_wrport_adr = core_tx_cdc_cdc_graycounter0_q_binary[4:0];
+assign core_tx_cdc_cdc_wrport_dat_w = core_tx_cdc_cdc_asyncfifo_din;
+assign core_tx_cdc_cdc_wrport_we = core_tx_cdc_cdc_graycounter0_ce;
+assign core_tx_cdc_cdc_rdport_adr = core_tx_cdc_cdc_graycounter1_q_next_binary[4:0];
+assign core_tx_cdc_cdc_asyncfifo_dout = core_tx_cdc_cdc_rdport_dat_r;
 always @(*) begin
-    main_tx_cdc_cdc_graycounter0_q_next_binary <= 6'd0;
-    if (main_tx_cdc_cdc_graycounter0_ce) begin
-        main_tx_cdc_cdc_graycounter0_q_next_binary <= (main_tx_cdc_cdc_graycounter0_q_binary + 1'd1);
+    core_tx_cdc_cdc_graycounter0_q_next_binary <= 6'd0;
+    if (core_tx_cdc_cdc_graycounter0_ce) begin
+        core_tx_cdc_cdc_graycounter0_q_next_binary <= (core_tx_cdc_cdc_graycounter0_q_binary + 1'd1);
     end else begin
-        main_tx_cdc_cdc_graycounter0_q_next_binary <= main_tx_cdc_cdc_graycounter0_q_binary;
+        core_tx_cdc_cdc_graycounter0_q_next_binary <= core_tx_cdc_cdc_graycounter0_q_binary;
     end
 end
-assign main_tx_cdc_cdc_graycounter0_q_next = (main_tx_cdc_cdc_graycounter0_q_next_binary ^ main_tx_cdc_cdc_graycounter0_q_next_binary[5:1]);
+assign core_tx_cdc_cdc_graycounter0_q_next = (core_tx_cdc_cdc_graycounter0_q_next_binary ^ core_tx_cdc_cdc_graycounter0_q_next_binary[5:1]);
 always @(*) begin
-    main_tx_cdc_cdc_graycounter1_q_next_binary <= 6'd0;
-    if (main_tx_cdc_cdc_graycounter1_ce) begin
-        main_tx_cdc_cdc_graycounter1_q_next_binary <= (main_tx_cdc_cdc_graycounter1_q_binary + 1'd1);
+    core_tx_cdc_cdc_graycounter1_q_next_binary <= 6'd0;
+    if (core_tx_cdc_cdc_graycounter1_ce) begin
+        core_tx_cdc_cdc_graycounter1_q_next_binary <= (core_tx_cdc_cdc_graycounter1_q_binary + 1'd1);
     end else begin
-        main_tx_cdc_cdc_graycounter1_q_next_binary <= main_tx_cdc_cdc_graycounter1_q_binary;
+        core_tx_cdc_cdc_graycounter1_q_next_binary <= core_tx_cdc_cdc_graycounter1_q_binary;
     end
 end
-assign main_tx_cdc_cdc_graycounter1_q_next = (main_tx_cdc_cdc_graycounter1_q_next_binary ^ main_tx_cdc_cdc_graycounter1_q_next_binary[5:1]);
-assign main_tx_converter_converter_sink_valid = main_tx_converter_sink_valid;
-assign main_tx_converter_converter_sink_first = main_tx_converter_sink_first;
-assign main_tx_converter_converter_sink_last = main_tx_converter_sink_last;
-assign main_tx_converter_sink_ready = main_tx_converter_converter_sink_ready;
+assign core_tx_cdc_cdc_graycounter1_q_next = (core_tx_cdc_cdc_graycounter1_q_next_binary ^ core_tx_cdc_cdc_graycounter1_q_next_binary[5:1]);
+assign core_tx_converter_converter_sink_valid = core_tx_converter_sink_valid;
+assign core_tx_converter_converter_sink_first = core_tx_converter_sink_first;
+assign core_tx_converter_converter_sink_last = core_tx_converter_sink_last;
+assign core_tx_converter_sink_ready = core_tx_converter_converter_sink_ready;
 always @(*) begin
-    main_tx_converter_converter_sink_payload_data <= 40'd0;
-    main_tx_converter_converter_sink_payload_data[7:0] <= main_tx_converter_sink_payload_data[7:0];
-    main_tx_converter_converter_sink_payload_data[8] <= main_tx_converter_sink_payload_last_be[0];
-    main_tx_converter_converter_sink_payload_data[9] <= main_tx_converter_sink_payload_error[0];
-    main_tx_converter_converter_sink_payload_data[17:10] <= main_tx_converter_sink_payload_data[15:8];
-    main_tx_converter_converter_sink_payload_data[18] <= main_tx_converter_sink_payload_last_be[1];
-    main_tx_converter_converter_sink_payload_data[19] <= main_tx_converter_sink_payload_error[1];
-    main_tx_converter_converter_sink_payload_data[27:20] <= main_tx_converter_sink_payload_data[23:16];
-    main_tx_converter_converter_sink_payload_data[28] <= main_tx_converter_sink_payload_last_be[2];
-    main_tx_converter_converter_sink_payload_data[29] <= main_tx_converter_sink_payload_error[2];
-    main_tx_converter_converter_sink_payload_data[37:30] <= main_tx_converter_sink_payload_data[31:24];
-    main_tx_converter_converter_sink_payload_data[38] <= main_tx_converter_sink_payload_last_be[3];
-    main_tx_converter_converter_sink_payload_data[39] <= main_tx_converter_sink_payload_error[3];
+    core_tx_converter_converter_sink_payload_data <= 40'd0;
+    core_tx_converter_converter_sink_payload_data[7:0] <= core_tx_converter_sink_payload_data[7:0];
+    core_tx_converter_converter_sink_payload_data[8] <= core_tx_converter_sink_payload_last_be[0];
+    core_tx_converter_converter_sink_payload_data[9] <= core_tx_converter_sink_payload_error[0];
+    core_tx_converter_converter_sink_payload_data[17:10] <= core_tx_converter_sink_payload_data[15:8];
+    core_tx_converter_converter_sink_payload_data[18] <= core_tx_converter_sink_payload_last_be[1];
+    core_tx_converter_converter_sink_payload_data[19] <= core_tx_converter_sink_payload_error[1];
+    core_tx_converter_converter_sink_payload_data[27:20] <= core_tx_converter_sink_payload_data[23:16];
+    core_tx_converter_converter_sink_payload_data[28] <= core_tx_converter_sink_payload_last_be[2];
+    core_tx_converter_converter_sink_payload_data[29] <= core_tx_converter_sink_payload_error[2];
+    core_tx_converter_converter_sink_payload_data[37:30] <= core_tx_converter_sink_payload_data[31:24];
+    core_tx_converter_converter_sink_payload_data[38] <= core_tx_converter_sink_payload_last_be[3];
+    core_tx_converter_converter_sink_payload_data[39] <= core_tx_converter_sink_payload_error[3];
 end
-assign main_tx_converter_source_valid = main_tx_converter_source_source_valid;
-assign main_tx_converter_source_first = main_tx_converter_source_source_first;
-assign main_tx_converter_source_last = main_tx_converter_source_source_last;
-assign main_tx_converter_source_source_ready = main_tx_converter_source_ready;
-assign {main_tx_converter_source_payload_error, main_tx_converter_source_payload_last_be, main_tx_converter_source_payload_data} = main_tx_converter_source_source_payload_data;
-assign main_tx_converter_source_source_valid = main_tx_converter_converter_source_valid;
-assign main_tx_converter_converter_source_ready = main_tx_converter_source_source_ready;
-assign main_tx_converter_source_source_first = main_tx_converter_converter_source_first;
-assign main_tx_converter_source_source_last = main_tx_converter_converter_source_last;
-assign main_tx_converter_source_source_payload_data = main_tx_converter_converter_source_payload_data;
-assign main_tx_converter_converter_first = (main_tx_converter_converter_mux == 1'd0);
-assign main_tx_converter_converter_last = (main_tx_converter_converter_mux == 2'd3);
-assign main_tx_converter_converter_source_valid = main_tx_converter_converter_sink_valid;
-assign main_tx_converter_converter_source_first = (main_tx_converter_converter_sink_first & main_tx_converter_converter_first);
-assign main_tx_converter_converter_source_last = (main_tx_converter_converter_sink_last & main_tx_converter_converter_last);
-assign main_tx_converter_converter_sink_ready = (main_tx_converter_converter_last & main_tx_converter_converter_source_ready);
+assign core_tx_converter_source_valid = core_tx_converter_source_source_valid;
+assign core_tx_converter_source_first = core_tx_converter_source_source_first;
+assign core_tx_converter_source_last = core_tx_converter_source_source_last;
+assign core_tx_converter_source_source_ready = core_tx_converter_source_ready;
+assign {core_tx_converter_source_payload_error, core_tx_converter_source_payload_last_be, core_tx_converter_source_payload_data} = core_tx_converter_source_source_payload_data;
+assign core_tx_converter_source_source_valid = core_tx_converter_converter_source_valid;
+assign core_tx_converter_converter_source_ready = core_tx_converter_source_source_ready;
+assign core_tx_converter_source_source_first = core_tx_converter_converter_source_first;
+assign core_tx_converter_source_source_last = core_tx_converter_converter_source_last;
+assign core_tx_converter_source_source_payload_data = core_tx_converter_converter_source_payload_data;
+assign core_tx_converter_converter_first = (core_tx_converter_converter_mux == 1'd0);
+assign core_tx_converter_converter_last = (core_tx_converter_converter_mux == 2'd3);
+assign core_tx_converter_converter_source_valid = core_tx_converter_converter_sink_valid;
+assign core_tx_converter_converter_source_first = (core_tx_converter_converter_sink_first & core_tx_converter_converter_first);
+assign core_tx_converter_converter_source_last = (core_tx_converter_converter_sink_last & core_tx_converter_converter_last);
+assign core_tx_converter_converter_sink_ready = (core_tx_converter_converter_last & core_tx_converter_converter_source_ready);
 always @(*) begin
-    main_tx_converter_converter_source_payload_data <= 10'd0;
-    case (main_tx_converter_converter_mux)
+    core_tx_converter_converter_source_payload_data <= 10'd0;
+    case (core_tx_converter_converter_mux)
         1'd0: begin
-            main_tx_converter_converter_source_payload_data <= main_tx_converter_converter_sink_payload_data[9:0];
+            core_tx_converter_converter_source_payload_data <= core_tx_converter_converter_sink_payload_data[9:0];
         end
         1'd1: begin
-            main_tx_converter_converter_source_payload_data <= main_tx_converter_converter_sink_payload_data[19:10];
+            core_tx_converter_converter_source_payload_data <= core_tx_converter_converter_sink_payload_data[19:10];
         end
         2'd2: begin
-            main_tx_converter_converter_source_payload_data <= main_tx_converter_converter_sink_payload_data[29:20];
+            core_tx_converter_converter_source_payload_data <= core_tx_converter_converter_sink_payload_data[29:20];
         end
         default: begin
-            main_tx_converter_converter_source_payload_data <= main_tx_converter_converter_sink_payload_data[39:30];
+            core_tx_converter_converter_source_payload_data <= core_tx_converter_converter_sink_payload_data[39:30];
         end
     endcase
 end
-assign main_tx_converter_converter_source_payload_valid_token_count = main_tx_converter_converter_last;
+assign core_tx_converter_converter_source_payload_valid_token_count = core_tx_converter_converter_last;
+assign core_tx_last_be_last_handler_sink_valid = core_tx_last_be_sink_sink_valid;
+assign core_tx_last_be_sink_sink_ready = core_tx_last_be_last_handler_sink_ready;
+assign core_tx_last_be_last_handler_sink_first = core_tx_last_be_sink_sink_first;
+assign core_tx_last_be_last_handler_sink_last = core_tx_last_be_sink_sink_last;
+assign core_tx_last_be_last_handler_sink_payload_data = core_tx_last_be_sink_sink_payload_data;
+assign core_tx_last_be_last_handler_sink_payload_last_be = core_tx_last_be_sink_sink_payload_last_be;
+assign core_tx_last_be_last_handler_sink_payload_error = core_tx_last_be_sink_sink_payload_error;
+assign core_tx_last_be_source_source_valid = core_tx_last_be_last_handler_source_valid;
+assign core_tx_last_be_last_handler_source_ready = core_tx_last_be_source_source_ready;
+assign core_tx_last_be_source_source_first = core_tx_last_be_last_handler_source_first;
+assign core_tx_last_be_source_source_last = core_tx_last_be_last_handler_source_last;
+assign core_tx_last_be_source_source_payload_data = core_tx_last_be_last_handler_source_payload_data;
+assign core_tx_last_be_source_source_payload_last_be = core_tx_last_be_last_handler_source_payload_last_be;
+assign core_tx_last_be_source_source_payload_error = core_tx_last_be_last_handler_source_payload_error;
 always @(*) begin
-    builder_txdatapath_liteethmactxlastbe_next_state <= 1'd0;
-    main_tx_last_be_sink_ready <= 1'd0;
-    main_tx_last_be_source_first <= 1'd0;
-    main_tx_last_be_source_last <= 1'd0;
-    main_tx_last_be_source_payload_data <= 8'd0;
-    main_tx_last_be_source_payload_error <= 1'd0;
-    main_tx_last_be_source_payload_last_be <= 1'd0;
-    main_tx_last_be_source_valid <= 1'd0;
-    builder_txdatapath_liteethmactxlastbe_next_state <= builder_txdatapath_liteethmactxlastbe_state;
-    case (builder_txdatapath_liteethmactxlastbe_state)
+    core_tx_last_be_last_handler_sink_ready <= 1'd0;
+    core_tx_last_be_last_handler_source_first <= 1'd0;
+    core_tx_last_be_last_handler_source_last <= 1'd0;
+    core_tx_last_be_last_handler_source_payload_data <= 8'd0;
+    core_tx_last_be_last_handler_source_payload_error <= 1'd0;
+    core_tx_last_be_last_handler_source_payload_last_be <= 1'd0;
+    core_tx_last_be_last_handler_source_valid <= 1'd0;
+    txdatapath_liteethmactxlastbe_next_state <= 1'd0;
+    txdatapath_liteethmactxlastbe_next_state <= txdatapath_liteethmactxlastbe_state;
+    case (txdatapath_liteethmactxlastbe_state)
         1'd1: begin
-            main_tx_last_be_sink_ready <= 1'd1;
-            if ((main_tx_last_be_sink_valid & main_tx_last_be_sink_last)) begin
-                builder_txdatapath_liteethmactxlastbe_next_state <= 1'd0;
+            core_tx_last_be_last_handler_sink_ready <= 1'd1;
+            if ((core_tx_last_be_last_handler_sink_valid & core_tx_last_be_last_handler_sink_last)) begin
+                txdatapath_liteethmactxlastbe_next_state <= 1'd0;
             end
         end
         default: begin
-            main_tx_last_be_source_valid <= main_tx_last_be_sink_valid;
-            main_tx_last_be_sink_ready <= main_tx_last_be_source_ready;
-            main_tx_last_be_source_first <= main_tx_last_be_sink_first;
-            main_tx_last_be_source_last <= main_tx_last_be_sink_last;
-            main_tx_last_be_source_payload_data <= main_tx_last_be_sink_payload_data;
-            main_tx_last_be_source_payload_last_be <= main_tx_last_be_sink_payload_last_be;
-            main_tx_last_be_source_payload_error <= main_tx_last_be_sink_payload_error;
-            main_tx_last_be_source_last <= (main_tx_last_be_sink_payload_last_be != 1'd0);
-            if ((main_tx_last_be_sink_valid & main_tx_last_be_sink_ready)) begin
-                if ((main_tx_last_be_source_last & (~main_tx_last_be_sink_last))) begin
-                    builder_txdatapath_liteethmactxlastbe_next_state <= 1'd1;
+            core_tx_last_be_last_handler_source_valid <= core_tx_last_be_last_handler_sink_valid;
+            core_tx_last_be_last_handler_sink_ready <= core_tx_last_be_last_handler_source_ready;
+            core_tx_last_be_last_handler_source_first <= core_tx_last_be_last_handler_sink_first;
+            core_tx_last_be_last_handler_source_last <= core_tx_last_be_last_handler_sink_last;
+            core_tx_last_be_last_handler_source_payload_data <= core_tx_last_be_last_handler_sink_payload_data;
+            core_tx_last_be_last_handler_source_payload_last_be <= core_tx_last_be_last_handler_sink_payload_last_be;
+            core_tx_last_be_last_handler_source_payload_error <= core_tx_last_be_last_handler_sink_payload_error;
+            core_tx_last_be_last_handler_source_last <= (core_tx_last_be_last_handler_sink_payload_last_be != 1'd0);
+            if ((core_tx_last_be_last_handler_sink_valid & core_tx_last_be_last_handler_sink_ready)) begin
+                if ((core_tx_last_be_last_handler_source_last & (~core_tx_last_be_last_handler_sink_last))) begin
+                    txdatapath_liteethmactxlastbe_next_state <= 1'd1;
                 end
             end
         end
     endcase
 end
-assign main_tx_padding_counter_done = (main_tx_padding_counter >= 6'd59);
+assign core_tx_padding_counter_done = (core_tx_padding_counter >= 6'd59);
 always @(*) begin
-    builder_txdatapath_liteethmacpaddinginserter_next_state <= 1'd0;
-    main_tx_padding_counter_clockdomainsrenamer0_next_value <= 16'd0;
-    main_tx_padding_counter_clockdomainsrenamer0_next_value_ce <= 1'd0;
-    main_tx_padding_sink_ready <= 1'd0;
-    main_tx_padding_source_first <= 1'd0;
-    main_tx_padding_source_last <= 1'd0;
-    main_tx_padding_source_payload_data <= 8'd0;
-    main_tx_padding_source_payload_error <= 1'd0;
-    main_tx_padding_source_payload_last_be <= 1'd0;
-    main_tx_padding_source_valid <= 1'd0;
-    builder_txdatapath_liteethmacpaddinginserter_next_state <= builder_txdatapath_liteethmacpaddinginserter_state;
-    case (builder_txdatapath_liteethmacpaddinginserter_state)
+    core_tx_padding_counter_clockdomainsrenamer0_next_value <= 16'd0;
+    core_tx_padding_counter_clockdomainsrenamer0_next_value_ce <= 1'd0;
+    core_tx_padding_sink_ready <= 1'd0;
+    core_tx_padding_source_first <= 1'd0;
+    core_tx_padding_source_last <= 1'd0;
+    core_tx_padding_source_payload_data <= 8'd0;
+    core_tx_padding_source_payload_error <= 1'd0;
+    core_tx_padding_source_payload_last_be <= 1'd0;
+    core_tx_padding_source_valid <= 1'd0;
+    txdatapath_liteethmacpaddinginserter_next_state <= 1'd0;
+    txdatapath_liteethmacpaddinginserter_next_state <= txdatapath_liteethmacpaddinginserter_state;
+    case (txdatapath_liteethmacpaddinginserter_state)
         1'd1: begin
-            main_tx_padding_source_valid <= 1'd1;
-            if (main_tx_padding_counter_done) begin
-                main_tx_padding_source_payload_last_be <= 1'd1;
-                main_tx_padding_source_last <= 1'd1;
+            core_tx_padding_source_valid <= 1'd1;
+            if (core_tx_padding_counter_done) begin
+                core_tx_padding_source_payload_last_be <= 1'd1;
+                core_tx_padding_source_last <= 1'd1;
             end
-            main_tx_padding_source_payload_data <= 1'd0;
-            if ((main_tx_padding_source_valid & main_tx_padding_source_ready)) begin
-                main_tx_padding_counter_clockdomainsrenamer0_next_value <= (main_tx_padding_counter + 1'd1);
-                main_tx_padding_counter_clockdomainsrenamer0_next_value_ce <= 1'd1;
-                if (main_tx_padding_counter_done) begin
-                    main_tx_padding_counter_clockdomainsrenamer0_next_value <= 1'd0;
-                    main_tx_padding_counter_clockdomainsrenamer0_next_value_ce <= 1'd1;
-                    builder_txdatapath_liteethmacpaddinginserter_next_state <= 1'd0;
+            core_tx_padding_source_payload_data <= 1'd0;
+            if ((core_tx_padding_source_valid & core_tx_padding_source_ready)) begin
+                core_tx_padding_counter_clockdomainsrenamer0_next_value <= (core_tx_padding_counter + 1'd1);
+                core_tx_padding_counter_clockdomainsrenamer0_next_value_ce <= 1'd1;
+                if (core_tx_padding_counter_done) begin
+                    core_tx_padding_counter_clockdomainsrenamer0_next_value <= 1'd0;
+                    core_tx_padding_counter_clockdomainsrenamer0_next_value_ce <= 1'd1;
+                    txdatapath_liteethmacpaddinginserter_next_state <= 1'd0;
                 end
             end
         end
         default: begin
-            main_tx_padding_source_valid <= main_tx_padding_sink_valid;
-            main_tx_padding_sink_ready <= main_tx_padding_source_ready;
-            main_tx_padding_source_first <= main_tx_padding_sink_first;
-            main_tx_padding_source_last <= main_tx_padding_sink_last;
-            main_tx_padding_source_payload_data <= main_tx_padding_sink_payload_data;
-            main_tx_padding_source_payload_last_be <= main_tx_padding_sink_payload_last_be;
-            main_tx_padding_source_payload_error <= main_tx_padding_sink_payload_error;
-            if ((main_tx_padding_source_valid & main_tx_padding_source_ready)) begin
-                main_tx_padding_counter_clockdomainsrenamer0_next_value <= (main_tx_padding_counter + 1'd1);
-                main_tx_padding_counter_clockdomainsrenamer0_next_value_ce <= 1'd1;
-                if (main_tx_padding_sink_last) begin
-                    if ((~main_tx_padding_counter_done)) begin
-                        main_tx_padding_source_last <= 1'd0;
-                        main_tx_padding_source_payload_last_be <= 1'd0;
-                        builder_txdatapath_liteethmacpaddinginserter_next_state <= 1'd1;
+            core_tx_padding_source_valid <= core_tx_padding_sink_valid;
+            core_tx_padding_sink_ready <= core_tx_padding_source_ready;
+            core_tx_padding_source_first <= core_tx_padding_sink_first;
+            core_tx_padding_source_last <= core_tx_padding_sink_last;
+            core_tx_padding_source_payload_data <= core_tx_padding_sink_payload_data;
+            core_tx_padding_source_payload_last_be <= core_tx_padding_sink_payload_last_be;
+            core_tx_padding_source_payload_error <= core_tx_padding_sink_payload_error;
+            if ((core_tx_padding_source_valid & core_tx_padding_source_ready)) begin
+                core_tx_padding_counter_clockdomainsrenamer0_next_value <= (core_tx_padding_counter + 1'd1);
+                core_tx_padding_counter_clockdomainsrenamer0_next_value_ce <= 1'd1;
+                if (core_tx_padding_sink_last) begin
+                    if ((~core_tx_padding_counter_done)) begin
+                        core_tx_padding_source_last <= 1'd0;
+                        core_tx_padding_source_payload_last_be <= 1'd0;
+                        txdatapath_liteethmacpaddinginserter_next_state <= 1'd1;
                     end else begin
-                        if (((main_tx_padding_counter == 6'd59) & (main_tx_padding_sink_payload_last_be < 1'd1))) begin
-                            main_tx_padding_source_payload_last_be <= 1'd1;
+                        if (((core_tx_padding_counter == 6'd59) & (core_tx_padding_sink_payload_last_be < 1'd1))) begin
+                            core_tx_padding_source_payload_last_be <= 1'd1;
                         end else begin
-                            main_tx_padding_counter_clockdomainsrenamer0_next_value <= 1'd0;
-                            main_tx_padding_counter_clockdomainsrenamer0_next_value_ce <= 1'd1;
+                            core_tx_padding_counter_clockdomainsrenamer0_next_value <= 1'd0;
+                            core_tx_padding_counter_clockdomainsrenamer0_next_value_ce <= 1'd1;
                         end
                     end
                 end
@@ -1665,1561 +1658,1494 @@ always @(*) begin
         end
     endcase
 end
-assign main_tx_crc_data0 = main_tx_crc_sink_payload_data;
-assign main_tx_crc_be = main_tx_crc_sink_payload_last_be;
-assign main_tx_crc_cnt_done = (main_tx_crc_cnt == 1'd0);
-assign main_tx_crc_sink_valid = main_tx_crc_source_source_valid;
-assign main_tx_crc_source_source_ready = main_tx_crc_sink_ready;
-assign main_tx_crc_sink_first = main_tx_crc_source_source_first;
-assign main_tx_crc_sink_last = main_tx_crc_source_source_last;
-assign main_tx_crc_sink_payload_data = main_tx_crc_source_source_payload_data;
-assign main_tx_crc_sink_payload_last_be = main_tx_crc_source_source_payload_last_be;
-assign main_tx_crc_sink_payload_error = main_tx_crc_source_source_payload_error;
-assign main_tx_crc_data1 = main_tx_crc_data0[7:0];
-assign main_tx_crc_crc_prev = main_tx_crc_reg;
+assign core_tx_crc_data0 = core_tx_crc_sink_payload_data;
+assign core_tx_crc_be = core_tx_crc_sink_payload_last_be;
+assign core_tx_crc_cnt_done = (core_tx_crc_cnt == 1'd0);
+assign core_tx_crc_sink_valid = core_tx_crc_source_source_valid;
+assign core_tx_crc_source_source_ready = core_tx_crc_sink_ready;
+assign core_tx_crc_sink_first = core_tx_crc_source_source_first;
+assign core_tx_crc_sink_last = core_tx_crc_source_source_last;
+assign core_tx_crc_sink_payload_data = core_tx_crc_source_source_payload_data;
+assign core_tx_crc_sink_payload_last_be = core_tx_crc_source_source_payload_last_be;
+assign core_tx_crc_sink_payload_error = core_tx_crc_source_source_payload_error;
+assign core_tx_crc_data1 = core_tx_crc_data0;
+assign core_tx_crc_crc_prev = core_tx_crc_reg;
 always @(*) begin
-    main_tx_crc_error <= 1'd0;
-    main_tx_crc_value <= 32'd0;
-    if (main_tx_crc_be) begin
-        main_tx_crc_value <= {builder_t_slice_proxy31[0], builder_t_slice_proxy30[1], builder_t_slice_proxy29[2], builder_t_slice_proxy28[3], builder_t_slice_proxy27[4], builder_t_slice_proxy26[5], builder_t_slice_proxy25[6], builder_t_slice_proxy24[7], builder_t_slice_proxy23[8], builder_t_slice_proxy22[9], builder_t_slice_proxy21[10], builder_t_slice_proxy20[11], builder_t_slice_proxy19[12], builder_t_slice_proxy18[13], builder_t_slice_proxy17[14], builder_t_slice_proxy16[15], builder_t_slice_proxy15[16], builder_t_slice_proxy14[17], builder_t_slice_proxy13[18], builder_t_slice_proxy12[19], builder_t_slice_proxy11[20], builder_t_slice_proxy10[21], builder_t_slice_proxy9[22], builder_t_slice_proxy8[23], builder_t_slice_proxy7[24], builder_t_slice_proxy6[25], builder_t_slice_proxy5[26], builder_t_slice_proxy4[27], builder_t_slice_proxy3[28], builder_t_slice_proxy2[29], builder_t_slice_proxy1[30], builder_t_slice_proxy0[31]};
-        main_tx_crc_error <= (main_tx_crc_crc_next != 32'd3338984827);
+    core_tx_crc_error <= 1'd0;
+    core_tx_crc_value <= 32'd0;
+    if (core_tx_crc_be) begin
+        core_tx_crc_value <= ({core_tx_crc_crc_next[0], core_tx_crc_crc_next[1], core_tx_crc_crc_next[2], core_tx_crc_crc_next[3], core_tx_crc_crc_next[4], core_tx_crc_crc_next[5], core_tx_crc_crc_next[6], core_tx_crc_crc_next[7], core_tx_crc_crc_next[8], core_tx_crc_crc_next[9], core_tx_crc_crc_next[10], core_tx_crc_crc_next[11], core_tx_crc_crc_next[12], core_tx_crc_crc_next[13], core_tx_crc_crc_next[14], core_tx_crc_crc_next[15], core_tx_crc_crc_next[16], core_tx_crc_crc_next[17], core_tx_crc_crc_next[18], core_tx_crc_crc_next[19], core_tx_crc_crc_next[20], core_tx_crc_crc_next[21], core_tx_crc_crc_next[22], core_tx_crc_crc_next[23], core_tx_crc_crc_next[24], core_tx_crc_crc_next[25], core_tx_crc_crc_next[26], core_tx_crc_crc_next[27], core_tx_crc_crc_next[28], core_tx_crc_crc_next[29], core_tx_crc_crc_next[30], core_tx_crc_crc_next[31]} ^ 32'd4294967295);
+        core_tx_crc_error <= (core_tx_crc_crc_next != 32'd3338984827);
     end
 end
 always @(*) begin
-    main_tx_crc_crc_next <= 32'd0;
-    main_tx_crc_crc_next[0] <= (((main_tx_crc_crc_prev[24] ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[1] <= (((((((main_tx_crc_crc_prev[25] ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_data1[6]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[2] <= (((((((((main_tx_crc_crc_prev[26] ^ main_tx_crc_data1[5]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_data1[6]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[3] <= (((((((main_tx_crc_crc_prev[27] ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_data1[6]);
-    main_tx_crc_crc_next[4] <= (((((((((main_tx_crc_crc_prev[28] ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[5] <= (((((((((((((main_tx_crc_crc_prev[29] ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_data1[6]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[6] <= (((((((((((main_tx_crc_crc_prev[30] ^ main_tx_crc_data1[1]) ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_data1[6]);
-    main_tx_crc_crc_next[7] <= (((((((((main_tx_crc_crc_prev[31] ^ main_tx_crc_data1[0]) ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[8] <= ((((((((main_tx_crc_crc_prev[0] ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_data1[6]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[9] <= ((((((((main_tx_crc_crc_prev[1] ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_data1[6]);
-    main_tx_crc_crc_next[10] <= ((((((((main_tx_crc_crc_prev[2] ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[11] <= ((((((((main_tx_crc_crc_prev[3] ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_data1[6]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[12] <= ((((((((((((main_tx_crc_crc_prev[4] ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_data1[6]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[13] <= ((((((((((((main_tx_crc_crc_prev[5] ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_data1[6]);
-    main_tx_crc_crc_next[14] <= ((((((((((main_tx_crc_crc_prev[6] ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]);
-    main_tx_crc_crc_next[15] <= ((((((((main_tx_crc_crc_prev[7] ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]);
-    main_tx_crc_crc_next[16] <= ((((((main_tx_crc_crc_prev[8] ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[17] <= ((((((main_tx_crc_crc_prev[9] ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_data1[6]);
-    main_tx_crc_crc_next[18] <= ((((((main_tx_crc_crc_prev[10] ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]);
-    main_tx_crc_crc_next[19] <= ((((main_tx_crc_crc_prev[11] ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]);
-    main_tx_crc_crc_next[20] <= ((main_tx_crc_crc_prev[12] ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]);
-    main_tx_crc_crc_next[21] <= ((main_tx_crc_crc_prev[13] ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]);
-    main_tx_crc_crc_next[22] <= ((main_tx_crc_crc_prev[14] ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[23] <= ((((((main_tx_crc_crc_prev[15] ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_data1[6]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[24] <= ((((((main_tx_crc_crc_prev[16] ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_data1[6]);
-    main_tx_crc_crc_next[25] <= ((((main_tx_crc_crc_prev[17] ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]);
-    main_tx_crc_crc_next[26] <= ((((((((main_tx_crc_crc_prev[18] ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]) ^ main_tx_crc_crc_prev[24]) ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_data1[7]);
-    main_tx_crc_crc_next[27] <= ((((((((main_tx_crc_crc_prev[19] ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]) ^ main_tx_crc_crc_prev[25]) ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_data1[6]);
-    main_tx_crc_crc_next[28] <= ((((((main_tx_crc_crc_prev[20] ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]) ^ main_tx_crc_crc_prev[26]) ^ main_tx_crc_data1[5]);
-    main_tx_crc_crc_next[29] <= ((((((main_tx_crc_crc_prev[21] ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_crc_prev[30]) ^ main_tx_crc_data1[1]) ^ main_tx_crc_crc_prev[27]) ^ main_tx_crc_data1[4]);
-    main_tx_crc_crc_next[30] <= ((((main_tx_crc_crc_prev[22] ^ main_tx_crc_crc_prev[31]) ^ main_tx_crc_data1[0]) ^ main_tx_crc_crc_prev[28]) ^ main_tx_crc_data1[3]);
-    main_tx_crc_crc_next[31] <= ((main_tx_crc_crc_prev[23] ^ main_tx_crc_crc_prev[29]) ^ main_tx_crc_data1[2]);
+    core_tx_crc_crc_next <= 32'd0;
+    core_tx_crc_crc_next[0] <= (((core_tx_crc_crc_prev[24] ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[1] <= (((((((core_tx_crc_crc_prev[25] ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_data1[6]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[2] <= (((((((((core_tx_crc_crc_prev[26] ^ core_tx_crc_data1[5]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_data1[6]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[3] <= (((((((core_tx_crc_crc_prev[27] ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_data1[6]);
+    core_tx_crc_crc_next[4] <= (((((((((core_tx_crc_crc_prev[28] ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[5] <= (((((((((((((core_tx_crc_crc_prev[29] ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_data1[6]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[6] <= (((((((((((core_tx_crc_crc_prev[30] ^ core_tx_crc_data1[1]) ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_data1[6]);
+    core_tx_crc_crc_next[7] <= (((((((((core_tx_crc_crc_prev[31] ^ core_tx_crc_data1[0]) ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[8] <= ((((((((core_tx_crc_crc_prev[0] ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_data1[6]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[9] <= ((((((((core_tx_crc_crc_prev[1] ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_data1[6]);
+    core_tx_crc_crc_next[10] <= ((((((((core_tx_crc_crc_prev[2] ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[11] <= ((((((((core_tx_crc_crc_prev[3] ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_data1[6]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[12] <= ((((((((((((core_tx_crc_crc_prev[4] ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_data1[6]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[13] <= ((((((((((((core_tx_crc_crc_prev[5] ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_data1[6]);
+    core_tx_crc_crc_next[14] <= ((((((((((core_tx_crc_crc_prev[6] ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]);
+    core_tx_crc_crc_next[15] <= ((((((((core_tx_crc_crc_prev[7] ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]);
+    core_tx_crc_crc_next[16] <= ((((((core_tx_crc_crc_prev[8] ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[17] <= ((((((core_tx_crc_crc_prev[9] ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_data1[6]);
+    core_tx_crc_crc_next[18] <= ((((((core_tx_crc_crc_prev[10] ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]);
+    core_tx_crc_crc_next[19] <= ((((core_tx_crc_crc_prev[11] ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]);
+    core_tx_crc_crc_next[20] <= ((core_tx_crc_crc_prev[12] ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]);
+    core_tx_crc_crc_next[21] <= ((core_tx_crc_crc_prev[13] ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]);
+    core_tx_crc_crc_next[22] <= ((core_tx_crc_crc_prev[14] ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[23] <= ((((((core_tx_crc_crc_prev[15] ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_data1[6]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[24] <= ((((((core_tx_crc_crc_prev[16] ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_data1[6]);
+    core_tx_crc_crc_next[25] <= ((((core_tx_crc_crc_prev[17] ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]);
+    core_tx_crc_crc_next[26] <= ((((((((core_tx_crc_crc_prev[18] ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]) ^ core_tx_crc_crc_prev[24]) ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_data1[7]);
+    core_tx_crc_crc_next[27] <= ((((((((core_tx_crc_crc_prev[19] ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]) ^ core_tx_crc_crc_prev[25]) ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_data1[6]);
+    core_tx_crc_crc_next[28] <= ((((((core_tx_crc_crc_prev[20] ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]) ^ core_tx_crc_crc_prev[26]) ^ core_tx_crc_data1[5]);
+    core_tx_crc_crc_next[29] <= ((((((core_tx_crc_crc_prev[21] ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_crc_prev[30]) ^ core_tx_crc_data1[1]) ^ core_tx_crc_crc_prev[27]) ^ core_tx_crc_data1[4]);
+    core_tx_crc_crc_next[30] <= ((((core_tx_crc_crc_prev[22] ^ core_tx_crc_crc_prev[31]) ^ core_tx_crc_data1[0]) ^ core_tx_crc_crc_prev[28]) ^ core_tx_crc_data1[3]);
+    core_tx_crc_crc_next[31] <= ((core_tx_crc_crc_prev[23] ^ core_tx_crc_crc_prev[29]) ^ core_tx_crc_data1[2]);
 end
 always @(*) begin
-    builder_txdatapath_bufferizeendpoints_next_state <= 2'd0;
-    main_tx_crc_ce <= 1'd0;
-    main_tx_crc_crc_packet_clockdomainsrenamer1_next_value0 <= 32'd0;
-    main_tx_crc_crc_packet_clockdomainsrenamer1_next_value_ce0 <= 1'd0;
-    main_tx_crc_is_ongoing0 <= 1'd0;
-    main_tx_crc_is_ongoing1 <= 1'd0;
-    main_tx_crc_last_be_clockdomainsrenamer1_next_value1 <= 1'd0;
-    main_tx_crc_last_be_clockdomainsrenamer1_next_value_ce1 <= 1'd0;
-    main_tx_crc_reset <= 1'd0;
-    main_tx_crc_sink_ready <= 1'd0;
-    main_tx_crc_source_first <= 1'd0;
-    main_tx_crc_source_last <= 1'd0;
-    main_tx_crc_source_payload_data <= 8'd0;
-    main_tx_crc_source_payload_error <= 1'd0;
-    main_tx_crc_source_payload_last_be <= 1'd0;
-    main_tx_crc_source_valid <= 1'd0;
-    builder_txdatapath_bufferizeendpoints_next_state <= builder_txdatapath_bufferizeendpoints_state;
-    case (builder_txdatapath_bufferizeendpoints_state)
+    core_tx_crc_ce <= 1'd0;
+    core_tx_crc_crc_packet_clockdomainsrenamer1_next_value0 <= 32'd0;
+    core_tx_crc_crc_packet_clockdomainsrenamer1_next_value_ce0 <= 1'd0;
+    core_tx_crc_is_ongoing0 <= 1'd0;
+    core_tx_crc_is_ongoing1 <= 1'd0;
+    core_tx_crc_last_be_clockdomainsrenamer1_next_value1 <= 1'd0;
+    core_tx_crc_last_be_clockdomainsrenamer1_next_value_ce1 <= 1'd0;
+    core_tx_crc_reset <= 1'd0;
+    core_tx_crc_sink_ready <= 1'd0;
+    core_tx_crc_source_first <= 1'd0;
+    core_tx_crc_source_last <= 1'd0;
+    core_tx_crc_source_payload_data <= 8'd0;
+    core_tx_crc_source_payload_error <= 1'd0;
+    core_tx_crc_source_payload_last_be <= 1'd0;
+    core_tx_crc_source_valid <= 1'd0;
+    txdatapath_bufferizeendpoints_next_state <= 2'd0;
+    txdatapath_bufferizeendpoints_next_state <= txdatapath_bufferizeendpoints_state;
+    case (txdatapath_bufferizeendpoints_state)
         1'd1: begin
-            main_tx_crc_ce <= (main_tx_crc_sink_valid & main_tx_crc_source_ready);
-            main_tx_crc_source_valid <= main_tx_crc_sink_valid;
-            main_tx_crc_sink_ready <= main_tx_crc_source_ready;
-            main_tx_crc_source_first <= main_tx_crc_sink_first;
-            main_tx_crc_source_last <= main_tx_crc_sink_last;
-            main_tx_crc_source_payload_data <= main_tx_crc_sink_payload_data;
-            main_tx_crc_source_payload_last_be <= main_tx_crc_sink_payload_last_be;
-            main_tx_crc_source_payload_error <= main_tx_crc_sink_payload_error;
-            main_tx_crc_source_last <= 1'd0;
-            main_tx_crc_source_payload_last_be <= 1'd0;
-            if (main_tx_crc_sink_last) begin
-                if (main_tx_crc_sink_payload_last_be) begin
-                    main_tx_crc_source_payload_data <= builder_complexslicelowerer_slice_proxy[7:0];
+            core_tx_crc_ce <= (core_tx_crc_sink_valid & core_tx_crc_source_ready);
+            core_tx_crc_source_valid <= core_tx_crc_sink_valid;
+            core_tx_crc_sink_ready <= core_tx_crc_source_ready;
+            core_tx_crc_source_first <= core_tx_crc_sink_first;
+            core_tx_crc_source_last <= core_tx_crc_sink_last;
+            core_tx_crc_source_payload_data <= core_tx_crc_sink_payload_data;
+            core_tx_crc_source_payload_last_be <= core_tx_crc_sink_payload_last_be;
+            core_tx_crc_source_payload_error <= core_tx_crc_sink_payload_error;
+            core_tx_crc_source_last <= 1'd0;
+            core_tx_crc_source_payload_last_be <= 1'd0;
+            if (core_tx_crc_sink_last) begin
+                if (core_tx_crc_sink_payload_last_be) begin
+                    core_tx_crc_source_payload_data <= core_tx_crc_sink_payload_data;
                 end
-                if ((1'd0 & (main_tx_crc_sink_payload_last_be <= 4'd15))) begin
-                    main_tx_crc_source_last <= 1'd1;
-                    main_tx_crc_source_payload_last_be <= (main_tx_crc_sink_payload_last_be <<< -3'd3);
+                if ((1'd0 & (core_tx_crc_sink_payload_last_be <= 4'd15))) begin
+                    core_tx_crc_source_last <= 1'd1;
+                    core_tx_crc_source_payload_last_be <= (core_tx_crc_sink_payload_last_be <<< -3'd3);
                 end
-            end else begin
-                main_tx_crc_ce <= (main_tx_crc_sink_valid & main_tx_crc_source_ready);
             end
-            if (((main_tx_crc_sink_valid & main_tx_crc_sink_last) & main_tx_crc_source_ready)) begin
-                if ((1'd0 & (main_tx_crc_sink_payload_last_be <= 4'd15))) begin
-                    builder_txdatapath_bufferizeendpoints_next_state <= 1'd0;
+            if (((core_tx_crc_sink_valid & core_tx_crc_sink_last) & core_tx_crc_source_ready)) begin
+                if ((1'd0 & (core_tx_crc_sink_payload_last_be <= 4'd15))) begin
+                    txdatapath_bufferizeendpoints_next_state <= 1'd0;
                 end else begin
-                    main_tx_crc_crc_packet_clockdomainsrenamer1_next_value0 <= main_tx_crc_value;
-                    main_tx_crc_crc_packet_clockdomainsrenamer1_next_value_ce0 <= 1'd1;
+                    core_tx_crc_crc_packet_clockdomainsrenamer1_next_value0 <= core_tx_crc_value;
+                    core_tx_crc_crc_packet_clockdomainsrenamer1_next_value_ce0 <= 1'd1;
                     if (1'd0) begin
-                        main_tx_crc_last_be_clockdomainsrenamer1_next_value1 <= (main_tx_crc_sink_payload_last_be >>> 3'd4);
-                        main_tx_crc_last_be_clockdomainsrenamer1_next_value_ce1 <= 1'd1;
+                        core_tx_crc_last_be_clockdomainsrenamer1_next_value1 <= (core_tx_crc_sink_payload_last_be >>> 3'd4);
+                        core_tx_crc_last_be_clockdomainsrenamer1_next_value_ce1 <= 1'd1;
                     end else begin
-                        main_tx_crc_last_be_clockdomainsrenamer1_next_value1 <= main_tx_crc_sink_payload_last_be;
-                        main_tx_crc_last_be_clockdomainsrenamer1_next_value_ce1 <= 1'd1;
+                        core_tx_crc_last_be_clockdomainsrenamer1_next_value1 <= core_tx_crc_sink_payload_last_be;
+                        core_tx_crc_last_be_clockdomainsrenamer1_next_value_ce1 <= 1'd1;
                     end
-                    builder_txdatapath_bufferizeendpoints_next_state <= 2'd2;
+                    txdatapath_bufferizeendpoints_next_state <= 2'd2;
                 end
             end
         end
         2'd2: begin
-            main_tx_crc_source_valid <= 1'd1;
-            case (main_tx_crc_cnt)
+            core_tx_crc_source_valid <= 1'd1;
+            case (core_tx_crc_cnt)
                 1'd0: begin
-                    main_tx_crc_source_payload_data <= main_tx_crc_crc_packet[31:24];
+                    core_tx_crc_source_payload_data <= core_tx_crc_crc_packet[31:24];
                 end
                 1'd1: begin
-                    main_tx_crc_source_payload_data <= main_tx_crc_crc_packet[23:16];
+                    core_tx_crc_source_payload_data <= core_tx_crc_crc_packet[23:16];
                 end
                 2'd2: begin
-                    main_tx_crc_source_payload_data <= main_tx_crc_crc_packet[15:8];
+                    core_tx_crc_source_payload_data <= core_tx_crc_crc_packet[15:8];
                 end
                 default: begin
-                    main_tx_crc_source_payload_data <= main_tx_crc_crc_packet[7:0];
+                    core_tx_crc_source_payload_data <= core_tx_crc_crc_packet[7:0];
                 end
             endcase
-            if (main_tx_crc_cnt_done) begin
-                main_tx_crc_source_last <= 1'd1;
-                if (main_tx_crc_source_ready) begin
-                    builder_txdatapath_bufferizeendpoints_next_state <= 1'd0;
+            if (core_tx_crc_cnt_done) begin
+                core_tx_crc_source_last <= 1'd1;
+                if (core_tx_crc_source_ready) begin
+                    txdatapath_bufferizeendpoints_next_state <= 1'd0;
                 end
             end
-            main_tx_crc_is_ongoing1 <= 1'd1;
+            core_tx_crc_is_ongoing1 <= 1'd1;
         end
         default: begin
-            main_tx_crc_reset <= 1'd1;
-            main_tx_crc_sink_ready <= 1'd1;
-            if (main_tx_crc_sink_valid) begin
-                main_tx_crc_sink_ready <= 1'd0;
-                builder_txdatapath_bufferizeendpoints_next_state <= 1'd1;
+            core_tx_crc_reset <= 1'd1;
+            core_tx_crc_sink_ready <= 1'd1;
+            if (core_tx_crc_sink_valid) begin
+                core_tx_crc_sink_ready <= 1'd0;
+                txdatapath_bufferizeendpoints_next_state <= 1'd1;
             end
-            main_tx_crc_is_ongoing0 <= 1'd1;
+            core_tx_crc_is_ongoing0 <= 1'd1;
         end
     endcase
 end
-assign main_tx_crc_pipe_valid_sink_ready = ((~main_tx_crc_pipe_valid_source_valid) | main_tx_crc_pipe_valid_source_ready);
-assign main_tx_crc_pipe_valid_sink_valid = main_tx_crc_sink_sink_valid;
-assign main_tx_crc_sink_sink_ready = main_tx_crc_pipe_valid_sink_ready;
-assign main_tx_crc_pipe_valid_sink_first = main_tx_crc_sink_sink_first;
-assign main_tx_crc_pipe_valid_sink_last = main_tx_crc_sink_sink_last;
-assign main_tx_crc_pipe_valid_sink_payload_data = main_tx_crc_sink_sink_payload_data;
-assign main_tx_crc_pipe_valid_sink_payload_last_be = main_tx_crc_sink_sink_payload_last_be;
-assign main_tx_crc_pipe_valid_sink_payload_error = main_tx_crc_sink_sink_payload_error;
-assign main_tx_crc_source_source_valid = main_tx_crc_pipe_valid_source_valid;
-assign main_tx_crc_pipe_valid_source_ready = main_tx_crc_source_source_ready;
-assign main_tx_crc_source_source_first = main_tx_crc_pipe_valid_source_first;
-assign main_tx_crc_source_source_last = main_tx_crc_pipe_valid_source_last;
-assign main_tx_crc_source_source_payload_data = main_tx_crc_pipe_valid_source_payload_data;
-assign main_tx_crc_source_source_payload_last_be = main_tx_crc_pipe_valid_source_payload_last_be;
-assign main_tx_crc_source_source_payload_error = main_tx_crc_pipe_valid_source_payload_error;
-assign main_tx_preamble_source_payload_last_be = main_tx_preamble_sink_payload_last_be;
+assign core_tx_crc_pipe_valid_sink_ready = ((~core_tx_crc_pipe_valid_source_valid) | core_tx_crc_pipe_valid_source_ready);
+assign core_tx_crc_pipe_valid_sink_valid = core_tx_crc_sink_sink_valid;
+assign core_tx_crc_sink_sink_ready = core_tx_crc_pipe_valid_sink_ready;
+assign core_tx_crc_pipe_valid_sink_first = core_tx_crc_sink_sink_first;
+assign core_tx_crc_pipe_valid_sink_last = core_tx_crc_sink_sink_last;
+assign core_tx_crc_pipe_valid_sink_payload_data = core_tx_crc_sink_sink_payload_data;
+assign core_tx_crc_pipe_valid_sink_payload_last_be = core_tx_crc_sink_sink_payload_last_be;
+assign core_tx_crc_pipe_valid_sink_payload_error = core_tx_crc_sink_sink_payload_error;
+assign core_tx_crc_source_source_valid = core_tx_crc_pipe_valid_source_valid;
+assign core_tx_crc_pipe_valid_source_ready = core_tx_crc_source_source_ready;
+assign core_tx_crc_source_source_first = core_tx_crc_pipe_valid_source_first;
+assign core_tx_crc_source_source_last = core_tx_crc_pipe_valid_source_last;
+assign core_tx_crc_source_source_payload_data = core_tx_crc_pipe_valid_source_payload_data;
+assign core_tx_crc_source_source_payload_last_be = core_tx_crc_pipe_valid_source_payload_last_be;
+assign core_tx_crc_source_source_payload_error = core_tx_crc_pipe_valid_source_payload_error;
+assign core_tx_preamble_source_payload_last_be = core_tx_preamble_sink_payload_last_be;
 always @(*) begin
-    builder_txdatapath_liteethmacpreambleinserter_next_state <= 2'd0;
-    main_tx_preamble_count_clockdomainsrenamer2_next_value <= 3'd0;
-    main_tx_preamble_count_clockdomainsrenamer2_next_value_ce <= 1'd0;
-    main_tx_preamble_sink_ready <= 1'd0;
-    main_tx_preamble_source_first <= 1'd0;
-    main_tx_preamble_source_last <= 1'd0;
-    main_tx_preamble_source_payload_data <= 8'd0;
-    main_tx_preamble_source_payload_error <= 1'd0;
-    main_tx_preamble_source_valid <= 1'd0;
-    main_tx_preamble_source_payload_data <= main_tx_preamble_sink_payload_data;
-    builder_txdatapath_liteethmacpreambleinserter_next_state <= builder_txdatapath_liteethmacpreambleinserter_state;
-    case (builder_txdatapath_liteethmacpreambleinserter_state)
+    core_tx_preamble_count_clockdomainsrenamer2_next_value <= 3'd0;
+    core_tx_preamble_count_clockdomainsrenamer2_next_value_ce <= 1'd0;
+    core_tx_preamble_sink_ready <= 1'd0;
+    core_tx_preamble_source_first <= 1'd0;
+    core_tx_preamble_source_last <= 1'd0;
+    core_tx_preamble_source_payload_data <= 8'd0;
+    core_tx_preamble_source_payload_error <= 1'd0;
+    core_tx_preamble_source_valid <= 1'd0;
+    txdatapath_liteethmacpreambleinserter_next_state <= 2'd0;
+    core_tx_preamble_source_payload_data <= core_tx_preamble_sink_payload_data;
+    txdatapath_liteethmacpreambleinserter_next_state <= txdatapath_liteethmacpreambleinserter_state;
+    case (txdatapath_liteethmacpreambleinserter_state)
         1'd1: begin
-            main_tx_preamble_source_valid <= 1'd1;
-            case (main_tx_preamble_count)
+            core_tx_preamble_source_valid <= 1'd1;
+            case (core_tx_preamble_count)
                 1'd0: begin
-                    main_tx_preamble_source_payload_data <= main_tx_preamble_preamble[7:0];
+                    core_tx_preamble_source_payload_data <= core_tx_preamble_preamble[7:0];
                 end
                 1'd1: begin
-                    main_tx_preamble_source_payload_data <= main_tx_preamble_preamble[15:8];
+                    core_tx_preamble_source_payload_data <= core_tx_preamble_preamble[15:8];
                 end
                 2'd2: begin
-                    main_tx_preamble_source_payload_data <= main_tx_preamble_preamble[23:16];
+                    core_tx_preamble_source_payload_data <= core_tx_preamble_preamble[23:16];
                 end
                 2'd3: begin
-                    main_tx_preamble_source_payload_data <= main_tx_preamble_preamble[31:24];
+                    core_tx_preamble_source_payload_data <= core_tx_preamble_preamble[31:24];
                 end
                 3'd4: begin
-                    main_tx_preamble_source_payload_data <= main_tx_preamble_preamble[39:32];
+                    core_tx_preamble_source_payload_data <= core_tx_preamble_preamble[39:32];
                 end
                 3'd5: begin
-                    main_tx_preamble_source_payload_data <= main_tx_preamble_preamble[47:40];
+                    core_tx_preamble_source_payload_data <= core_tx_preamble_preamble[47:40];
                 end
                 3'd6: begin
-                    main_tx_preamble_source_payload_data <= main_tx_preamble_preamble[55:48];
+                    core_tx_preamble_source_payload_data <= core_tx_preamble_preamble[55:48];
                 end
                 default: begin
-                    main_tx_preamble_source_payload_data <= main_tx_preamble_preamble[63:56];
+                    core_tx_preamble_source_payload_data <= core_tx_preamble_preamble[63:56];
                 end
             endcase
-            if (main_tx_preamble_source_ready) begin
-                if ((main_tx_preamble_count == 3'd7)) begin
-                    builder_txdatapath_liteethmacpreambleinserter_next_state <= 2'd2;
+            if (core_tx_preamble_source_ready) begin
+                if ((core_tx_preamble_count == 3'd7)) begin
+                    txdatapath_liteethmacpreambleinserter_next_state <= 2'd2;
                 end else begin
-                    main_tx_preamble_count_clockdomainsrenamer2_next_value <= (main_tx_preamble_count + 1'd1);
-                    main_tx_preamble_count_clockdomainsrenamer2_next_value_ce <= 1'd1;
+                    core_tx_preamble_count_clockdomainsrenamer2_next_value <= (core_tx_preamble_count + 1'd1);
+                    core_tx_preamble_count_clockdomainsrenamer2_next_value_ce <= 1'd1;
                 end
             end
         end
         2'd2: begin
-            main_tx_preamble_source_valid <= main_tx_preamble_sink_valid;
-            main_tx_preamble_sink_ready <= main_tx_preamble_source_ready;
-            main_tx_preamble_source_first <= main_tx_preamble_sink_first;
-            main_tx_preamble_source_last <= main_tx_preamble_sink_last;
-            main_tx_preamble_source_payload_error <= main_tx_preamble_sink_payload_error;
-            if (((main_tx_preamble_sink_valid & main_tx_preamble_sink_last) & main_tx_preamble_source_ready)) begin
-                builder_txdatapath_liteethmacpreambleinserter_next_state <= 1'd0;
+            core_tx_preamble_source_valid <= core_tx_preamble_sink_valid;
+            core_tx_preamble_sink_ready <= core_tx_preamble_source_ready;
+            core_tx_preamble_source_first <= core_tx_preamble_sink_first;
+            core_tx_preamble_source_last <= core_tx_preamble_sink_last;
+            core_tx_preamble_source_payload_error <= core_tx_preamble_sink_payload_error;
+            if (((core_tx_preamble_sink_valid & core_tx_preamble_sink_last) & core_tx_preamble_source_ready)) begin
+                txdatapath_liteethmacpreambleinserter_next_state <= 1'd0;
             end
         end
         default: begin
-            main_tx_preamble_sink_ready <= 1'd1;
-            main_tx_preamble_count_clockdomainsrenamer2_next_value <= 1'd0;
-            main_tx_preamble_count_clockdomainsrenamer2_next_value_ce <= 1'd1;
-            if (main_tx_preamble_sink_valid) begin
-                main_tx_preamble_sink_ready <= 1'd0;
-                builder_txdatapath_liteethmacpreambleinserter_next_state <= 1'd1;
+            core_tx_preamble_sink_ready <= 1'd1;
+            core_tx_preamble_count_clockdomainsrenamer2_next_value <= 1'd0;
+            core_tx_preamble_count_clockdomainsrenamer2_next_value_ce <= 1'd1;
+            if (core_tx_preamble_sink_valid) begin
+                core_tx_preamble_sink_ready <= 1'd0;
+                txdatapath_liteethmacpreambleinserter_next_state <= 1'd1;
             end
         end
     endcase
 end
 always @(*) begin
-    builder_txdatapath_liteethmacgap_next_state <= 1'd0;
-    main_tx_gap_counter_clockdomainsrenamer3_next_value <= 4'd0;
-    main_tx_gap_counter_clockdomainsrenamer3_next_value_ce <= 1'd0;
-    main_tx_gap_sink_ready <= 1'd0;
-    main_tx_gap_source_first <= 1'd0;
-    main_tx_gap_source_last <= 1'd0;
-    main_tx_gap_source_payload_data <= 8'd0;
-    main_tx_gap_source_payload_error <= 1'd0;
-    main_tx_gap_source_payload_last_be <= 1'd0;
-    main_tx_gap_source_valid <= 1'd0;
-    builder_txdatapath_liteethmacgap_next_state <= builder_txdatapath_liteethmacgap_state;
-    case (builder_txdatapath_liteethmacgap_state)
+    core_tx_gap_counter_clockdomainsrenamer3_next_value <= 4'd0;
+    core_tx_gap_counter_clockdomainsrenamer3_next_value_ce <= 1'd0;
+    core_tx_gap_sink_ready <= 1'd0;
+    core_tx_gap_source_first <= 1'd0;
+    core_tx_gap_source_last <= 1'd0;
+    core_tx_gap_source_payload_data <= 8'd0;
+    core_tx_gap_source_payload_error <= 1'd0;
+    core_tx_gap_source_payload_last_be <= 1'd0;
+    core_tx_gap_source_valid <= 1'd0;
+    txdatapath_liteethmacgap_next_state <= 1'd0;
+    txdatapath_liteethmacgap_next_state <= txdatapath_liteethmacgap_state;
+    case (txdatapath_liteethmacgap_state)
         1'd1: begin
-            main_tx_gap_counter_clockdomainsrenamer3_next_value <= (main_tx_gap_counter + 1'd1);
-            main_tx_gap_counter_clockdomainsrenamer3_next_value_ce <= 1'd1;
-            if ((main_tx_gap_counter == 4'd11)) begin
-                builder_txdatapath_liteethmacgap_next_state <= 1'd0;
+            core_tx_gap_counter_clockdomainsrenamer3_next_value <= (core_tx_gap_counter + 1'd1);
+            core_tx_gap_counter_clockdomainsrenamer3_next_value_ce <= 1'd1;
+            if ((core_tx_gap_counter == 4'd11)) begin
+                txdatapath_liteethmacgap_next_state <= 1'd0;
             end
         end
         default: begin
-            main_tx_gap_counter_clockdomainsrenamer3_next_value <= 1'd0;
-            main_tx_gap_counter_clockdomainsrenamer3_next_value_ce <= 1'd1;
-            main_tx_gap_source_valid <= main_tx_gap_sink_valid;
-            main_tx_gap_sink_ready <= main_tx_gap_source_ready;
-            main_tx_gap_source_first <= main_tx_gap_sink_first;
-            main_tx_gap_source_last <= main_tx_gap_sink_last;
-            main_tx_gap_source_payload_data <= main_tx_gap_sink_payload_data;
-            main_tx_gap_source_payload_last_be <= main_tx_gap_sink_payload_last_be;
-            main_tx_gap_source_payload_error <= main_tx_gap_sink_payload_error;
-            if (((main_tx_gap_sink_valid & main_tx_gap_sink_last) & main_tx_gap_sink_ready)) begin
-                builder_txdatapath_liteethmacgap_next_state <= 1'd1;
+            core_tx_gap_counter_clockdomainsrenamer3_next_value <= 1'd0;
+            core_tx_gap_counter_clockdomainsrenamer3_next_value_ce <= 1'd1;
+            core_tx_gap_source_valid <= core_tx_gap_sink_valid;
+            core_tx_gap_sink_ready <= core_tx_gap_source_ready;
+            core_tx_gap_source_first <= core_tx_gap_sink_first;
+            core_tx_gap_source_last <= core_tx_gap_sink_last;
+            core_tx_gap_source_payload_data <= core_tx_gap_sink_payload_data;
+            core_tx_gap_source_payload_last_be <= core_tx_gap_sink_payload_last_be;
+            core_tx_gap_source_payload_error <= core_tx_gap_sink_payload_error;
+            if (((core_tx_gap_sink_valid & core_tx_gap_sink_last) & core_tx_gap_sink_ready)) begin
+                txdatapath_liteethmacgap_next_state <= 1'd1;
             end
         end
     endcase
 end
-assign main_tx_cdc_sink_sink_valid = main_sink_valid;
-assign main_sink_ready = main_tx_cdc_sink_sink_ready;
-assign main_tx_cdc_sink_sink_first = main_sink_first;
-assign main_tx_cdc_sink_sink_last = main_sink_last;
-assign main_tx_cdc_sink_sink_payload_data = main_sink_payload_data;
-assign main_tx_cdc_sink_sink_payload_last_be = main_sink_payload_last_be;
-assign main_tx_cdc_sink_sink_payload_error = main_sink_payload_error;
-assign main_tx_converter_sink_valid = main_tx_cdc_source_source_valid;
-assign main_tx_cdc_source_source_ready = main_tx_converter_sink_ready;
-assign main_tx_converter_sink_first = main_tx_cdc_source_source_first;
-assign main_tx_converter_sink_last = main_tx_cdc_source_source_last;
-assign main_tx_converter_sink_payload_data = main_tx_cdc_source_source_payload_data;
-assign main_tx_converter_sink_payload_last_be = main_tx_cdc_source_source_payload_last_be;
-assign main_tx_converter_sink_payload_error = main_tx_cdc_source_source_payload_error;
-assign main_tx_last_be_sink_valid = main_tx_converter_source_valid;
-assign main_tx_converter_source_ready = main_tx_last_be_sink_ready;
-assign main_tx_last_be_sink_first = main_tx_converter_source_first;
-assign main_tx_last_be_sink_last = main_tx_converter_source_last;
-assign main_tx_last_be_sink_payload_data = main_tx_converter_source_payload_data;
-assign main_tx_last_be_sink_payload_last_be = main_tx_converter_source_payload_last_be;
-assign main_tx_last_be_sink_payload_error = main_tx_converter_source_payload_error;
-assign main_tx_padding_sink_valid = main_tx_last_be_source_valid;
-assign main_tx_last_be_source_ready = main_tx_padding_sink_ready;
-assign main_tx_padding_sink_first = main_tx_last_be_source_first;
-assign main_tx_padding_sink_last = main_tx_last_be_source_last;
-assign main_tx_padding_sink_payload_data = main_tx_last_be_source_payload_data;
-assign main_tx_padding_sink_payload_last_be = main_tx_last_be_source_payload_last_be;
-assign main_tx_padding_sink_payload_error = main_tx_last_be_source_payload_error;
-assign main_tx_crc_sink_sink_valid = main_tx_padding_source_valid;
-assign main_tx_padding_source_ready = main_tx_crc_sink_sink_ready;
-assign main_tx_crc_sink_sink_first = main_tx_padding_source_first;
-assign main_tx_crc_sink_sink_last = main_tx_padding_source_last;
-assign main_tx_crc_sink_sink_payload_data = main_tx_padding_source_payload_data;
-assign main_tx_crc_sink_sink_payload_last_be = main_tx_padding_source_payload_last_be;
-assign main_tx_crc_sink_sink_payload_error = main_tx_padding_source_payload_error;
-assign main_tx_preamble_sink_valid = main_tx_crc_source_valid;
-assign main_tx_crc_source_ready = main_tx_preamble_sink_ready;
-assign main_tx_preamble_sink_first = main_tx_crc_source_first;
-assign main_tx_preamble_sink_last = main_tx_crc_source_last;
-assign main_tx_preamble_sink_payload_data = main_tx_crc_source_payload_data;
-assign main_tx_preamble_sink_payload_last_be = main_tx_crc_source_payload_last_be;
-assign main_tx_preamble_sink_payload_error = main_tx_crc_source_payload_error;
-assign main_tx_gap_sink_valid = main_tx_preamble_source_valid;
-assign main_tx_preamble_source_ready = main_tx_gap_sink_ready;
-assign main_tx_gap_sink_first = main_tx_preamble_source_first;
-assign main_tx_gap_sink_last = main_tx_preamble_source_last;
-assign main_tx_gap_sink_payload_data = main_tx_preamble_source_payload_data;
-assign main_tx_gap_sink_payload_last_be = main_tx_preamble_source_payload_last_be;
-assign main_tx_gap_sink_payload_error = main_tx_preamble_source_payload_error;
-assign main_maccore_liteethphymiitx_sink_valid = main_tx_gap_source_valid;
-assign main_tx_gap_source_ready = main_maccore_liteethphymiitx_sink_ready;
-assign main_maccore_liteethphymiitx_sink_first = main_tx_gap_source_first;
-assign main_maccore_liteethphymiitx_sink_last = main_tx_gap_source_last;
-assign main_maccore_liteethphymiitx_sink_payload_data = main_tx_gap_source_payload_data;
-assign main_maccore_liteethphymiitx_sink_payload_last_be = main_tx_gap_source_payload_last_be;
-assign main_maccore_liteethphymiitx_sink_payload_error = main_tx_gap_source_payload_error;
-assign main_pulsesynchronizer0_i = main_rx_preamble_error;
-assign main_pulsesynchronizer1_i = main_liteethmaccrc32checker_error;
-assign main_rx_preamble_source_payload_data = main_rx_preamble_sink_payload_data;
-assign main_rx_preamble_source_payload_last_be = main_rx_preamble_sink_payload_last_be;
+assign core_tx_cdc_sink_sink_valid = core_sink_valid;
+assign core_sink_ready = core_tx_cdc_sink_sink_ready;
+assign core_tx_cdc_sink_sink_first = core_sink_first;
+assign core_tx_cdc_sink_sink_last = core_sink_last;
+assign core_tx_cdc_sink_sink_payload_data = core_sink_payload_data;
+assign core_tx_cdc_sink_sink_payload_last_be = core_sink_payload_last_be;
+assign core_tx_cdc_sink_sink_payload_error = core_sink_payload_error;
+assign core_tx_converter_sink_valid = core_tx_cdc_source_source_valid;
+assign core_tx_cdc_source_source_ready = core_tx_converter_sink_ready;
+assign core_tx_converter_sink_first = core_tx_cdc_source_source_first;
+assign core_tx_converter_sink_last = core_tx_cdc_source_source_last;
+assign core_tx_converter_sink_payload_data = core_tx_cdc_source_source_payload_data;
+assign core_tx_converter_sink_payload_last_be = core_tx_cdc_source_source_payload_last_be;
+assign core_tx_converter_sink_payload_error = core_tx_cdc_source_source_payload_error;
+assign core_tx_last_be_sink_sink_valid = core_tx_converter_source_valid;
+assign core_tx_converter_source_ready = core_tx_last_be_sink_sink_ready;
+assign core_tx_last_be_sink_sink_first = core_tx_converter_source_first;
+assign core_tx_last_be_sink_sink_last = core_tx_converter_source_last;
+assign core_tx_last_be_sink_sink_payload_data = core_tx_converter_source_payload_data;
+assign core_tx_last_be_sink_sink_payload_last_be = core_tx_converter_source_payload_last_be;
+assign core_tx_last_be_sink_sink_payload_error = core_tx_converter_source_payload_error;
+assign core_tx_padding_sink_valid = core_tx_last_be_source_source_valid;
+assign core_tx_last_be_source_source_ready = core_tx_padding_sink_ready;
+assign core_tx_padding_sink_first = core_tx_last_be_source_source_first;
+assign core_tx_padding_sink_last = core_tx_last_be_source_source_last;
+assign core_tx_padding_sink_payload_data = core_tx_last_be_source_source_payload_data;
+assign core_tx_padding_sink_payload_last_be = core_tx_last_be_source_source_payload_last_be;
+assign core_tx_padding_sink_payload_error = core_tx_last_be_source_source_payload_error;
+assign core_tx_crc_sink_sink_valid = core_tx_padding_source_valid;
+assign core_tx_padding_source_ready = core_tx_crc_sink_sink_ready;
+assign core_tx_crc_sink_sink_first = core_tx_padding_source_first;
+assign core_tx_crc_sink_sink_last = core_tx_padding_source_last;
+assign core_tx_crc_sink_sink_payload_data = core_tx_padding_source_payload_data;
+assign core_tx_crc_sink_sink_payload_last_be = core_tx_padding_source_payload_last_be;
+assign core_tx_crc_sink_sink_payload_error = core_tx_padding_source_payload_error;
+assign core_tx_preamble_sink_valid = core_tx_crc_source_valid;
+assign core_tx_crc_source_ready = core_tx_preamble_sink_ready;
+assign core_tx_preamble_sink_first = core_tx_crc_source_first;
+assign core_tx_preamble_sink_last = core_tx_crc_source_last;
+assign core_tx_preamble_sink_payload_data = core_tx_crc_source_payload_data;
+assign core_tx_preamble_sink_payload_last_be = core_tx_crc_source_payload_last_be;
+assign core_tx_preamble_sink_payload_error = core_tx_crc_source_payload_error;
+assign core_tx_gap_sink_valid = core_tx_preamble_source_valid;
+assign core_tx_preamble_source_ready = core_tx_gap_sink_ready;
+assign core_tx_gap_sink_first = core_tx_preamble_source_first;
+assign core_tx_gap_sink_last = core_tx_preamble_source_last;
+assign core_tx_gap_sink_payload_data = core_tx_preamble_source_payload_data;
+assign core_tx_gap_sink_payload_last_be = core_tx_preamble_source_payload_last_be;
+assign core_tx_gap_sink_payload_error = core_tx_preamble_source_payload_error;
+assign maccore_liteethphymiitx_sink_valid = core_tx_gap_source_valid;
+assign core_tx_gap_source_ready = maccore_liteethphymiitx_sink_ready;
+assign maccore_liteethphymiitx_sink_first = core_tx_gap_source_first;
+assign maccore_liteethphymiitx_sink_last = core_tx_gap_source_last;
+assign maccore_liteethphymiitx_sink_payload_data = core_tx_gap_source_payload_data;
+assign maccore_liteethphymiitx_sink_payload_last_be = core_tx_gap_source_payload_last_be;
+assign maccore_liteethphymiitx_sink_payload_error = core_tx_gap_source_payload_error;
+assign core_pulsesynchronizer0_i = core_rx_preamble_error;
+assign core_pulsesynchronizer1_i = core_liteethmaccrc32checker_error;
+assign core_rx_preamble_source_payload_data = core_rx_preamble_sink_payload_data;
+assign core_rx_preamble_source_payload_last_be = core_rx_preamble_sink_payload_last_be;
 always @(*) begin
-    builder_rxdatapath_liteethmacpreamblechecker_next_state <= 1'd0;
-    main_rx_preamble_error <= 1'd0;
-    main_rx_preamble_sink_ready <= 1'd0;
-    main_rx_preamble_source_first <= 1'd0;
-    main_rx_preamble_source_last <= 1'd0;
-    main_rx_preamble_source_payload_error <= 1'd0;
-    main_rx_preamble_source_valid <= 1'd0;
-    builder_rxdatapath_liteethmacpreamblechecker_next_state <= builder_rxdatapath_liteethmacpreamblechecker_state;
-    case (builder_rxdatapath_liteethmacpreamblechecker_state)
+    core_rx_preamble_error <= 1'd0;
+    core_rx_preamble_sink_ready <= 1'd0;
+    core_rx_preamble_source_first <= 1'd0;
+    core_rx_preamble_source_last <= 1'd0;
+    core_rx_preamble_source_payload_error <= 1'd0;
+    core_rx_preamble_source_valid <= 1'd0;
+    rxdatapath_liteethmacpreamblechecker_next_state <= 1'd0;
+    rxdatapath_liteethmacpreamblechecker_next_state <= rxdatapath_liteethmacpreamblechecker_state;
+    case (rxdatapath_liteethmacpreamblechecker_state)
         1'd1: begin
-            main_rx_preamble_source_valid <= main_rx_preamble_sink_valid;
-            main_rx_preamble_sink_ready <= main_rx_preamble_source_ready;
-            main_rx_preamble_source_first <= main_rx_preamble_sink_first;
-            main_rx_preamble_source_last <= main_rx_preamble_sink_last;
-            main_rx_preamble_source_payload_error <= main_rx_preamble_sink_payload_error;
-            if (((main_rx_preamble_source_valid & main_rx_preamble_source_last) & main_rx_preamble_source_ready)) begin
-                builder_rxdatapath_liteethmacpreamblechecker_next_state <= 1'd0;
+            core_rx_preamble_source_valid <= core_rx_preamble_sink_valid;
+            core_rx_preamble_sink_ready <= core_rx_preamble_source_ready;
+            core_rx_preamble_source_first <= core_rx_preamble_sink_first;
+            core_rx_preamble_source_last <= core_rx_preamble_sink_last;
+            core_rx_preamble_source_payload_error <= core_rx_preamble_sink_payload_error;
+            if (((core_rx_preamble_source_valid & core_rx_preamble_source_last) & core_rx_preamble_source_ready)) begin
+                rxdatapath_liteethmacpreamblechecker_next_state <= 1'd0;
             end
         end
         default: begin
-            main_rx_preamble_sink_ready <= 1'd1;
-            if (((main_rx_preamble_sink_valid & (~main_rx_preamble_sink_last)) & (main_rx_preamble_sink_payload_data == main_rx_preamble_preamble[63:56]))) begin
-                builder_rxdatapath_liteethmacpreamblechecker_next_state <= 1'd1;
+            core_rx_preamble_sink_ready <= 1'd1;
+            if (((core_rx_preamble_sink_valid & (~core_rx_preamble_sink_last)) & (core_rx_preamble_sink_payload_data == core_rx_preamble_preamble[63:56]))) begin
+                rxdatapath_liteethmacpreamblechecker_next_state <= 1'd1;
             end
-            if ((main_rx_preamble_sink_valid & main_rx_preamble_sink_last)) begin
-                main_rx_preamble_error <= 1'd1;
+            if ((core_rx_preamble_sink_valid & core_rx_preamble_sink_last)) begin
+                core_rx_preamble_error <= 1'd1;
             end
         end
     endcase
 end
-assign main_pulsesynchronizer0_o = (main_pulsesynchronizer0_toggle_o ^ main_pulsesynchronizer0_toggle_o_r);
-assign main_liteethmaccrc32checker_fifo_full = (main_liteethmaccrc32checker_syncfifo_level == 3'd4);
-assign main_liteethmaccrc32checker_fifo_in = (main_liteethmaccrc32checker_sink_sink_valid & ((~main_liteethmaccrc32checker_fifo_full) | main_liteethmaccrc32checker_fifo_out));
-assign main_liteethmaccrc32checker_fifo_out = (main_liteethmaccrc32checker_source_source_valid & main_liteethmaccrc32checker_source_source_ready);
-assign main_liteethmaccrc32checker_syncfifo_sink_first = main_liteethmaccrc32checker_sink_sink_first;
-assign main_liteethmaccrc32checker_syncfifo_sink_last = main_liteethmaccrc32checker_sink_sink_last;
-assign main_liteethmaccrc32checker_syncfifo_sink_payload_data = main_liteethmaccrc32checker_sink_sink_payload_data;
-assign main_liteethmaccrc32checker_syncfifo_sink_payload_last_be = main_liteethmaccrc32checker_sink_sink_payload_last_be;
-assign main_liteethmaccrc32checker_syncfifo_sink_payload_error = main_liteethmaccrc32checker_sink_sink_payload_error;
+assign core_pulsesynchronizer0_o = (core_pulsesynchronizer0_toggle_o ^ core_pulsesynchronizer0_toggle_o_r);
+assign core_liteethmaccrc32checker_fifo_full = (core_liteethmaccrc32checker_syncfifo_level == 3'd4);
+assign core_liteethmaccrc32checker_fifo_in = (core_liteethmaccrc32checker_sink_sink_valid & ((~core_liteethmaccrc32checker_fifo_full) | core_liteethmaccrc32checker_fifo_out));
+assign core_liteethmaccrc32checker_fifo_out = (core_liteethmaccrc32checker_source_source_valid & core_liteethmaccrc32checker_source_source_ready);
+assign core_liteethmaccrc32checker_syncfifo_sink_first = core_liteethmaccrc32checker_sink_sink_first;
+assign core_liteethmaccrc32checker_syncfifo_sink_last = core_liteethmaccrc32checker_sink_sink_last;
+assign core_liteethmaccrc32checker_syncfifo_sink_payload_data = core_liteethmaccrc32checker_sink_sink_payload_data;
+assign core_liteethmaccrc32checker_syncfifo_sink_payload_last_be = core_liteethmaccrc32checker_sink_sink_payload_last_be;
+assign core_liteethmaccrc32checker_syncfifo_sink_payload_error = core_liteethmaccrc32checker_sink_sink_payload_error;
 always @(*) begin
-    main_liteethmaccrc32checker_syncfifo_sink_valid <= 1'd0;
-    main_liteethmaccrc32checker_syncfifo_sink_valid <= main_liteethmaccrc32checker_sink_sink_valid;
-    main_liteethmaccrc32checker_syncfifo_sink_valid <= main_liteethmaccrc32checker_fifo_in;
+    core_liteethmaccrc32checker_syncfifo_sink_valid <= 1'd0;
+    core_liteethmaccrc32checker_syncfifo_sink_valid <= core_liteethmaccrc32checker_sink_sink_valid;
+    core_liteethmaccrc32checker_syncfifo_sink_valid <= core_liteethmaccrc32checker_fifo_in;
 end
 always @(*) begin
-    main_liteethmaccrc32checker_sink_sink_ready <= 1'd0;
-    main_liteethmaccrc32checker_sink_sink_ready <= main_liteethmaccrc32checker_syncfifo_sink_ready;
-    main_liteethmaccrc32checker_sink_sink_ready <= main_liteethmaccrc32checker_fifo_in;
+    core_liteethmaccrc32checker_sink_sink_ready <= 1'd0;
+    core_liteethmaccrc32checker_sink_sink_ready <= core_liteethmaccrc32checker_syncfifo_sink_ready;
+    core_liteethmaccrc32checker_sink_sink_ready <= core_liteethmaccrc32checker_fifo_in;
 end
-assign main_liteethmaccrc32checker_crc_data0 = main_liteethmaccrc32checker_sink_sink_payload_data;
-assign main_liteethmaccrc32checker_crc_be = main_liteethmaccrc32checker_sink_sink_payload_last_be;
-assign main_liteethmaccrc32checker_source_source_first = main_liteethmaccrc32checker_syncfifo_source_first;
-assign main_liteethmaccrc32checker_source_source_payload_data = main_liteethmaccrc32checker_syncfifo_source_payload_data;
-assign main_liteethmaccrc32checker_sink_sink_valid = main_bufferizeendpoints_source_source_valid;
-assign main_bufferizeendpoints_source_source_ready = main_liteethmaccrc32checker_sink_sink_ready;
-assign main_liteethmaccrc32checker_sink_sink_first = main_bufferizeendpoints_source_source_first;
-assign main_liteethmaccrc32checker_sink_sink_last = main_bufferizeendpoints_source_source_last;
-assign main_liteethmaccrc32checker_sink_sink_payload_data = main_bufferizeendpoints_source_source_payload_data;
-assign main_liteethmaccrc32checker_sink_sink_payload_last_be = main_bufferizeendpoints_source_source_payload_last_be;
-assign main_liteethmaccrc32checker_sink_sink_payload_error = main_bufferizeendpoints_source_source_payload_error;
-assign main_liteethmaccrc32checker_crc_data1 = main_liteethmaccrc32checker_crc_data0[7:0];
-assign main_liteethmaccrc32checker_crc_crc_prev = main_liteethmaccrc32checker_crc_reg;
+assign core_liteethmaccrc32checker_crc_data0 = core_liteethmaccrc32checker_sink_sink_payload_data;
+assign core_liteethmaccrc32checker_crc_be = core_liteethmaccrc32checker_sink_sink_payload_last_be;
+assign core_liteethmaccrc32checker_source_source_first = core_liteethmaccrc32checker_syncfifo_source_first;
+assign core_liteethmaccrc32checker_source_source_payload_data = core_liteethmaccrc32checker_syncfifo_source_payload_data;
+assign core_liteethmaccrc32checker_sink_sink_valid = core_bufferizeendpoints_source_source_valid;
+assign core_bufferizeendpoints_source_source_ready = core_liteethmaccrc32checker_sink_sink_ready;
+assign core_liteethmaccrc32checker_sink_sink_first = core_bufferizeendpoints_source_source_first;
+assign core_liteethmaccrc32checker_sink_sink_last = core_bufferizeendpoints_source_source_last;
+assign core_liteethmaccrc32checker_sink_sink_payload_data = core_bufferizeendpoints_source_source_payload_data;
+assign core_liteethmaccrc32checker_sink_sink_payload_last_be = core_bufferizeendpoints_source_source_payload_last_be;
+assign core_liteethmaccrc32checker_sink_sink_payload_error = core_bufferizeendpoints_source_source_payload_error;
+assign core_liteethmaccrc32checker_crc_data1 = core_liteethmaccrc32checker_crc_data0;
+assign core_liteethmaccrc32checker_crc_crc_prev = core_liteethmaccrc32checker_crc_reg;
 always @(*) begin
-    main_liteethmaccrc32checker_crc_error0 <= 1'd0;
-    main_liteethmaccrc32checker_crc_value <= 32'd0;
-    if (main_liteethmaccrc32checker_crc_be) begin
-        main_liteethmaccrc32checker_crc_value <= {builder_t_slice_proxy63[0], builder_t_slice_proxy62[1], builder_t_slice_proxy61[2], builder_t_slice_proxy60[3], builder_t_slice_proxy59[4], builder_t_slice_proxy58[5], builder_t_slice_proxy57[6], builder_t_slice_proxy56[7], builder_t_slice_proxy55[8], builder_t_slice_proxy54[9], builder_t_slice_proxy53[10], builder_t_slice_proxy52[11], builder_t_slice_proxy51[12], builder_t_slice_proxy50[13], builder_t_slice_proxy49[14], builder_t_slice_proxy48[15], builder_t_slice_proxy47[16], builder_t_slice_proxy46[17], builder_t_slice_proxy45[18], builder_t_slice_proxy44[19], builder_t_slice_proxy43[20], builder_t_slice_proxy42[21], builder_t_slice_proxy41[22], builder_t_slice_proxy40[23], builder_t_slice_proxy39[24], builder_t_slice_proxy38[25], builder_t_slice_proxy37[26], builder_t_slice_proxy36[27], builder_t_slice_proxy35[28], builder_t_slice_proxy34[29], builder_t_slice_proxy33[30], builder_t_slice_proxy32[31]};
-        main_liteethmaccrc32checker_crc_error0 <= (main_liteethmaccrc32checker_crc_crc_next != 32'd3338984827);
+    core_liteethmaccrc32checker_crc_error0 <= 1'd0;
+    core_liteethmaccrc32checker_crc_value <= 32'd0;
+    if (core_liteethmaccrc32checker_crc_be) begin
+        core_liteethmaccrc32checker_crc_value <= ({core_liteethmaccrc32checker_crc_crc_next[0], core_liteethmaccrc32checker_crc_crc_next[1], core_liteethmaccrc32checker_crc_crc_next[2], core_liteethmaccrc32checker_crc_crc_next[3], core_liteethmaccrc32checker_crc_crc_next[4], core_liteethmaccrc32checker_crc_crc_next[5], core_liteethmaccrc32checker_crc_crc_next[6], core_liteethmaccrc32checker_crc_crc_next[7], core_liteethmaccrc32checker_crc_crc_next[8], core_liteethmaccrc32checker_crc_crc_next[9], core_liteethmaccrc32checker_crc_crc_next[10], core_liteethmaccrc32checker_crc_crc_next[11], core_liteethmaccrc32checker_crc_crc_next[12], core_liteethmaccrc32checker_crc_crc_next[13], core_liteethmaccrc32checker_crc_crc_next[14], core_liteethmaccrc32checker_crc_crc_next[15], core_liteethmaccrc32checker_crc_crc_next[16], core_liteethmaccrc32checker_crc_crc_next[17], core_liteethmaccrc32checker_crc_crc_next[18], core_liteethmaccrc32checker_crc_crc_next[19], core_liteethmaccrc32checker_crc_crc_next[20], core_liteethmaccrc32checker_crc_crc_next[21], core_liteethmaccrc32checker_crc_crc_next[22], core_liteethmaccrc32checker_crc_crc_next[23], core_liteethmaccrc32checker_crc_crc_next[24], core_liteethmaccrc32checker_crc_crc_next[25], core_liteethmaccrc32checker_crc_crc_next[26], core_liteethmaccrc32checker_crc_crc_next[27], core_liteethmaccrc32checker_crc_crc_next[28], core_liteethmaccrc32checker_crc_crc_next[29], core_liteethmaccrc32checker_crc_crc_next[30], core_liteethmaccrc32checker_crc_crc_next[31]} ^ 32'd4294967295);
+        core_liteethmaccrc32checker_crc_error0 <= (core_liteethmaccrc32checker_crc_crc_next != 32'd3338984827);
     end
 end
 always @(*) begin
-    main_liteethmaccrc32checker_crc_crc_next <= 32'd0;
-    main_liteethmaccrc32checker_crc_crc_next[0] <= (((main_liteethmaccrc32checker_crc_crc_prev[24] ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[1] <= (((((((main_liteethmaccrc32checker_crc_crc_prev[25] ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_data1[6]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[2] <= (((((((((main_liteethmaccrc32checker_crc_crc_prev[26] ^ main_liteethmaccrc32checker_crc_data1[5]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_data1[6]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[3] <= (((((((main_liteethmaccrc32checker_crc_crc_prev[27] ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_data1[6]);
-    main_liteethmaccrc32checker_crc_crc_next[4] <= (((((((((main_liteethmaccrc32checker_crc_crc_prev[28] ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[5] <= (((((((((((((main_liteethmaccrc32checker_crc_crc_prev[29] ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_data1[6]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[6] <= (((((((((((main_liteethmaccrc32checker_crc_crc_prev[30] ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_data1[6]);
-    main_liteethmaccrc32checker_crc_crc_next[7] <= (((((((((main_liteethmaccrc32checker_crc_crc_prev[31] ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[8] <= ((((((((main_liteethmaccrc32checker_crc_crc_prev[0] ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_data1[6]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[9] <= ((((((((main_liteethmaccrc32checker_crc_crc_prev[1] ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_data1[6]);
-    main_liteethmaccrc32checker_crc_crc_next[10] <= ((((((((main_liteethmaccrc32checker_crc_crc_prev[2] ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[11] <= ((((((((main_liteethmaccrc32checker_crc_crc_prev[3] ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_data1[6]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[12] <= ((((((((((((main_liteethmaccrc32checker_crc_crc_prev[4] ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_data1[6]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[13] <= ((((((((((((main_liteethmaccrc32checker_crc_crc_prev[5] ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_data1[6]);
-    main_liteethmaccrc32checker_crc_crc_next[14] <= ((((((((((main_liteethmaccrc32checker_crc_crc_prev[6] ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]);
-    main_liteethmaccrc32checker_crc_crc_next[15] <= ((((((((main_liteethmaccrc32checker_crc_crc_prev[7] ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]);
-    main_liteethmaccrc32checker_crc_crc_next[16] <= ((((((main_liteethmaccrc32checker_crc_crc_prev[8] ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[17] <= ((((((main_liteethmaccrc32checker_crc_crc_prev[9] ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_data1[6]);
-    main_liteethmaccrc32checker_crc_crc_next[18] <= ((((((main_liteethmaccrc32checker_crc_crc_prev[10] ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]);
-    main_liteethmaccrc32checker_crc_crc_next[19] <= ((((main_liteethmaccrc32checker_crc_crc_prev[11] ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]);
-    main_liteethmaccrc32checker_crc_crc_next[20] <= ((main_liteethmaccrc32checker_crc_crc_prev[12] ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]);
-    main_liteethmaccrc32checker_crc_crc_next[21] <= ((main_liteethmaccrc32checker_crc_crc_prev[13] ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]);
-    main_liteethmaccrc32checker_crc_crc_next[22] <= ((main_liteethmaccrc32checker_crc_crc_prev[14] ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[23] <= ((((((main_liteethmaccrc32checker_crc_crc_prev[15] ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_data1[6]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[24] <= ((((((main_liteethmaccrc32checker_crc_crc_prev[16] ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_data1[6]);
-    main_liteethmaccrc32checker_crc_crc_next[25] <= ((((main_liteethmaccrc32checker_crc_crc_prev[17] ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]);
-    main_liteethmaccrc32checker_crc_crc_next[26] <= ((((((((main_liteethmaccrc32checker_crc_crc_prev[18] ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]) ^ main_liteethmaccrc32checker_crc_crc_prev[24]) ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_data1[7]);
-    main_liteethmaccrc32checker_crc_crc_next[27] <= ((((((((main_liteethmaccrc32checker_crc_crc_prev[19] ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]) ^ main_liteethmaccrc32checker_crc_crc_prev[25]) ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_data1[6]);
-    main_liteethmaccrc32checker_crc_crc_next[28] <= ((((((main_liteethmaccrc32checker_crc_crc_prev[20] ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]) ^ main_liteethmaccrc32checker_crc_crc_prev[26]) ^ main_liteethmaccrc32checker_crc_data1[5]);
-    main_liteethmaccrc32checker_crc_crc_next[29] <= ((((((main_liteethmaccrc32checker_crc_crc_prev[21] ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_crc_prev[30]) ^ main_liteethmaccrc32checker_crc_data1[1]) ^ main_liteethmaccrc32checker_crc_crc_prev[27]) ^ main_liteethmaccrc32checker_crc_data1[4]);
-    main_liteethmaccrc32checker_crc_crc_next[30] <= ((((main_liteethmaccrc32checker_crc_crc_prev[22] ^ main_liteethmaccrc32checker_crc_crc_prev[31]) ^ main_liteethmaccrc32checker_crc_data1[0]) ^ main_liteethmaccrc32checker_crc_crc_prev[28]) ^ main_liteethmaccrc32checker_crc_data1[3]);
-    main_liteethmaccrc32checker_crc_crc_next[31] <= ((main_liteethmaccrc32checker_crc_crc_prev[23] ^ main_liteethmaccrc32checker_crc_crc_prev[29]) ^ main_liteethmaccrc32checker_crc_data1[2]);
+    core_liteethmaccrc32checker_crc_crc_next <= 32'd0;
+    core_liteethmaccrc32checker_crc_crc_next[0] <= (((core_liteethmaccrc32checker_crc_crc_prev[24] ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[1] <= (((((((core_liteethmaccrc32checker_crc_crc_prev[25] ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_data1[6]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[2] <= (((((((((core_liteethmaccrc32checker_crc_crc_prev[26] ^ core_liteethmaccrc32checker_crc_data1[5]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_data1[6]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[3] <= (((((((core_liteethmaccrc32checker_crc_crc_prev[27] ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_data1[6]);
+    core_liteethmaccrc32checker_crc_crc_next[4] <= (((((((((core_liteethmaccrc32checker_crc_crc_prev[28] ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[5] <= (((((((((((((core_liteethmaccrc32checker_crc_crc_prev[29] ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_data1[6]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[6] <= (((((((((((core_liteethmaccrc32checker_crc_crc_prev[30] ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_data1[6]);
+    core_liteethmaccrc32checker_crc_crc_next[7] <= (((((((((core_liteethmaccrc32checker_crc_crc_prev[31] ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[8] <= ((((((((core_liteethmaccrc32checker_crc_crc_prev[0] ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_data1[6]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[9] <= ((((((((core_liteethmaccrc32checker_crc_crc_prev[1] ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_data1[6]);
+    core_liteethmaccrc32checker_crc_crc_next[10] <= ((((((((core_liteethmaccrc32checker_crc_crc_prev[2] ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[11] <= ((((((((core_liteethmaccrc32checker_crc_crc_prev[3] ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_data1[6]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[12] <= ((((((((((((core_liteethmaccrc32checker_crc_crc_prev[4] ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_data1[6]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[13] <= ((((((((((((core_liteethmaccrc32checker_crc_crc_prev[5] ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_data1[6]);
+    core_liteethmaccrc32checker_crc_crc_next[14] <= ((((((((((core_liteethmaccrc32checker_crc_crc_prev[6] ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]);
+    core_liteethmaccrc32checker_crc_crc_next[15] <= ((((((((core_liteethmaccrc32checker_crc_crc_prev[7] ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]);
+    core_liteethmaccrc32checker_crc_crc_next[16] <= ((((((core_liteethmaccrc32checker_crc_crc_prev[8] ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[17] <= ((((((core_liteethmaccrc32checker_crc_crc_prev[9] ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_data1[6]);
+    core_liteethmaccrc32checker_crc_crc_next[18] <= ((((((core_liteethmaccrc32checker_crc_crc_prev[10] ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]);
+    core_liteethmaccrc32checker_crc_crc_next[19] <= ((((core_liteethmaccrc32checker_crc_crc_prev[11] ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]);
+    core_liteethmaccrc32checker_crc_crc_next[20] <= ((core_liteethmaccrc32checker_crc_crc_prev[12] ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]);
+    core_liteethmaccrc32checker_crc_crc_next[21] <= ((core_liteethmaccrc32checker_crc_crc_prev[13] ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]);
+    core_liteethmaccrc32checker_crc_crc_next[22] <= ((core_liteethmaccrc32checker_crc_crc_prev[14] ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[23] <= ((((((core_liteethmaccrc32checker_crc_crc_prev[15] ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_data1[6]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[24] <= ((((((core_liteethmaccrc32checker_crc_crc_prev[16] ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_data1[6]);
+    core_liteethmaccrc32checker_crc_crc_next[25] <= ((((core_liteethmaccrc32checker_crc_crc_prev[17] ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]);
+    core_liteethmaccrc32checker_crc_crc_next[26] <= ((((((((core_liteethmaccrc32checker_crc_crc_prev[18] ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]) ^ core_liteethmaccrc32checker_crc_crc_prev[24]) ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_data1[7]);
+    core_liteethmaccrc32checker_crc_crc_next[27] <= ((((((((core_liteethmaccrc32checker_crc_crc_prev[19] ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]) ^ core_liteethmaccrc32checker_crc_crc_prev[25]) ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_data1[6]);
+    core_liteethmaccrc32checker_crc_crc_next[28] <= ((((((core_liteethmaccrc32checker_crc_crc_prev[20] ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]) ^ core_liteethmaccrc32checker_crc_crc_prev[26]) ^ core_liteethmaccrc32checker_crc_data1[5]);
+    core_liteethmaccrc32checker_crc_crc_next[29] <= ((((((core_liteethmaccrc32checker_crc_crc_prev[21] ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_crc_prev[30]) ^ core_liteethmaccrc32checker_crc_data1[1]) ^ core_liteethmaccrc32checker_crc_crc_prev[27]) ^ core_liteethmaccrc32checker_crc_data1[4]);
+    core_liteethmaccrc32checker_crc_crc_next[30] <= ((((core_liteethmaccrc32checker_crc_crc_prev[22] ^ core_liteethmaccrc32checker_crc_crc_prev[31]) ^ core_liteethmaccrc32checker_crc_data1[0]) ^ core_liteethmaccrc32checker_crc_crc_prev[28]) ^ core_liteethmaccrc32checker_crc_data1[3]);
+    core_liteethmaccrc32checker_crc_crc_next[31] <= ((core_liteethmaccrc32checker_crc_crc_prev[23] ^ core_liteethmaccrc32checker_crc_crc_prev[29]) ^ core_liteethmaccrc32checker_crc_data1[2]);
 end
-assign main_liteethmaccrc32checker_syncfifo_syncfifo_din = {main_liteethmaccrc32checker_syncfifo_fifo_in_last, main_liteethmaccrc32checker_syncfifo_fifo_in_first, main_liteethmaccrc32checker_syncfifo_fifo_in_payload_error, main_liteethmaccrc32checker_syncfifo_fifo_in_payload_last_be, main_liteethmaccrc32checker_syncfifo_fifo_in_payload_data};
-assign {main_liteethmaccrc32checker_syncfifo_fifo_out_last, main_liteethmaccrc32checker_syncfifo_fifo_out_first, main_liteethmaccrc32checker_syncfifo_fifo_out_payload_error, main_liteethmaccrc32checker_syncfifo_fifo_out_payload_last_be, main_liteethmaccrc32checker_syncfifo_fifo_out_payload_data} = main_liteethmaccrc32checker_syncfifo_syncfifo_dout;
-assign main_liteethmaccrc32checker_syncfifo_sink_ready = main_liteethmaccrc32checker_syncfifo_syncfifo_writable;
-assign main_liteethmaccrc32checker_syncfifo_syncfifo_we = main_liteethmaccrc32checker_syncfifo_sink_valid;
-assign main_liteethmaccrc32checker_syncfifo_fifo_in_first = main_liteethmaccrc32checker_syncfifo_sink_first;
-assign main_liteethmaccrc32checker_syncfifo_fifo_in_last = main_liteethmaccrc32checker_syncfifo_sink_last;
-assign main_liteethmaccrc32checker_syncfifo_fifo_in_payload_data = main_liteethmaccrc32checker_syncfifo_sink_payload_data;
-assign main_liteethmaccrc32checker_syncfifo_fifo_in_payload_last_be = main_liteethmaccrc32checker_syncfifo_sink_payload_last_be;
-assign main_liteethmaccrc32checker_syncfifo_fifo_in_payload_error = main_liteethmaccrc32checker_syncfifo_sink_payload_error;
-assign main_liteethmaccrc32checker_syncfifo_source_valid = main_liteethmaccrc32checker_syncfifo_syncfifo_readable;
-assign main_liteethmaccrc32checker_syncfifo_source_first = main_liteethmaccrc32checker_syncfifo_fifo_out_first;
-assign main_liteethmaccrc32checker_syncfifo_source_last = main_liteethmaccrc32checker_syncfifo_fifo_out_last;
-assign main_liteethmaccrc32checker_syncfifo_source_payload_data = main_liteethmaccrc32checker_syncfifo_fifo_out_payload_data;
-assign main_liteethmaccrc32checker_syncfifo_source_payload_last_be = main_liteethmaccrc32checker_syncfifo_fifo_out_payload_last_be;
-assign main_liteethmaccrc32checker_syncfifo_source_payload_error = main_liteethmaccrc32checker_syncfifo_fifo_out_payload_error;
-assign main_liteethmaccrc32checker_syncfifo_syncfifo_re = main_liteethmaccrc32checker_syncfifo_source_ready;
+assign core_liteethmaccrc32checker_syncfifo_syncfifo_din = {core_liteethmaccrc32checker_syncfifo_fifo_in_last, core_liteethmaccrc32checker_syncfifo_fifo_in_first, core_liteethmaccrc32checker_syncfifo_fifo_in_payload_error, core_liteethmaccrc32checker_syncfifo_fifo_in_payload_last_be, core_liteethmaccrc32checker_syncfifo_fifo_in_payload_data};
+assign {core_liteethmaccrc32checker_syncfifo_fifo_out_last, core_liteethmaccrc32checker_syncfifo_fifo_out_first, core_liteethmaccrc32checker_syncfifo_fifo_out_payload_error, core_liteethmaccrc32checker_syncfifo_fifo_out_payload_last_be, core_liteethmaccrc32checker_syncfifo_fifo_out_payload_data} = core_liteethmaccrc32checker_syncfifo_syncfifo_dout;
+assign core_liteethmaccrc32checker_syncfifo_sink_ready = core_liteethmaccrc32checker_syncfifo_syncfifo_writable;
+assign core_liteethmaccrc32checker_syncfifo_syncfifo_we = core_liteethmaccrc32checker_syncfifo_sink_valid;
+assign core_liteethmaccrc32checker_syncfifo_fifo_in_first = core_liteethmaccrc32checker_syncfifo_sink_first;
+assign core_liteethmaccrc32checker_syncfifo_fifo_in_last = core_liteethmaccrc32checker_syncfifo_sink_last;
+assign core_liteethmaccrc32checker_syncfifo_fifo_in_payload_data = core_liteethmaccrc32checker_syncfifo_sink_payload_data;
+assign core_liteethmaccrc32checker_syncfifo_fifo_in_payload_last_be = core_liteethmaccrc32checker_syncfifo_sink_payload_last_be;
+assign core_liteethmaccrc32checker_syncfifo_fifo_in_payload_error = core_liteethmaccrc32checker_syncfifo_sink_payload_error;
+assign core_liteethmaccrc32checker_syncfifo_source_valid = core_liteethmaccrc32checker_syncfifo_syncfifo_readable;
+assign core_liteethmaccrc32checker_syncfifo_source_first = core_liteethmaccrc32checker_syncfifo_fifo_out_first;
+assign core_liteethmaccrc32checker_syncfifo_source_last = core_liteethmaccrc32checker_syncfifo_fifo_out_last;
+assign core_liteethmaccrc32checker_syncfifo_source_payload_data = core_liteethmaccrc32checker_syncfifo_fifo_out_payload_data;
+assign core_liteethmaccrc32checker_syncfifo_source_payload_last_be = core_liteethmaccrc32checker_syncfifo_fifo_out_payload_last_be;
+assign core_liteethmaccrc32checker_syncfifo_source_payload_error = core_liteethmaccrc32checker_syncfifo_fifo_out_payload_error;
+assign core_liteethmaccrc32checker_syncfifo_syncfifo_re = core_liteethmaccrc32checker_syncfifo_source_ready;
 always @(*) begin
-    main_liteethmaccrc32checker_syncfifo_wrport_adr <= 3'd0;
-    if (main_liteethmaccrc32checker_syncfifo_replace) begin
-        main_liteethmaccrc32checker_syncfifo_wrport_adr <= (main_liteethmaccrc32checker_syncfifo_produce - 1'd1);
+    core_liteethmaccrc32checker_syncfifo_wrport_adr <= 3'd0;
+    if (core_liteethmaccrc32checker_syncfifo_replace) begin
+        core_liteethmaccrc32checker_syncfifo_wrport_adr <= (core_liteethmaccrc32checker_syncfifo_produce - 1'd1);
     end else begin
-        main_liteethmaccrc32checker_syncfifo_wrport_adr <= main_liteethmaccrc32checker_syncfifo_produce;
+        core_liteethmaccrc32checker_syncfifo_wrport_adr <= core_liteethmaccrc32checker_syncfifo_produce;
     end
 end
-assign main_liteethmaccrc32checker_syncfifo_wrport_dat_w = main_liteethmaccrc32checker_syncfifo_syncfifo_din;
-assign main_liteethmaccrc32checker_syncfifo_wrport_we = (main_liteethmaccrc32checker_syncfifo_syncfifo_we & (main_liteethmaccrc32checker_syncfifo_syncfifo_writable | main_liteethmaccrc32checker_syncfifo_replace));
-assign main_liteethmaccrc32checker_syncfifo_do_read = (main_liteethmaccrc32checker_syncfifo_syncfifo_readable & main_liteethmaccrc32checker_syncfifo_syncfifo_re);
-assign main_liteethmaccrc32checker_syncfifo_rdport_adr = main_liteethmaccrc32checker_syncfifo_consume;
-assign main_liteethmaccrc32checker_syncfifo_syncfifo_dout = main_liteethmaccrc32checker_syncfifo_rdport_dat_r;
-assign main_liteethmaccrc32checker_syncfifo_syncfifo_writable = (main_liteethmaccrc32checker_syncfifo_level != 3'd5);
-assign main_liteethmaccrc32checker_syncfifo_syncfifo_readable = (main_liteethmaccrc32checker_syncfifo_level != 1'd0);
+assign core_liteethmaccrc32checker_syncfifo_wrport_dat_w = core_liteethmaccrc32checker_syncfifo_syncfifo_din;
+assign core_liteethmaccrc32checker_syncfifo_wrport_we = (core_liteethmaccrc32checker_syncfifo_syncfifo_we & (core_liteethmaccrc32checker_syncfifo_syncfifo_writable | core_liteethmaccrc32checker_syncfifo_replace));
+assign core_liteethmaccrc32checker_syncfifo_do_read = (core_liteethmaccrc32checker_syncfifo_syncfifo_readable & core_liteethmaccrc32checker_syncfifo_syncfifo_re);
+assign core_liteethmaccrc32checker_syncfifo_rdport_adr = core_liteethmaccrc32checker_syncfifo_consume;
+assign core_liteethmaccrc32checker_syncfifo_syncfifo_dout = core_liteethmaccrc32checker_syncfifo_rdport_dat_r;
+assign core_liteethmaccrc32checker_syncfifo_syncfifo_writable = (core_liteethmaccrc32checker_syncfifo_level != 3'd5);
+assign core_liteethmaccrc32checker_syncfifo_syncfifo_readable = (core_liteethmaccrc32checker_syncfifo_level != 1'd0);
 always @(*) begin
-    builder_rxdatapath_bufferizeendpoints_next_state <= 2'd0;
-    main_liteethmaccrc32checker_crc_ce <= 1'd0;
-    main_liteethmaccrc32checker_crc_error1_next_value1 <= 1'd0;
-    main_liteethmaccrc32checker_crc_error1_next_value_ce1 <= 1'd0;
-    main_liteethmaccrc32checker_crc_reset <= 1'd0;
-    main_liteethmaccrc32checker_error <= 1'd0;
-    main_liteethmaccrc32checker_fifo_reset <= 1'd0;
-    main_liteethmaccrc32checker_last_be_next_value0 <= 1'd0;
-    main_liteethmaccrc32checker_last_be_next_value_ce0 <= 1'd0;
-    main_liteethmaccrc32checker_source_source_last <= 1'd0;
-    main_liteethmaccrc32checker_source_source_payload_error <= 1'd0;
-    main_liteethmaccrc32checker_source_source_payload_last_be <= 1'd0;
-    main_liteethmaccrc32checker_source_source_valid <= 1'd0;
-    main_liteethmaccrc32checker_syncfifo_source_ready <= 1'd0;
-    main_liteethmaccrc32checker_source_source_payload_error <= main_liteethmaccrc32checker_syncfifo_source_payload_error;
-    builder_rxdatapath_bufferizeendpoints_next_state <= builder_rxdatapath_bufferizeendpoints_state;
-    case (builder_rxdatapath_bufferizeendpoints_state)
+    core_liteethmaccrc32checker_crc_ce <= 1'd0;
+    core_liteethmaccrc32checker_crc_error1_next_value1 <= 1'd0;
+    core_liteethmaccrc32checker_crc_error1_next_value_ce1 <= 1'd0;
+    core_liteethmaccrc32checker_crc_reset <= 1'd0;
+    core_liteethmaccrc32checker_error <= 1'd0;
+    core_liteethmaccrc32checker_fifo_reset <= 1'd0;
+    core_liteethmaccrc32checker_last_be_next_value0 <= 1'd0;
+    core_liteethmaccrc32checker_last_be_next_value_ce0 <= 1'd0;
+    core_liteethmaccrc32checker_source_source_last <= 1'd0;
+    core_liteethmaccrc32checker_source_source_payload_error <= 1'd0;
+    core_liteethmaccrc32checker_source_source_payload_last_be <= 1'd0;
+    core_liteethmaccrc32checker_source_source_valid <= 1'd0;
+    core_liteethmaccrc32checker_syncfifo_source_ready <= 1'd0;
+    rxdatapath_bufferizeendpoints_next_state <= 2'd0;
+    core_liteethmaccrc32checker_source_source_payload_error <= core_liteethmaccrc32checker_syncfifo_source_payload_error;
+    rxdatapath_bufferizeendpoints_next_state <= rxdatapath_bufferizeendpoints_state;
+    case (rxdatapath_bufferizeendpoints_state)
         1'd1: begin
-            if ((main_liteethmaccrc32checker_sink_sink_valid & main_liteethmaccrc32checker_sink_sink_ready)) begin
-                main_liteethmaccrc32checker_crc_ce <= 1'd1;
-                builder_rxdatapath_bufferizeendpoints_next_state <= 2'd2;
+            if ((core_liteethmaccrc32checker_sink_sink_valid & core_liteethmaccrc32checker_sink_sink_ready)) begin
+                core_liteethmaccrc32checker_crc_ce <= 1'd1;
+                rxdatapath_bufferizeendpoints_next_state <= 2'd2;
             end
         end
         2'd2: begin
-            main_liteethmaccrc32checker_syncfifo_source_ready <= main_liteethmaccrc32checker_fifo_out;
-            main_liteethmaccrc32checker_source_source_valid <= (main_liteethmaccrc32checker_sink_sink_valid & main_liteethmaccrc32checker_fifo_full);
+            core_liteethmaccrc32checker_syncfifo_source_ready <= core_liteethmaccrc32checker_fifo_out;
+            core_liteethmaccrc32checker_source_source_valid <= (core_liteethmaccrc32checker_sink_sink_valid & core_liteethmaccrc32checker_fifo_full);
             if (1'd1) begin
-                main_liteethmaccrc32checker_source_source_last <= main_liteethmaccrc32checker_sink_sink_last;
-                main_liteethmaccrc32checker_source_source_payload_last_be <= main_liteethmaccrc32checker_sink_sink_payload_last_be;
+                core_liteethmaccrc32checker_source_source_last <= core_liteethmaccrc32checker_sink_sink_last;
+                core_liteethmaccrc32checker_source_source_payload_last_be <= core_liteethmaccrc32checker_sink_sink_payload_last_be;
             end else begin
-                if ((main_liteethmaccrc32checker_sink_sink_payload_last_be & 4'd15)) begin
-                    main_liteethmaccrc32checker_source_source_last <= main_liteethmaccrc32checker_sink_sink_last;
-                    main_liteethmaccrc32checker_source_source_payload_last_be <= (main_liteethmaccrc32checker_sink_sink_payload_last_be <<< -3'd3);
+                if ((core_liteethmaccrc32checker_sink_sink_payload_last_be & 4'd15)) begin
+                    core_liteethmaccrc32checker_source_source_last <= core_liteethmaccrc32checker_sink_sink_last;
+                    core_liteethmaccrc32checker_source_source_payload_last_be <= (core_liteethmaccrc32checker_sink_sink_payload_last_be <<< -3'd3);
                 end else begin
-                    main_liteethmaccrc32checker_last_be_next_value0 <= (main_liteethmaccrc32checker_sink_sink_payload_last_be >>> 3'd4);
-                    main_liteethmaccrc32checker_last_be_next_value_ce0 <= 1'd1;
-                    main_liteethmaccrc32checker_crc_error1_next_value1 <= main_liteethmaccrc32checker_crc_error0;
-                    main_liteethmaccrc32checker_crc_error1_next_value_ce1 <= 1'd1;
+                    core_liteethmaccrc32checker_last_be_next_value0 <= (core_liteethmaccrc32checker_sink_sink_payload_last_be >>> 3'd4);
+                    core_liteethmaccrc32checker_last_be_next_value_ce0 <= 1'd1;
+                    core_liteethmaccrc32checker_crc_error1_next_value1 <= core_liteethmaccrc32checker_crc_error0;
+                    core_liteethmaccrc32checker_crc_error1_next_value_ce1 <= 1'd1;
                 end
             end
-            main_liteethmaccrc32checker_source_source_payload_error <= (main_liteethmaccrc32checker_sink_sink_payload_error | {1{(main_liteethmaccrc32checker_crc_error0 & main_liteethmaccrc32checker_sink_sink_last)}});
-            main_liteethmaccrc32checker_error <= ((main_liteethmaccrc32checker_sink_sink_valid & main_liteethmaccrc32checker_sink_sink_last) & main_liteethmaccrc32checker_crc_error0);
-            if ((main_liteethmaccrc32checker_sink_sink_valid & main_liteethmaccrc32checker_sink_sink_ready)) begin
-                main_liteethmaccrc32checker_crc_ce <= 1'd1;
-                if ((main_liteethmaccrc32checker_sink_sink_last & (main_liteethmaccrc32checker_sink_sink_payload_last_be > 4'd15))) begin
-                    builder_rxdatapath_bufferizeendpoints_next_state <= 2'd3;
+            core_liteethmaccrc32checker_source_source_payload_error <= (core_liteethmaccrc32checker_sink_sink_payload_error | {1{(core_liteethmaccrc32checker_crc_error0 & core_liteethmaccrc32checker_sink_sink_last)}});
+            core_liteethmaccrc32checker_error <= ((core_liteethmaccrc32checker_sink_sink_valid & core_liteethmaccrc32checker_sink_sink_last) & core_liteethmaccrc32checker_crc_error0);
+            if ((core_liteethmaccrc32checker_sink_sink_valid & core_liteethmaccrc32checker_sink_sink_ready)) begin
+                core_liteethmaccrc32checker_crc_ce <= 1'd1;
+                if ((core_liteethmaccrc32checker_sink_sink_last & (core_liteethmaccrc32checker_sink_sink_payload_last_be > 4'd15))) begin
+                    rxdatapath_bufferizeendpoints_next_state <= 2'd3;
                 end else begin
-                    if (main_liteethmaccrc32checker_sink_sink_last) begin
-                        builder_rxdatapath_bufferizeendpoints_next_state <= 1'd0;
+                    if (core_liteethmaccrc32checker_sink_sink_last) begin
+                        rxdatapath_bufferizeendpoints_next_state <= 1'd0;
                     end
                 end
             end
         end
         2'd3: begin
-            main_liteethmaccrc32checker_source_source_valid <= main_liteethmaccrc32checker_syncfifo_source_valid;
-            main_liteethmaccrc32checker_syncfifo_source_ready <= main_liteethmaccrc32checker_source_source_ready;
-            main_liteethmaccrc32checker_source_source_last <= main_liteethmaccrc32checker_syncfifo_source_last;
-            main_liteethmaccrc32checker_source_source_payload_error <= (main_liteethmaccrc32checker_syncfifo_source_payload_error | {1{main_liteethmaccrc32checker_crc_error1}});
-            main_liteethmaccrc32checker_source_source_payload_last_be <= main_liteethmaccrc32checker_last_be;
-            if ((main_liteethmaccrc32checker_source_source_valid & main_liteethmaccrc32checker_source_source_ready)) begin
-                builder_rxdatapath_bufferizeendpoints_next_state <= 1'd0;
+            core_liteethmaccrc32checker_source_source_valid <= core_liteethmaccrc32checker_syncfifo_source_valid;
+            core_liteethmaccrc32checker_syncfifo_source_ready <= core_liteethmaccrc32checker_source_source_ready;
+            core_liteethmaccrc32checker_source_source_last <= core_liteethmaccrc32checker_syncfifo_source_last;
+            core_liteethmaccrc32checker_source_source_payload_error <= (core_liteethmaccrc32checker_syncfifo_source_payload_error | {1{core_liteethmaccrc32checker_crc_error1}});
+            core_liteethmaccrc32checker_source_source_payload_last_be <= core_liteethmaccrc32checker_last_be;
+            if ((core_liteethmaccrc32checker_source_source_valid & core_liteethmaccrc32checker_source_source_ready)) begin
+                rxdatapath_bufferizeendpoints_next_state <= 1'd0;
             end
         end
         default: begin
-            main_liteethmaccrc32checker_crc_reset <= 1'd1;
-            main_liteethmaccrc32checker_fifo_reset <= 1'd1;
-            builder_rxdatapath_bufferizeendpoints_next_state <= 1'd1;
+            core_liteethmaccrc32checker_crc_reset <= 1'd1;
+            core_liteethmaccrc32checker_fifo_reset <= 1'd1;
+            rxdatapath_bufferizeendpoints_next_state <= 1'd1;
         end
     endcase
 end
-assign main_bufferizeendpoints_pipe_valid_sink_ready = ((~main_bufferizeendpoints_pipe_valid_source_valid) | main_bufferizeendpoints_pipe_valid_source_ready);
-assign main_bufferizeendpoints_pipe_valid_sink_valid = main_bufferizeendpoints_sink_sink_valid;
-assign main_bufferizeendpoints_sink_sink_ready = main_bufferizeendpoints_pipe_valid_sink_ready;
-assign main_bufferizeendpoints_pipe_valid_sink_first = main_bufferizeendpoints_sink_sink_first;
-assign main_bufferizeendpoints_pipe_valid_sink_last = main_bufferizeendpoints_sink_sink_last;
-assign main_bufferizeendpoints_pipe_valid_sink_payload_data = main_bufferizeendpoints_sink_sink_payload_data;
-assign main_bufferizeendpoints_pipe_valid_sink_payload_last_be = main_bufferizeendpoints_sink_sink_payload_last_be;
-assign main_bufferizeendpoints_pipe_valid_sink_payload_error = main_bufferizeendpoints_sink_sink_payload_error;
-assign main_bufferizeendpoints_source_source_valid = main_bufferizeendpoints_pipe_valid_source_valid;
-assign main_bufferizeendpoints_pipe_valid_source_ready = main_bufferizeendpoints_source_source_ready;
-assign main_bufferizeendpoints_source_source_first = main_bufferizeendpoints_pipe_valid_source_first;
-assign main_bufferizeendpoints_source_source_last = main_bufferizeendpoints_pipe_valid_source_last;
-assign main_bufferizeendpoints_source_source_payload_data = main_bufferizeendpoints_pipe_valid_source_payload_data;
-assign main_bufferizeendpoints_source_source_payload_last_be = main_bufferizeendpoints_pipe_valid_source_payload_last_be;
-assign main_bufferizeendpoints_source_source_payload_error = main_bufferizeendpoints_pipe_valid_source_payload_error;
-assign main_pulsesynchronizer1_o = (main_pulsesynchronizer1_toggle_o ^ main_pulsesynchronizer1_toggle_o_r);
-assign main_rx_padding_source_valid = main_rx_padding_sink_valid;
-assign main_rx_padding_sink_ready = main_rx_padding_source_ready;
-assign main_rx_padding_source_first = main_rx_padding_sink_first;
-assign main_rx_padding_source_last = main_rx_padding_sink_last;
-assign main_rx_padding_source_payload_data = main_rx_padding_sink_payload_data;
-assign main_rx_padding_source_payload_last_be = main_rx_padding_sink_payload_last_be;
-assign main_rx_padding_source_payload_error = main_rx_padding_sink_payload_error;
-assign main_rx_last_be_source_valid = main_rx_last_be_sink_valid;
-assign main_rx_last_be_sink_ready = main_rx_last_be_source_ready;
-assign main_rx_last_be_source_first = main_rx_last_be_sink_first;
-assign main_rx_last_be_source_last = main_rx_last_be_sink_last;
-assign main_rx_last_be_source_payload_data = main_rx_last_be_sink_payload_data;
-assign main_rx_last_be_source_payload_error = main_rx_last_be_sink_payload_error;
+assign core_bufferizeendpoints_pipe_valid_sink_ready = ((~core_bufferizeendpoints_pipe_valid_source_valid) | core_bufferizeendpoints_pipe_valid_source_ready);
+assign core_bufferizeendpoints_pipe_valid_sink_valid = core_bufferizeendpoints_sink_sink_valid;
+assign core_bufferizeendpoints_sink_sink_ready = core_bufferizeendpoints_pipe_valid_sink_ready;
+assign core_bufferizeendpoints_pipe_valid_sink_first = core_bufferizeendpoints_sink_sink_first;
+assign core_bufferizeendpoints_pipe_valid_sink_last = core_bufferizeendpoints_sink_sink_last;
+assign core_bufferizeendpoints_pipe_valid_sink_payload_data = core_bufferizeendpoints_sink_sink_payload_data;
+assign core_bufferizeendpoints_pipe_valid_sink_payload_last_be = core_bufferizeendpoints_sink_sink_payload_last_be;
+assign core_bufferizeendpoints_pipe_valid_sink_payload_error = core_bufferizeendpoints_sink_sink_payload_error;
+assign core_bufferizeendpoints_source_source_valid = core_bufferizeendpoints_pipe_valid_source_valid;
+assign core_bufferizeendpoints_pipe_valid_source_ready = core_bufferizeendpoints_source_source_ready;
+assign core_bufferizeendpoints_source_source_first = core_bufferizeendpoints_pipe_valid_source_first;
+assign core_bufferizeendpoints_source_source_last = core_bufferizeendpoints_pipe_valid_source_last;
+assign core_bufferizeendpoints_source_source_payload_data = core_bufferizeendpoints_pipe_valid_source_payload_data;
+assign core_bufferizeendpoints_source_source_payload_last_be = core_bufferizeendpoints_pipe_valid_source_payload_last_be;
+assign core_bufferizeendpoints_source_source_payload_error = core_bufferizeendpoints_pipe_valid_source_payload_error;
+assign core_pulsesynchronizer1_o = (core_pulsesynchronizer1_toggle_o ^ core_pulsesynchronizer1_toggle_o_r);
+assign core_rx_padding_source_valid = core_rx_padding_sink_valid;
+assign core_rx_padding_sink_ready = core_rx_padding_source_ready;
+assign core_rx_padding_source_first = core_rx_padding_sink_first;
+assign core_rx_padding_source_last = core_rx_padding_sink_last;
+assign core_rx_padding_source_payload_data = core_rx_padding_sink_payload_data;
+assign core_rx_padding_source_payload_last_be = core_rx_padding_sink_payload_last_be;
+assign core_rx_padding_source_payload_error = core_rx_padding_sink_payload_error;
+assign core_rx_last_be_source_valid = core_rx_last_be_sink_valid;
+assign core_rx_last_be_sink_ready = core_rx_last_be_source_ready;
+assign core_rx_last_be_source_first = core_rx_last_be_sink_first;
+assign core_rx_last_be_source_last = core_rx_last_be_sink_last;
+assign core_rx_last_be_source_payload_data = core_rx_last_be_sink_payload_data;
+assign core_rx_last_be_source_payload_error = core_rx_last_be_sink_payload_error;
 always @(*) begin
-    main_rx_last_be_source_payload_last_be <= 1'd0;
-    main_rx_last_be_source_payload_last_be <= main_rx_last_be_sink_payload_last_be;
+    core_rx_last_be_source_payload_last_be <= 1'd0;
+    core_rx_last_be_source_payload_last_be <= core_rx_last_be_sink_payload_last_be;
     if (1'd1) begin
-        main_rx_last_be_source_payload_last_be <= main_rx_last_be_sink_last;
+        core_rx_last_be_source_payload_last_be <= core_rx_last_be_sink_last;
     end
 end
-assign main_rx_converter_converter_sink_valid = main_rx_converter_sink_valid;
-assign main_rx_converter_converter_sink_first = main_rx_converter_sink_first;
-assign main_rx_converter_converter_sink_last = main_rx_converter_sink_last;
-assign main_rx_converter_sink_ready = main_rx_converter_converter_sink_ready;
-assign main_rx_converter_converter_sink_payload_data = {main_rx_converter_sink_payload_error, main_rx_converter_sink_payload_last_be, main_rx_converter_sink_payload_data};
-assign main_rx_converter_source_valid = main_rx_converter_source_source_valid;
-assign main_rx_converter_source_first = main_rx_converter_source_source_first;
-assign main_rx_converter_source_last = main_rx_converter_source_source_last;
-assign main_rx_converter_source_source_ready = main_rx_converter_source_ready;
+assign core_rx_converter_converter_sink_valid = core_rx_converter_sink_valid;
+assign core_rx_converter_converter_sink_first = core_rx_converter_sink_first;
+assign core_rx_converter_converter_sink_last = core_rx_converter_sink_last;
+assign core_rx_converter_sink_ready = core_rx_converter_converter_sink_ready;
+assign core_rx_converter_converter_sink_payload_data = {core_rx_converter_sink_payload_error, core_rx_converter_sink_payload_last_be, core_rx_converter_sink_payload_data};
+assign core_rx_converter_source_valid = core_rx_converter_source_source_valid;
+assign core_rx_converter_source_first = core_rx_converter_source_source_first;
+assign core_rx_converter_source_last = core_rx_converter_source_source_last;
+assign core_rx_converter_source_source_ready = core_rx_converter_source_ready;
 always @(*) begin
-    main_rx_converter_source_payload_data <= 32'd0;
-    main_rx_converter_source_payload_data[7:0] <= main_rx_converter_source_source_payload_data[7:0];
-    main_rx_converter_source_payload_data[15:8] <= main_rx_converter_source_source_payload_data[17:10];
-    main_rx_converter_source_payload_data[23:16] <= main_rx_converter_source_source_payload_data[27:20];
-    main_rx_converter_source_payload_data[31:24] <= main_rx_converter_source_source_payload_data[37:30];
+    core_rx_converter_source_payload_data <= 32'd0;
+    core_rx_converter_source_payload_data[7:0] <= core_rx_converter_source_source_payload_data[7:0];
+    core_rx_converter_source_payload_data[15:8] <= core_rx_converter_source_source_payload_data[17:10];
+    core_rx_converter_source_payload_data[23:16] <= core_rx_converter_source_source_payload_data[27:20];
+    core_rx_converter_source_payload_data[31:24] <= core_rx_converter_source_source_payload_data[37:30];
 end
 always @(*) begin
-    main_rx_converter_source_payload_last_be <= 4'd0;
-    main_rx_converter_source_payload_last_be[0] <= main_rx_converter_source_source_payload_data[8];
-    main_rx_converter_source_payload_last_be[1] <= main_rx_converter_source_source_payload_data[18];
-    main_rx_converter_source_payload_last_be[2] <= main_rx_converter_source_source_payload_data[28];
-    main_rx_converter_source_payload_last_be[3] <= main_rx_converter_source_source_payload_data[38];
+    core_rx_converter_source_payload_last_be <= 4'd0;
+    core_rx_converter_source_payload_last_be[0] <= core_rx_converter_source_source_payload_data[8];
+    core_rx_converter_source_payload_last_be[1] <= core_rx_converter_source_source_payload_data[18];
+    core_rx_converter_source_payload_last_be[2] <= core_rx_converter_source_source_payload_data[28];
+    core_rx_converter_source_payload_last_be[3] <= core_rx_converter_source_source_payload_data[38];
 end
 always @(*) begin
-    main_rx_converter_source_payload_error <= 4'd0;
-    main_rx_converter_source_payload_error[0] <= main_rx_converter_source_source_payload_data[9];
-    main_rx_converter_source_payload_error[1] <= main_rx_converter_source_source_payload_data[19];
-    main_rx_converter_source_payload_error[2] <= main_rx_converter_source_source_payload_data[29];
-    main_rx_converter_source_payload_error[3] <= main_rx_converter_source_source_payload_data[39];
+    core_rx_converter_source_payload_error <= 4'd0;
+    core_rx_converter_source_payload_error[0] <= core_rx_converter_source_source_payload_data[9];
+    core_rx_converter_source_payload_error[1] <= core_rx_converter_source_source_payload_data[19];
+    core_rx_converter_source_payload_error[2] <= core_rx_converter_source_source_payload_data[29];
+    core_rx_converter_source_payload_error[3] <= core_rx_converter_source_source_payload_data[39];
 end
-assign main_rx_converter_source_source_valid = main_rx_converter_converter_source_valid;
-assign main_rx_converter_converter_source_ready = main_rx_converter_source_source_ready;
-assign main_rx_converter_source_source_first = main_rx_converter_converter_source_first;
-assign main_rx_converter_source_source_last = main_rx_converter_converter_source_last;
-assign main_rx_converter_source_source_payload_data = main_rx_converter_converter_source_payload_data;
-assign main_rx_converter_converter_sink_ready = ((~main_rx_converter_converter_strobe_all) | main_rx_converter_converter_source_ready);
-assign main_rx_converter_converter_source_valid = main_rx_converter_converter_strobe_all;
-assign main_rx_converter_converter_load_part = (main_rx_converter_converter_sink_valid & main_rx_converter_converter_sink_ready);
-assign main_rx_cdc_cdc_sink_valid = main_rx_cdc_sink_sink_valid;
-assign main_rx_cdc_sink_sink_ready = main_rx_cdc_cdc_sink_ready;
-assign main_rx_cdc_cdc_sink_first = main_rx_cdc_sink_sink_first;
-assign main_rx_cdc_cdc_sink_last = main_rx_cdc_sink_sink_last;
-assign main_rx_cdc_cdc_sink_payload_data = main_rx_cdc_sink_sink_payload_data;
-assign main_rx_cdc_cdc_sink_payload_last_be = main_rx_cdc_sink_sink_payload_last_be;
-assign main_rx_cdc_cdc_sink_payload_error = main_rx_cdc_sink_sink_payload_error;
-assign main_rx_cdc_source_source_valid = main_rx_cdc_cdc_source_valid;
-assign main_rx_cdc_cdc_source_ready = main_rx_cdc_source_source_ready;
-assign main_rx_cdc_source_source_first = main_rx_cdc_cdc_source_first;
-assign main_rx_cdc_source_source_last = main_rx_cdc_cdc_source_last;
-assign main_rx_cdc_source_source_payload_data = main_rx_cdc_cdc_source_payload_data;
-assign main_rx_cdc_source_source_payload_last_be = main_rx_cdc_cdc_source_payload_last_be;
-assign main_rx_cdc_source_source_payload_error = main_rx_cdc_cdc_source_payload_error;
-assign main_rx_cdc_cdc_asyncfifo_din = {main_rx_cdc_cdc_fifo_in_last, main_rx_cdc_cdc_fifo_in_first, main_rx_cdc_cdc_fifo_in_payload_error, main_rx_cdc_cdc_fifo_in_payload_last_be, main_rx_cdc_cdc_fifo_in_payload_data};
-assign {main_rx_cdc_cdc_fifo_out_last, main_rx_cdc_cdc_fifo_out_first, main_rx_cdc_cdc_fifo_out_payload_error, main_rx_cdc_cdc_fifo_out_payload_last_be, main_rx_cdc_cdc_fifo_out_payload_data} = main_rx_cdc_cdc_asyncfifo_dout;
-assign main_rx_cdc_cdc_sink_ready = main_rx_cdc_cdc_asyncfifo_writable;
-assign main_rx_cdc_cdc_asyncfifo_we = main_rx_cdc_cdc_sink_valid;
-assign main_rx_cdc_cdc_fifo_in_first = main_rx_cdc_cdc_sink_first;
-assign main_rx_cdc_cdc_fifo_in_last = main_rx_cdc_cdc_sink_last;
-assign main_rx_cdc_cdc_fifo_in_payload_data = main_rx_cdc_cdc_sink_payload_data;
-assign main_rx_cdc_cdc_fifo_in_payload_last_be = main_rx_cdc_cdc_sink_payload_last_be;
-assign main_rx_cdc_cdc_fifo_in_payload_error = main_rx_cdc_cdc_sink_payload_error;
-assign main_rx_cdc_cdc_source_valid = main_rx_cdc_cdc_asyncfifo_readable;
-assign main_rx_cdc_cdc_source_first = main_rx_cdc_cdc_fifo_out_first;
-assign main_rx_cdc_cdc_source_last = main_rx_cdc_cdc_fifo_out_last;
-assign main_rx_cdc_cdc_source_payload_data = main_rx_cdc_cdc_fifo_out_payload_data;
-assign main_rx_cdc_cdc_source_payload_last_be = main_rx_cdc_cdc_fifo_out_payload_last_be;
-assign main_rx_cdc_cdc_source_payload_error = main_rx_cdc_cdc_fifo_out_payload_error;
-assign main_rx_cdc_cdc_asyncfifo_re = main_rx_cdc_cdc_source_ready;
-assign main_rx_cdc_cdc_graycounter0_ce = (main_rx_cdc_cdc_asyncfifo_writable & main_rx_cdc_cdc_asyncfifo_we);
-assign main_rx_cdc_cdc_graycounter1_ce = (main_rx_cdc_cdc_asyncfifo_readable & main_rx_cdc_cdc_asyncfifo_re);
-assign main_rx_cdc_cdc_asyncfifo_writable = (((main_rx_cdc_cdc_graycounter0_q[5] == main_rx_cdc_cdc_consume_wdomain[5]) | (main_rx_cdc_cdc_graycounter0_q[4] == main_rx_cdc_cdc_consume_wdomain[4])) | (main_rx_cdc_cdc_graycounter0_q[3:0] != main_rx_cdc_cdc_consume_wdomain[3:0]));
-assign main_rx_cdc_cdc_asyncfifo_readable = (main_rx_cdc_cdc_graycounter1_q != main_rx_cdc_cdc_produce_rdomain);
-assign main_rx_cdc_cdc_wrport_adr = main_rx_cdc_cdc_graycounter0_q_binary[4:0];
-assign main_rx_cdc_cdc_wrport_dat_w = main_rx_cdc_cdc_asyncfifo_din;
-assign main_rx_cdc_cdc_wrport_we = main_rx_cdc_cdc_graycounter0_ce;
-assign main_rx_cdc_cdc_rdport_adr = main_rx_cdc_cdc_graycounter1_q_next_binary[4:0];
-assign main_rx_cdc_cdc_asyncfifo_dout = main_rx_cdc_cdc_rdport_dat_r;
+assign core_rx_converter_source_source_valid = core_rx_converter_converter_source_valid;
+assign core_rx_converter_converter_source_ready = core_rx_converter_source_source_ready;
+assign core_rx_converter_source_source_first = core_rx_converter_converter_source_first;
+assign core_rx_converter_source_source_last = core_rx_converter_converter_source_last;
+assign core_rx_converter_source_source_payload_data = core_rx_converter_converter_source_payload_data;
+assign core_rx_converter_converter_sink_ready = ((~core_rx_converter_converter_strobe_all) | core_rx_converter_converter_source_ready);
+assign core_rx_converter_converter_source_valid = core_rx_converter_converter_strobe_all;
+assign core_rx_converter_converter_load_part = (core_rx_converter_converter_sink_valid & core_rx_converter_converter_sink_ready);
+assign core_rx_cdc_cdc_sink_valid = core_rx_cdc_sink_sink_valid;
+assign core_rx_cdc_sink_sink_ready = core_rx_cdc_cdc_sink_ready;
+assign core_rx_cdc_cdc_sink_first = core_rx_cdc_sink_sink_first;
+assign core_rx_cdc_cdc_sink_last = core_rx_cdc_sink_sink_last;
+assign core_rx_cdc_cdc_sink_payload_data = core_rx_cdc_sink_sink_payload_data;
+assign core_rx_cdc_cdc_sink_payload_last_be = core_rx_cdc_sink_sink_payload_last_be;
+assign core_rx_cdc_cdc_sink_payload_error = core_rx_cdc_sink_sink_payload_error;
+assign core_rx_cdc_source_source_valid = core_rx_cdc_cdc_source_valid;
+assign core_rx_cdc_cdc_source_ready = core_rx_cdc_source_source_ready;
+assign core_rx_cdc_source_source_first = core_rx_cdc_cdc_source_first;
+assign core_rx_cdc_source_source_last = core_rx_cdc_cdc_source_last;
+assign core_rx_cdc_source_source_payload_data = core_rx_cdc_cdc_source_payload_data;
+assign core_rx_cdc_source_source_payload_last_be = core_rx_cdc_cdc_source_payload_last_be;
+assign core_rx_cdc_source_source_payload_error = core_rx_cdc_cdc_source_payload_error;
+assign core_rx_cdc_cdc_asyncfifo_din = {core_rx_cdc_cdc_fifo_in_last, core_rx_cdc_cdc_fifo_in_first, core_rx_cdc_cdc_fifo_in_payload_error, core_rx_cdc_cdc_fifo_in_payload_last_be, core_rx_cdc_cdc_fifo_in_payload_data};
+assign {core_rx_cdc_cdc_fifo_out_last, core_rx_cdc_cdc_fifo_out_first, core_rx_cdc_cdc_fifo_out_payload_error, core_rx_cdc_cdc_fifo_out_payload_last_be, core_rx_cdc_cdc_fifo_out_payload_data} = core_rx_cdc_cdc_asyncfifo_dout;
+assign core_rx_cdc_cdc_sink_ready = core_rx_cdc_cdc_asyncfifo_writable;
+assign core_rx_cdc_cdc_asyncfifo_we = core_rx_cdc_cdc_sink_valid;
+assign core_rx_cdc_cdc_fifo_in_first = core_rx_cdc_cdc_sink_first;
+assign core_rx_cdc_cdc_fifo_in_last = core_rx_cdc_cdc_sink_last;
+assign core_rx_cdc_cdc_fifo_in_payload_data = core_rx_cdc_cdc_sink_payload_data;
+assign core_rx_cdc_cdc_fifo_in_payload_last_be = core_rx_cdc_cdc_sink_payload_last_be;
+assign core_rx_cdc_cdc_fifo_in_payload_error = core_rx_cdc_cdc_sink_payload_error;
+assign core_rx_cdc_cdc_source_valid = core_rx_cdc_cdc_asyncfifo_readable;
+assign core_rx_cdc_cdc_source_first = core_rx_cdc_cdc_fifo_out_first;
+assign core_rx_cdc_cdc_source_last = core_rx_cdc_cdc_fifo_out_last;
+assign core_rx_cdc_cdc_source_payload_data = core_rx_cdc_cdc_fifo_out_payload_data;
+assign core_rx_cdc_cdc_source_payload_last_be = core_rx_cdc_cdc_fifo_out_payload_last_be;
+assign core_rx_cdc_cdc_source_payload_error = core_rx_cdc_cdc_fifo_out_payload_error;
+assign core_rx_cdc_cdc_asyncfifo_re = core_rx_cdc_cdc_source_ready;
+assign core_rx_cdc_cdc_graycounter0_ce = (core_rx_cdc_cdc_asyncfifo_writable & core_rx_cdc_cdc_asyncfifo_we);
+assign core_rx_cdc_cdc_graycounter1_ce = (core_rx_cdc_cdc_asyncfifo_readable & core_rx_cdc_cdc_asyncfifo_re);
+assign core_rx_cdc_cdc_asyncfifo_writable = (((core_rx_cdc_cdc_graycounter0_q[5] == core_rx_cdc_cdc_consume_wdomain[5]) | (core_rx_cdc_cdc_graycounter0_q[4] == core_rx_cdc_cdc_consume_wdomain[4])) | (core_rx_cdc_cdc_graycounter0_q[3:0] != core_rx_cdc_cdc_consume_wdomain[3:0]));
+assign core_rx_cdc_cdc_asyncfifo_readable = (core_rx_cdc_cdc_graycounter1_q != core_rx_cdc_cdc_produce_rdomain);
+assign core_rx_cdc_cdc_wrport_adr = core_rx_cdc_cdc_graycounter0_q_binary[4:0];
+assign core_rx_cdc_cdc_wrport_dat_w = core_rx_cdc_cdc_asyncfifo_din;
+assign core_rx_cdc_cdc_wrport_we = core_rx_cdc_cdc_graycounter0_ce;
+assign core_rx_cdc_cdc_rdport_adr = core_rx_cdc_cdc_graycounter1_q_next_binary[4:0];
+assign core_rx_cdc_cdc_asyncfifo_dout = core_rx_cdc_cdc_rdport_dat_r;
 always @(*) begin
-    main_rx_cdc_cdc_graycounter0_q_next_binary <= 6'd0;
-    if (main_rx_cdc_cdc_graycounter0_ce) begin
-        main_rx_cdc_cdc_graycounter0_q_next_binary <= (main_rx_cdc_cdc_graycounter0_q_binary + 1'd1);
+    core_rx_cdc_cdc_graycounter0_q_next_binary <= 6'd0;
+    if (core_rx_cdc_cdc_graycounter0_ce) begin
+        core_rx_cdc_cdc_graycounter0_q_next_binary <= (core_rx_cdc_cdc_graycounter0_q_binary + 1'd1);
     end else begin
-        main_rx_cdc_cdc_graycounter0_q_next_binary <= main_rx_cdc_cdc_graycounter0_q_binary;
+        core_rx_cdc_cdc_graycounter0_q_next_binary <= core_rx_cdc_cdc_graycounter0_q_binary;
     end
 end
-assign main_rx_cdc_cdc_graycounter0_q_next = (main_rx_cdc_cdc_graycounter0_q_next_binary ^ main_rx_cdc_cdc_graycounter0_q_next_binary[5:1]);
+assign core_rx_cdc_cdc_graycounter0_q_next = (core_rx_cdc_cdc_graycounter0_q_next_binary ^ core_rx_cdc_cdc_graycounter0_q_next_binary[5:1]);
 always @(*) begin
-    main_rx_cdc_cdc_graycounter1_q_next_binary <= 6'd0;
-    if (main_rx_cdc_cdc_graycounter1_ce) begin
-        main_rx_cdc_cdc_graycounter1_q_next_binary <= (main_rx_cdc_cdc_graycounter1_q_binary + 1'd1);
+    core_rx_cdc_cdc_graycounter1_q_next_binary <= 6'd0;
+    if (core_rx_cdc_cdc_graycounter1_ce) begin
+        core_rx_cdc_cdc_graycounter1_q_next_binary <= (core_rx_cdc_cdc_graycounter1_q_binary + 1'd1);
     end else begin
-        main_rx_cdc_cdc_graycounter1_q_next_binary <= main_rx_cdc_cdc_graycounter1_q_binary;
+        core_rx_cdc_cdc_graycounter1_q_next_binary <= core_rx_cdc_cdc_graycounter1_q_binary;
     end
 end
-assign main_rx_cdc_cdc_graycounter1_q_next = (main_rx_cdc_cdc_graycounter1_q_next_binary ^ main_rx_cdc_cdc_graycounter1_q_next_binary[5:1]);
-assign main_rx_preamble_sink_valid = main_maccore_liteethphymiirx_source_valid;
-assign main_maccore_liteethphymiirx_source_ready = main_rx_preamble_sink_ready;
-assign main_rx_preamble_sink_first = main_maccore_liteethphymiirx_source_first;
-assign main_rx_preamble_sink_last = main_maccore_liteethphymiirx_source_last;
-assign main_rx_preamble_sink_payload_data = main_maccore_liteethphymiirx_source_payload_data;
-assign main_rx_preamble_sink_payload_last_be = main_maccore_liteethphymiirx_source_payload_last_be;
-assign main_rx_preamble_sink_payload_error = main_maccore_liteethphymiirx_source_payload_error;
-assign main_bufferizeendpoints_sink_sink_valid = main_rx_preamble_source_valid;
-assign main_rx_preamble_source_ready = main_bufferizeendpoints_sink_sink_ready;
-assign main_bufferizeendpoints_sink_sink_first = main_rx_preamble_source_first;
-assign main_bufferizeendpoints_sink_sink_last = main_rx_preamble_source_last;
-assign main_bufferizeendpoints_sink_sink_payload_data = main_rx_preamble_source_payload_data;
-assign main_bufferizeendpoints_sink_sink_payload_last_be = main_rx_preamble_source_payload_last_be;
-assign main_bufferizeendpoints_sink_sink_payload_error = main_rx_preamble_source_payload_error;
-assign main_rx_padding_sink_valid = main_liteethmaccrc32checker_source_source_valid;
-assign main_liteethmaccrc32checker_source_source_ready = main_rx_padding_sink_ready;
-assign main_rx_padding_sink_first = main_liteethmaccrc32checker_source_source_first;
-assign main_rx_padding_sink_last = main_liteethmaccrc32checker_source_source_last;
-assign main_rx_padding_sink_payload_data = main_liteethmaccrc32checker_source_source_payload_data;
-assign main_rx_padding_sink_payload_last_be = main_liteethmaccrc32checker_source_source_payload_last_be;
-assign main_rx_padding_sink_payload_error = main_liteethmaccrc32checker_source_source_payload_error;
-assign main_rx_last_be_sink_valid = main_rx_padding_source_valid;
-assign main_rx_padding_source_ready = main_rx_last_be_sink_ready;
-assign main_rx_last_be_sink_first = main_rx_padding_source_first;
-assign main_rx_last_be_sink_last = main_rx_padding_source_last;
-assign main_rx_last_be_sink_payload_data = main_rx_padding_source_payload_data;
-assign main_rx_last_be_sink_payload_last_be = main_rx_padding_source_payload_last_be;
-assign main_rx_last_be_sink_payload_error = main_rx_padding_source_payload_error;
-assign main_rx_converter_sink_valid = main_rx_last_be_source_valid;
-assign main_rx_last_be_source_ready = main_rx_converter_sink_ready;
-assign main_rx_converter_sink_first = main_rx_last_be_source_first;
-assign main_rx_converter_sink_last = main_rx_last_be_source_last;
-assign main_rx_converter_sink_payload_data = main_rx_last_be_source_payload_data;
-assign main_rx_converter_sink_payload_last_be = main_rx_last_be_source_payload_last_be;
-assign main_rx_converter_sink_payload_error = main_rx_last_be_source_payload_error;
-assign main_rx_cdc_sink_sink_valid = main_rx_converter_source_valid;
-assign main_rx_converter_source_ready = main_rx_cdc_sink_sink_ready;
-assign main_rx_cdc_sink_sink_first = main_rx_converter_source_first;
-assign main_rx_cdc_sink_sink_last = main_rx_converter_source_last;
-assign main_rx_cdc_sink_sink_payload_data = main_rx_converter_source_payload_data;
-assign main_rx_cdc_sink_sink_payload_last_be = main_rx_converter_source_payload_last_be;
-assign main_rx_cdc_sink_sink_payload_error = main_rx_converter_source_payload_error;
-assign main_source_valid = main_rx_cdc_source_source_valid;
-assign main_rx_cdc_source_source_ready = main_source_ready;
-assign main_source_first = main_rx_cdc_source_source_first;
-assign main_source_last = main_rx_cdc_source_source_last;
-assign main_source_payload_data = main_rx_cdc_source_source_payload_data;
-assign main_source_payload_last_be = main_rx_cdc_source_source_payload_last_be;
-assign main_source_payload_error = main_rx_cdc_source_source_payload_error;
-assign main_sram0_sink_valid = main_sink_sink_valid;
-assign main_sink_sink_ready = main_sram1_sink_ready;
-assign main_sram2_sink_first = main_sink_sink_first;
-assign main_sram3_sink_last = main_sink_sink_last;
-assign main_sram4_sink_payload_data = main_sink_sink_payload_data;
-assign main_sram5_sink_payload_last_be = main_sink_sink_payload_last_be;
-assign main_sram6_sink_payload_error = main_sink_sink_payload_error;
-assign main_source_source_valid = main_sram83_source_valid;
-assign main_sram84_source_ready = main_source_source_ready;
-assign main_source_source_first = main_sram85_source_first;
-assign main_source_source_last = main_sram86_source_last;
-assign main_source_source_payload_data = main_sram87_source_payload_data;
-assign main_source_source_payload_last_be = main_sram88_source_payload_last_be;
-assign main_source_source_payload_error = main_sram89_source_payload_error;
+assign core_rx_cdc_cdc_graycounter1_q_next = (core_rx_cdc_cdc_graycounter1_q_next_binary ^ core_rx_cdc_cdc_graycounter1_q_next_binary[5:1]);
+assign core_rx_preamble_sink_valid = maccore_liteethphymiirx_source_valid;
+assign maccore_liteethphymiirx_source_ready = core_rx_preamble_sink_ready;
+assign core_rx_preamble_sink_first = maccore_liteethphymiirx_source_first;
+assign core_rx_preamble_sink_last = maccore_liteethphymiirx_source_last;
+assign core_rx_preamble_sink_payload_data = maccore_liteethphymiirx_source_payload_data;
+assign core_rx_preamble_sink_payload_last_be = maccore_liteethphymiirx_source_payload_last_be;
+assign core_rx_preamble_sink_payload_error = maccore_liteethphymiirx_source_payload_error;
+assign core_bufferizeendpoints_sink_sink_valid = core_rx_preamble_source_valid;
+assign core_rx_preamble_source_ready = core_bufferizeendpoints_sink_sink_ready;
+assign core_bufferizeendpoints_sink_sink_first = core_rx_preamble_source_first;
+assign core_bufferizeendpoints_sink_sink_last = core_rx_preamble_source_last;
+assign core_bufferizeendpoints_sink_sink_payload_data = core_rx_preamble_source_payload_data;
+assign core_bufferizeendpoints_sink_sink_payload_last_be = core_rx_preamble_source_payload_last_be;
+assign core_bufferizeendpoints_sink_sink_payload_error = core_rx_preamble_source_payload_error;
+assign core_rx_padding_sink_valid = core_liteethmaccrc32checker_source_source_valid;
+assign core_liteethmaccrc32checker_source_source_ready = core_rx_padding_sink_ready;
+assign core_rx_padding_sink_first = core_liteethmaccrc32checker_source_source_first;
+assign core_rx_padding_sink_last = core_liteethmaccrc32checker_source_source_last;
+assign core_rx_padding_sink_payload_data = core_liteethmaccrc32checker_source_source_payload_data;
+assign core_rx_padding_sink_payload_last_be = core_liteethmaccrc32checker_source_source_payload_last_be;
+assign core_rx_padding_sink_payload_error = core_liteethmaccrc32checker_source_source_payload_error;
+assign core_rx_last_be_sink_valid = core_rx_padding_source_valid;
+assign core_rx_padding_source_ready = core_rx_last_be_sink_ready;
+assign core_rx_last_be_sink_first = core_rx_padding_source_first;
+assign core_rx_last_be_sink_last = core_rx_padding_source_last;
+assign core_rx_last_be_sink_payload_data = core_rx_padding_source_payload_data;
+assign core_rx_last_be_sink_payload_last_be = core_rx_padding_source_payload_last_be;
+assign core_rx_last_be_sink_payload_error = core_rx_padding_source_payload_error;
+assign core_rx_converter_sink_valid = core_rx_last_be_source_valid;
+assign core_rx_last_be_source_ready = core_rx_converter_sink_ready;
+assign core_rx_converter_sink_first = core_rx_last_be_source_first;
+assign core_rx_converter_sink_last = core_rx_last_be_source_last;
+assign core_rx_converter_sink_payload_data = core_rx_last_be_source_payload_data;
+assign core_rx_converter_sink_payload_last_be = core_rx_last_be_source_payload_last_be;
+assign core_rx_converter_sink_payload_error = core_rx_last_be_source_payload_error;
+assign core_rx_cdc_sink_sink_valid = core_rx_converter_source_valid;
+assign core_rx_converter_source_ready = core_rx_cdc_sink_sink_ready;
+assign core_rx_cdc_sink_sink_first = core_rx_converter_source_first;
+assign core_rx_cdc_sink_sink_last = core_rx_converter_source_last;
+assign core_rx_cdc_sink_sink_payload_data = core_rx_converter_source_payload_data;
+assign core_rx_cdc_sink_sink_payload_last_be = core_rx_converter_source_payload_last_be;
+assign core_rx_cdc_sink_sink_payload_error = core_rx_converter_source_payload_error;
+assign core_source_valid = core_rx_cdc_source_source_valid;
+assign core_rx_cdc_source_source_ready = core_source_ready;
+assign core_source_first = core_rx_cdc_source_source_first;
+assign core_source_last = core_rx_cdc_source_source_last;
+assign core_source_payload_data = core_rx_cdc_source_source_payload_data;
+assign core_source_payload_last_be = core_rx_cdc_source_source_payload_last_be;
+assign core_source_payload_error = core_rx_cdc_source_source_payload_error;
+assign wishbone_interface_writer_sink_sink_valid = wishbone_interface_sink_valid;
+assign wishbone_interface_sink_ready = wishbone_interface_writer_sink_sink_ready;
+assign wishbone_interface_writer_sink_sink_first = wishbone_interface_sink_first;
+assign wishbone_interface_writer_sink_sink_last = wishbone_interface_sink_last;
+assign wishbone_interface_writer_sink_sink_payload_data = wishbone_interface_sink_payload_data;
+assign wishbone_interface_writer_sink_sink_payload_last_be = wishbone_interface_sink_payload_last_be;
+assign wishbone_interface_writer_sink_sink_payload_error = wishbone_interface_sink_payload_error;
+assign wishbone_interface_source_valid = wishbone_interface_reader_source_source_valid;
+assign wishbone_interface_reader_source_source_ready = wishbone_interface_source_ready;
+assign wishbone_interface_source_first = wishbone_interface_reader_source_source_first;
+assign wishbone_interface_source_last = wishbone_interface_reader_source_source_last;
+assign wishbone_interface_source_payload_data = wishbone_interface_reader_source_source_payload_data;
+assign wishbone_interface_source_payload_last_be = wishbone_interface_reader_source_source_payload_last_be;
+assign wishbone_interface_source_payload_error = wishbone_interface_reader_source_source_payload_error;
 always @(*) begin
-    main_length_inc <= 4'd0;
-    case (main_sram5_sink_payload_last_be)
+    wishbone_interface_writer_length_inc <= 4'd0;
+    case (wishbone_interface_writer_sink_sink_payload_last_be)
         1'd1: begin
-            main_length_inc <= 1'd1;
+            wishbone_interface_writer_length_inc <= 1'd1;
         end
         2'd2: begin
-            main_length_inc <= 2'd2;
+            wishbone_interface_writer_length_inc <= 2'd2;
         end
         3'd4: begin
-            main_length_inc <= 2'd3;
+            wishbone_interface_writer_length_inc <= 2'd3;
         end
         4'd8: begin
-            main_length_inc <= 3'd4;
+            wishbone_interface_writer_length_inc <= 3'd4;
         end
         5'd16: begin
-            main_length_inc <= 3'd5;
+            wishbone_interface_writer_length_inc <= 3'd5;
         end
         6'd32: begin
-            main_length_inc <= 3'd6;
+            wishbone_interface_writer_length_inc <= 3'd6;
         end
         7'd64: begin
-            main_length_inc <= 3'd7;
+            wishbone_interface_writer_length_inc <= 3'd7;
         end
         default: begin
-            main_length_inc <= 3'd4;
+            wishbone_interface_writer_length_inc <= 3'd4;
         end
     endcase
 end
-assign main_sram44_source_ready = main_sram20_clear;
-assign main_sram19_trigger = main_sram43_source_valid;
-assign main_sram7_status = main_sram47_source_payload_slot;
-assign main_sram10_status = main_sram48_source_payload_length;
-assign main_wr_data = main_sram4_sink_payload_data;
+assign wishbone_interface_writer_stat_fifo_source_ready = wishbone_interface_writer_available_clear;
+assign wishbone_interface_writer_available_trigger = wishbone_interface_writer_stat_fifo_source_valid;
+assign wishbone_interface_writer_slot_status = wishbone_interface_writer_stat_fifo_source_payload_slot;
+assign wishbone_interface_writer_length_status = wishbone_interface_writer_stat_fifo_source_payload_length;
+assign wishbone_interface_writer_wr_data = wishbone_interface_writer_sink_sink_payload_data;
 always @(*) begin
-    main_sram75_adr <= 9'd0;
-    main_sram77_we <= 1'd0;
-    main_sram78_dat_w <= 32'd0;
-    main_sram79_adr <= 9'd0;
-    main_sram81_we <= 1'd0;
-    main_sram82_dat_w <= 32'd0;
-    case (main_slot)
+    wishbone_interface_writer_memory0_adr <= 9'd0;
+    wishbone_interface_writer_memory0_dat_w <= 32'd0;
+    wishbone_interface_writer_memory0_we <= 1'd0;
+    wishbone_interface_writer_memory1_adr <= 9'd0;
+    wishbone_interface_writer_memory1_dat_w <= 32'd0;
+    wishbone_interface_writer_memory1_we <= 1'd0;
+    case (wishbone_interface_writer_slot)
         1'd0: begin
-            main_sram75_adr <= main_sram35_length[10:2];
-            main_sram78_dat_w <= main_wr_data;
-            if ((main_sram0_sink_valid & main_write)) begin
-                main_sram77_we <= 1'd1;
+            wishbone_interface_writer_memory0_adr <= wishbone_interface_writer_length[10:2];
+            wishbone_interface_writer_memory0_dat_w <= wishbone_interface_writer_wr_data;
+            if ((wishbone_interface_writer_sink_sink_valid & wishbone_interface_writer_write)) begin
+                wishbone_interface_writer_memory0_we <= 1'd1;
             end
         end
         1'd1: begin
-            main_sram79_adr <= main_sram35_length[10:2];
-            main_sram82_dat_w <= main_wr_data;
-            if ((main_sram0_sink_valid & main_write)) begin
-                main_sram81_we <= 1'd1;
+            wishbone_interface_writer_memory1_adr <= wishbone_interface_writer_length[10:2];
+            wishbone_interface_writer_memory1_dat_w <= wishbone_interface_writer_wr_data;
+            if ((wishbone_interface_writer_sink_sink_valid & wishbone_interface_writer_write)) begin
+                wishbone_interface_writer_memory1_we <= 1'd1;
             end
         end
     endcase
 end
-assign main_sram21_available = main_sram17_status;
-assign main_sram25_available = main_sram18_pending;
+assign wishbone_interface_writer_available0 = wishbone_interface_writer_available_status;
+assign wishbone_interface_writer_available1 = wishbone_interface_writer_available_pending;
 always @(*) begin
-    main_sram20_clear <= 1'd0;
-    if ((main_sram28_re & main_sram29_r)) begin
-        main_sram20_clear <= 1'd1;
+    wishbone_interface_writer_available_clear <= 1'd0;
+    if ((wishbone_interface_writer_pending_re & wishbone_interface_writer_pending_r)) begin
+        wishbone_interface_writer_available_clear <= 1'd1;
     end
 end
-assign main_sram16_irq = (main_sram26_status & main_sram31_storage);
-assign main_sram17_status = main_sram19_trigger;
-assign main_sram18_pending = main_sram19_trigger;
-assign main_sram53_din = {main_sram69_fifo_in_last, main_sram68_fifo_in_first, main_sram67_fifo_in_payload_length, main_sram66_fifo_in_payload_slot};
-assign {main_sram73_fifo_out_last, main_sram72_fifo_out_first, main_sram71_fifo_out_payload_length, main_sram70_fifo_out_payload_slot} = main_sram54_dout;
-assign main_sram38_sink_ready = main_sram50_writable;
-assign main_sram49_we = main_sram37_sink_valid;
-assign main_sram68_fifo_in_first = main_sram39_sink_first;
-assign main_sram69_fifo_in_last = main_sram40_sink_last;
-assign main_sram66_fifo_in_payload_slot = main_sram41_sink_payload_slot;
-assign main_sram67_fifo_in_payload_length = main_sram42_sink_payload_length;
-assign main_sram43_source_valid = main_sram52_readable;
-assign main_sram45_source_first = main_sram72_fifo_out_first;
-assign main_sram46_source_last = main_sram73_fifo_out_last;
-assign main_sram47_source_payload_slot = main_sram70_fifo_out_payload_slot;
-assign main_sram48_source_payload_length = main_sram71_fifo_out_payload_length;
-assign main_sram51_re = main_sram44_source_ready;
+assign wishbone_interface_writer_irq = (wishbone_interface_writer_pending_status & wishbone_interface_writer_enable_storage);
+assign wishbone_interface_writer_available_status = wishbone_interface_writer_available_trigger;
+assign wishbone_interface_writer_available_pending = wishbone_interface_writer_available_trigger;
+assign wishbone_interface_writer_stat_fifo_syncfifo_din = {wishbone_interface_writer_stat_fifo_fifo_in_last, wishbone_interface_writer_stat_fifo_fifo_in_first, wishbone_interface_writer_stat_fifo_fifo_in_payload_length, wishbone_interface_writer_stat_fifo_fifo_in_payload_slot};
+assign {wishbone_interface_writer_stat_fifo_fifo_out_last, wishbone_interface_writer_stat_fifo_fifo_out_first, wishbone_interface_writer_stat_fifo_fifo_out_payload_length, wishbone_interface_writer_stat_fifo_fifo_out_payload_slot} = wishbone_interface_writer_stat_fifo_syncfifo_dout;
+assign wishbone_interface_writer_stat_fifo_sink_ready = wishbone_interface_writer_stat_fifo_syncfifo_writable;
+assign wishbone_interface_writer_stat_fifo_syncfifo_we = wishbone_interface_writer_stat_fifo_sink_valid;
+assign wishbone_interface_writer_stat_fifo_fifo_in_first = wishbone_interface_writer_stat_fifo_sink_first;
+assign wishbone_interface_writer_stat_fifo_fifo_in_last = wishbone_interface_writer_stat_fifo_sink_last;
+assign wishbone_interface_writer_stat_fifo_fifo_in_payload_slot = wishbone_interface_writer_stat_fifo_sink_payload_slot;
+assign wishbone_interface_writer_stat_fifo_fifo_in_payload_length = wishbone_interface_writer_stat_fifo_sink_payload_length;
+assign wishbone_interface_writer_stat_fifo_source_valid = wishbone_interface_writer_stat_fifo_syncfifo_readable;
+assign wishbone_interface_writer_stat_fifo_source_first = wishbone_interface_writer_stat_fifo_fifo_out_first;
+assign wishbone_interface_writer_stat_fifo_source_last = wishbone_interface_writer_stat_fifo_fifo_out_last;
+assign wishbone_interface_writer_stat_fifo_source_payload_slot = wishbone_interface_writer_stat_fifo_fifo_out_payload_slot;
+assign wishbone_interface_writer_stat_fifo_source_payload_length = wishbone_interface_writer_stat_fifo_fifo_out_payload_length;
+assign wishbone_interface_writer_stat_fifo_syncfifo_re = wishbone_interface_writer_stat_fifo_source_ready;
 always @(*) begin
-    main_sram59_adr <= 1'd0;
-    if (main_sram56_replace) begin
-        main_sram59_adr <= (main_sram57_produce - 1'd1);
+    wishbone_interface_writer_stat_fifo_wrport_adr <= 1'd0;
+    if (wishbone_interface_writer_stat_fifo_replace) begin
+        wishbone_interface_writer_stat_fifo_wrport_adr <= (wishbone_interface_writer_stat_fifo_produce - 1'd1);
     end else begin
-        main_sram59_adr <= main_sram57_produce;
+        wishbone_interface_writer_stat_fifo_wrport_adr <= wishbone_interface_writer_stat_fifo_produce;
     end
 end
-assign main_sram62_dat_w = main_sram53_din;
-assign main_sram61_we = (main_sram49_we & (main_sram50_writable | main_sram56_replace));
-assign main_sram63_do_read = (main_sram52_readable & main_sram51_re);
-assign main_sram64_adr = main_sram58_consume;
-assign main_sram54_dout = main_sram65_dat_r;
-assign main_sram50_writable = (main_sram55_level != 2'd2);
-assign main_sram52_readable = (main_sram55_level != 1'd0);
+assign wishbone_interface_writer_stat_fifo_wrport_dat_w = wishbone_interface_writer_stat_fifo_syncfifo_din;
+assign wishbone_interface_writer_stat_fifo_wrport_we = (wishbone_interface_writer_stat_fifo_syncfifo_we & (wishbone_interface_writer_stat_fifo_syncfifo_writable | wishbone_interface_writer_stat_fifo_replace));
+assign wishbone_interface_writer_stat_fifo_do_read = (wishbone_interface_writer_stat_fifo_syncfifo_readable & wishbone_interface_writer_stat_fifo_syncfifo_re);
+assign wishbone_interface_writer_stat_fifo_rdport_adr = wishbone_interface_writer_stat_fifo_consume;
+assign wishbone_interface_writer_stat_fifo_syncfifo_dout = wishbone_interface_writer_stat_fifo_rdport_dat_r;
+assign wishbone_interface_writer_stat_fifo_syncfifo_writable = (wishbone_interface_writer_stat_fifo_level != 2'd2);
+assign wishbone_interface_writer_stat_fifo_syncfifo_readable = (wishbone_interface_writer_stat_fifo_level != 1'd0);
 always @(*) begin
-    builder_liteethmacsramwriter_next_state <= 3'd0;
-    main_slot_liteethmacsramwriter_next_value <= 1'd0;
-    main_slot_liteethmacsramwriter_next_value_ce <= 1'd0;
-    main_sram13_status_liteethmacsramwriter_f_next_value <= 32'd0;
-    main_sram13_status_liteethmacsramwriter_f_next_value_ce <= 1'd0;
-    main_sram35_length_liteethmacsramwriter_t_next_value <= 11'd0;
-    main_sram35_length_liteethmacsramwriter_t_next_value_ce <= 1'd0;
-    main_sram37_sink_valid <= 1'd0;
-    main_sram41_sink_payload_slot <= 1'd0;
-    main_sram42_sink_payload_length <= 11'd0;
-    main_write <= 1'd0;
-    builder_liteethmacsramwriter_next_state <= builder_liteethmacsramwriter_state;
-    case (builder_liteethmacsramwriter_state)
+    liteethmacsramwriter_next_state <= 3'd0;
+    wishbone_interface_writer_errors_status_liteethmacsramwriter_f_next_value <= 32'd0;
+    wishbone_interface_writer_errors_status_liteethmacsramwriter_f_next_value_ce <= 1'd0;
+    wishbone_interface_writer_length_liteethmacsramwriter_t_next_value <= 11'd0;
+    wishbone_interface_writer_length_liteethmacsramwriter_t_next_value_ce <= 1'd0;
+    wishbone_interface_writer_slot_liteethmacsramwriter_next_value <= 1'd0;
+    wishbone_interface_writer_slot_liteethmacsramwriter_next_value_ce <= 1'd0;
+    wishbone_interface_writer_stat_fifo_sink_payload_length <= 11'd0;
+    wishbone_interface_writer_stat_fifo_sink_payload_slot <= 1'd0;
+    wishbone_interface_writer_stat_fifo_sink_valid <= 1'd0;
+    wishbone_interface_writer_write <= 1'd0;
+    liteethmacsramwriter_next_state <= liteethmacsramwriter_state;
+    case (liteethmacsramwriter_state)
         1'd1: begin
-            if ((main_sram0_sink_valid & main_sram3_sink_last)) begin
-                if (((main_sram6_sink_payload_error & main_sram5_sink_payload_last_be) != 1'd0)) begin
-                    builder_liteethmacsramwriter_next_state <= 2'd3;
+            if ((wishbone_interface_writer_sink_sink_valid & wishbone_interface_writer_sink_sink_last)) begin
+                if (((wishbone_interface_writer_sink_sink_payload_error & wishbone_interface_writer_sink_sink_payload_last_be) != 1'd0)) begin
+                    liteethmacsramwriter_next_state <= 2'd3;
                 end else begin
-                    builder_liteethmacsramwriter_next_state <= 3'd4;
+                    liteethmacsramwriter_next_state <= 3'd4;
                 end
             end
         end
         2'd2: begin
-            if ((main_sram0_sink_valid & main_sram3_sink_last)) begin
-                if ((main_sram5_sink_payload_last_be != 1'd0)) begin
-                    builder_liteethmacsramwriter_next_state <= 2'd3;
+            if ((wishbone_interface_writer_sink_sink_valid & wishbone_interface_writer_sink_sink_last)) begin
+                if ((wishbone_interface_writer_sink_sink_payload_last_be != 1'd0)) begin
+                    liteethmacsramwriter_next_state <= 2'd3;
                 end else begin
-                    main_sram35_length_liteethmacsramwriter_t_next_value <= 1'd0;
-                    main_sram35_length_liteethmacsramwriter_t_next_value_ce <= 1'd1;
-                    builder_liteethmacsramwriter_next_state <= 1'd0;
+                    wishbone_interface_writer_length_liteethmacsramwriter_t_next_value <= 1'd0;
+                    wishbone_interface_writer_length_liteethmacsramwriter_t_next_value_ce <= 1'd1;
+                    liteethmacsramwriter_next_state <= 1'd0;
                 end
             end
         end
         2'd3: begin
-            main_sram35_length_liteethmacsramwriter_t_next_value <= 1'd0;
-            main_sram35_length_liteethmacsramwriter_t_next_value_ce <= 1'd1;
-            builder_liteethmacsramwriter_next_state <= 1'd0;
+            wishbone_interface_writer_length_liteethmacsramwriter_t_next_value <= 1'd0;
+            wishbone_interface_writer_length_liteethmacsramwriter_t_next_value_ce <= 1'd1;
+            liteethmacsramwriter_next_state <= 1'd0;
         end
         3'd4: begin
-            main_sram37_sink_valid <= 1'd1;
-            main_sram41_sink_payload_slot <= main_slot;
-            main_sram42_sink_payload_length <= main_sram35_length;
-            main_sram35_length_liteethmacsramwriter_t_next_value <= 1'd0;
-            main_sram35_length_liteethmacsramwriter_t_next_value_ce <= 1'd1;
-            main_slot_liteethmacsramwriter_next_value <= (main_slot + 1'd1);
-            main_slot_liteethmacsramwriter_next_value_ce <= 1'd1;
-            builder_liteethmacsramwriter_next_state <= 1'd0;
+            wishbone_interface_writer_stat_fifo_sink_valid <= 1'd1;
+            wishbone_interface_writer_stat_fifo_sink_payload_slot <= wishbone_interface_writer_slot;
+            wishbone_interface_writer_stat_fifo_sink_payload_length <= wishbone_interface_writer_length;
+            wishbone_interface_writer_length_liteethmacsramwriter_t_next_value <= 1'd0;
+            wishbone_interface_writer_length_liteethmacsramwriter_t_next_value_ce <= 1'd1;
+            wishbone_interface_writer_slot_liteethmacsramwriter_next_value <= (wishbone_interface_writer_slot + 1'd1);
+            wishbone_interface_writer_slot_liteethmacsramwriter_next_value_ce <= 1'd1;
+            liteethmacsramwriter_next_state <= 1'd0;
         end
         default: begin
-            if (main_sram0_sink_valid) begin
-                if (main_sram38_sink_ready) begin
-                    main_write <= 1'd1;
-                    main_sram35_length_liteethmacsramwriter_t_next_value <= (main_sram35_length + main_length_inc);
-                    main_sram35_length_liteethmacsramwriter_t_next_value_ce <= 1'd1;
-                    if ((main_sram35_length >= 11'd1530)) begin
-                        builder_liteethmacsramwriter_next_state <= 1'd1;
+            if (wishbone_interface_writer_sink_sink_valid) begin
+                if (wishbone_interface_writer_stat_fifo_sink_ready) begin
+                    wishbone_interface_writer_write <= 1'd1;
+                    wishbone_interface_writer_length_liteethmacsramwriter_t_next_value <= (wishbone_interface_writer_length + wishbone_interface_writer_length_inc);
+                    wishbone_interface_writer_length_liteethmacsramwriter_t_next_value_ce <= 1'd1;
+                    if ((wishbone_interface_writer_length >= 11'd1530)) begin
+                        liteethmacsramwriter_next_state <= 1'd1;
                     end
-                    if (main_sram3_sink_last) begin
-                        if (((main_sram6_sink_payload_error & main_sram5_sink_payload_last_be) != 1'd0)) begin
-                            builder_liteethmacsramwriter_next_state <= 2'd3;
+                    if (wishbone_interface_writer_sink_sink_last) begin
+                        if (((wishbone_interface_writer_sink_sink_payload_error & wishbone_interface_writer_sink_sink_payload_last_be) != 1'd0)) begin
+                            liteethmacsramwriter_next_state <= 2'd3;
                         end else begin
-                            builder_liteethmacsramwriter_next_state <= 3'd4;
+                            liteethmacsramwriter_next_state <= 3'd4;
                         end
                     end
                 end else begin
-                    main_sram13_status_liteethmacsramwriter_f_next_value <= (main_sram13_status + 1'd1);
-                    main_sram13_status_liteethmacsramwriter_f_next_value_ce <= 1'd1;
-                    builder_liteethmacsramwriter_next_state <= 2'd2;
+                    wishbone_interface_writer_errors_status_liteethmacsramwriter_f_next_value <= (wishbone_interface_writer_errors_status + 1'd1);
+                    wishbone_interface_writer_errors_status_liteethmacsramwriter_f_next_value_ce <= 1'd1;
+                    liteethmacsramwriter_next_state <= 2'd2;
                 end
             end
         end
     endcase
 end
-assign main_sram123_sink_valid = main_start_re;
-assign main_sram127_sink_payload_slot = main_sram100_storage;
-assign main_sram128_sink_payload_length = main_sram102_storage;
-assign main_sram94_status = main_sram124_sink_ready;
-assign main_sram97_status = main_sram141_level;
+assign wishbone_interface_reader_cmd_fifo_sink_valid = wishbone_interface_reader_start_re;
+assign wishbone_interface_reader_cmd_fifo_sink_payload_slot = wishbone_interface_reader_slot_storage;
+assign wishbone_interface_reader_cmd_fifo_sink_payload_length = wishbone_interface_reader_length_storage;
+assign wishbone_interface_reader_ready_status = wishbone_interface_reader_cmd_fifo_sink_ready;
+assign wishbone_interface_reader_level_status = wishbone_interface_reader_cmd_fifo_level;
 always @(*) begin
-    main_sram88_source_payload_last_be <= 4'd0;
-    if (main_sram86_source_last) begin
-        case (main_sram134_source_payload_length[1:0])
+    wishbone_interface_reader_source_source_payload_last_be <= 4'd0;
+    if (wishbone_interface_reader_source_source_last) begin
+        case (wishbone_interface_reader_cmd_fifo_source_payload_length[1:0])
             1'd1: begin
-                main_sram88_source_payload_last_be <= 1'd1;
+                wishbone_interface_reader_source_source_payload_last_be <= 1'd1;
             end
             2'd2: begin
-                main_sram88_source_payload_last_be <= 2'd2;
+                wishbone_interface_reader_source_source_payload_last_be <= 2'd2;
             end
             2'd3: begin
-                main_sram88_source_payload_last_be <= 3'd4;
+                wishbone_interface_reader_source_source_payload_last_be <= 3'd4;
             end
             3'd4: begin
-                main_sram88_source_payload_last_be <= 4'd8;
+                wishbone_interface_reader_source_source_payload_last_be <= 4'd8;
             end
             3'd5: begin
-                main_sram88_source_payload_last_be <= 5'd16;
+                wishbone_interface_reader_source_source_payload_last_be <= 5'd16;
             end
             3'd6: begin
-                main_sram88_source_payload_last_be <= 6'd32;
+                wishbone_interface_reader_source_source_payload_last_be <= 6'd32;
             end
             3'd7: begin
-                main_sram88_source_payload_last_be <= 7'd64;
+                wishbone_interface_reader_source_source_payload_last_be <= 7'd64;
             end
             default: begin
-                main_sram88_source_payload_last_be <= 4'd8;
+                wishbone_interface_reader_source_source_payload_last_be <= 4'd8;
             end
         endcase
     end
 end
-assign main_sram163_re = main_read;
-assign main_sram161_adr = main_sram122_length[10:2];
-assign main_sram166_re = main_read;
-assign main_sram164_adr = main_sram122_length[10:2];
+assign wishbone_interface_reader_memory0_re = wishbone_interface_reader_read;
+assign wishbone_interface_reader_memory0_adr = wishbone_interface_reader_length[10:2];
+assign wishbone_interface_reader_memory1_re = wishbone_interface_reader_read;
+assign wishbone_interface_reader_memory1_adr = wishbone_interface_reader_length[10:2];
 always @(*) begin
-    main_rd_data <= 32'd0;
-    case (main_sram133_source_payload_slot)
+    wishbone_interface_reader_rd_data <= 32'd0;
+    case (wishbone_interface_reader_cmd_fifo_source_payload_slot)
         1'd0: begin
-            main_rd_data <= main_sram162_dat_r;
+            wishbone_interface_reader_rd_data <= wishbone_interface_reader_memory0_dat_r;
         end
         1'd1: begin
-            main_rd_data <= main_sram165_dat_r;
+            wishbone_interface_reader_rd_data <= wishbone_interface_reader_memory1_dat_r;
         end
     endcase
 end
-assign main_sram87_source_payload_data = main_rd_data;
-assign main_sram109_event0 = main_sram105_status;
-assign main_sram113_event0 = main_sram106_pending;
+assign wishbone_interface_reader_source_source_payload_data = wishbone_interface_reader_rd_data;
+assign wishbone_interface_reader_event00 = wishbone_interface_reader_eventsourcepulse_status;
+assign wishbone_interface_reader_event01 = wishbone_interface_reader_eventsourcepulse_pending;
 always @(*) begin
-    main_sram108_clear <= 1'd0;
-    if ((main_sram116_re & main_sram117_r)) begin
-        main_sram108_clear <= 1'd1;
+    wishbone_interface_reader_eventsourcepulse_clear <= 1'd0;
+    if ((wishbone_interface_reader_pending_re & wishbone_interface_reader_pending_r)) begin
+        wishbone_interface_reader_eventsourcepulse_clear <= 1'd1;
     end
 end
-assign main_sram104_irq = (main_sram114_status & main_sram119_storage);
-assign main_sram105_status = 1'd0;
-assign main_sram139_din = {main_sram155_fifo_in_last, main_sram154_fifo_in_first, main_sram153_fifo_in_payload_length, main_sram152_fifo_in_payload_slot};
-assign {main_sram159_fifo_out_last, main_sram158_fifo_out_first, main_sram157_fifo_out_payload_length, main_sram156_fifo_out_payload_slot} = main_sram140_dout;
-assign main_sram124_sink_ready = main_sram136_writable;
-assign main_sram135_we = main_sram123_sink_valid;
-assign main_sram154_fifo_in_first = main_sram125_sink_first;
-assign main_sram155_fifo_in_last = main_sram126_sink_last;
-assign main_sram152_fifo_in_payload_slot = main_sram127_sink_payload_slot;
-assign main_sram153_fifo_in_payload_length = main_sram128_sink_payload_length;
-assign main_sram129_source_valid = main_sram138_readable;
-assign main_sram131_source_first = main_sram158_fifo_out_first;
-assign main_sram132_source_last = main_sram159_fifo_out_last;
-assign main_sram133_source_payload_slot = main_sram156_fifo_out_payload_slot;
-assign main_sram134_source_payload_length = main_sram157_fifo_out_payload_length;
-assign main_sram137_re = main_sram130_source_ready;
+assign wishbone_interface_reader_irq = (wishbone_interface_reader_pending_status & wishbone_interface_reader_enable_storage);
+assign wishbone_interface_reader_eventsourcepulse_status = 1'd0;
+assign wishbone_interface_reader_cmd_fifo_syncfifo_din = {wishbone_interface_reader_cmd_fifo_fifo_in_last, wishbone_interface_reader_cmd_fifo_fifo_in_first, wishbone_interface_reader_cmd_fifo_fifo_in_payload_length, wishbone_interface_reader_cmd_fifo_fifo_in_payload_slot};
+assign {wishbone_interface_reader_cmd_fifo_fifo_out_last, wishbone_interface_reader_cmd_fifo_fifo_out_first, wishbone_interface_reader_cmd_fifo_fifo_out_payload_length, wishbone_interface_reader_cmd_fifo_fifo_out_payload_slot} = wishbone_interface_reader_cmd_fifo_syncfifo_dout;
+assign wishbone_interface_reader_cmd_fifo_sink_ready = wishbone_interface_reader_cmd_fifo_syncfifo_writable;
+assign wishbone_interface_reader_cmd_fifo_syncfifo_we = wishbone_interface_reader_cmd_fifo_sink_valid;
+assign wishbone_interface_reader_cmd_fifo_fifo_in_first = wishbone_interface_reader_cmd_fifo_sink_first;
+assign wishbone_interface_reader_cmd_fifo_fifo_in_last = wishbone_interface_reader_cmd_fifo_sink_last;
+assign wishbone_interface_reader_cmd_fifo_fifo_in_payload_slot = wishbone_interface_reader_cmd_fifo_sink_payload_slot;
+assign wishbone_interface_reader_cmd_fifo_fifo_in_payload_length = wishbone_interface_reader_cmd_fifo_sink_payload_length;
+assign wishbone_interface_reader_cmd_fifo_source_valid = wishbone_interface_reader_cmd_fifo_syncfifo_readable;
+assign wishbone_interface_reader_cmd_fifo_source_first = wishbone_interface_reader_cmd_fifo_fifo_out_first;
+assign wishbone_interface_reader_cmd_fifo_source_last = wishbone_interface_reader_cmd_fifo_fifo_out_last;
+assign wishbone_interface_reader_cmd_fifo_source_payload_slot = wishbone_interface_reader_cmd_fifo_fifo_out_payload_slot;
+assign wishbone_interface_reader_cmd_fifo_source_payload_length = wishbone_interface_reader_cmd_fifo_fifo_out_payload_length;
+assign wishbone_interface_reader_cmd_fifo_syncfifo_re = wishbone_interface_reader_cmd_fifo_source_ready;
 always @(*) begin
-    main_sram145_adr <= 1'd0;
-    if (main_sram142_replace) begin
-        main_sram145_adr <= (main_sram143_produce - 1'd1);
+    wishbone_interface_reader_cmd_fifo_wrport_adr <= 1'd0;
+    if (wishbone_interface_reader_cmd_fifo_replace) begin
+        wishbone_interface_reader_cmd_fifo_wrport_adr <= (wishbone_interface_reader_cmd_fifo_produce - 1'd1);
     end else begin
-        main_sram145_adr <= main_sram143_produce;
+        wishbone_interface_reader_cmd_fifo_wrport_adr <= wishbone_interface_reader_cmd_fifo_produce;
     end
 end
-assign main_sram148_dat_w = main_sram139_din;
-assign main_sram147_we = (main_sram135_we & (main_sram136_writable | main_sram142_replace));
-assign main_sram149_do_read = (main_sram138_readable & main_sram137_re);
-assign main_sram150_adr = main_sram144_consume;
-assign main_sram140_dout = main_sram151_dat_r;
-assign main_sram136_writable = (main_sram141_level != 2'd2);
-assign main_sram138_readable = (main_sram141_level != 1'd0);
+assign wishbone_interface_reader_cmd_fifo_wrport_dat_w = wishbone_interface_reader_cmd_fifo_syncfifo_din;
+assign wishbone_interface_reader_cmd_fifo_wrport_we = (wishbone_interface_reader_cmd_fifo_syncfifo_we & (wishbone_interface_reader_cmd_fifo_syncfifo_writable | wishbone_interface_reader_cmd_fifo_replace));
+assign wishbone_interface_reader_cmd_fifo_do_read = (wishbone_interface_reader_cmd_fifo_syncfifo_readable & wishbone_interface_reader_cmd_fifo_syncfifo_re);
+assign wishbone_interface_reader_cmd_fifo_rdport_adr = wishbone_interface_reader_cmd_fifo_consume;
+assign wishbone_interface_reader_cmd_fifo_syncfifo_dout = wishbone_interface_reader_cmd_fifo_rdport_dat_r;
+assign wishbone_interface_reader_cmd_fifo_syncfifo_writable = (wishbone_interface_reader_cmd_fifo_level != 2'd2);
+assign wishbone_interface_reader_cmd_fifo_syncfifo_readable = (wishbone_interface_reader_cmd_fifo_level != 1'd0);
 always @(*) begin
-    builder_liteethmacsramreader_next_state <= 2'd0;
-    main_read <= 1'd0;
-    main_sram107_trigger <= 1'd0;
-    main_sram122_length_liteethmacsramreader_next_value <= 11'd0;
-    main_sram122_length_liteethmacsramreader_next_value_ce <= 1'd0;
-    main_sram130_source_ready <= 1'd0;
-    main_sram83_source_valid <= 1'd0;
-    main_sram86_source_last <= 1'd0;
-    builder_liteethmacsramreader_next_state <= builder_liteethmacsramreader_state;
-    case (builder_liteethmacsramreader_state)
+    liteethmacsramreader_next_state <= 2'd0;
+    wishbone_interface_reader_cmd_fifo_source_ready <= 1'd0;
+    wishbone_interface_reader_eventsourcepulse_trigger <= 1'd0;
+    wishbone_interface_reader_length_liteethmacsramreader_next_value <= 11'd0;
+    wishbone_interface_reader_length_liteethmacsramreader_next_value_ce <= 1'd0;
+    wishbone_interface_reader_read <= 1'd0;
+    wishbone_interface_reader_source_source_last <= 1'd0;
+    wishbone_interface_reader_source_source_valid <= 1'd0;
+    liteethmacsramreader_next_state <= liteethmacsramreader_state;
+    case (liteethmacsramreader_state)
         1'd1: begin
-            main_sram83_source_valid <= 1'd1;
-            main_sram86_source_last <= (main_sram122_length >= main_sram134_source_payload_length);
-            if (main_sram84_source_ready) begin
-                main_read <= 1'd1;
-                main_sram122_length_liteethmacsramreader_next_value <= (main_sram122_length + 3'd4);
-                main_sram122_length_liteethmacsramreader_next_value_ce <= 1'd1;
-                if (main_sram86_source_last) begin
-                    builder_liteethmacsramreader_next_state <= 2'd2;
+            wishbone_interface_reader_source_source_valid <= 1'd1;
+            wishbone_interface_reader_source_source_last <= (wishbone_interface_reader_length >= wishbone_interface_reader_cmd_fifo_source_payload_length);
+            if (wishbone_interface_reader_source_source_ready) begin
+                wishbone_interface_reader_read <= 1'd1;
+                wishbone_interface_reader_length_liteethmacsramreader_next_value <= (wishbone_interface_reader_length + 3'd4);
+                wishbone_interface_reader_length_liteethmacsramreader_next_value_ce <= 1'd1;
+                if (wishbone_interface_reader_source_source_last) begin
+                    liteethmacsramreader_next_state <= 2'd2;
                 end
             end
         end
         2'd2: begin
-            main_sram122_length_liteethmacsramreader_next_value <= 1'd0;
-            main_sram122_length_liteethmacsramreader_next_value_ce <= 1'd1;
-            main_sram107_trigger <= 1'd1;
-            main_sram130_source_ready <= 1'd1;
-            builder_liteethmacsramreader_next_state <= 1'd0;
+            wishbone_interface_reader_length_liteethmacsramreader_next_value <= 1'd0;
+            wishbone_interface_reader_length_liteethmacsramreader_next_value_ce <= 1'd1;
+            wishbone_interface_reader_eventsourcepulse_trigger <= 1'd1;
+            wishbone_interface_reader_cmd_fifo_source_ready <= 1'd1;
+            liteethmacsramreader_next_state <= 1'd0;
         end
         default: begin
-            if (main_sram129_source_valid) begin
-                main_read <= 1'd1;
-                main_sram122_length_liteethmacsramreader_next_value <= 3'd4;
-                main_sram122_length_liteethmacsramreader_next_value_ce <= 1'd1;
-                builder_liteethmacsramreader_next_state <= 1'd1;
+            if (wishbone_interface_reader_cmd_fifo_source_valid) begin
+                wishbone_interface_reader_read <= 1'd1;
+                wishbone_interface_reader_length_liteethmacsramreader_next_value <= 3'd4;
+                wishbone_interface_reader_length_liteethmacsramreader_next_value_ce <= 1'd1;
+                liteethmacsramreader_next_state <= 1'd1;
             end
         end
     endcase
 end
-assign main_sram167_irq = (main_sram16_irq | main_sram104_irq);
-assign main_sram0_adr = main_interface0_adr[8:0];
-assign main_interface0_dat_r = main_sram0_dat_r;
-assign main_sram1_adr = main_interface1_adr[8:0];
-assign main_interface1_dat_r = main_sram1_dat_r;
+assign wishbone_interface_ev_irq = (wishbone_interface_writer_irq | wishbone_interface_reader_irq);
+assign wishbone_interface_sram0_adr = wishbone_interface_interface0_adr[8:0];
+assign wishbone_interface_interface0_dat_r = wishbone_interface_sram0_dat_r;
+assign wishbone_interface_sram1_adr = wishbone_interface_interface1_adr[8:0];
+assign wishbone_interface_interface1_dat_r = wishbone_interface_sram1_dat_r;
 always @(*) begin
-    main_sram2_we <= 4'd0;
-    main_sram2_we[0] <= (((main_interface2_cyc & main_interface2_stb) & main_interface2_we) & main_interface2_sel[0]);
-    main_sram2_we[1] <= (((main_interface2_cyc & main_interface2_stb) & main_interface2_we) & main_interface2_sel[1]);
-    main_sram2_we[2] <= (((main_interface2_cyc & main_interface2_stb) & main_interface2_we) & main_interface2_sel[2]);
-    main_sram2_we[3] <= (((main_interface2_cyc & main_interface2_stb) & main_interface2_we) & main_interface2_sel[3]);
+    wishbone_interface_decoder0_slave_sel <= 2'd0;
+    wishbone_interface_decoder0_slave_sel[0] <= (wishbone_interface_bus_rx_adr[9] == 1'd0);
+    wishbone_interface_decoder0_slave_sel[1] <= (wishbone_interface_bus_rx_adr[9] == 1'd1);
 end
-assign main_sram2_adr = main_interface2_adr[8:0];
-assign main_interface2_dat_r = main_sram2_dat_r;
-assign main_sram2_dat_w = main_interface2_dat_w;
+assign wishbone_interface_interface0_adr = wishbone_interface_bus_rx_adr;
+assign wishbone_interface_interface0_dat_w = wishbone_interface_bus_rx_dat_w;
+assign wishbone_interface_interface0_sel = wishbone_interface_bus_rx_sel;
+assign wishbone_interface_interface0_stb = wishbone_interface_bus_rx_stb;
+assign wishbone_interface_interface0_we = wishbone_interface_bus_rx_we;
+assign wishbone_interface_interface0_cti = wishbone_interface_bus_rx_cti;
+assign wishbone_interface_interface0_bte = wishbone_interface_bus_rx_bte;
+assign wishbone_interface_interface1_adr = wishbone_interface_bus_rx_adr;
+assign wishbone_interface_interface1_dat_w = wishbone_interface_bus_rx_dat_w;
+assign wishbone_interface_interface1_sel = wishbone_interface_bus_rx_sel;
+assign wishbone_interface_interface1_stb = wishbone_interface_bus_rx_stb;
+assign wishbone_interface_interface1_we = wishbone_interface_bus_rx_we;
+assign wishbone_interface_interface1_cti = wishbone_interface_bus_rx_cti;
+assign wishbone_interface_interface1_bte = wishbone_interface_bus_rx_bte;
+assign wishbone_interface_interface0_cyc = (wishbone_interface_bus_rx_cyc & wishbone_interface_decoder0_slave_sel[0]);
+assign wishbone_interface_interface1_cyc = (wishbone_interface_bus_rx_cyc & wishbone_interface_decoder0_slave_sel[1]);
+assign wishbone_interface_bus_rx_ack = (wishbone_interface_interface0_ack | wishbone_interface_interface1_ack);
+assign wishbone_interface_bus_rx_err = (wishbone_interface_interface0_err | wishbone_interface_interface1_err);
+assign wishbone_interface_bus_rx_dat_r = (({32{wishbone_interface_decoder0_slave_sel_r[0]}} & wishbone_interface_interface0_dat_r) | ({32{wishbone_interface_decoder0_slave_sel_r[1]}} & wishbone_interface_interface1_dat_r));
 always @(*) begin
-    main_sram3_we <= 4'd0;
-    main_sram3_we[0] <= (((main_interface3_cyc & main_interface3_stb) & main_interface3_we) & main_interface3_sel[0]);
-    main_sram3_we[1] <= (((main_interface3_cyc & main_interface3_stb) & main_interface3_we) & main_interface3_sel[1]);
-    main_sram3_we[2] <= (((main_interface3_cyc & main_interface3_stb) & main_interface3_we) & main_interface3_sel[2]);
-    main_sram3_we[3] <= (((main_interface3_cyc & main_interface3_stb) & main_interface3_we) & main_interface3_sel[3]);
+    wishbone_interface_sram2_we <= 4'd0;
+    wishbone_interface_sram2_we[0] <= (((wishbone_interface_interface2_cyc & wishbone_interface_interface2_stb) & wishbone_interface_interface2_we) & wishbone_interface_interface2_sel[0]);
+    wishbone_interface_sram2_we[1] <= (((wishbone_interface_interface2_cyc & wishbone_interface_interface2_stb) & wishbone_interface_interface2_we) & wishbone_interface_interface2_sel[1]);
+    wishbone_interface_sram2_we[2] <= (((wishbone_interface_interface2_cyc & wishbone_interface_interface2_stb) & wishbone_interface_interface2_we) & wishbone_interface_interface2_sel[2]);
+    wishbone_interface_sram2_we[3] <= (((wishbone_interface_interface2_cyc & wishbone_interface_interface2_stb) & wishbone_interface_interface2_we) & wishbone_interface_interface2_sel[3]);
 end
-assign main_sram3_adr = main_interface3_adr[8:0];
-assign main_interface3_dat_r = main_sram3_dat_r;
-assign main_sram3_dat_w = main_interface3_dat_w;
+assign wishbone_interface_sram2_adr = wishbone_interface_interface2_adr[8:0];
+assign wishbone_interface_interface2_dat_r = wishbone_interface_sram2_dat_r;
+assign wishbone_interface_sram2_dat_w = wishbone_interface_interface2_dat_w;
 always @(*) begin
-    main_slave_sel <= 4'd0;
-    main_slave_sel[0] <= (main_bus_adr[10:9] == 1'd0);
-    main_slave_sel[1] <= (main_bus_adr[10:9] == 1'd1);
-    main_slave_sel[2] <= (main_bus_adr[10:9] == 2'd2);
-    main_slave_sel[3] <= (main_bus_adr[10:9] == 2'd3);
+    wishbone_interface_sram3_we <= 4'd0;
+    wishbone_interface_sram3_we[0] <= (((wishbone_interface_interface3_cyc & wishbone_interface_interface3_stb) & wishbone_interface_interface3_we) & wishbone_interface_interface3_sel[0]);
+    wishbone_interface_sram3_we[1] <= (((wishbone_interface_interface3_cyc & wishbone_interface_interface3_stb) & wishbone_interface_interface3_we) & wishbone_interface_interface3_sel[1]);
+    wishbone_interface_sram3_we[2] <= (((wishbone_interface_interface3_cyc & wishbone_interface_interface3_stb) & wishbone_interface_interface3_we) & wishbone_interface_interface3_sel[2]);
+    wishbone_interface_sram3_we[3] <= (((wishbone_interface_interface3_cyc & wishbone_interface_interface3_stb) & wishbone_interface_interface3_we) & wishbone_interface_interface3_sel[3]);
 end
-assign main_interface0_adr = main_bus_adr;
-assign main_interface0_dat_w = main_bus_dat_w;
-assign main_interface0_sel = main_bus_sel;
-assign main_interface0_stb = main_bus_stb;
-assign main_interface0_we = main_bus_we;
-assign main_interface0_cti = main_bus_cti;
-assign main_interface0_bte = main_bus_bte;
-assign main_interface1_adr = main_bus_adr;
-assign main_interface1_dat_w = main_bus_dat_w;
-assign main_interface1_sel = main_bus_sel;
-assign main_interface1_stb = main_bus_stb;
-assign main_interface1_we = main_bus_we;
-assign main_interface1_cti = main_bus_cti;
-assign main_interface1_bte = main_bus_bte;
-assign main_interface2_adr = main_bus_adr;
-assign main_interface2_dat_w = main_bus_dat_w;
-assign main_interface2_sel = main_bus_sel;
-assign main_interface2_stb = main_bus_stb;
-assign main_interface2_we = main_bus_we;
-assign main_interface2_cti = main_bus_cti;
-assign main_interface2_bte = main_bus_bte;
-assign main_interface3_adr = main_bus_adr;
-assign main_interface3_dat_w = main_bus_dat_w;
-assign main_interface3_sel = main_bus_sel;
-assign main_interface3_stb = main_bus_stb;
-assign main_interface3_we = main_bus_we;
-assign main_interface3_cti = main_bus_cti;
-assign main_interface3_bte = main_bus_bte;
-assign main_interface0_cyc = (main_bus_cyc & main_slave_sel[0]);
-assign main_interface1_cyc = (main_bus_cyc & main_slave_sel[1]);
-assign main_interface2_cyc = (main_bus_cyc & main_slave_sel[2]);
-assign main_interface3_cyc = (main_bus_cyc & main_slave_sel[3]);
-assign main_bus_ack = (((main_interface0_ack | main_interface1_ack) | main_interface2_ack) | main_interface3_ack);
-assign main_bus_err = (((main_interface0_err | main_interface1_err) | main_interface2_err) | main_interface3_err);
-assign main_bus_dat_r = (((({32{main_slave_sel_r[0]}} & main_interface0_dat_r) | ({32{main_slave_sel_r[1]}} & main_interface1_dat_r)) | ({32{main_slave_sel_r[2]}} & main_interface2_dat_r)) | ({32{main_slave_sel_r[3]}} & main_interface3_dat_r));
+assign wishbone_interface_sram3_adr = wishbone_interface_interface3_adr[8:0];
+assign wishbone_interface_interface3_dat_r = wishbone_interface_sram3_dat_r;
+assign wishbone_interface_sram3_dat_w = wishbone_interface_interface3_dat_w;
 always @(*) begin
-    builder_interface0_ack <= 1'd0;
-    builder_interface0_dat_r <= 32'd0;
-    builder_interface1_adr <= 14'd0;
-    builder_interface1_dat_w <= 32'd0;
-    builder_interface1_we <= 1'd0;
-    builder_next_state <= 1'd0;
-    builder_next_state <= builder_state;
-    case (builder_state)
+    wishbone_interface_decoder1_slave_sel <= 2'd0;
+    wishbone_interface_decoder1_slave_sel[0] <= (wishbone_interface_bus_tx_adr[9] == 1'd0);
+    wishbone_interface_decoder1_slave_sel[1] <= (wishbone_interface_bus_tx_adr[9] == 1'd1);
+end
+assign wishbone_interface_interface2_adr = wishbone_interface_bus_tx_adr;
+assign wishbone_interface_interface2_dat_w = wishbone_interface_bus_tx_dat_w;
+assign wishbone_interface_interface2_sel = wishbone_interface_bus_tx_sel;
+assign wishbone_interface_interface2_stb = wishbone_interface_bus_tx_stb;
+assign wishbone_interface_interface2_we = wishbone_interface_bus_tx_we;
+assign wishbone_interface_interface2_cti = wishbone_interface_bus_tx_cti;
+assign wishbone_interface_interface2_bte = wishbone_interface_bus_tx_bte;
+assign wishbone_interface_interface3_adr = wishbone_interface_bus_tx_adr;
+assign wishbone_interface_interface3_dat_w = wishbone_interface_bus_tx_dat_w;
+assign wishbone_interface_interface3_sel = wishbone_interface_bus_tx_sel;
+assign wishbone_interface_interface3_stb = wishbone_interface_bus_tx_stb;
+assign wishbone_interface_interface3_we = wishbone_interface_bus_tx_we;
+assign wishbone_interface_interface3_cti = wishbone_interface_bus_tx_cti;
+assign wishbone_interface_interface3_bte = wishbone_interface_bus_tx_bte;
+assign wishbone_interface_interface2_cyc = (wishbone_interface_bus_tx_cyc & wishbone_interface_decoder1_slave_sel[0]);
+assign wishbone_interface_interface3_cyc = (wishbone_interface_bus_tx_cyc & wishbone_interface_decoder1_slave_sel[1]);
+assign wishbone_interface_bus_tx_ack = (wishbone_interface_interface2_ack | wishbone_interface_interface3_ack);
+assign wishbone_interface_bus_tx_err = (wishbone_interface_interface2_err | wishbone_interface_interface3_err);
+assign wishbone_interface_bus_tx_dat_r = (({32{wishbone_interface_decoder1_slave_sel_r[0]}} & wishbone_interface_interface2_dat_r) | ({32{wishbone_interface_decoder1_slave_sel_r[1]}} & wishbone_interface_interface3_dat_r));
+always @(*) begin
+    interface0_ack <= 1'd0;
+    interface0_dat_r <= 32'd0;
+    interface1_adr <= 14'd0;
+    interface1_dat_w <= 32'd0;
+    interface1_re <= 1'd0;
+    interface1_we <= 1'd0;
+    next_state <= 1'd0;
+    next_state <= state;
+    case (state)
         1'd1: begin
-            builder_interface0_ack <= 1'd1;
-            builder_interface0_dat_r <= builder_interface1_dat_r;
-            builder_next_state <= 1'd0;
+            interface0_ack <= 1'd1;
+            interface0_dat_r <= interface1_dat_r;
+            next_state <= 1'd0;
         end
         default: begin
-            builder_interface1_dat_w <= builder_interface0_dat_w;
-            if ((builder_interface0_cyc & builder_interface0_stb)) begin
-                builder_interface1_adr <= builder_interface0_adr[29:0];
-                builder_interface1_we <= (builder_interface0_we & (builder_interface0_sel != 1'd0));
-                builder_next_state <= 1'd1;
+            interface1_dat_w <= interface0_dat_w;
+            if ((interface0_cyc & interface0_stb)) begin
+                interface1_adr <= interface0_adr;
+                interface1_re <= ((~interface0_we) & (interface0_sel != 1'd0));
+                interface1_we <= (interface0_we & (interface0_sel != 1'd0));
+                next_state <= 1'd1;
             end
         end
     endcase
 end
-assign builder_csrbank0_sel = (builder_interface0_bank_bus_adr[13:9] == 1'd0);
-assign builder_csrbank0_reset0_r = builder_interface0_bank_bus_dat_w[1:0];
+assign csrbank0_sel = (interface0_bank_bus_adr[13:9] == 1'd0);
+assign csrbank0_reset0_r = interface0_bank_bus_dat_w[1:0];
 always @(*) begin
-    builder_csrbank0_reset0_re <= 1'd0;
-    builder_csrbank0_reset0_we <= 1'd0;
-    if ((builder_csrbank0_sel & (builder_interface0_bank_bus_adr[8:0] == 1'd0))) begin
-        builder_csrbank0_reset0_re <= builder_interface0_bank_bus_we;
-        builder_csrbank0_reset0_we <= (~builder_interface0_bank_bus_we);
+    csrbank0_reset0_re <= 1'd0;
+    csrbank0_reset0_we <= 1'd0;
+    if ((csrbank0_sel & (interface0_bank_bus_adr[8:0] == 1'd0))) begin
+        csrbank0_reset0_re <= interface0_bank_bus_we;
+        csrbank0_reset0_we <= interface0_bank_bus_re;
     end
 end
-assign builder_csrbank0_scratch0_r = builder_interface0_bank_bus_dat_w[31:0];
+assign csrbank0_scratch0_r = interface0_bank_bus_dat_w;
 always @(*) begin
-    builder_csrbank0_scratch0_re <= 1'd0;
-    builder_csrbank0_scratch0_we <= 1'd0;
-    if ((builder_csrbank0_sel & (builder_interface0_bank_bus_adr[8:0] == 1'd1))) begin
-        builder_csrbank0_scratch0_re <= builder_interface0_bank_bus_we;
-        builder_csrbank0_scratch0_we <= (~builder_interface0_bank_bus_we);
+    csrbank0_scratch0_re <= 1'd0;
+    csrbank0_scratch0_we <= 1'd0;
+    if ((csrbank0_sel & (interface0_bank_bus_adr[8:0] == 1'd1))) begin
+        csrbank0_scratch0_re <= interface0_bank_bus_we;
+        csrbank0_scratch0_we <= interface0_bank_bus_re;
     end
 end
-assign builder_csrbank0_bus_errors_r = builder_interface0_bank_bus_dat_w[31:0];
+assign csrbank0_bus_errors_r = interface0_bank_bus_dat_w;
 always @(*) begin
-    builder_csrbank0_bus_errors_re <= 1'd0;
-    builder_csrbank0_bus_errors_we <= 1'd0;
-    if ((builder_csrbank0_sel & (builder_interface0_bank_bus_adr[8:0] == 2'd2))) begin
-        builder_csrbank0_bus_errors_re <= builder_interface0_bank_bus_we;
-        builder_csrbank0_bus_errors_we <= (~builder_interface0_bank_bus_we);
+    csrbank0_bus_errors_re <= 1'd0;
+    csrbank0_bus_errors_we <= 1'd0;
+    if ((csrbank0_sel & (interface0_bank_bus_adr[8:0] == 2'd2))) begin
+        csrbank0_bus_errors_re <= interface0_bank_bus_we;
+        csrbank0_bus_errors_we <= interface0_bank_bus_re;
     end
 end
 always @(*) begin
-    main_maccore_soc_rst <= 1'd0;
-    if (main_maccore_reset_re) begin
-        main_maccore_soc_rst <= main_maccore_reset_storage[0];
+    maccore_soc_rst <= 1'd0;
+    if (maccore_reset_re) begin
+        maccore_soc_rst <= maccore_reset_storage[0];
     end
 end
-assign main_maccore_cpu_rst = main_maccore_reset_storage[1];
-assign builder_csrbank0_reset0_w = main_maccore_reset_storage[1:0];
-assign builder_csrbank0_scratch0_w = main_maccore_scratch_storage[31:0];
-assign builder_csrbank0_bus_errors_w = main_maccore_bus_errors_status[31:0];
-assign main_maccore_bus_errors_we = builder_csrbank0_bus_errors_we;
-assign builder_csrbank1_sel = (builder_interface1_bank_bus_adr[13:9] == 2'd2);
-assign builder_csrbank1_sram_writer_slot_r = builder_interface1_bank_bus_dat_w[0];
+assign maccore_cpu_rst = maccore_reset_storage[1];
+assign csrbank0_reset0_w = maccore_reset_storage;
+assign csrbank0_scratch0_w = maccore_scratch_storage;
+assign csrbank0_bus_errors_w = maccore_bus_errors_status;
+assign maccore_bus_errors_we = csrbank0_bus_errors_we;
+assign csrbank1_sel = (interface1_bank_bus_adr[13:9] == 2'd2);
+assign csrbank1_sram_writer_slot_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank1_sram_writer_slot_re <= 1'd0;
-    builder_csrbank1_sram_writer_slot_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 1'd0))) begin
-        builder_csrbank1_sram_writer_slot_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_writer_slot_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_writer_slot_re <= 1'd0;
+    csrbank1_sram_writer_slot_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 1'd0))) begin
+        csrbank1_sram_writer_slot_re <= interface1_bank_bus_we;
+        csrbank1_sram_writer_slot_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_writer_length_r = builder_interface1_bank_bus_dat_w[10:0];
+assign csrbank1_sram_writer_length_r = interface1_bank_bus_dat_w[10:0];
 always @(*) begin
-    builder_csrbank1_sram_writer_length_re <= 1'd0;
-    builder_csrbank1_sram_writer_length_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 1'd1))) begin
-        builder_csrbank1_sram_writer_length_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_writer_length_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_writer_length_re <= 1'd0;
+    csrbank1_sram_writer_length_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 1'd1))) begin
+        csrbank1_sram_writer_length_re <= interface1_bank_bus_we;
+        csrbank1_sram_writer_length_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_writer_errors_r = builder_interface1_bank_bus_dat_w[31:0];
+assign csrbank1_sram_writer_errors_r = interface1_bank_bus_dat_w;
 always @(*) begin
-    builder_csrbank1_sram_writer_errors_re <= 1'd0;
-    builder_csrbank1_sram_writer_errors_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 2'd2))) begin
-        builder_csrbank1_sram_writer_errors_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_writer_errors_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_writer_errors_re <= 1'd0;
+    csrbank1_sram_writer_errors_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 2'd2))) begin
+        csrbank1_sram_writer_errors_re <= interface1_bank_bus_we;
+        csrbank1_sram_writer_errors_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_writer_ev_status_r = builder_interface1_bank_bus_dat_w[0];
+assign csrbank1_sram_writer_ev_status_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank1_sram_writer_ev_status_re <= 1'd0;
-    builder_csrbank1_sram_writer_ev_status_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 2'd3))) begin
-        builder_csrbank1_sram_writer_ev_status_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_writer_ev_status_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_writer_ev_status_re <= 1'd0;
+    csrbank1_sram_writer_ev_status_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 2'd3))) begin
+        csrbank1_sram_writer_ev_status_re <= interface1_bank_bus_we;
+        csrbank1_sram_writer_ev_status_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_writer_ev_pending_r = builder_interface1_bank_bus_dat_w[0];
+assign csrbank1_sram_writer_ev_pending_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank1_sram_writer_ev_pending_re <= 1'd0;
-    builder_csrbank1_sram_writer_ev_pending_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 3'd4))) begin
-        builder_csrbank1_sram_writer_ev_pending_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_writer_ev_pending_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_writer_ev_pending_re <= 1'd0;
+    csrbank1_sram_writer_ev_pending_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 3'd4))) begin
+        csrbank1_sram_writer_ev_pending_re <= interface1_bank_bus_we;
+        csrbank1_sram_writer_ev_pending_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_writer_ev_enable0_r = builder_interface1_bank_bus_dat_w[0];
+assign csrbank1_sram_writer_ev_enable0_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank1_sram_writer_ev_enable0_re <= 1'd0;
-    builder_csrbank1_sram_writer_ev_enable0_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 3'd5))) begin
-        builder_csrbank1_sram_writer_ev_enable0_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_writer_ev_enable0_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_writer_ev_enable0_re <= 1'd0;
+    csrbank1_sram_writer_ev_enable0_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 3'd5))) begin
+        csrbank1_sram_writer_ev_enable0_re <= interface1_bank_bus_we;
+        csrbank1_sram_writer_ev_enable0_we <= interface1_bank_bus_re;
     end
 end
-assign main_start_r = builder_interface1_bank_bus_dat_w[0];
+assign wishbone_interface_reader_start_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    main_start_re <= 1'd0;
-    main_start_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 3'd6))) begin
-        main_start_re <= builder_interface1_bank_bus_we;
-        main_start_we <= (~builder_interface1_bank_bus_we);
+    wishbone_interface_reader_start_re <= 1'd0;
+    wishbone_interface_reader_start_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 3'd6))) begin
+        wishbone_interface_reader_start_re <= interface1_bank_bus_we;
+        wishbone_interface_reader_start_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_reader_ready_r = builder_interface1_bank_bus_dat_w[0];
+assign csrbank1_sram_reader_ready_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank1_sram_reader_ready_re <= 1'd0;
-    builder_csrbank1_sram_reader_ready_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 3'd7))) begin
-        builder_csrbank1_sram_reader_ready_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_reader_ready_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_reader_ready_re <= 1'd0;
+    csrbank1_sram_reader_ready_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 3'd7))) begin
+        csrbank1_sram_reader_ready_re <= interface1_bank_bus_we;
+        csrbank1_sram_reader_ready_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_reader_level_r = builder_interface1_bank_bus_dat_w[1:0];
+assign csrbank1_sram_reader_level_r = interface1_bank_bus_dat_w[1:0];
 always @(*) begin
-    builder_csrbank1_sram_reader_level_re <= 1'd0;
-    builder_csrbank1_sram_reader_level_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 4'd8))) begin
-        builder_csrbank1_sram_reader_level_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_reader_level_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_reader_level_re <= 1'd0;
+    csrbank1_sram_reader_level_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 4'd8))) begin
+        csrbank1_sram_reader_level_re <= interface1_bank_bus_we;
+        csrbank1_sram_reader_level_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_reader_slot0_r = builder_interface1_bank_bus_dat_w[0];
+assign csrbank1_sram_reader_slot0_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank1_sram_reader_slot0_re <= 1'd0;
-    builder_csrbank1_sram_reader_slot0_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 4'd9))) begin
-        builder_csrbank1_sram_reader_slot0_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_reader_slot0_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_reader_slot0_re <= 1'd0;
+    csrbank1_sram_reader_slot0_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 4'd9))) begin
+        csrbank1_sram_reader_slot0_re <= interface1_bank_bus_we;
+        csrbank1_sram_reader_slot0_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_reader_length0_r = builder_interface1_bank_bus_dat_w[10:0];
+assign csrbank1_sram_reader_length0_r = interface1_bank_bus_dat_w[10:0];
 always @(*) begin
-    builder_csrbank1_sram_reader_length0_re <= 1'd0;
-    builder_csrbank1_sram_reader_length0_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 4'd10))) begin
-        builder_csrbank1_sram_reader_length0_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_reader_length0_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_reader_length0_re <= 1'd0;
+    csrbank1_sram_reader_length0_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 4'd10))) begin
+        csrbank1_sram_reader_length0_re <= interface1_bank_bus_we;
+        csrbank1_sram_reader_length0_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_reader_ev_status_r = builder_interface1_bank_bus_dat_w[0];
+assign csrbank1_sram_reader_ev_status_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank1_sram_reader_ev_status_re <= 1'd0;
-    builder_csrbank1_sram_reader_ev_status_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 4'd11))) begin
-        builder_csrbank1_sram_reader_ev_status_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_reader_ev_status_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_reader_ev_status_re <= 1'd0;
+    csrbank1_sram_reader_ev_status_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 4'd11))) begin
+        csrbank1_sram_reader_ev_status_re <= interface1_bank_bus_we;
+        csrbank1_sram_reader_ev_status_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_reader_ev_pending_r = builder_interface1_bank_bus_dat_w[0];
+assign csrbank1_sram_reader_ev_pending_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank1_sram_reader_ev_pending_re <= 1'd0;
-    builder_csrbank1_sram_reader_ev_pending_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 4'd12))) begin
-        builder_csrbank1_sram_reader_ev_pending_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_reader_ev_pending_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_reader_ev_pending_re <= 1'd0;
+    csrbank1_sram_reader_ev_pending_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 4'd12))) begin
+        csrbank1_sram_reader_ev_pending_re <= interface1_bank_bus_we;
+        csrbank1_sram_reader_ev_pending_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_reader_ev_enable0_r = builder_interface1_bank_bus_dat_w[0];
+assign csrbank1_sram_reader_ev_enable0_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank1_sram_reader_ev_enable0_re <= 1'd0;
-    builder_csrbank1_sram_reader_ev_enable0_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 4'd13))) begin
-        builder_csrbank1_sram_reader_ev_enable0_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_sram_reader_ev_enable0_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_sram_reader_ev_enable0_re <= 1'd0;
+    csrbank1_sram_reader_ev_enable0_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 4'd13))) begin
+        csrbank1_sram_reader_ev_enable0_re <= interface1_bank_bus_we;
+        csrbank1_sram_reader_ev_enable0_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_preamble_crc_r = builder_interface1_bank_bus_dat_w[0];
+assign csrbank1_preamble_crc_r = interface1_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank1_preamble_crc_re <= 1'd0;
-    builder_csrbank1_preamble_crc_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 4'd14))) begin
-        builder_csrbank1_preamble_crc_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_preamble_crc_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_preamble_crc_re <= 1'd0;
+    csrbank1_preamble_crc_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 4'd14))) begin
+        csrbank1_preamble_crc_re <= interface1_bank_bus_we;
+        csrbank1_preamble_crc_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_rx_datapath_preamble_errors_r = builder_interface1_bank_bus_dat_w[31:0];
+assign csrbank1_rx_datapath_preamble_errors_r = interface1_bank_bus_dat_w;
 always @(*) begin
-    builder_csrbank1_rx_datapath_preamble_errors_re <= 1'd0;
-    builder_csrbank1_rx_datapath_preamble_errors_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 4'd15))) begin
-        builder_csrbank1_rx_datapath_preamble_errors_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_rx_datapath_preamble_errors_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_rx_datapath_preamble_errors_re <= 1'd0;
+    csrbank1_rx_datapath_preamble_errors_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 4'd15))) begin
+        csrbank1_rx_datapath_preamble_errors_re <= interface1_bank_bus_we;
+        csrbank1_rx_datapath_preamble_errors_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_rx_datapath_crc_errors_r = builder_interface1_bank_bus_dat_w[31:0];
+assign csrbank1_rx_datapath_crc_errors_r = interface1_bank_bus_dat_w;
 always @(*) begin
-    builder_csrbank1_rx_datapath_crc_errors_re <= 1'd0;
-    builder_csrbank1_rx_datapath_crc_errors_we <= 1'd0;
-    if ((builder_csrbank1_sel & (builder_interface1_bank_bus_adr[8:0] == 5'd16))) begin
-        builder_csrbank1_rx_datapath_crc_errors_re <= builder_interface1_bank_bus_we;
-        builder_csrbank1_rx_datapath_crc_errors_we <= (~builder_interface1_bank_bus_we);
+    csrbank1_rx_datapath_crc_errors_re <= 1'd0;
+    csrbank1_rx_datapath_crc_errors_we <= 1'd0;
+    if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 5'd16))) begin
+        csrbank1_rx_datapath_crc_errors_re <= interface1_bank_bus_we;
+        csrbank1_rx_datapath_crc_errors_we <= interface1_bank_bus_re;
     end
 end
-assign builder_csrbank1_sram_writer_slot_w = main_sram7_status;
-assign main_sram8_we = builder_csrbank1_sram_writer_slot_we;
-assign builder_csrbank1_sram_writer_length_w = main_sram10_status[10:0];
-assign main_sram11_we = builder_csrbank1_sram_writer_length_we;
-assign builder_csrbank1_sram_writer_errors_w = main_sram13_status[31:0];
-assign main_sram14_we = builder_csrbank1_sram_writer_errors_we;
+assign csrbank1_sram_writer_slot_w = wishbone_interface_writer_slot_status;
+assign wishbone_interface_writer_slot_we = csrbank1_sram_writer_slot_we;
+assign csrbank1_sram_writer_length_w = wishbone_interface_writer_length_status;
+assign wishbone_interface_writer_length_we = csrbank1_sram_writer_length_we;
+assign csrbank1_sram_writer_errors_w = wishbone_interface_writer_errors_status;
+assign wishbone_interface_writer_errors_we = csrbank1_sram_writer_errors_we;
+assign wishbone_interface_writer_status_status = wishbone_interface_writer_available0;
+assign csrbank1_sram_writer_ev_status_w = wishbone_interface_writer_status_status;
+assign wishbone_interface_writer_status_we = csrbank1_sram_writer_ev_status_we;
+assign wishbone_interface_writer_pending_status = wishbone_interface_writer_available1;
+assign csrbank1_sram_writer_ev_pending_w = wishbone_interface_writer_pending_status;
+assign wishbone_interface_writer_pending_we = csrbank1_sram_writer_ev_pending_we;
+assign wishbone_interface_writer_available2 = wishbone_interface_writer_enable_storage;
+assign csrbank1_sram_writer_ev_enable0_w = wishbone_interface_writer_enable_storage;
+assign csrbank1_sram_reader_ready_w = wishbone_interface_reader_ready_status;
+assign wishbone_interface_reader_ready_we = csrbank1_sram_reader_ready_we;
+assign csrbank1_sram_reader_level_w = wishbone_interface_reader_level_status;
+assign wishbone_interface_reader_level_we = csrbank1_sram_reader_level_we;
+assign csrbank1_sram_reader_slot0_w = wishbone_interface_reader_slot_storage;
+assign csrbank1_sram_reader_length0_w = wishbone_interface_reader_length_storage;
+assign wishbone_interface_reader_status_status = wishbone_interface_reader_event00;
+assign csrbank1_sram_reader_ev_status_w = wishbone_interface_reader_status_status;
+assign wishbone_interface_reader_status_we = csrbank1_sram_reader_ev_status_we;
+assign wishbone_interface_reader_pending_status = wishbone_interface_reader_event01;
+assign csrbank1_sram_reader_ev_pending_w = wishbone_interface_reader_pending_status;
+assign wishbone_interface_reader_pending_we = csrbank1_sram_reader_ev_pending_we;
+assign wishbone_interface_reader_event02 = wishbone_interface_reader_enable_storage;
+assign csrbank1_sram_reader_ev_enable0_w = wishbone_interface_reader_enable_storage;
+assign csrbank1_preamble_crc_w = core_status;
+assign core_we = csrbank1_preamble_crc_we;
+assign csrbank1_rx_datapath_preamble_errors_w = core_preamble_errors_status;
+assign core_preamble_errors_we = csrbank1_rx_datapath_preamble_errors_we;
+assign csrbank1_rx_datapath_crc_errors_w = core_crc_errors_status;
+assign core_crc_errors_we = csrbank1_rx_datapath_crc_errors_we;
+assign csrbank2_sel = (interface2_bank_bus_adr[13:9] == 1'd1);
+assign csrbank2_crg_reset0_r = interface2_bank_bus_dat_w[0];
 always @(*) begin
-    main_sram22_status <= 1'd0;
-    main_sram22_status <= main_sram21_available;
-end
-assign builder_csrbank1_sram_writer_ev_status_w = main_sram22_status;
-assign main_sram23_we = builder_csrbank1_sram_writer_ev_status_we;
-always @(*) begin
-    main_sram26_status <= 1'd0;
-    main_sram26_status <= main_sram25_available;
-end
-assign builder_csrbank1_sram_writer_ev_pending_w = main_sram26_status;
-assign main_sram27_we = builder_csrbank1_sram_writer_ev_pending_we;
-assign main_sram30_available = main_sram31_storage;
-assign builder_csrbank1_sram_writer_ev_enable0_w = main_sram31_storage;
-assign builder_csrbank1_sram_reader_ready_w = main_sram94_status;
-assign main_sram95_we = builder_csrbank1_sram_reader_ready_we;
-assign builder_csrbank1_sram_reader_level_w = main_sram97_status[1:0];
-assign main_sram98_we = builder_csrbank1_sram_reader_level_we;
-assign builder_csrbank1_sram_reader_slot0_w = main_sram100_storage;
-assign builder_csrbank1_sram_reader_length0_w = main_sram102_storage[10:0];
-always @(*) begin
-    main_sram110_status <= 1'd0;
-    main_sram110_status <= main_sram109_event0;
-end
-assign builder_csrbank1_sram_reader_ev_status_w = main_sram110_status;
-assign main_sram111_we = builder_csrbank1_sram_reader_ev_status_we;
-always @(*) begin
-    main_sram114_status <= 1'd0;
-    main_sram114_status <= main_sram113_event0;
-end
-assign builder_csrbank1_sram_reader_ev_pending_w = main_sram114_status;
-assign main_sram115_we = builder_csrbank1_sram_reader_ev_pending_we;
-assign main_sram118_event0 = main_sram119_storage;
-assign builder_csrbank1_sram_reader_ev_enable0_w = main_sram119_storage;
-assign builder_csrbank1_preamble_crc_w = main_status;
-assign main_we = builder_csrbank1_preamble_crc_we;
-assign builder_csrbank1_rx_datapath_preamble_errors_w = main_preamble_errors_status[31:0];
-assign main_preamble_errors_we = builder_csrbank1_rx_datapath_preamble_errors_we;
-assign builder_csrbank1_rx_datapath_crc_errors_w = main_crc_errors_status[31:0];
-assign main_crc_errors_we = builder_csrbank1_rx_datapath_crc_errors_we;
-assign builder_csrbank2_sel = (builder_interface2_bank_bus_adr[13:9] == 1'd1);
-assign builder_csrbank2_crg_reset0_r = builder_interface2_bank_bus_dat_w[0];
-always @(*) begin
-    builder_csrbank2_crg_reset0_re <= 1'd0;
-    builder_csrbank2_crg_reset0_we <= 1'd0;
-    if ((builder_csrbank2_sel & (builder_interface2_bank_bus_adr[8:0] == 1'd0))) begin
-        builder_csrbank2_crg_reset0_re <= builder_interface2_bank_bus_we;
-        builder_csrbank2_crg_reset0_we <= (~builder_interface2_bank_bus_we);
+    csrbank2_crg_reset0_re <= 1'd0;
+    csrbank2_crg_reset0_we <= 1'd0;
+    if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 1'd0))) begin
+        csrbank2_crg_reset0_re <= interface2_bank_bus_we;
+        csrbank2_crg_reset0_we <= interface2_bank_bus_re;
     end
 end
-assign builder_csrbank2_mdio_w0_r = builder_interface2_bank_bus_dat_w[2:0];
+assign csrbank2_mdio_w0_r = interface2_bank_bus_dat_w[2:0];
 always @(*) begin
-    builder_csrbank2_mdio_w0_re <= 1'd0;
-    builder_csrbank2_mdio_w0_we <= 1'd0;
-    if ((builder_csrbank2_sel & (builder_interface2_bank_bus_adr[8:0] == 1'd1))) begin
-        builder_csrbank2_mdio_w0_re <= builder_interface2_bank_bus_we;
-        builder_csrbank2_mdio_w0_we <= (~builder_interface2_bank_bus_we);
+    csrbank2_mdio_w0_re <= 1'd0;
+    csrbank2_mdio_w0_we <= 1'd0;
+    if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 1'd1))) begin
+        csrbank2_mdio_w0_re <= interface2_bank_bus_we;
+        csrbank2_mdio_w0_we <= interface2_bank_bus_re;
     end
 end
-assign builder_csrbank2_mdio_r_r = builder_interface2_bank_bus_dat_w[0];
+assign csrbank2_mdio_r_r = interface2_bank_bus_dat_w[0];
 always @(*) begin
-    builder_csrbank2_mdio_r_re <= 1'd0;
-    builder_csrbank2_mdio_r_we <= 1'd0;
-    if ((builder_csrbank2_sel & (builder_interface2_bank_bus_adr[8:0] == 2'd2))) begin
-        builder_csrbank2_mdio_r_re <= builder_interface2_bank_bus_we;
-        builder_csrbank2_mdio_r_we <= (~builder_interface2_bank_bus_we);
+    csrbank2_mdio_r_re <= 1'd0;
+    csrbank2_mdio_r_we <= 1'd0;
+    if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 2'd2))) begin
+        csrbank2_mdio_r_re <= interface2_bank_bus_we;
+        csrbank2_mdio_r_we <= interface2_bank_bus_re;
     end
 end
-assign builder_csrbank2_crg_reset0_w = main_maccore_crg_reset_storage;
-assign main_maccore_mdc = main_maccore__w_storage[0];
-assign main_maccore_oe = main_maccore__w_storage[1];
-assign main_maccore_w = main_maccore__w_storage[2];
-assign builder_csrbank2_mdio_w0_w = main_maccore__w_storage[2:0];
-assign builder_csrbank2_mdio_r_w = main_maccore__r_status;
-assign main_maccore__r_we = builder_csrbank2_mdio_r_we;
-assign builder_adr = builder_interface1_adr;
-assign builder_we = builder_interface1_we;
-assign builder_dat_w = builder_interface1_dat_w;
-assign builder_interface1_dat_r = builder_dat_r;
-assign builder_interface0_bank_bus_adr = builder_adr;
-assign builder_interface1_bank_bus_adr = builder_adr;
-assign builder_interface2_bank_bus_adr = builder_adr;
-assign builder_interface0_bank_bus_we = builder_we;
-assign builder_interface1_bank_bus_we = builder_we;
-assign builder_interface2_bank_bus_we = builder_we;
-assign builder_interface0_bank_bus_dat_w = builder_dat_w;
-assign builder_interface1_bank_bus_dat_w = builder_dat_w;
-assign builder_interface2_bank_bus_dat_w = builder_dat_w;
-assign builder_dat_r = ((builder_interface0_bank_bus_dat_r | builder_interface1_bank_bus_dat_r) | builder_interface2_bank_bus_dat_r);
-assign builder_t_slice_proxy0 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy1 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy2 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy3 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy4 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy5 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy6 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy7 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy8 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy9 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy10 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy11 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy12 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy13 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy14 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy15 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy16 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy17 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy18 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy19 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy20 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy21 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy22 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy23 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy24 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy25 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy26 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy27 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy28 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy29 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy30 = (~main_tx_crc_crc_next);
-assign builder_t_slice_proxy31 = (~main_tx_crc_crc_next);
-assign builder_complexslicelowerer_slice_proxy = {main_tx_crc_value, main_tx_crc_sink_payload_data[7:0]};
-assign builder_t_slice_proxy32 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy33 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy34 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy35 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy36 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy37 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy38 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy39 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy40 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy41 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy42 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy43 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy44 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy45 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy46 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy47 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy48 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy49 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy50 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy51 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy52 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy53 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy54 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy55 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy56 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy57 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy58 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy59 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy60 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy61 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy62 = (~main_liteethmaccrc32checker_crc_crc_next);
-assign builder_t_slice_proxy63 = (~main_liteethmaccrc32checker_crc_crc_next);
+assign csrbank2_crg_reset0_w = maccore_crg_reset_storage;
+assign maccore_mdc = maccore__w_storage[0];
+assign maccore_oe = maccore__w_storage[1];
+assign maccore_w = maccore__w_storage[2];
+assign csrbank2_mdio_w0_w = maccore__w_storage;
+assign csrbank2_mdio_r_w = maccore__r_status;
+assign maccore__r_we = csrbank2_mdio_r_we;
+assign adr = interface1_adr;
+assign re = interface1_re;
+assign we = interface1_we;
+assign dat_w = interface1_dat_w;
+assign interface1_dat_r = dat_r;
+assign interface0_bank_bus_adr = adr;
+assign interface1_bank_bus_adr = adr;
+assign interface2_bank_bus_adr = adr;
+assign interface0_bank_bus_re = re;
+assign interface1_bank_bus_re = re;
+assign interface2_bank_bus_re = re;
+assign interface0_bank_bus_we = we;
+assign interface1_bank_bus_we = we;
+assign interface2_bank_bus_we = we;
+assign interface0_bank_bus_dat_w = dat_w;
+assign interface1_bank_bus_dat_w = dat_w;
+assign interface2_bank_bus_dat_w = dat_w;
+assign dat_r = ((interface0_bank_bus_dat_r | interface1_bank_bus_dat_r) | interface2_bank_bus_dat_r);
 always @(*) begin
-    builder_self0 <= 30'd0;
-    case (builder_grant)
+    self0 <= 30'd0;
+    case (grant)
         default: begin
-            builder_self0 <= main_wb_bus_adr;
+            self0 <= wb_bus_adr;
         end
     endcase
 end
 always @(*) begin
-    builder_self1 <= 32'd0;
-    case (builder_grant)
+    self1 <= 32'd0;
+    case (grant)
         default: begin
-            builder_self1 <= main_wb_bus_dat_w;
+            self1 <= wb_bus_dat_w;
         end
     endcase
 end
 always @(*) begin
-    builder_self2 <= 4'd0;
-    case (builder_grant)
+    self2 <= 4'd0;
+    case (grant)
         default: begin
-            builder_self2 <= main_wb_bus_sel;
+            self2 <= wb_bus_sel;
         end
     endcase
 end
 always @(*) begin
-    builder_self3 <= 1'd0;
-    case (builder_grant)
+    self3 <= 1'd0;
+    case (grant)
         default: begin
-            builder_self3 <= main_wb_bus_cyc;
+            self3 <= wb_bus_cyc;
         end
     endcase
 end
 always @(*) begin
-    builder_self4 <= 1'd0;
-    case (builder_grant)
+    self4 <= 1'd0;
+    case (grant)
         default: begin
-            builder_self4 <= main_wb_bus_stb;
+            self4 <= wb_bus_stb;
         end
     endcase
 end
 always @(*) begin
-    builder_self5 <= 1'd0;
-    case (builder_grant)
+    self5 <= 1'd0;
+    case (grant)
         default: begin
-            builder_self5 <= main_wb_bus_we;
+            self5 <= wb_bus_we;
         end
     endcase
 end
 always @(*) begin
-    builder_self6 <= 3'd0;
-    case (builder_grant)
+    self6 <= 3'd0;
+    case (grant)
         default: begin
-            builder_self6 <= main_wb_bus_cti;
+            self6 <= wb_bus_cti;
         end
     endcase
 end
 always @(*) begin
-    builder_self7 <= 2'd0;
-    case (builder_grant)
+    self7 <= 2'd0;
+    case (grant)
         default: begin
-            builder_self7 <= main_wb_bus_bte;
+            self7 <= wb_bus_bte;
         end
     endcase
 end
 always @(*) begin
-    main_maccore__r_status <= 1'd0;
-    main_maccore__r_status <= main_maccore_r;
-    main_maccore__r_status <= builder_xilinxmultiregimpl01;
+    maccore__r_status <= 1'd0;
+    maccore__r_status <= maccore_r;
+    maccore__r_status <= xilinxmultiregimpl01;
 end
-assign main_tx_cdc_cdc_produce_rdomain = builder_xilinxmultiregimpl11;
-assign main_tx_cdc_cdc_consume_wdomain = builder_xilinxmultiregimpl21;
-assign main_pulsesynchronizer0_toggle_o = builder_xilinxmultiregimpl31;
-assign main_pulsesynchronizer1_toggle_o = builder_xilinxmultiregimpl41;
-assign main_rx_cdc_cdc_produce_rdomain = builder_xilinxmultiregimpl51;
-assign main_rx_cdc_cdc_consume_wdomain = builder_xilinxmultiregimpl61;
+assign core_tx_cdc_cdc_produce_rdomain = xilinxmultiregimpl11;
+assign core_tx_cdc_cdc_consume_wdomain = xilinxmultiregimpl21;
+assign core_pulsesynchronizer0_toggle_o = xilinxmultiregimpl31;
+assign core_pulsesynchronizer1_toggle_o = xilinxmultiregimpl41;
+assign core_rx_cdc_cdc_produce_rdomain = xilinxmultiregimpl51;
+assign core_rx_cdc_cdc_consume_wdomain = xilinxmultiregimpl61;
 
 
 //------------------------------------------------------------------------------
@@ -3227,578 +3153,578 @@ assign main_rx_cdc_cdc_consume_wdomain = builder_xilinxmultiregimpl61;
 //------------------------------------------------------------------------------
 
 always @(posedge eth_rx_clk) begin
-    main_maccore_liteethphymiirx_reset <= (~mii_rx_dv);
-    main_maccore_liteethphymiirx_converter_sink_valid <= 1'd1;
-    main_maccore_liteethphymiirx_converter_sink_payload_data <= mii_rx_data;
-    if (main_maccore_liteethphymiirx_converter_source_ready) begin
-        main_maccore_liteethphymiirx_converter_strobe_all <= 1'd0;
+    maccore_liteethphymiirx_reset <= (~mii_rx_dv);
+    maccore_liteethphymiirx_converter_sink_valid <= 1'd1;
+    maccore_liteethphymiirx_converter_sink_payload_data <= mii_rx_data;
+    if (maccore_liteethphymiirx_converter_source_ready) begin
+        maccore_liteethphymiirx_converter_strobe_all <= 1'd0;
     end
-    if (main_maccore_liteethphymiirx_converter_load_part) begin
-        if (((main_maccore_liteethphymiirx_converter_demux == 1'd1) | main_maccore_liteethphymiirx_converter_sink_last)) begin
-            main_maccore_liteethphymiirx_converter_demux <= 1'd0;
-            main_maccore_liteethphymiirx_converter_strobe_all <= 1'd1;
+    if (maccore_liteethphymiirx_converter_load_part) begin
+        if (((maccore_liteethphymiirx_converter_demux == 1'd1) | maccore_liteethphymiirx_converter_sink_last)) begin
+            maccore_liteethphymiirx_converter_demux <= 1'd0;
+            maccore_liteethphymiirx_converter_strobe_all <= 1'd1;
         end else begin
-            main_maccore_liteethphymiirx_converter_demux <= (main_maccore_liteethphymiirx_converter_demux + 1'd1);
+            maccore_liteethphymiirx_converter_demux <= (maccore_liteethphymiirx_converter_demux + 1'd1);
         end
     end
-    if ((main_maccore_liteethphymiirx_converter_source_valid & main_maccore_liteethphymiirx_converter_source_ready)) begin
-        if ((main_maccore_liteethphymiirx_converter_sink_valid & main_maccore_liteethphymiirx_converter_sink_ready)) begin
-            main_maccore_liteethphymiirx_converter_source_first <= main_maccore_liteethphymiirx_converter_sink_first;
-            main_maccore_liteethphymiirx_converter_source_last <= main_maccore_liteethphymiirx_converter_sink_last;
+    if ((maccore_liteethphymiirx_converter_source_valid & maccore_liteethphymiirx_converter_source_ready)) begin
+        if ((maccore_liteethphymiirx_converter_sink_valid & maccore_liteethphymiirx_converter_sink_ready)) begin
+            maccore_liteethphymiirx_converter_source_first <= maccore_liteethphymiirx_converter_sink_first;
+            maccore_liteethphymiirx_converter_source_last <= maccore_liteethphymiirx_converter_sink_last;
         end else begin
-            main_maccore_liteethphymiirx_converter_source_first <= 1'd0;
-            main_maccore_liteethphymiirx_converter_source_last <= 1'd0;
+            maccore_liteethphymiirx_converter_source_first <= 1'd0;
+            maccore_liteethphymiirx_converter_source_last <= 1'd0;
         end
     end else begin
-        if ((main_maccore_liteethphymiirx_converter_sink_valid & main_maccore_liteethphymiirx_converter_sink_ready)) begin
-            main_maccore_liteethphymiirx_converter_source_first <= (main_maccore_liteethphymiirx_converter_sink_first | main_maccore_liteethphymiirx_converter_source_first);
-            main_maccore_liteethphymiirx_converter_source_last <= (main_maccore_liteethphymiirx_converter_sink_last | main_maccore_liteethphymiirx_converter_source_last);
+        if ((maccore_liteethphymiirx_converter_sink_valid & maccore_liteethphymiirx_converter_sink_ready)) begin
+            maccore_liteethphymiirx_converter_source_first <= (maccore_liteethphymiirx_converter_sink_first | maccore_liteethphymiirx_converter_source_first);
+            maccore_liteethphymiirx_converter_source_last <= (maccore_liteethphymiirx_converter_sink_last | maccore_liteethphymiirx_converter_source_last);
         end
     end
-    if (main_maccore_liteethphymiirx_converter_load_part) begin
-        case (main_maccore_liteethphymiirx_converter_demux)
+    if (maccore_liteethphymiirx_converter_load_part) begin
+        case (maccore_liteethphymiirx_converter_demux)
             1'd0: begin
-                main_maccore_liteethphymiirx_converter_source_payload_data[3:0] <= main_maccore_liteethphymiirx_converter_sink_payload_data;
+                maccore_liteethphymiirx_converter_source_payload_data[3:0] <= maccore_liteethphymiirx_converter_sink_payload_data;
             end
             1'd1: begin
-                main_maccore_liteethphymiirx_converter_source_payload_data[7:4] <= main_maccore_liteethphymiirx_converter_sink_payload_data;
+                maccore_liteethphymiirx_converter_source_payload_data[7:4] <= maccore_liteethphymiirx_converter_sink_payload_data;
             end
         endcase
     end
-    if (main_maccore_liteethphymiirx_converter_load_part) begin
-        main_maccore_liteethphymiirx_converter_source_payload_valid_token_count <= (main_maccore_liteethphymiirx_converter_demux + 1'd1);
+    if (maccore_liteethphymiirx_converter_load_part) begin
+        maccore_liteethphymiirx_converter_source_payload_valid_token_count <= (maccore_liteethphymiirx_converter_demux + 1'd1);
     end
-    if (main_maccore_liteethphymiirx_reset) begin
-        main_maccore_liteethphymiirx_converter_source_payload_data <= 8'd0;
-        main_maccore_liteethphymiirx_converter_source_payload_valid_token_count <= 2'd0;
-        main_maccore_liteethphymiirx_converter_demux <= 1'd0;
-        main_maccore_liteethphymiirx_converter_strobe_all <= 1'd0;
+    if (maccore_liteethphymiirx_reset) begin
+        maccore_liteethphymiirx_converter_source_payload_data <= 8'd0;
+        maccore_liteethphymiirx_converter_source_payload_valid_token_count <= 2'd0;
+        maccore_liteethphymiirx_converter_demux <= 1'd0;
+        maccore_liteethphymiirx_converter_strobe_all <= 1'd0;
     end
-    builder_rxdatapath_liteethmacpreamblechecker_state <= builder_rxdatapath_liteethmacpreamblechecker_next_state;
-    if (main_pulsesynchronizer0_i) begin
-        main_pulsesynchronizer0_toggle_i <= (~main_pulsesynchronizer0_toggle_i);
+    rxdatapath_liteethmacpreamblechecker_state <= rxdatapath_liteethmacpreamblechecker_next_state;
+    if (core_pulsesynchronizer0_i) begin
+        core_pulsesynchronizer0_toggle_i <= (~core_pulsesynchronizer0_toggle_i);
     end
-    if (main_liteethmaccrc32checker_crc_ce) begin
-        main_liteethmaccrc32checker_crc_reg <= main_liteethmaccrc32checker_crc_crc_next;
+    if (core_liteethmaccrc32checker_crc_ce) begin
+        core_liteethmaccrc32checker_crc_reg <= core_liteethmaccrc32checker_crc_crc_next;
     end
-    if (main_liteethmaccrc32checker_crc_reset) begin
-        main_liteethmaccrc32checker_crc_reg <= 32'd4294967295;
+    if (core_liteethmaccrc32checker_crc_reset) begin
+        core_liteethmaccrc32checker_crc_reg <= 32'd4294967295;
     end
-    if (((main_liteethmaccrc32checker_syncfifo_syncfifo_we & main_liteethmaccrc32checker_syncfifo_syncfifo_writable) & (~main_liteethmaccrc32checker_syncfifo_replace))) begin
-        if ((main_liteethmaccrc32checker_syncfifo_produce == 3'd4)) begin
-            main_liteethmaccrc32checker_syncfifo_produce <= 1'd0;
+    if (((core_liteethmaccrc32checker_syncfifo_syncfifo_we & core_liteethmaccrc32checker_syncfifo_syncfifo_writable) & (~core_liteethmaccrc32checker_syncfifo_replace))) begin
+        if ((core_liteethmaccrc32checker_syncfifo_produce == 3'd4)) begin
+            core_liteethmaccrc32checker_syncfifo_produce <= 1'd0;
         end else begin
-            main_liteethmaccrc32checker_syncfifo_produce <= (main_liteethmaccrc32checker_syncfifo_produce + 1'd1);
+            core_liteethmaccrc32checker_syncfifo_produce <= (core_liteethmaccrc32checker_syncfifo_produce + 1'd1);
         end
     end
-    if (main_liteethmaccrc32checker_syncfifo_do_read) begin
-        if ((main_liteethmaccrc32checker_syncfifo_consume == 3'd4)) begin
-            main_liteethmaccrc32checker_syncfifo_consume <= 1'd0;
+    if (core_liteethmaccrc32checker_syncfifo_do_read) begin
+        if ((core_liteethmaccrc32checker_syncfifo_consume == 3'd4)) begin
+            core_liteethmaccrc32checker_syncfifo_consume <= 1'd0;
         end else begin
-            main_liteethmaccrc32checker_syncfifo_consume <= (main_liteethmaccrc32checker_syncfifo_consume + 1'd1);
+            core_liteethmaccrc32checker_syncfifo_consume <= (core_liteethmaccrc32checker_syncfifo_consume + 1'd1);
         end
     end
-    if (((main_liteethmaccrc32checker_syncfifo_syncfifo_we & main_liteethmaccrc32checker_syncfifo_syncfifo_writable) & (~main_liteethmaccrc32checker_syncfifo_replace))) begin
-        if ((~main_liteethmaccrc32checker_syncfifo_do_read)) begin
-            main_liteethmaccrc32checker_syncfifo_level <= (main_liteethmaccrc32checker_syncfifo_level + 1'd1);
+    if (((core_liteethmaccrc32checker_syncfifo_syncfifo_we & core_liteethmaccrc32checker_syncfifo_syncfifo_writable) & (~core_liteethmaccrc32checker_syncfifo_replace))) begin
+        if ((~core_liteethmaccrc32checker_syncfifo_do_read)) begin
+            core_liteethmaccrc32checker_syncfifo_level <= (core_liteethmaccrc32checker_syncfifo_level + 1'd1);
         end
     end else begin
-        if (main_liteethmaccrc32checker_syncfifo_do_read) begin
-            main_liteethmaccrc32checker_syncfifo_level <= (main_liteethmaccrc32checker_syncfifo_level - 1'd1);
+        if (core_liteethmaccrc32checker_syncfifo_do_read) begin
+            core_liteethmaccrc32checker_syncfifo_level <= (core_liteethmaccrc32checker_syncfifo_level - 1'd1);
         end
     end
-    if (main_liteethmaccrc32checker_fifo_reset) begin
-        main_liteethmaccrc32checker_syncfifo_level <= 3'd0;
-        main_liteethmaccrc32checker_syncfifo_produce <= 3'd0;
-        main_liteethmaccrc32checker_syncfifo_consume <= 3'd0;
+    if (core_liteethmaccrc32checker_fifo_reset) begin
+        core_liteethmaccrc32checker_syncfifo_level <= 3'd0;
+        core_liteethmaccrc32checker_syncfifo_produce <= 3'd0;
+        core_liteethmaccrc32checker_syncfifo_consume <= 3'd0;
     end
-    builder_rxdatapath_bufferizeendpoints_state <= builder_rxdatapath_bufferizeendpoints_next_state;
-    if (main_liteethmaccrc32checker_last_be_next_value_ce0) begin
-        main_liteethmaccrc32checker_last_be <= main_liteethmaccrc32checker_last_be_next_value0;
+    rxdatapath_bufferizeendpoints_state <= rxdatapath_bufferizeendpoints_next_state;
+    if (core_liteethmaccrc32checker_last_be_next_value_ce0) begin
+        core_liteethmaccrc32checker_last_be <= core_liteethmaccrc32checker_last_be_next_value0;
     end
-    if (main_liteethmaccrc32checker_crc_error1_next_value_ce1) begin
-        main_liteethmaccrc32checker_crc_error1 <= main_liteethmaccrc32checker_crc_error1_next_value1;
+    if (core_liteethmaccrc32checker_crc_error1_next_value_ce1) begin
+        core_liteethmaccrc32checker_crc_error1 <= core_liteethmaccrc32checker_crc_error1_next_value1;
     end
-    if (((~main_bufferizeendpoints_pipe_valid_source_valid) | main_bufferizeendpoints_pipe_valid_source_ready)) begin
-        main_bufferizeendpoints_pipe_valid_source_valid <= main_bufferizeendpoints_pipe_valid_sink_valid;
-        main_bufferizeendpoints_pipe_valid_source_first <= main_bufferizeendpoints_pipe_valid_sink_first;
-        main_bufferizeendpoints_pipe_valid_source_last <= main_bufferizeendpoints_pipe_valid_sink_last;
-        main_bufferizeendpoints_pipe_valid_source_payload_data <= main_bufferizeendpoints_pipe_valid_sink_payload_data;
-        main_bufferizeendpoints_pipe_valid_source_payload_last_be <= main_bufferizeendpoints_pipe_valid_sink_payload_last_be;
-        main_bufferizeendpoints_pipe_valid_source_payload_error <= main_bufferizeendpoints_pipe_valid_sink_payload_error;
+    if (((~core_bufferizeendpoints_pipe_valid_source_valid) | core_bufferizeendpoints_pipe_valid_source_ready)) begin
+        core_bufferizeendpoints_pipe_valid_source_valid <= core_bufferizeendpoints_pipe_valid_sink_valid;
+        core_bufferizeendpoints_pipe_valid_source_first <= core_bufferizeendpoints_pipe_valid_sink_first;
+        core_bufferizeendpoints_pipe_valid_source_last <= core_bufferizeendpoints_pipe_valid_sink_last;
+        core_bufferizeendpoints_pipe_valid_source_payload_data <= core_bufferizeendpoints_pipe_valid_sink_payload_data;
+        core_bufferizeendpoints_pipe_valid_source_payload_last_be <= core_bufferizeendpoints_pipe_valid_sink_payload_last_be;
+        core_bufferizeendpoints_pipe_valid_source_payload_error <= core_bufferizeendpoints_pipe_valid_sink_payload_error;
     end
-    if (main_pulsesynchronizer1_i) begin
-        main_pulsesynchronizer1_toggle_i <= (~main_pulsesynchronizer1_toggle_i);
+    if (core_pulsesynchronizer1_i) begin
+        core_pulsesynchronizer1_toggle_i <= (~core_pulsesynchronizer1_toggle_i);
     end
-    if (main_rx_converter_converter_source_ready) begin
-        main_rx_converter_converter_strobe_all <= 1'd0;
+    if (core_rx_converter_converter_source_ready) begin
+        core_rx_converter_converter_strobe_all <= 1'd0;
     end
-    if (main_rx_converter_converter_load_part) begin
-        if (((main_rx_converter_converter_demux == 2'd3) | main_rx_converter_converter_sink_last)) begin
-            main_rx_converter_converter_demux <= 1'd0;
-            main_rx_converter_converter_strobe_all <= 1'd1;
+    if (core_rx_converter_converter_load_part) begin
+        if (((core_rx_converter_converter_demux == 2'd3) | core_rx_converter_converter_sink_last)) begin
+            core_rx_converter_converter_demux <= 1'd0;
+            core_rx_converter_converter_strobe_all <= 1'd1;
         end else begin
-            main_rx_converter_converter_demux <= (main_rx_converter_converter_demux + 1'd1);
+            core_rx_converter_converter_demux <= (core_rx_converter_converter_demux + 1'd1);
         end
     end
-    if ((main_rx_converter_converter_source_valid & main_rx_converter_converter_source_ready)) begin
-        if ((main_rx_converter_converter_sink_valid & main_rx_converter_converter_sink_ready)) begin
-            main_rx_converter_converter_source_first <= main_rx_converter_converter_sink_first;
-            main_rx_converter_converter_source_last <= main_rx_converter_converter_sink_last;
+    if ((core_rx_converter_converter_source_valid & core_rx_converter_converter_source_ready)) begin
+        if ((core_rx_converter_converter_sink_valid & core_rx_converter_converter_sink_ready)) begin
+            core_rx_converter_converter_source_first <= core_rx_converter_converter_sink_first;
+            core_rx_converter_converter_source_last <= core_rx_converter_converter_sink_last;
         end else begin
-            main_rx_converter_converter_source_first <= 1'd0;
-            main_rx_converter_converter_source_last <= 1'd0;
+            core_rx_converter_converter_source_first <= 1'd0;
+            core_rx_converter_converter_source_last <= 1'd0;
         end
     end else begin
-        if ((main_rx_converter_converter_sink_valid & main_rx_converter_converter_sink_ready)) begin
-            main_rx_converter_converter_source_first <= (main_rx_converter_converter_sink_first | main_rx_converter_converter_source_first);
-            main_rx_converter_converter_source_last <= (main_rx_converter_converter_sink_last | main_rx_converter_converter_source_last);
+        if ((core_rx_converter_converter_sink_valid & core_rx_converter_converter_sink_ready)) begin
+            core_rx_converter_converter_source_first <= (core_rx_converter_converter_sink_first | core_rx_converter_converter_source_first);
+            core_rx_converter_converter_source_last <= (core_rx_converter_converter_sink_last | core_rx_converter_converter_source_last);
         end
     end
-    if (main_rx_converter_converter_load_part) begin
-        case (main_rx_converter_converter_demux)
+    if (core_rx_converter_converter_load_part) begin
+        case (core_rx_converter_converter_demux)
             1'd0: begin
-                main_rx_converter_converter_source_payload_data[9:0] <= main_rx_converter_converter_sink_payload_data;
+                core_rx_converter_converter_source_payload_data[9:0] <= core_rx_converter_converter_sink_payload_data;
             end
             1'd1: begin
-                main_rx_converter_converter_source_payload_data[19:10] <= main_rx_converter_converter_sink_payload_data;
+                core_rx_converter_converter_source_payload_data[19:10] <= core_rx_converter_converter_sink_payload_data;
             end
             2'd2: begin
-                main_rx_converter_converter_source_payload_data[29:20] <= main_rx_converter_converter_sink_payload_data;
+                core_rx_converter_converter_source_payload_data[29:20] <= core_rx_converter_converter_sink_payload_data;
             end
             2'd3: begin
-                main_rx_converter_converter_source_payload_data[39:30] <= main_rx_converter_converter_sink_payload_data;
+                core_rx_converter_converter_source_payload_data[39:30] <= core_rx_converter_converter_sink_payload_data;
             end
         endcase
     end
-    if (main_rx_converter_converter_load_part) begin
-        main_rx_converter_converter_source_payload_valid_token_count <= (main_rx_converter_converter_demux + 1'd1);
+    if (core_rx_converter_converter_load_part) begin
+        core_rx_converter_converter_source_payload_valid_token_count <= (core_rx_converter_converter_demux + 1'd1);
     end
-    main_rx_cdc_cdc_graycounter0_q_binary <= main_rx_cdc_cdc_graycounter0_q_next_binary;
-    main_rx_cdc_cdc_graycounter0_q <= main_rx_cdc_cdc_graycounter0_q_next;
+    core_rx_cdc_cdc_graycounter0_q_binary <= core_rx_cdc_cdc_graycounter0_q_next_binary;
+    core_rx_cdc_cdc_graycounter0_q <= core_rx_cdc_cdc_graycounter0_q_next;
     if (eth_rx_rst) begin
-        main_maccore_liteethphymiirx_converter_sink_valid <= 1'd0;
-        main_maccore_liteethphymiirx_converter_sink_payload_data <= 4'd0;
-        main_maccore_liteethphymiirx_converter_source_payload_data <= 8'd0;
-        main_maccore_liteethphymiirx_converter_source_payload_valid_token_count <= 2'd0;
-        main_maccore_liteethphymiirx_converter_demux <= 1'd0;
-        main_maccore_liteethphymiirx_converter_strobe_all <= 1'd0;
-        main_maccore_liteethphymiirx_reset <= 1'd0;
-        main_liteethmaccrc32checker_crc_reg <= 32'd4294967295;
-        main_liteethmaccrc32checker_syncfifo_level <= 3'd0;
-        main_liteethmaccrc32checker_syncfifo_produce <= 3'd0;
-        main_liteethmaccrc32checker_syncfifo_consume <= 3'd0;
-        main_liteethmaccrc32checker_last_be <= 1'd0;
-        main_liteethmaccrc32checker_crc_error1 <= 1'd0;
-        main_bufferizeendpoints_pipe_valid_source_valid <= 1'd0;
-        main_bufferizeendpoints_pipe_valid_source_payload_data <= 8'd0;
-        main_bufferizeendpoints_pipe_valid_source_payload_last_be <= 1'd0;
-        main_bufferizeendpoints_pipe_valid_source_payload_error <= 1'd0;
-        main_rx_converter_converter_source_payload_data <= 40'd0;
-        main_rx_converter_converter_source_payload_valid_token_count <= 3'd0;
-        main_rx_converter_converter_demux <= 2'd0;
-        main_rx_converter_converter_strobe_all <= 1'd0;
-        main_rx_cdc_cdc_graycounter0_q <= 6'd0;
-        main_rx_cdc_cdc_graycounter0_q_binary <= 6'd0;
-        builder_rxdatapath_liteethmacpreamblechecker_state <= 1'd0;
-        builder_rxdatapath_bufferizeendpoints_state <= 2'd0;
+        maccore_liteethphymiirx_converter_sink_valid <= 1'd0;
+        maccore_liteethphymiirx_converter_sink_payload_data <= 4'd0;
+        maccore_liteethphymiirx_converter_source_payload_data <= 8'd0;
+        maccore_liteethphymiirx_converter_source_payload_valid_token_count <= 2'd0;
+        maccore_liteethphymiirx_converter_demux <= 1'd0;
+        maccore_liteethphymiirx_converter_strobe_all <= 1'd0;
+        maccore_liteethphymiirx_reset <= 1'd0;
+        core_liteethmaccrc32checker_crc_reg <= 32'd4294967295;
+        core_liteethmaccrc32checker_syncfifo_level <= 3'd0;
+        core_liteethmaccrc32checker_syncfifo_produce <= 3'd0;
+        core_liteethmaccrc32checker_syncfifo_consume <= 3'd0;
+        core_liteethmaccrc32checker_last_be <= 1'd0;
+        core_liteethmaccrc32checker_crc_error1 <= 1'd0;
+        core_bufferizeendpoints_pipe_valid_source_valid <= 1'd0;
+        core_bufferizeendpoints_pipe_valid_source_payload_data <= 8'd0;
+        core_bufferizeendpoints_pipe_valid_source_payload_last_be <= 1'd0;
+        core_bufferizeendpoints_pipe_valid_source_payload_error <= 1'd0;
+        core_rx_converter_converter_source_payload_data <= 40'd0;
+        core_rx_converter_converter_source_payload_valid_token_count <= 3'd0;
+        core_rx_converter_converter_demux <= 2'd0;
+        core_rx_converter_converter_strobe_all <= 1'd0;
+        core_rx_cdc_cdc_graycounter0_q <= 6'd0;
+        core_rx_cdc_cdc_graycounter0_q_binary <= 6'd0;
+        rxdatapath_liteethmacpreamblechecker_state <= 1'd0;
+        rxdatapath_bufferizeendpoints_state <= 2'd0;
     end
-    builder_xilinxmultiregimpl60 <= main_rx_cdc_cdc_graycounter1_q;
-    builder_xilinxmultiregimpl61 <= builder_xilinxmultiregimpl60;
+    xilinxmultiregimpl60 <= core_rx_cdc_cdc_graycounter1_q;
+    xilinxmultiregimpl61 <= xilinxmultiregimpl60;
 end
 
 always @(posedge eth_tx_clk) begin
-    mii_tx_en <= main_maccore_liteethphymiitx_source_source_valid;
-    mii_tx_data <= main_maccore_liteethphymiitx_source_source_payload_data;
-    if ((main_maccore_liteethphymiitx_converter_source_valid & main_maccore_liteethphymiitx_converter_source_ready)) begin
-        if (main_maccore_liteethphymiitx_converter_last) begin
-            main_maccore_liteethphymiitx_converter_mux <= 1'd0;
+    mii_tx_en <= maccore_liteethphymiitx_source_source_valid;
+    mii_tx_data <= maccore_liteethphymiitx_source_source_payload_data;
+    if ((maccore_liteethphymiitx_converter_source_valid & maccore_liteethphymiitx_converter_source_ready)) begin
+        if (maccore_liteethphymiitx_converter_last) begin
+            maccore_liteethphymiitx_converter_mux <= 1'd0;
         end else begin
-            main_maccore_liteethphymiitx_converter_mux <= (main_maccore_liteethphymiitx_converter_mux + 1'd1);
+            maccore_liteethphymiitx_converter_mux <= (maccore_liteethphymiitx_converter_mux + 1'd1);
         end
     end
-    main_tx_cdc_cdc_graycounter1_q_binary <= main_tx_cdc_cdc_graycounter1_q_next_binary;
-    main_tx_cdc_cdc_graycounter1_q <= main_tx_cdc_cdc_graycounter1_q_next;
-    if ((main_tx_converter_converter_source_valid & main_tx_converter_converter_source_ready)) begin
-        if (main_tx_converter_converter_last) begin
-            main_tx_converter_converter_mux <= 1'd0;
+    core_tx_cdc_cdc_graycounter1_q_binary <= core_tx_cdc_cdc_graycounter1_q_next_binary;
+    core_tx_cdc_cdc_graycounter1_q <= core_tx_cdc_cdc_graycounter1_q_next;
+    if ((core_tx_converter_converter_source_valid & core_tx_converter_converter_source_ready)) begin
+        if (core_tx_converter_converter_last) begin
+            core_tx_converter_converter_mux <= 1'd0;
         end else begin
-            main_tx_converter_converter_mux <= (main_tx_converter_converter_mux + 1'd1);
+            core_tx_converter_converter_mux <= (core_tx_converter_converter_mux + 1'd1);
         end
     end
-    builder_txdatapath_liteethmactxlastbe_state <= builder_txdatapath_liteethmactxlastbe_next_state;
-    builder_txdatapath_liteethmacpaddinginserter_state <= builder_txdatapath_liteethmacpaddinginserter_next_state;
-    if (main_tx_padding_counter_clockdomainsrenamer0_next_value_ce) begin
-        main_tx_padding_counter <= main_tx_padding_counter_clockdomainsrenamer0_next_value;
+    txdatapath_liteethmactxlastbe_state <= txdatapath_liteethmactxlastbe_next_state;
+    txdatapath_liteethmacpaddinginserter_state <= txdatapath_liteethmacpaddinginserter_next_state;
+    if (core_tx_padding_counter_clockdomainsrenamer0_next_value_ce) begin
+        core_tx_padding_counter <= core_tx_padding_counter_clockdomainsrenamer0_next_value;
     end
-    if (main_tx_crc_is_ongoing0) begin
-        main_tx_crc_cnt <= 2'd3;
+    if (core_tx_crc_is_ongoing0) begin
+        core_tx_crc_cnt <= 2'd3;
     end else begin
-        if ((main_tx_crc_is_ongoing1 & (~main_tx_crc_cnt_done))) begin
-            main_tx_crc_cnt <= (main_tx_crc_cnt - main_tx_crc_source_ready);
+        if ((core_tx_crc_is_ongoing1 & (~core_tx_crc_cnt_done))) begin
+            core_tx_crc_cnt <= (core_tx_crc_cnt - core_tx_crc_source_ready);
         end
     end
-    if (main_tx_crc_ce) begin
-        main_tx_crc_reg <= main_tx_crc_crc_next;
+    if (core_tx_crc_ce) begin
+        core_tx_crc_reg <= core_tx_crc_crc_next;
     end
-    if (main_tx_crc_reset) begin
-        main_tx_crc_reg <= 32'd4294967295;
+    if (core_tx_crc_reset) begin
+        core_tx_crc_reg <= 32'd4294967295;
     end
-    builder_txdatapath_bufferizeendpoints_state <= builder_txdatapath_bufferizeendpoints_next_state;
-    if (main_tx_crc_crc_packet_clockdomainsrenamer1_next_value_ce0) begin
-        main_tx_crc_crc_packet <= main_tx_crc_crc_packet_clockdomainsrenamer1_next_value0;
+    txdatapath_bufferizeendpoints_state <= txdatapath_bufferizeendpoints_next_state;
+    if (core_tx_crc_crc_packet_clockdomainsrenamer1_next_value_ce0) begin
+        core_tx_crc_crc_packet <= core_tx_crc_crc_packet_clockdomainsrenamer1_next_value0;
     end
-    if (main_tx_crc_last_be_clockdomainsrenamer1_next_value_ce1) begin
-        main_tx_crc_last_be <= main_tx_crc_last_be_clockdomainsrenamer1_next_value1;
+    if (core_tx_crc_last_be_clockdomainsrenamer1_next_value_ce1) begin
+        core_tx_crc_last_be <= core_tx_crc_last_be_clockdomainsrenamer1_next_value1;
     end
-    if (((~main_tx_crc_pipe_valid_source_valid) | main_tx_crc_pipe_valid_source_ready)) begin
-        main_tx_crc_pipe_valid_source_valid <= main_tx_crc_pipe_valid_sink_valid;
-        main_tx_crc_pipe_valid_source_first <= main_tx_crc_pipe_valid_sink_first;
-        main_tx_crc_pipe_valid_source_last <= main_tx_crc_pipe_valid_sink_last;
-        main_tx_crc_pipe_valid_source_payload_data <= main_tx_crc_pipe_valid_sink_payload_data;
-        main_tx_crc_pipe_valid_source_payload_last_be <= main_tx_crc_pipe_valid_sink_payload_last_be;
-        main_tx_crc_pipe_valid_source_payload_error <= main_tx_crc_pipe_valid_sink_payload_error;
+    if (((~core_tx_crc_pipe_valid_source_valid) | core_tx_crc_pipe_valid_source_ready)) begin
+        core_tx_crc_pipe_valid_source_valid <= core_tx_crc_pipe_valid_sink_valid;
+        core_tx_crc_pipe_valid_source_first <= core_tx_crc_pipe_valid_sink_first;
+        core_tx_crc_pipe_valid_source_last <= core_tx_crc_pipe_valid_sink_last;
+        core_tx_crc_pipe_valid_source_payload_data <= core_tx_crc_pipe_valid_sink_payload_data;
+        core_tx_crc_pipe_valid_source_payload_last_be <= core_tx_crc_pipe_valid_sink_payload_last_be;
+        core_tx_crc_pipe_valid_source_payload_error <= core_tx_crc_pipe_valid_sink_payload_error;
     end
-    builder_txdatapath_liteethmacpreambleinserter_state <= builder_txdatapath_liteethmacpreambleinserter_next_state;
-    if (main_tx_preamble_count_clockdomainsrenamer2_next_value_ce) begin
-        main_tx_preamble_count <= main_tx_preamble_count_clockdomainsrenamer2_next_value;
+    txdatapath_liteethmacpreambleinserter_state <= txdatapath_liteethmacpreambleinserter_next_state;
+    if (core_tx_preamble_count_clockdomainsrenamer2_next_value_ce) begin
+        core_tx_preamble_count <= core_tx_preamble_count_clockdomainsrenamer2_next_value;
     end
-    builder_txdatapath_liteethmacgap_state <= builder_txdatapath_liteethmacgap_next_state;
-    if (main_tx_gap_counter_clockdomainsrenamer3_next_value_ce) begin
-        main_tx_gap_counter <= main_tx_gap_counter_clockdomainsrenamer3_next_value;
+    txdatapath_liteethmacgap_state <= txdatapath_liteethmacgap_next_state;
+    if (core_tx_gap_counter_clockdomainsrenamer3_next_value_ce) begin
+        core_tx_gap_counter <= core_tx_gap_counter_clockdomainsrenamer3_next_value;
     end
     if (eth_tx_rst) begin
-        main_maccore_liteethphymiitx_converter_mux <= 1'd0;
-        main_tx_cdc_cdc_graycounter1_q <= 6'd0;
-        main_tx_cdc_cdc_graycounter1_q_binary <= 6'd0;
-        main_tx_converter_converter_mux <= 2'd0;
-        main_tx_padding_counter <= 16'd0;
-        main_tx_crc_crc_packet <= 32'd0;
-        main_tx_crc_last_be <= 1'd0;
-        main_tx_crc_reg <= 32'd4294967295;
-        main_tx_crc_cnt <= 2'd3;
-        main_tx_crc_pipe_valid_source_valid <= 1'd0;
-        main_tx_crc_pipe_valid_source_payload_data <= 8'd0;
-        main_tx_crc_pipe_valid_source_payload_last_be <= 1'd0;
-        main_tx_crc_pipe_valid_source_payload_error <= 1'd0;
-        builder_txdatapath_liteethmactxlastbe_state <= 1'd0;
-        builder_txdatapath_liteethmacpaddinginserter_state <= 1'd0;
-        builder_txdatapath_bufferizeendpoints_state <= 2'd0;
-        builder_txdatapath_liteethmacpreambleinserter_state <= 2'd0;
-        builder_txdatapath_liteethmacgap_state <= 1'd0;
+        maccore_liteethphymiitx_converter_mux <= 1'd0;
+        core_tx_cdc_cdc_graycounter1_q <= 6'd0;
+        core_tx_cdc_cdc_graycounter1_q_binary <= 6'd0;
+        core_tx_converter_converter_mux <= 2'd0;
+        core_tx_padding_counter <= 16'd0;
+        core_tx_crc_reg <= 32'd4294967295;
+        core_tx_crc_cnt <= 2'd3;
+        core_tx_crc_pipe_valid_source_valid <= 1'd0;
+        core_tx_crc_pipe_valid_source_payload_data <= 8'd0;
+        core_tx_crc_pipe_valid_source_payload_last_be <= 1'd0;
+        core_tx_crc_pipe_valid_source_payload_error <= 1'd0;
+        txdatapath_liteethmactxlastbe_state <= 1'd0;
+        txdatapath_liteethmacpaddinginserter_state <= 1'd0;
+        txdatapath_bufferizeendpoints_state <= 2'd0;
+        txdatapath_liteethmacpreambleinserter_state <= 2'd0;
+        txdatapath_liteethmacgap_state <= 1'd0;
     end
-    builder_xilinxmultiregimpl10 <= main_tx_cdc_cdc_graycounter0_q;
-    builder_xilinxmultiregimpl11 <= builder_xilinxmultiregimpl10;
+    xilinxmultiregimpl10 <= core_tx_cdc_cdc_graycounter0_q;
+    xilinxmultiregimpl11 <= xilinxmultiregimpl10;
 end
 
 always @(posedge por_clk) begin
-    main_maccore_int_rst <= sys_reset;
+    maccore_int_rst <= sys_reset;
 end
 
 always @(posedge sys_clk) begin
-    builder_slave_sel_r <= builder_slave_sel;
-    if (builder_wait) begin
-        if ((~builder_done)) begin
-            builder_count <= (builder_count - 1'd1);
+    slave_sel_r <= slave_sel;
+    if (wait_1) begin
+        if ((~done)) begin
+            count <= (count - 1'd1);
         end
     end else begin
-        builder_count <= 20'd1000000;
+        count <= 20'd1000000;
     end
-    if ((main_maccore_bus_errors != 32'd4294967295)) begin
-        if (main_maccore_bus_error) begin
-            main_maccore_bus_errors <= (main_maccore_bus_errors + 1'd1);
+    if ((maccore_bus_errors != 32'd4294967295)) begin
+        if (maccore_bus_error) begin
+            maccore_bus_errors <= (maccore_bus_errors + 1'd1);
         end
     end
-    if (main_maccore_crg_counter_ce) begin
-        main_maccore_crg_counter <= (main_maccore_crg_counter + 1'd1);
+    if (maccore_crg_counter_ce) begin
+        maccore_crg_counter <= (maccore_crg_counter + 1'd1);
     end
-    main_tx_cdc_cdc_graycounter0_q_binary <= main_tx_cdc_cdc_graycounter0_q_next_binary;
-    main_tx_cdc_cdc_graycounter0_q <= main_tx_cdc_cdc_graycounter0_q_next;
-    if (main_pulsesynchronizer0_o) begin
-        main_preamble_errors_status <= (main_preamble_errors_status + 1'd1);
+    core_tx_cdc_cdc_graycounter0_q_binary <= core_tx_cdc_cdc_graycounter0_q_next_binary;
+    core_tx_cdc_cdc_graycounter0_q <= core_tx_cdc_cdc_graycounter0_q_next;
+    if (core_pulsesynchronizer0_o) begin
+        core_preamble_errors_status <= (core_preamble_errors_status + 1'd1);
     end
-    if (main_pulsesynchronizer1_o) begin
-        main_crc_errors_status <= (main_crc_errors_status + 1'd1);
+    if (core_pulsesynchronizer1_o) begin
+        core_crc_errors_status <= (core_crc_errors_status + 1'd1);
     end
-    main_pulsesynchronizer0_toggle_o_r <= main_pulsesynchronizer0_toggle_o;
-    main_pulsesynchronizer1_toggle_o_r <= main_pulsesynchronizer1_toggle_o;
-    main_rx_cdc_cdc_graycounter1_q_binary <= main_rx_cdc_cdc_graycounter1_q_next_binary;
-    main_rx_cdc_cdc_graycounter1_q <= main_rx_cdc_cdc_graycounter1_q_next;
-    if (((main_sram49_we & main_sram50_writable) & (~main_sram56_replace))) begin
-        main_sram57_produce <= (main_sram57_produce + 1'd1);
+    core_pulsesynchronizer0_toggle_o_r <= core_pulsesynchronizer0_toggle_o;
+    core_pulsesynchronizer1_toggle_o_r <= core_pulsesynchronizer1_toggle_o;
+    core_rx_cdc_cdc_graycounter1_q_binary <= core_rx_cdc_cdc_graycounter1_q_next_binary;
+    core_rx_cdc_cdc_graycounter1_q <= core_rx_cdc_cdc_graycounter1_q_next;
+    if (((wishbone_interface_writer_stat_fifo_syncfifo_we & wishbone_interface_writer_stat_fifo_syncfifo_writable) & (~wishbone_interface_writer_stat_fifo_replace))) begin
+        wishbone_interface_writer_stat_fifo_produce <= (wishbone_interface_writer_stat_fifo_produce + 1'd1);
     end
-    if (main_sram63_do_read) begin
-        main_sram58_consume <= (main_sram58_consume + 1'd1);
+    if (wishbone_interface_writer_stat_fifo_do_read) begin
+        wishbone_interface_writer_stat_fifo_consume <= (wishbone_interface_writer_stat_fifo_consume + 1'd1);
     end
-    if (((main_sram49_we & main_sram50_writable) & (~main_sram56_replace))) begin
-        if ((~main_sram63_do_read)) begin
-            main_sram55_level <= (main_sram55_level + 1'd1);
-        end
-    end else begin
-        if (main_sram63_do_read) begin
-            main_sram55_level <= (main_sram55_level - 1'd1);
-        end
-    end
-    builder_liteethmacsramwriter_state <= builder_liteethmacsramwriter_next_state;
-    if (main_sram35_length_liteethmacsramwriter_t_next_value_ce) begin
-        main_sram35_length <= main_sram35_length_liteethmacsramwriter_t_next_value;
-    end
-    if (main_sram13_status_liteethmacsramwriter_f_next_value_ce) begin
-        main_sram13_status <= main_sram13_status_liteethmacsramwriter_f_next_value;
-    end
-    if (main_slot_liteethmacsramwriter_next_value_ce) begin
-        main_slot <= main_slot_liteethmacsramwriter_next_value;
-    end
-    if (main_sram108_clear) begin
-        main_sram106_pending <= 1'd0;
-    end
-    if (main_sram107_trigger) begin
-        main_sram106_pending <= 1'd1;
-    end
-    if (((main_sram135_we & main_sram136_writable) & (~main_sram142_replace))) begin
-        main_sram143_produce <= (main_sram143_produce + 1'd1);
-    end
-    if (main_sram149_do_read) begin
-        main_sram144_consume <= (main_sram144_consume + 1'd1);
-    end
-    if (((main_sram135_we & main_sram136_writable) & (~main_sram142_replace))) begin
-        if ((~main_sram149_do_read)) begin
-            main_sram141_level <= (main_sram141_level + 1'd1);
+    if (((wishbone_interface_writer_stat_fifo_syncfifo_we & wishbone_interface_writer_stat_fifo_syncfifo_writable) & (~wishbone_interface_writer_stat_fifo_replace))) begin
+        if ((~wishbone_interface_writer_stat_fifo_do_read)) begin
+            wishbone_interface_writer_stat_fifo_level <= (wishbone_interface_writer_stat_fifo_level + 1'd1);
         end
     end else begin
-        if (main_sram149_do_read) begin
-            main_sram141_level <= (main_sram141_level - 1'd1);
+        if (wishbone_interface_writer_stat_fifo_do_read) begin
+            wishbone_interface_writer_stat_fifo_level <= (wishbone_interface_writer_stat_fifo_level - 1'd1);
         end
     end
-    builder_liteethmacsramreader_state <= builder_liteethmacsramreader_next_state;
-    if (main_sram122_length_liteethmacsramreader_next_value_ce) begin
-        main_sram122_length <= main_sram122_length_liteethmacsramreader_next_value;
+    liteethmacsramwriter_state <= liteethmacsramwriter_next_state;
+    if (wishbone_interface_writer_length_liteethmacsramwriter_t_next_value_ce) begin
+        wishbone_interface_writer_length <= wishbone_interface_writer_length_liteethmacsramwriter_t_next_value;
     end
-    main_interface0_ack <= 1'd0;
-    if (((main_interface0_cyc & main_interface0_stb) & ((~main_interface0_ack) | main_sram0_adr_burst))) begin
-        main_interface0_ack <= 1'd1;
+    if (wishbone_interface_writer_errors_status_liteethmacsramwriter_f_next_value_ce) begin
+        wishbone_interface_writer_errors_status <= wishbone_interface_writer_errors_status_liteethmacsramwriter_f_next_value;
     end
-    main_interface1_ack <= 1'd0;
-    if (((main_interface1_cyc & main_interface1_stb) & ((~main_interface1_ack) | main_sram1_adr_burst))) begin
-        main_interface1_ack <= 1'd1;
+    if (wishbone_interface_writer_slot_liteethmacsramwriter_next_value_ce) begin
+        wishbone_interface_writer_slot <= wishbone_interface_writer_slot_liteethmacsramwriter_next_value;
     end
-    main_interface2_ack <= 1'd0;
-    if (((main_interface2_cyc & main_interface2_stb) & ((~main_interface2_ack) | main_sram2_adr_burst))) begin
-        main_interface2_ack <= 1'd1;
+    if (wishbone_interface_reader_eventsourcepulse_clear) begin
+        wishbone_interface_reader_eventsourcepulse_pending <= 1'd0;
     end
-    main_interface3_ack <= 1'd0;
-    if (((main_interface3_cyc & main_interface3_stb) & ((~main_interface3_ack) | main_sram3_adr_burst))) begin
-        main_interface3_ack <= 1'd1;
+    if (wishbone_interface_reader_eventsourcepulse_trigger) begin
+        wishbone_interface_reader_eventsourcepulse_pending <= 1'd1;
     end
-    main_slave_sel_r <= main_slave_sel;
-    builder_state <= builder_next_state;
-    builder_interface0_bank_bus_dat_r <= 1'd0;
-    if (builder_csrbank0_sel) begin
-        case (builder_interface0_bank_bus_adr[8:0])
+    if (((wishbone_interface_reader_cmd_fifo_syncfifo_we & wishbone_interface_reader_cmd_fifo_syncfifo_writable) & (~wishbone_interface_reader_cmd_fifo_replace))) begin
+        wishbone_interface_reader_cmd_fifo_produce <= (wishbone_interface_reader_cmd_fifo_produce + 1'd1);
+    end
+    if (wishbone_interface_reader_cmd_fifo_do_read) begin
+        wishbone_interface_reader_cmd_fifo_consume <= (wishbone_interface_reader_cmd_fifo_consume + 1'd1);
+    end
+    if (((wishbone_interface_reader_cmd_fifo_syncfifo_we & wishbone_interface_reader_cmd_fifo_syncfifo_writable) & (~wishbone_interface_reader_cmd_fifo_replace))) begin
+        if ((~wishbone_interface_reader_cmd_fifo_do_read)) begin
+            wishbone_interface_reader_cmd_fifo_level <= (wishbone_interface_reader_cmd_fifo_level + 1'd1);
+        end
+    end else begin
+        if (wishbone_interface_reader_cmd_fifo_do_read) begin
+            wishbone_interface_reader_cmd_fifo_level <= (wishbone_interface_reader_cmd_fifo_level - 1'd1);
+        end
+    end
+    liteethmacsramreader_state <= liteethmacsramreader_next_state;
+    if (wishbone_interface_reader_length_liteethmacsramreader_next_value_ce) begin
+        wishbone_interface_reader_length <= wishbone_interface_reader_length_liteethmacsramreader_next_value;
+    end
+    wishbone_interface_interface0_ack <= 1'd0;
+    if (((wishbone_interface_interface0_cyc & wishbone_interface_interface0_stb) & ((~wishbone_interface_interface0_ack) | wishbone_interface_sram0_adr_burst))) begin
+        wishbone_interface_interface0_ack <= 1'd1;
+    end
+    wishbone_interface_interface1_ack <= 1'd0;
+    if (((wishbone_interface_interface1_cyc & wishbone_interface_interface1_stb) & ((~wishbone_interface_interface1_ack) | wishbone_interface_sram1_adr_burst))) begin
+        wishbone_interface_interface1_ack <= 1'd1;
+    end
+    wishbone_interface_decoder0_slave_sel_r <= wishbone_interface_decoder0_slave_sel;
+    wishbone_interface_interface2_ack <= 1'd0;
+    if (((wishbone_interface_interface2_cyc & wishbone_interface_interface2_stb) & ((~wishbone_interface_interface2_ack) | wishbone_interface_sram2_adr_burst))) begin
+        wishbone_interface_interface2_ack <= 1'd1;
+    end
+    wishbone_interface_interface3_ack <= 1'd0;
+    if (((wishbone_interface_interface3_cyc & wishbone_interface_interface3_stb) & ((~wishbone_interface_interface3_ack) | wishbone_interface_sram3_adr_burst))) begin
+        wishbone_interface_interface3_ack <= 1'd1;
+    end
+    wishbone_interface_decoder1_slave_sel_r <= wishbone_interface_decoder1_slave_sel;
+    state <= next_state;
+    interface0_bank_bus_dat_r <= 1'd0;
+    if (csrbank0_sel) begin
+        case (interface0_bank_bus_adr[8:0])
             1'd0: begin
-                builder_interface0_bank_bus_dat_r <= builder_csrbank0_reset0_w;
+                interface0_bank_bus_dat_r <= csrbank0_reset0_w;
             end
             1'd1: begin
-                builder_interface0_bank_bus_dat_r <= builder_csrbank0_scratch0_w;
+                interface0_bank_bus_dat_r <= csrbank0_scratch0_w;
             end
             2'd2: begin
-                builder_interface0_bank_bus_dat_r <= builder_csrbank0_bus_errors_w;
+                interface0_bank_bus_dat_r <= csrbank0_bus_errors_w;
             end
         endcase
     end
-    if (builder_csrbank0_reset0_re) begin
-        main_maccore_reset_storage[1:0] <= builder_csrbank0_reset0_r;
+    if (csrbank0_reset0_re) begin
+        maccore_reset_storage <= csrbank0_reset0_r;
     end
-    main_maccore_reset_re <= builder_csrbank0_reset0_re;
-    if (builder_csrbank0_scratch0_re) begin
-        main_maccore_scratch_storage[31:0] <= builder_csrbank0_scratch0_r;
+    maccore_reset_re <= csrbank0_reset0_re;
+    if (csrbank0_scratch0_re) begin
+        maccore_scratch_storage <= csrbank0_scratch0_r;
     end
-    main_maccore_scratch_re <= builder_csrbank0_scratch0_re;
-    main_maccore_bus_errors_re <= builder_csrbank0_bus_errors_re;
-    builder_interface1_bank_bus_dat_r <= 1'd0;
-    if (builder_csrbank1_sel) begin
-        case (builder_interface1_bank_bus_adr[8:0])
+    maccore_scratch_re <= csrbank0_scratch0_re;
+    maccore_bus_errors_re <= csrbank0_bus_errors_re;
+    interface1_bank_bus_dat_r <= 1'd0;
+    if (csrbank1_sel) begin
+        case (interface1_bank_bus_adr[8:0])
             1'd0: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_writer_slot_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_writer_slot_w;
             end
             1'd1: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_writer_length_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_writer_length_w;
             end
             2'd2: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_writer_errors_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_writer_errors_w;
             end
             2'd3: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_writer_ev_status_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_writer_ev_status_w;
             end
             3'd4: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_writer_ev_pending_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_writer_ev_pending_w;
             end
             3'd5: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_writer_ev_enable0_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_writer_ev_enable0_w;
             end
             3'd6: begin
-                builder_interface1_bank_bus_dat_r <= main_start_w;
+                interface1_bank_bus_dat_r <= wishbone_interface_reader_start_w;
             end
             3'd7: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_reader_ready_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_reader_ready_w;
             end
             4'd8: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_reader_level_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_reader_level_w;
             end
             4'd9: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_reader_slot0_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_reader_slot0_w;
             end
             4'd10: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_reader_length0_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_reader_length0_w;
             end
             4'd11: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_reader_ev_status_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_reader_ev_status_w;
             end
             4'd12: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_reader_ev_pending_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_reader_ev_pending_w;
             end
             4'd13: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_sram_reader_ev_enable0_w;
+                interface1_bank_bus_dat_r <= csrbank1_sram_reader_ev_enable0_w;
             end
             4'd14: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_preamble_crc_w;
+                interface1_bank_bus_dat_r <= csrbank1_preamble_crc_w;
             end
             4'd15: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_rx_datapath_preamble_errors_w;
+                interface1_bank_bus_dat_r <= csrbank1_rx_datapath_preamble_errors_w;
             end
             5'd16: begin
-                builder_interface1_bank_bus_dat_r <= builder_csrbank1_rx_datapath_crc_errors_w;
+                interface1_bank_bus_dat_r <= csrbank1_rx_datapath_crc_errors_w;
             end
         endcase
     end
-    main_sram9_re <= builder_csrbank1_sram_writer_slot_re;
-    main_sram12_re <= builder_csrbank1_sram_writer_length_re;
-    main_sram15_re <= builder_csrbank1_sram_writer_errors_re;
-    main_sram24_re <= builder_csrbank1_sram_writer_ev_status_re;
-    if (builder_csrbank1_sram_writer_ev_pending_re) begin
-        main_sram29_r <= builder_csrbank1_sram_writer_ev_pending_r;
+    wishbone_interface_writer_slot_re <= csrbank1_sram_writer_slot_re;
+    wishbone_interface_writer_length_re <= csrbank1_sram_writer_length_re;
+    wishbone_interface_writer_errors_re <= csrbank1_sram_writer_errors_re;
+    wishbone_interface_writer_status_re <= csrbank1_sram_writer_ev_status_re;
+    if (csrbank1_sram_writer_ev_pending_re) begin
+        wishbone_interface_writer_pending_r <= csrbank1_sram_writer_ev_pending_r;
     end
-    main_sram28_re <= builder_csrbank1_sram_writer_ev_pending_re;
-    if (builder_csrbank1_sram_writer_ev_enable0_re) begin
-        main_sram31_storage <= builder_csrbank1_sram_writer_ev_enable0_r;
+    wishbone_interface_writer_pending_re <= csrbank1_sram_writer_ev_pending_re;
+    if (csrbank1_sram_writer_ev_enable0_re) begin
+        wishbone_interface_writer_enable_storage <= csrbank1_sram_writer_ev_enable0_r;
     end
-    main_sram32_re <= builder_csrbank1_sram_writer_ev_enable0_re;
-    main_sram96_re <= builder_csrbank1_sram_reader_ready_re;
-    main_sram99_re <= builder_csrbank1_sram_reader_level_re;
-    if (builder_csrbank1_sram_reader_slot0_re) begin
-        main_sram100_storage <= builder_csrbank1_sram_reader_slot0_r;
+    wishbone_interface_writer_enable_re <= csrbank1_sram_writer_ev_enable0_re;
+    wishbone_interface_reader_ready_re <= csrbank1_sram_reader_ready_re;
+    wishbone_interface_reader_level_re <= csrbank1_sram_reader_level_re;
+    if (csrbank1_sram_reader_slot0_re) begin
+        wishbone_interface_reader_slot_storage <= csrbank1_sram_reader_slot0_r;
     end
-    main_sram101_re <= builder_csrbank1_sram_reader_slot0_re;
-    if (builder_csrbank1_sram_reader_length0_re) begin
-        main_sram102_storage[10:0] <= builder_csrbank1_sram_reader_length0_r;
+    wishbone_interface_reader_slot_re <= csrbank1_sram_reader_slot0_re;
+    if (csrbank1_sram_reader_length0_re) begin
+        wishbone_interface_reader_length_storage <= csrbank1_sram_reader_length0_r;
     end
-    main_sram103_re <= builder_csrbank1_sram_reader_length0_re;
-    main_sram112_re <= builder_csrbank1_sram_reader_ev_status_re;
-    if (builder_csrbank1_sram_reader_ev_pending_re) begin
-        main_sram117_r <= builder_csrbank1_sram_reader_ev_pending_r;
+    wishbone_interface_reader_length_re <= csrbank1_sram_reader_length0_re;
+    wishbone_interface_reader_status_re <= csrbank1_sram_reader_ev_status_re;
+    if (csrbank1_sram_reader_ev_pending_re) begin
+        wishbone_interface_reader_pending_r <= csrbank1_sram_reader_ev_pending_r;
     end
-    main_sram116_re <= builder_csrbank1_sram_reader_ev_pending_re;
-    if (builder_csrbank1_sram_reader_ev_enable0_re) begin
-        main_sram119_storage <= builder_csrbank1_sram_reader_ev_enable0_r;
+    wishbone_interface_reader_pending_re <= csrbank1_sram_reader_ev_pending_re;
+    if (csrbank1_sram_reader_ev_enable0_re) begin
+        wishbone_interface_reader_enable_storage <= csrbank1_sram_reader_ev_enable0_r;
     end
-    main_sram120_re <= builder_csrbank1_sram_reader_ev_enable0_re;
-    main_re <= builder_csrbank1_preamble_crc_re;
-    main_preamble_errors_re <= builder_csrbank1_rx_datapath_preamble_errors_re;
-    main_crc_errors_re <= builder_csrbank1_rx_datapath_crc_errors_re;
-    builder_interface2_bank_bus_dat_r <= 1'd0;
-    if (builder_csrbank2_sel) begin
-        case (builder_interface2_bank_bus_adr[8:0])
+    wishbone_interface_reader_enable_re <= csrbank1_sram_reader_ev_enable0_re;
+    core_re <= csrbank1_preamble_crc_re;
+    core_preamble_errors_re <= csrbank1_rx_datapath_preamble_errors_re;
+    core_crc_errors_re <= csrbank1_rx_datapath_crc_errors_re;
+    interface2_bank_bus_dat_r <= 1'd0;
+    if (csrbank2_sel) begin
+        case (interface2_bank_bus_adr[8:0])
             1'd0: begin
-                builder_interface2_bank_bus_dat_r <= builder_csrbank2_crg_reset0_w;
+                interface2_bank_bus_dat_r <= csrbank2_crg_reset0_w;
             end
             1'd1: begin
-                builder_interface2_bank_bus_dat_r <= builder_csrbank2_mdio_w0_w;
+                interface2_bank_bus_dat_r <= csrbank2_mdio_w0_w;
             end
             2'd2: begin
-                builder_interface2_bank_bus_dat_r <= builder_csrbank2_mdio_r_w;
+                interface2_bank_bus_dat_r <= csrbank2_mdio_r_w;
             end
         endcase
     end
-    if (builder_csrbank2_crg_reset0_re) begin
-        main_maccore_crg_reset_storage <= builder_csrbank2_crg_reset0_r;
+    if (csrbank2_crg_reset0_re) begin
+        maccore_crg_reset_storage <= csrbank2_crg_reset0_r;
     end
-    main_maccore_crg_reset_re <= builder_csrbank2_crg_reset0_re;
-    if (builder_csrbank2_mdio_w0_re) begin
-        main_maccore__w_storage[2:0] <= builder_csrbank2_mdio_w0_r;
+    maccore_crg_reset_re <= csrbank2_crg_reset0_re;
+    if (csrbank2_mdio_w0_re) begin
+        maccore__w_storage <= csrbank2_mdio_w0_r;
     end
-    main_maccore__w_re <= builder_csrbank2_mdio_w0_re;
-    main_maccore__r_re <= builder_csrbank2_mdio_r_re;
+    maccore__w_re <= csrbank2_mdio_w0_re;
+    maccore__r_re <= csrbank2_mdio_r_re;
     if (sys_rst) begin
-        main_maccore_reset_storage <= 2'd0;
-        main_maccore_reset_re <= 1'd0;
-        main_maccore_scratch_storage <= 32'd305419896;
-        main_maccore_scratch_re <= 1'd0;
-        main_maccore_bus_errors_re <= 1'd0;
-        main_maccore_bus_errors <= 32'd0;
-        main_maccore_crg_reset_storage <= 1'd0;
-        main_maccore_crg_reset_re <= 1'd0;
-        main_maccore_crg_counter <= 9'd0;
-        main_maccore__w_storage <= 3'd0;
-        main_maccore__w_re <= 1'd0;
-        main_maccore__r_re <= 1'd0;
-        main_re <= 1'd0;
-        main_tx_cdc_cdc_graycounter0_q <= 6'd0;
-        main_tx_cdc_cdc_graycounter0_q_binary <= 6'd0;
-        main_preamble_errors_status <= 32'd0;
-        main_preamble_errors_re <= 1'd0;
-        main_crc_errors_status <= 32'd0;
-        main_crc_errors_re <= 1'd0;
-        main_rx_cdc_cdc_graycounter1_q <= 6'd0;
-        main_rx_cdc_cdc_graycounter1_q_binary <= 6'd0;
-        main_sram9_re <= 1'd0;
-        main_sram12_re <= 1'd0;
-        main_sram13_status <= 32'd0;
-        main_sram15_re <= 1'd0;
-        main_sram24_re <= 1'd0;
-        main_sram28_re <= 1'd0;
-        main_sram29_r <= 1'd0;
-        main_sram31_storage <= 1'd0;
-        main_sram32_re <= 1'd0;
-        main_slot <= 1'd0;
-        main_sram35_length <= 11'd0;
-        main_sram55_level <= 2'd0;
-        main_sram57_produce <= 1'd0;
-        main_sram58_consume <= 1'd0;
-        main_sram96_re <= 1'd0;
-        main_sram99_re <= 1'd0;
-        main_sram101_re <= 1'd0;
-        main_sram103_re <= 1'd0;
-        main_sram106_pending <= 1'd0;
-        main_sram112_re <= 1'd0;
-        main_sram116_re <= 1'd0;
-        main_sram117_r <= 1'd0;
-        main_sram119_storage <= 1'd0;
-        main_sram120_re <= 1'd0;
-        main_sram122_length <= 11'd0;
-        main_sram141_level <= 2'd0;
-        main_sram143_produce <= 1'd0;
-        main_sram144_consume <= 1'd0;
-        main_interface0_ack <= 1'd0;
-        main_interface1_ack <= 1'd0;
-        main_interface2_ack <= 1'd0;
-        main_interface3_ack <= 1'd0;
-        main_slave_sel_r <= 4'd0;
-        builder_slave_sel_r <= 2'd0;
-        builder_count <= 20'd1000000;
-        builder_liteethmacsramwriter_state <= 3'd0;
-        builder_liteethmacsramreader_state <= 2'd0;
-        builder_state <= 1'd0;
+        maccore_reset_storage <= 2'd0;
+        maccore_reset_re <= 1'd0;
+        maccore_scratch_storage <= 32'd305419896;
+        maccore_scratch_re <= 1'd0;
+        maccore_bus_errors_re <= 1'd0;
+        maccore_bus_errors <= 32'd0;
+        maccore_crg_reset_storage <= 1'd0;
+        maccore_crg_reset_re <= 1'd0;
+        maccore_crg_counter <= 9'd0;
+        maccore__w_storage <= 3'd0;
+        maccore__w_re <= 1'd0;
+        maccore__r_re <= 1'd0;
+        core_re <= 1'd0;
+        core_tx_cdc_cdc_graycounter0_q <= 6'd0;
+        core_tx_cdc_cdc_graycounter0_q_binary <= 6'd0;
+        core_preamble_errors_status <= 32'd0;
+        core_preamble_errors_re <= 1'd0;
+        core_crc_errors_status <= 32'd0;
+        core_crc_errors_re <= 1'd0;
+        core_rx_cdc_cdc_graycounter1_q <= 6'd0;
+        core_rx_cdc_cdc_graycounter1_q_binary <= 6'd0;
+        wishbone_interface_writer_slot_re <= 1'd0;
+        wishbone_interface_writer_length_re <= 1'd0;
+        wishbone_interface_writer_errors_status <= 32'd0;
+        wishbone_interface_writer_errors_re <= 1'd0;
+        wishbone_interface_writer_status_re <= 1'd0;
+        wishbone_interface_writer_pending_re <= 1'd0;
+        wishbone_interface_writer_pending_r <= 1'd0;
+        wishbone_interface_writer_enable_storage <= 1'd0;
+        wishbone_interface_writer_enable_re <= 1'd0;
+        wishbone_interface_writer_slot <= 1'd0;
+        wishbone_interface_writer_length <= 11'd0;
+        wishbone_interface_writer_stat_fifo_level <= 2'd0;
+        wishbone_interface_writer_stat_fifo_produce <= 1'd0;
+        wishbone_interface_writer_stat_fifo_consume <= 1'd0;
+        wishbone_interface_reader_ready_re <= 1'd0;
+        wishbone_interface_reader_level_re <= 1'd0;
+        wishbone_interface_reader_slot_re <= 1'd0;
+        wishbone_interface_reader_length_re <= 1'd0;
+        wishbone_interface_reader_eventsourcepulse_pending <= 1'd0;
+        wishbone_interface_reader_status_re <= 1'd0;
+        wishbone_interface_reader_pending_re <= 1'd0;
+        wishbone_interface_reader_pending_r <= 1'd0;
+        wishbone_interface_reader_enable_storage <= 1'd0;
+        wishbone_interface_reader_enable_re <= 1'd0;
+        wishbone_interface_reader_length <= 11'd0;
+        wishbone_interface_reader_cmd_fifo_level <= 2'd0;
+        wishbone_interface_reader_cmd_fifo_produce <= 1'd0;
+        wishbone_interface_reader_cmd_fifo_consume <= 1'd0;
+        wishbone_interface_interface0_ack <= 1'd0;
+        wishbone_interface_interface1_ack <= 1'd0;
+        wishbone_interface_decoder0_slave_sel_r <= 2'd0;
+        wishbone_interface_interface2_ack <= 1'd0;
+        wishbone_interface_interface3_ack <= 1'd0;
+        wishbone_interface_decoder1_slave_sel_r <= 2'd0;
+        slave_sel_r <= 3'd0;
+        count <= 20'd1000000;
+        liteethmacsramwriter_state <= 3'd0;
+        liteethmacsramreader_state <= 2'd0;
+        state <= 1'd0;
     end
-    builder_xilinxmultiregimpl00 <= main_maccore_data_r;
-    builder_xilinxmultiregimpl01 <= builder_xilinxmultiregimpl00;
-    builder_xilinxmultiregimpl20 <= main_tx_cdc_cdc_graycounter1_q;
-    builder_xilinxmultiregimpl21 <= builder_xilinxmultiregimpl20;
-    builder_xilinxmultiregimpl30 <= main_pulsesynchronizer0_toggle_i;
-    builder_xilinxmultiregimpl31 <= builder_xilinxmultiregimpl30;
-    builder_xilinxmultiregimpl40 <= main_pulsesynchronizer1_toggle_i;
-    builder_xilinxmultiregimpl41 <= builder_xilinxmultiregimpl40;
-    builder_xilinxmultiregimpl50 <= main_rx_cdc_cdc_graycounter0_q;
-    builder_xilinxmultiregimpl51 <= builder_xilinxmultiregimpl50;
+    xilinxmultiregimpl00 <= maccore_data_r;
+    xilinxmultiregimpl01 <= xilinxmultiregimpl00;
+    xilinxmultiregimpl20 <= core_tx_cdc_cdc_graycounter1_q;
+    xilinxmultiregimpl21 <= xilinxmultiregimpl20;
+    xilinxmultiregimpl30 <= core_pulsesynchronizer0_toggle_i;
+    xilinxmultiregimpl31 <= xilinxmultiregimpl30;
+    xilinxmultiregimpl40 <= core_pulsesynchronizer1_toggle_i;
+    xilinxmultiregimpl41 <= xilinxmultiregimpl40;
+    xilinxmultiregimpl50 <= core_rx_cdc_cdc_graycounter0_q;
+    xilinxmultiregimpl51 <= xilinxmultiregimpl50;
 end
 
 
@@ -3806,8 +3732,8 @@ end
 // Specialized Logic
 //------------------------------------------------------------------------------
 
-assign mii_mdio = main_maccore_data_oe ? main_maccore_data_w : 1'bz;
-assign main_maccore_data_r = mii_mdio;
+assign mii_mdio = maccore_data_oe ? maccore_data_w : 1'bz;
+assign maccore_data_r = mii_mdio;
 
 //------------------------------------------------------------------------------
 // Memory storage: 32-words x 42-bit
@@ -3818,15 +3744,15 @@ reg [41:0] storage[0:31];
 reg [41:0] storage_dat0;
 reg [41:0] storage_dat1;
 always @(posedge sys_clk) begin
-	if (main_tx_cdc_cdc_wrport_we)
-		storage[main_tx_cdc_cdc_wrport_adr] <= main_tx_cdc_cdc_wrport_dat_w;
-	storage_dat0 <= storage[main_tx_cdc_cdc_wrport_adr];
+	if (core_tx_cdc_cdc_wrport_we)
+		storage[core_tx_cdc_cdc_wrport_adr] <= core_tx_cdc_cdc_wrport_dat_w;
+	storage_dat0 <= storage[core_tx_cdc_cdc_wrport_adr];
 end
 always @(posedge eth_tx_clk) begin
-	storage_dat1 <= storage[main_tx_cdc_cdc_rdport_adr];
+	storage_dat1 <= storage[core_tx_cdc_cdc_rdport_adr];
 end
-assign main_tx_cdc_cdc_wrport_dat_r = storage_dat0;
-assign main_tx_cdc_cdc_rdport_dat_r = storage_dat1;
+assign core_tx_cdc_cdc_wrport_dat_r = storage_dat0;
+assign core_tx_cdc_cdc_rdport_dat_r = storage_dat1;
 
 
 //------------------------------------------------------------------------------
@@ -3837,14 +3763,14 @@ assign main_tx_cdc_cdc_rdport_dat_r = storage_dat1;
 reg [11:0] storage_1[0:4];
 reg [11:0] storage_1_dat0;
 always @(posedge eth_rx_clk) begin
-	if (main_liteethmaccrc32checker_syncfifo_wrport_we)
-		storage_1[main_liteethmaccrc32checker_syncfifo_wrport_adr] <= main_liteethmaccrc32checker_syncfifo_wrport_dat_w;
-	storage_1_dat0 <= storage_1[main_liteethmaccrc32checker_syncfifo_wrport_adr];
+	if (core_liteethmaccrc32checker_syncfifo_wrport_we)
+		storage_1[core_liteethmaccrc32checker_syncfifo_wrport_adr] <= core_liteethmaccrc32checker_syncfifo_wrport_dat_w;
+	storage_1_dat0 <= storage_1[core_liteethmaccrc32checker_syncfifo_wrport_adr];
 end
 always @(posedge eth_rx_clk) begin
 end
-assign main_liteethmaccrc32checker_syncfifo_wrport_dat_r = storage_1_dat0;
-assign main_liteethmaccrc32checker_syncfifo_rdport_dat_r = storage_1[main_liteethmaccrc32checker_syncfifo_rdport_adr];
+assign core_liteethmaccrc32checker_syncfifo_wrport_dat_r = storage_1_dat0;
+assign core_liteethmaccrc32checker_syncfifo_rdport_dat_r = storage_1[core_liteethmaccrc32checker_syncfifo_rdport_adr];
 
 
 //------------------------------------------------------------------------------
@@ -3856,15 +3782,15 @@ reg [41:0] storage_2[0:31];
 reg [41:0] storage_2_dat0;
 reg [41:0] storage_2_dat1;
 always @(posedge eth_rx_clk) begin
-	if (main_rx_cdc_cdc_wrport_we)
-		storage_2[main_rx_cdc_cdc_wrport_adr] <= main_rx_cdc_cdc_wrport_dat_w;
-	storage_2_dat0 <= storage_2[main_rx_cdc_cdc_wrport_adr];
+	if (core_rx_cdc_cdc_wrport_we)
+		storage_2[core_rx_cdc_cdc_wrport_adr] <= core_rx_cdc_cdc_wrport_dat_w;
+	storage_2_dat0 <= storage_2[core_rx_cdc_cdc_wrport_adr];
 end
 always @(posedge sys_clk) begin
-	storage_2_dat1 <= storage_2[main_rx_cdc_cdc_rdport_adr];
+	storage_2_dat1 <= storage_2[core_rx_cdc_cdc_rdport_adr];
 end
-assign main_rx_cdc_cdc_wrport_dat_r = storage_2_dat0;
-assign main_rx_cdc_cdc_rdport_dat_r = storage_2_dat1;
+assign core_rx_cdc_cdc_wrport_dat_r = storage_2_dat0;
+assign core_rx_cdc_cdc_rdport_dat_r = storage_2_dat1;
 
 
 //------------------------------------------------------------------------------
@@ -3875,14 +3801,14 @@ assign main_rx_cdc_cdc_rdport_dat_r = storage_2_dat1;
 reg [13:0] storage_3[0:1];
 reg [13:0] storage_3_dat0;
 always @(posedge sys_clk) begin
-	if (main_sram61_we)
-		storage_3[main_sram59_adr] <= main_sram62_dat_w;
-	storage_3_dat0 <= storage_3[main_sram59_adr];
+	if (wishbone_interface_writer_stat_fifo_wrport_we)
+		storage_3[wishbone_interface_writer_stat_fifo_wrport_adr] <= wishbone_interface_writer_stat_fifo_wrport_dat_w;
+	storage_3_dat0 <= storage_3[wishbone_interface_writer_stat_fifo_wrport_adr];
 end
 always @(posedge sys_clk) begin
 end
-assign main_sram60_dat_r = storage_3_dat0;
-assign main_sram65_dat_r = storage_3[main_sram64_adr];
+assign wishbone_interface_writer_stat_fifo_wrport_dat_r = storage_3_dat0;
+assign wishbone_interface_writer_stat_fifo_rdport_dat_r = storage_3[wishbone_interface_writer_stat_fifo_rdport_adr];
 
 
 //------------------------------------------------------------------------------
@@ -3894,15 +3820,15 @@ reg [31:0] mem[0:382];
 reg [8:0] mem_adr0;
 reg [31:0] mem_dat1;
 always @(posedge sys_clk) begin
-	if (main_sram77_we)
-		mem[main_sram75_adr] <= main_sram78_dat_w;
-	mem_adr0 <= main_sram75_adr;
+	if (wishbone_interface_writer_memory0_we)
+		mem[wishbone_interface_writer_memory0_adr] <= wishbone_interface_writer_memory0_dat_w;
+	mem_adr0 <= wishbone_interface_writer_memory0_adr;
 end
 always @(posedge sys_clk) begin
-	mem_dat1 <= mem[main_sram0_adr];
+	mem_dat1 <= mem[wishbone_interface_sram0_adr];
 end
-assign main_sram76_dat_r = mem[mem_adr0];
-assign main_sram0_dat_r = mem_dat1;
+assign wishbone_interface_writer_memory0_dat_r = mem[mem_adr0];
+assign wishbone_interface_sram0_dat_r = mem_dat1;
 
 
 //------------------------------------------------------------------------------
@@ -3914,15 +3840,15 @@ reg [31:0] mem_1[0:382];
 reg [8:0] mem_1_adr0;
 reg [31:0] mem_1_dat1;
 always @(posedge sys_clk) begin
-	if (main_sram81_we)
-		mem_1[main_sram79_adr] <= main_sram82_dat_w;
-	mem_1_adr0 <= main_sram79_adr;
+	if (wishbone_interface_writer_memory1_we)
+		mem_1[wishbone_interface_writer_memory1_adr] <= wishbone_interface_writer_memory1_dat_w;
+	mem_1_adr0 <= wishbone_interface_writer_memory1_adr;
 end
 always @(posedge sys_clk) begin
-	mem_1_dat1 <= mem_1[main_sram1_adr];
+	mem_1_dat1 <= mem_1[wishbone_interface_sram1_adr];
 end
-assign main_sram80_dat_r = mem_1[mem_1_adr0];
-assign main_sram1_dat_r = mem_1_dat1;
+assign wishbone_interface_writer_memory1_dat_r = mem_1[mem_1_adr0];
+assign wishbone_interface_sram1_dat_r = mem_1_dat1;
 
 
 //------------------------------------------------------------------------------
@@ -3933,14 +3859,14 @@ assign main_sram1_dat_r = mem_1_dat1;
 reg [13:0] storage_4[0:1];
 reg [13:0] storage_4_dat0;
 always @(posedge sys_clk) begin
-	if (main_sram147_we)
-		storage_4[main_sram145_adr] <= main_sram148_dat_w;
-	storage_4_dat0 <= storage_4[main_sram145_adr];
+	if (wishbone_interface_reader_cmd_fifo_wrport_we)
+		storage_4[wishbone_interface_reader_cmd_fifo_wrport_adr] <= wishbone_interface_reader_cmd_fifo_wrport_dat_w;
+	storage_4_dat0 <= storage_4[wishbone_interface_reader_cmd_fifo_wrport_adr];
 end
 always @(posedge sys_clk) begin
 end
-assign main_sram146_dat_r = storage_4_dat0;
-assign main_sram151_dat_r = storage_4[main_sram150_adr];
+assign wishbone_interface_reader_cmd_fifo_wrport_dat_r = storage_4_dat0;
+assign wishbone_interface_reader_cmd_fifo_rdport_dat_r = storage_4[wishbone_interface_reader_cmd_fifo_rdport_adr];
 
 
 //------------------------------------------------------------------------------
@@ -3952,22 +3878,22 @@ reg [31:0] mem_2[0:382];
 reg [31:0] mem_2_dat0;
 reg [8:0] mem_2_adr1;
 always @(posedge sys_clk) begin
-	if (main_sram163_re)
-		mem_2_dat0 <= mem_2[main_sram161_adr];
+	if (wishbone_interface_reader_memory0_re)
+		mem_2_dat0 <= mem_2[wishbone_interface_reader_memory0_adr];
 end
 always @(posedge sys_clk) begin
-	if (main_sram2_we[0])
-		mem_2[main_sram2_adr][7:0] <= main_sram2_dat_w[7:0];
-	if (main_sram2_we[1])
-		mem_2[main_sram2_adr][15:8] <= main_sram2_dat_w[15:8];
-	if (main_sram2_we[2])
-		mem_2[main_sram2_adr][23:16] <= main_sram2_dat_w[23:16];
-	if (main_sram2_we[3])
-		mem_2[main_sram2_adr][31:24] <= main_sram2_dat_w[31:24];
-	mem_2_adr1 <= main_sram2_adr;
+	if (wishbone_interface_sram2_we[0])
+		mem_2[wishbone_interface_sram2_adr][7:0] <= wishbone_interface_sram2_dat_w[7:0];
+	if (wishbone_interface_sram2_we[1])
+		mem_2[wishbone_interface_sram2_adr][15:8] <= wishbone_interface_sram2_dat_w[15:8];
+	if (wishbone_interface_sram2_we[2])
+		mem_2[wishbone_interface_sram2_adr][23:16] <= wishbone_interface_sram2_dat_w[23:16];
+	if (wishbone_interface_sram2_we[3])
+		mem_2[wishbone_interface_sram2_adr][31:24] <= wishbone_interface_sram2_dat_w[31:24];
+	mem_2_adr1 <= wishbone_interface_sram2_adr;
 end
-assign main_sram162_dat_r = mem_2_dat0;
-assign main_sram2_dat_r = mem_2[mem_2_adr1];
+assign wishbone_interface_reader_memory0_dat_r = mem_2_dat0;
+assign wishbone_interface_sram2_dat_r = mem_2[mem_2_adr1];
 
 
 //------------------------------------------------------------------------------
@@ -3979,22 +3905,22 @@ reg [31:0] mem_3[0:382];
 reg [31:0] mem_3_dat0;
 reg [8:0] mem_3_adr1;
 always @(posedge sys_clk) begin
-	if (main_sram166_re)
-		mem_3_dat0 <= mem_3[main_sram164_adr];
+	if (wishbone_interface_reader_memory1_re)
+		mem_3_dat0 <= mem_3[wishbone_interface_reader_memory1_adr];
 end
 always @(posedge sys_clk) begin
-	if (main_sram3_we[0])
-		mem_3[main_sram3_adr][7:0] <= main_sram3_dat_w[7:0];
-	if (main_sram3_we[1])
-		mem_3[main_sram3_adr][15:8] <= main_sram3_dat_w[15:8];
-	if (main_sram3_we[2])
-		mem_3[main_sram3_adr][23:16] <= main_sram3_dat_w[23:16];
-	if (main_sram3_we[3])
-		mem_3[main_sram3_adr][31:24] <= main_sram3_dat_w[31:24];
-	mem_3_adr1 <= main_sram3_adr;
+	if (wishbone_interface_sram3_we[0])
+		mem_3[wishbone_interface_sram3_adr][7:0] <= wishbone_interface_sram3_dat_w[7:0];
+	if (wishbone_interface_sram3_we[1])
+		mem_3[wishbone_interface_sram3_adr][15:8] <= wishbone_interface_sram3_dat_w[15:8];
+	if (wishbone_interface_sram3_we[2])
+		mem_3[wishbone_interface_sram3_adr][23:16] <= wishbone_interface_sram3_dat_w[23:16];
+	if (wishbone_interface_sram3_we[3])
+		mem_3[wishbone_interface_sram3_adr][31:24] <= wishbone_interface_sram3_dat_w[31:24];
+	mem_3_adr1 <= wishbone_interface_sram3_adr;
 end
-assign main_sram165_dat_r = mem_3_dat0;
-assign main_sram3_dat_r = mem_3[mem_3_adr1];
+assign wishbone_interface_reader_memory1_dat_r = mem_3_dat0;
+assign wishbone_interface_sram3_dat_r = mem_3[mem_3_adr1];
 
 
 (* ars_ff1 = "true", async_reg = "true" *)
@@ -4009,10 +3935,10 @@ FDPE #(
 	.C   (eth_tx_clk),
 	.CE  (1'd1),
 	.D   (1'd0),
-	.PRE (main_maccore_crg_reset0),
+	.PRE (maccore_crg_reset0),
 
 	// Outputs.
-	.Q   (builder_rst_meta0)
+	.Q   (rst_meta0)
 );
 
 (* ars_ff2 = "true", async_reg = "true" *)
@@ -4026,8 +3952,8 @@ FDPE #(
 	// Inputs.
 	.C   (eth_tx_clk),
 	.CE  (1'd1),
-	.D   (builder_rst_meta0),
-	.PRE (main_maccore_crg_reset0),
+	.D   (rst_meta0),
+	.PRE (maccore_crg_reset0),
 
 	// Outputs.
 	.Q   (eth_tx_rst)
@@ -4045,10 +3971,10 @@ FDPE #(
 	.C   (eth_rx_clk),
 	.CE  (1'd1),
 	.D   (1'd0),
-	.PRE (main_maccore_crg_reset0),
+	.PRE (maccore_crg_reset0),
 
 	// Outputs.
-	.Q   (builder_rst_meta1)
+	.Q   (rst_meta1)
 );
 
 (* ars_ff2 = "true", async_reg = "true" *)
@@ -4062,8 +3988,8 @@ FDPE #(
 	// Inputs.
 	.C   (eth_rx_clk),
 	.CE  (1'd1),
-	.D   (builder_rst_meta1),
-	.PRE (main_maccore_crg_reset0),
+	.D   (rst_meta1),
+	.PRE (maccore_crg_reset0),
 
 	// Outputs.
 	.Q   (eth_rx_rst)
@@ -4072,5 +3998,5 @@ FDPE #(
 endmodule
 
 // -----------------------------------------------------------------------------
-//  Auto-Generated by LiteX on 2024-04-05 17:38:49.
+//  Auto-Generated by LiteX on 2025-02-15 16:17:45.
 //------------------------------------------------------------------------------
