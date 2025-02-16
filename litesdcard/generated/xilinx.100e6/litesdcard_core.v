@@ -8,8 +8,8 @@
 //
 // Filename   : litesdcard_core.v
 // Device     : 
-// LiteX sha1 : 87137c30
-// Date       : 2024-04-03 20:02:06
+// LiteX sha1 : bc1f1f52b
+// Date       : 2025-02-17 09:51:44
 //------------------------------------------------------------------------------
 
 `timescale 1ns / 1ps
@@ -76,7 +76,6 @@ LiteSDCardCore
 │    │    │    └─── waittimer_0* (WaitTimer)
 └─── sdcard_phy (SDPHY)
 │    └─── clocker (SDPHYClocker)
-│    │    └─── [BUFG]
 │    └─── init (SDPHYInit)
 │    │    └─── fsm_0* (FSM)
 │    └─── cmdw (SDPHYCMDW)
@@ -212,15 +211,16 @@ wire          card_detect_status0;
 wire          card_detect_status1;
 wire          card_detect_trigger;
 wire          card_detect_we;
+wire          clk_i;
+reg           clk_i_d = 1'd0;
 wire          clocker_ce;
 reg           clocker_ce_delayed = 1'd0;
 reg           clocker_ce_latched = 1'd0;
 wire          clocker_clk0;
 reg           clocker_clk1 = 1'd0;
 reg           clocker_clk_d = 1'd0;
-reg     [1:0] clocker_clk_delay = 2'd0;
 wire          clocker_clk_en;
-reg     [8:0] clocker_clks = 9'd0;
+reg     [9:0] clocker_count = 10'd0;
 reg           clocker_re = 1'd0;
 wire          clocker_stop;
 reg     [8:0] clocker_storage = 9'd256;
@@ -737,6 +737,7 @@ wire   [29:0] interface0_adr;
 wire   [13:0] interface0_bank_bus_adr;
 reg    [31:0] interface0_bank_bus_dat_r = 32'd0;
 wire   [31:0] interface0_bank_bus_dat_w;
+wire          interface0_bank_bus_re;
 wire          interface0_bank_bus_we;
 wire    [1:0] interface0_bte;
 wire          interface0_bus_ack;
@@ -762,6 +763,7 @@ reg    [13:0] interface1_adr = 14'd0;
 wire   [13:0] interface1_bank_bus_adr;
 reg    [31:0] interface1_bank_bus_dat_r = 32'd0;
 wire   [31:0] interface1_bank_bus_dat_w;
+wire          interface1_bank_bus_re;
 wire          interface1_bank_bus_we;
 wire          interface1_bus_ack;
 wire   [31:0] interface1_bus_adr;
@@ -776,28 +778,34 @@ wire          interface1_bus_stb;
 wire          interface1_bus_we;
 wire   [31:0] interface1_dat_r;
 reg    [31:0] interface1_dat_w = 32'd0;
+reg           interface1_re = 1'd0;
 reg           interface1_we = 1'd0;
 wire   [13:0] interface2_bank_bus_adr;
 reg    [31:0] interface2_bank_bus_dat_r = 32'd0;
 wire   [31:0] interface2_bank_bus_dat_w;
+wire          interface2_bank_bus_re;
 wire          interface2_bank_bus_we;
 wire   [13:0] interface3_bank_bus_adr;
 reg    [31:0] interface3_bank_bus_dat_r = 32'd0;
 wire   [31:0] interface3_bank_bus_dat_w;
+wire          interface3_bank_bus_re;
 wire          interface3_bank_bus_we;
 wire   [13:0] interface4_bank_bus_adr;
 reg    [31:0] interface4_bank_bus_dat_r = 32'd0;
 wire   [31:0] interface4_bank_bus_dat_w;
+wire          interface4_bank_bus_re;
 wire          interface4_bank_bus_we;
 wire   [13:0] interface5_bank_bus_adr;
 reg    [31:0] interface5_bank_bus_dat_r = 32'd0;
 wire   [31:0] interface5_bank_bus_dat_w;
+wire          interface5_bank_bus_re;
 wire          interface5_bank_bus_we;
 reg           mem2block_dma_clear = 1'd0;
 reg           mem2block_dma_pending = 1'd0;
 wire          mem2block_dma_status;
 wire          mem2block_dma_trigger;
 wire          por_clk;
+wire          re;
 wire    [1:0] request;
 reg           reset_re = 1'd0;
 reg     [1:0] reset_storage = 2'd0;
@@ -875,23 +883,29 @@ wire   [31:0] sdcard_block2mem_source_source_payload_data;
 wire          sdcard_block2mem_source_source_ready;
 wire          sdcard_block2mem_source_source_valid;
 wire          sdcard_block2mem_start;
-wire   [31:0] sdcard_block2mem_wishbonedmawriter_base;
+wire   [63:0] sdcard_block2mem_wishbonedmawriter_base0;
+wire   [31:0] sdcard_block2mem_wishbonedmawriter_base1;
 reg           sdcard_block2mem_wishbonedmawriter_base_re = 1'd0;
 reg    [63:0] sdcard_block2mem_wishbonedmawriter_base_storage = 64'd0;
+reg           sdcard_block2mem_wishbonedmawriter_done = 1'd0;
 reg           sdcard_block2mem_wishbonedmawriter_done_re = 1'd0;
-reg           sdcard_block2mem_wishbonedmawriter_done_status = 1'd0;
+wire          sdcard_block2mem_wishbonedmawriter_done_status;
 wire          sdcard_block2mem_wishbonedmawriter_done_we;
+wire          sdcard_block2mem_wishbonedmawriter_enable;
 reg           sdcard_block2mem_wishbonedmawriter_enable_re = 1'd0;
 reg           sdcard_block2mem_wishbonedmawriter_enable_storage = 1'd0;
-wire   [31:0] sdcard_block2mem_wishbonedmawriter_length;
+wire   [31:0] sdcard_block2mem_wishbonedmawriter_length0;
+wire   [31:0] sdcard_block2mem_wishbonedmawriter_length1;
 reg           sdcard_block2mem_wishbonedmawriter_length_re = 1'd0;
 reg    [31:0] sdcard_block2mem_wishbonedmawriter_length_storage = 32'd0;
+wire          sdcard_block2mem_wishbonedmawriter_loop;
 reg           sdcard_block2mem_wishbonedmawriter_loop_re = 1'd0;
 reg           sdcard_block2mem_wishbonedmawriter_loop_storage = 1'd0;
-reg    [31:0] sdcard_block2mem_wishbonedmawriter_offset = 32'd0;
+wire   [31:0] sdcard_block2mem_wishbonedmawriter_offset0;
+reg    [31:0] sdcard_block2mem_wishbonedmawriter_offset1 = 32'd0;
+reg    [31:0] sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value = 32'd0;
+reg           sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value_ce = 1'd0;
 reg           sdcard_block2mem_wishbonedmawriter_offset_re = 1'd0;
-reg    [31:0] sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value = 32'd0;
-reg           sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value_ce = 1'd0;
 wire   [31:0] sdcard_block2mem_wishbonedmawriter_offset_status;
 wire          sdcard_block2mem_wishbonedmawriter_offset_we;
 wire          sdcard_block2mem_wishbonedmawriter_reset;
@@ -1122,12 +1136,15 @@ wire    [7:0] sdcard_mem2block_converter_source_source_payload_data;
 wire          sdcard_mem2block_converter_source_source_ready;
 wire          sdcard_mem2block_converter_source_source_valid;
 reg     [8:0] sdcard_mem2block_count = 9'd0;
-wire   [31:0] sdcard_mem2block_dma_base;
+wire   [63:0] sdcard_mem2block_dma_base0;
+wire   [31:0] sdcard_mem2block_dma_base1;
 reg           sdcard_mem2block_dma_base_re = 1'd0;
 reg    [63:0] sdcard_mem2block_dma_base_storage = 64'd0;
+reg           sdcard_mem2block_dma_done = 1'd0;
 reg           sdcard_mem2block_dma_done_re = 1'd0;
-reg           sdcard_mem2block_dma_done_status = 1'd0;
+wire          sdcard_mem2block_dma_done_status;
 wire          sdcard_mem2block_dma_done_we;
+wire          sdcard_mem2block_dma_enable;
 reg           sdcard_mem2block_dma_enable_re = 1'd0;
 reg           sdcard_mem2block_dma_enable_storage = 1'd0;
 reg     [3:0] sdcard_mem2block_dma_fifo_consume = 4'd0;
@@ -1163,15 +1180,18 @@ reg     [3:0] sdcard_mem2block_dma_fifo_wrport_adr = 4'd0;
 wire   [33:0] sdcard_mem2block_dma_fifo_wrport_dat_r;
 wire   [33:0] sdcard_mem2block_dma_fifo_wrport_dat_w;
 wire          sdcard_mem2block_dma_fifo_wrport_we;
-wire   [31:0] sdcard_mem2block_dma_length;
+wire   [31:0] sdcard_mem2block_dma_length0;
+wire   [31:0] sdcard_mem2block_dma_length1;
 reg           sdcard_mem2block_dma_length_re = 1'd0;
 reg    [31:0] sdcard_mem2block_dma_length_storage = 32'd0;
+wire          sdcard_mem2block_dma_loop;
 reg           sdcard_mem2block_dma_loop_re = 1'd0;
 reg           sdcard_mem2block_dma_loop_storage = 1'd0;
-reg    [31:0] sdcard_mem2block_dma_offset = 32'd0;
+wire   [31:0] sdcard_mem2block_dma_offset0;
+reg    [31:0] sdcard_mem2block_dma_offset1 = 32'd0;
+reg    [31:0] sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value = 32'd0;
+reg           sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value_ce = 1'd0;
 reg           sdcard_mem2block_dma_offset_re = 1'd0;
-reg    [31:0] sdcard_mem2block_dma_offset_sdmem2blockdma_next_value = 32'd0;
-reg           sdcard_mem2block_dma_offset_sdmem2blockdma_next_value_ce = 1'd0;
 wire   [31:0] sdcard_mem2block_dma_offset_status;
 wire          sdcard_mem2block_dma_offset_we;
 wire          sdcard_mem2block_dma_reset;
@@ -1235,7 +1255,7 @@ reg           sdpads_cmd_i = 1'd0;
 wire          sdpads_cmd_o;
 wire          sdpads_cmd_oe;
 reg     [3:0] sdpads_data_i = 4'd0;
-reg           sdpads_data_i_ce = 1'd0;
+wire          sdpads_data_i_ce;
 wire    [3:0] sdpads_data_o;
 wire          sdpads_data_oe;
 reg     [2:0] sdphycmdr_next_state = 3'd0;
@@ -1286,7 +1306,7 @@ wire          shared_err;
 wire    [3:0] shared_sel;
 wire          shared_stb;
 wire          shared_we;
-reg           slave_sel = 1'd0;
+wire          slave_sel;
 reg           slave_sel_r = 1'd0;
 reg           soc_rst = 1'd0;
 wire          sys_clk;
@@ -1317,6 +1337,9 @@ wire          wb_dma_we_1;
 wire          we;
 reg           wishbone2csr_next_state = 1'd0;
 reg           wishbone2csr_state = 1'd0;
+wire          xilinxmultiregimpl;
+(* register_balancing = "no", shreg_extract = "no" *)
+reg           xilinxmultiregimpl_xilinxmultiregimpl = 1'd0;
 wire          xilinxsdrtristateimpl0__i;
 reg           xilinxsdrtristateimpl0__o = 1'd0;
 reg           xilinxsdrtristateimpl0_oe_n = 1'd0;
@@ -1404,10 +1427,7 @@ assign interface1_bus_ack = (shared_ack & (grant == 1'd1));
 assign interface0_bus_err = (shared_err & (grant == 1'd0));
 assign interface1_bus_err = (shared_err & (grant == 1'd1));
 assign request = {interface1_bus_cyc, interface0_bus_cyc};
-always @(*) begin
-    slave_sel <= 1'd0;
-    slave_sel <= 1'd1;
-end
+assign slave_sel = 1'd1;
 assign wb_dma_adr_1 = shared_adr;
 assign wb_dma_dat_w_1 = shared_dat_w;
 assign wb_dma_sel_1 = shared_sel;
@@ -1459,35 +1479,7 @@ assign datar_pads_in_pads_in_valid = sdpads_data_i_ce;
 assign datar_pads_in_pads_in_payload_cmd_i = sdpads_cmd_i;
 assign datar_pads_in_pads_in_payload_data_i = sdpads_data_i;
 assign clocker_stop = (dataw_stop | datar_stop);
-always @(*) begin
-    clocker_clk1 <= 1'd0;
-    case (clocker_storage)
-        3'd4: begin
-            clocker_clk1 <= clocker_clks[1];
-        end
-        4'd8: begin
-            clocker_clk1 <= clocker_clks[2];
-        end
-        5'd16: begin
-            clocker_clk1 <= clocker_clks[3];
-        end
-        6'd32: begin
-            clocker_clk1 <= clocker_clks[4];
-        end
-        7'd64: begin
-            clocker_clk1 <= clocker_clks[5];
-        end
-        8'd128: begin
-            clocker_clk1 <= clocker_clks[6];
-        end
-        9'd256: begin
-            clocker_clk1 <= clocker_clks[7];
-        end
-        default: begin
-            clocker_clk1 <= clocker_clks[0];
-        end
-    endcase
-end
+assign clocker_ce = (clocker_clk1 & (~clocker_clk_d));
 always @(*) begin
     clocker_ce_latched <= 1'd0;
     if (clocker_clk_d) begin
@@ -1948,9 +1940,9 @@ assign datar_datar_pads_in_payload_data_i = datar_pads_in_pads_in_payload_data_i
 assign datar_datar_pads_in_payload_data_o = datar_pads_in_pads_in_payload_data_o;
 assign datar_datar_pads_in_payload_data_oe = datar_pads_in_pads_in_payload_data_oe;
 assign datar_datar_pads_in_payload_data_i_ce = datar_pads_in_pads_in_payload_data_i_ce;
-assign datar_datar_start = (datar_datar_pads_in_payload_data_i[3:0] == 1'd0);
+assign datar_datar_start = (datar_datar_pads_in_payload_data_i == 1'd0);
 assign datar_datar_converter_converter_sink_valid = (datar_datar_pads_in_valid & datar_datar_run);
-assign datar_datar_converter_converter_sink_payload_data = datar_datar_pads_in_payload_data_i[3:0];
+assign datar_datar_converter_converter_sink_payload_data = datar_datar_pads_in_payload_data_i;
 assign datar_datar_buf_sink_sink_valid = datar_datar_converter_source_source_valid;
 assign datar_datar_converter_source_source_ready = datar_datar_buf_sink_sink_ready;
 assign datar_datar_buf_sink_sink_first = datar_datar_converter_source_source_first;
@@ -2082,6 +2074,7 @@ always @(*) begin
         end
     endcase
 end
+assign sdpads_data_i_ce = (clk_i & (~clk_i_d));
 assign sdcard_core_crc16_inserter_sink_valid = sdcard_core_sink_sink_valid0;
 assign sdcard_core_sink_sink_ready0 = sdcard_core_crc16_inserter_sink_ready;
 assign sdcard_core_crc16_inserter_sink_first = sdcard_core_sink_sink_first0;
@@ -2641,35 +2634,41 @@ assign interface0_bus_sel = 4'd15;
 assign interface0_bus_adr = sdcard_block2mem_sink_sink_payload_address;
 assign interface0_bus_dat_w = {sdcard_block2mem_sink_sink_payload_data1[7:0], sdcard_block2mem_sink_sink_payload_data1[15:8], sdcard_block2mem_sink_sink_payload_data1[23:16], sdcard_block2mem_sink_sink_payload_data1[31:24]};
 assign sdcard_block2mem_sink_sink_ready1 = interface0_bus_ack;
-assign sdcard_block2mem_wishbonedmawriter_base = sdcard_block2mem_wishbonedmawriter_base_storage[63:2];
-assign sdcard_block2mem_wishbonedmawriter_length = sdcard_block2mem_wishbonedmawriter_length_storage[31:2];
-assign sdcard_block2mem_wishbonedmawriter_offset_status = sdcard_block2mem_wishbonedmawriter_offset;
-assign sdcard_block2mem_wishbonedmawriter_reset = (~sdcard_block2mem_wishbonedmawriter_enable_storage);
+assign sdcard_block2mem_wishbonedmawriter_base1 = sdcard_block2mem_wishbonedmawriter_base0[63:2];
+assign sdcard_block2mem_wishbonedmawriter_length1 = sdcard_block2mem_wishbonedmawriter_length0[31:2];
+assign sdcard_block2mem_wishbonedmawriter_offset0 = sdcard_block2mem_wishbonedmawriter_offset1;
+assign sdcard_block2mem_wishbonedmawriter_reset = (~sdcard_block2mem_wishbonedmawriter_enable);
+assign sdcard_block2mem_wishbonedmawriter_base0 = sdcard_block2mem_wishbonedmawriter_base_storage;
+assign sdcard_block2mem_wishbonedmawriter_length0 = sdcard_block2mem_wishbonedmawriter_length_storage;
+assign sdcard_block2mem_wishbonedmawriter_enable = sdcard_block2mem_wishbonedmawriter_enable_storage;
+assign sdcard_block2mem_wishbonedmawriter_loop = sdcard_block2mem_wishbonedmawriter_loop_storage;
+assign sdcard_block2mem_wishbonedmawriter_done_status = sdcard_block2mem_wishbonedmawriter_done;
+assign sdcard_block2mem_wishbonedmawriter_offset_status = sdcard_block2mem_wishbonedmawriter_offset0;
 always @(*) begin
     sdblock2memdma_next_state <= 2'd0;
     sdcard_block2mem_sink_sink_last1 <= 1'd0;
     sdcard_block2mem_sink_sink_payload_address <= 32'd0;
     sdcard_block2mem_sink_sink_payload_data1 <= 32'd0;
     sdcard_block2mem_sink_sink_valid1 <= 1'd0;
-    sdcard_block2mem_wishbonedmawriter_done_status <= 1'd0;
-    sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value <= 32'd0;
-    sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value_ce <= 1'd0;
+    sdcard_block2mem_wishbonedmawriter_done <= 1'd0;
+    sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value <= 32'd0;
+    sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value_ce <= 1'd0;
     sdcard_block2mem_wishbonedmawriter_sink_ready <= 1'd0;
     sdblock2memdma_next_state <= sdblock2memdma_state;
     case (sdblock2memdma_state)
         1'd1: begin
             sdcard_block2mem_sink_sink_valid1 <= sdcard_block2mem_wishbonedmawriter_sink_valid;
-            sdcard_block2mem_sink_sink_last1 <= (sdcard_block2mem_wishbonedmawriter_sink_last | ((sdcard_block2mem_wishbonedmawriter_offset + 1'd1) == sdcard_block2mem_wishbonedmawriter_length));
-            sdcard_block2mem_sink_sink_payload_address <= (sdcard_block2mem_wishbonedmawriter_base + sdcard_block2mem_wishbonedmawriter_offset);
+            sdcard_block2mem_sink_sink_last1 <= (sdcard_block2mem_wishbonedmawriter_sink_last | ((sdcard_block2mem_wishbonedmawriter_offset1 + 1'd1) == sdcard_block2mem_wishbonedmawriter_length1));
+            sdcard_block2mem_sink_sink_payload_address <= (sdcard_block2mem_wishbonedmawriter_base1 + sdcard_block2mem_wishbonedmawriter_offset1);
             sdcard_block2mem_sink_sink_payload_data1 <= sdcard_block2mem_wishbonedmawriter_sink_payload_data;
             sdcard_block2mem_wishbonedmawriter_sink_ready <= sdcard_block2mem_sink_sink_ready1;
             if ((sdcard_block2mem_wishbonedmawriter_sink_valid & sdcard_block2mem_wishbonedmawriter_sink_ready)) begin
-                sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value <= (sdcard_block2mem_wishbonedmawriter_offset + 1'd1);
-                sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value_ce <= 1'd1;
+                sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value <= (sdcard_block2mem_wishbonedmawriter_offset1 + 1'd1);
+                sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value_ce <= 1'd1;
                 if (sdcard_block2mem_sink_sink_last1) begin
-                    if (sdcard_block2mem_wishbonedmawriter_loop_storage) begin
-                        sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value <= 1'd0;
-                        sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value_ce <= 1'd1;
+                    if (sdcard_block2mem_wishbonedmawriter_loop) begin
+                        sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value <= 1'd0;
+                        sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value_ce <= 1'd1;
                     end else begin
                         sdblock2memdma_next_state <= 2'd2;
                     end
@@ -2677,12 +2676,12 @@ always @(*) begin
             end
         end
         2'd2: begin
-            sdcard_block2mem_wishbonedmawriter_done_status <= 1'd1;
+            sdcard_block2mem_wishbonedmawriter_done <= 1'd1;
         end
         default: begin
             sdcard_block2mem_wishbonedmawriter_sink_ready <= 1'd1;
-            sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value <= 1'd0;
-            sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value_ce <= 1'd1;
+            sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value <= 1'd0;
+            sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value_ce <= 1'd1;
             sdblock2memdma_next_state <= 1'd1;
         end
     endcase
@@ -2728,10 +2727,16 @@ assign sdcard_mem2block_dma_fifo_source_ready = sdcard_mem2block_dma_source_sour
 assign sdcard_mem2block_dma_source_source_first = sdcard_mem2block_dma_fifo_source_first;
 assign sdcard_mem2block_dma_source_source_last = sdcard_mem2block_dma_fifo_source_last;
 assign sdcard_mem2block_dma_source_source_payload_data = sdcard_mem2block_dma_fifo_source_payload_data;
-assign sdcard_mem2block_dma_base = sdcard_mem2block_dma_base_storage[63:2];
-assign sdcard_mem2block_dma_length = sdcard_mem2block_dma_length_storage[31:2];
-assign sdcard_mem2block_dma_offset_status = sdcard_mem2block_dma_offset;
-assign sdcard_mem2block_dma_reset = (~sdcard_mem2block_dma_enable_storage);
+assign sdcard_mem2block_dma_base1 = sdcard_mem2block_dma_base0[63:2];
+assign sdcard_mem2block_dma_length1 = sdcard_mem2block_dma_length0[31:2];
+assign sdcard_mem2block_dma_offset0 = sdcard_mem2block_dma_offset1;
+assign sdcard_mem2block_dma_reset = (~sdcard_mem2block_dma_enable);
+assign sdcard_mem2block_dma_base0 = sdcard_mem2block_dma_base_storage;
+assign sdcard_mem2block_dma_length0 = sdcard_mem2block_dma_length_storage;
+assign sdcard_mem2block_dma_enable = sdcard_mem2block_dma_enable_storage;
+assign sdcard_mem2block_dma_loop = sdcard_mem2block_dma_loop_storage;
+assign sdcard_mem2block_dma_done_status = sdcard_mem2block_dma_done;
+assign sdcard_mem2block_dma_offset_status = sdcard_mem2block_dma_offset0;
 assign sdcard_mem2block_dma_fifo_syncfifo_din = {sdcard_mem2block_dma_fifo_fifo_in_last, sdcard_mem2block_dma_fifo_fifo_in_first, sdcard_mem2block_dma_fifo_fifo_in_payload_data};
 assign {sdcard_mem2block_dma_fifo_fifo_out_last, sdcard_mem2block_dma_fifo_fifo_out_first, sdcard_mem2block_dma_fifo_fifo_out_payload_data} = sdcard_mem2block_dma_fifo_syncfifo_dout;
 assign sdcard_mem2block_dma_fifo_sink_ready = sdcard_mem2block_dma_fifo_syncfifo_writable;
@@ -2760,9 +2765,9 @@ assign sdcard_mem2block_dma_fifo_syncfifo_dout = sdcard_mem2block_dma_fifo_rdpor
 assign sdcard_mem2block_dma_fifo_syncfifo_writable = (sdcard_mem2block_dma_fifo_level != 5'd16);
 assign sdcard_mem2block_dma_fifo_syncfifo_readable = (sdcard_mem2block_dma_fifo_level != 1'd0);
 always @(*) begin
-    sdcard_mem2block_dma_done_status <= 1'd0;
-    sdcard_mem2block_dma_offset_sdmem2blockdma_next_value <= 32'd0;
-    sdcard_mem2block_dma_offset_sdmem2blockdma_next_value_ce <= 1'd0;
+    sdcard_mem2block_dma_done <= 1'd0;
+    sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value <= 32'd0;
+    sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value_ce <= 1'd0;
     sdcard_mem2block_dma_sink_sink_last <= 1'd0;
     sdcard_mem2block_dma_sink_sink_payload_address <= 32'd0;
     sdcard_mem2block_dma_sink_sink_valid <= 1'd0;
@@ -2771,15 +2776,15 @@ always @(*) begin
     case (sdmem2blockdma_state)
         1'd1: begin
             sdcard_mem2block_dma_sink_sink_valid <= 1'd1;
-            sdcard_mem2block_dma_sink_sink_last <= (sdcard_mem2block_dma_offset == (sdcard_mem2block_dma_length - 1'd1));
-            sdcard_mem2block_dma_sink_sink_payload_address <= (sdcard_mem2block_dma_base + sdcard_mem2block_dma_offset);
+            sdcard_mem2block_dma_sink_sink_last <= (sdcard_mem2block_dma_offset1 == (sdcard_mem2block_dma_length1 - 1'd1));
+            sdcard_mem2block_dma_sink_sink_payload_address <= (sdcard_mem2block_dma_base1 + sdcard_mem2block_dma_offset1);
             if (sdcard_mem2block_dma_sink_sink_ready) begin
-                sdcard_mem2block_dma_offset_sdmem2blockdma_next_value <= (sdcard_mem2block_dma_offset + 1'd1);
-                sdcard_mem2block_dma_offset_sdmem2blockdma_next_value_ce <= 1'd1;
+                sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value <= (sdcard_mem2block_dma_offset1 + 1'd1);
+                sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value_ce <= 1'd1;
                 if (sdcard_mem2block_dma_sink_sink_last) begin
-                    if (sdcard_mem2block_dma_loop_storage) begin
-                        sdcard_mem2block_dma_offset_sdmem2blockdma_next_value <= 1'd0;
-                        sdcard_mem2block_dma_offset_sdmem2blockdma_next_value_ce <= 1'd1;
+                    if (sdcard_mem2block_dma_loop) begin
+                        sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value <= 1'd0;
+                        sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value_ce <= 1'd1;
                     end else begin
                         sdmem2blockdma_next_state <= 2'd2;
                     end
@@ -2787,11 +2792,11 @@ always @(*) begin
             end
         end
         2'd2: begin
-            sdcard_mem2block_dma_done_status <= 1'd1;
+            sdcard_mem2block_dma_done <= 1'd1;
         end
         default: begin
-            sdcard_mem2block_dma_offset_sdmem2blockdma_next_value <= 1'd0;
-            sdcard_mem2block_dma_offset_sdmem2blockdma_next_value_ce <= 1'd1;
+            sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value <= 1'd0;
+            sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value_ce <= 1'd1;
             sdmem2blockdma_next_state <= 1'd1;
         end
     endcase
@@ -2898,6 +2903,7 @@ always @(*) begin
     interface0_dat_r <= 32'd0;
     interface1_adr <= 14'd0;
     interface1_dat_w <= 32'd0;
+    interface1_re <= 1'd0;
     interface1_we <= 1'd0;
     wishbone2csr_next_state <= 1'd0;
     wishbone2csr_next_state <= wishbone2csr_state;
@@ -2910,7 +2916,8 @@ always @(*) begin
         default: begin
             interface1_dat_w <= interface0_dat_w;
             if ((interface0_cyc & interface0_stb)) begin
-                interface1_adr <= interface0_adr[29:0];
+                interface1_adr <= interface0_adr;
+                interface1_re <= ((~interface0_we) & (interface0_sel != 1'd0));
                 interface1_we <= (interface0_we & (interface0_sel != 1'd0));
                 wishbone2csr_next_state <= 1'd1;
             end
@@ -2924,25 +2931,25 @@ always @(*) begin
     csrbank0_reset0_we <= 1'd0;
     if ((csrbank0_sel & (interface0_bank_bus_adr[8:0] == 1'd0))) begin
         csrbank0_reset0_re <= interface0_bank_bus_we;
-        csrbank0_reset0_we <= (~interface0_bank_bus_we);
+        csrbank0_reset0_we <= interface0_bank_bus_re;
     end
 end
-assign csrbank0_scratch0_r = interface0_bank_bus_dat_w[31:0];
+assign csrbank0_scratch0_r = interface0_bank_bus_dat_w;
 always @(*) begin
     csrbank0_scratch0_re <= 1'd0;
     csrbank0_scratch0_we <= 1'd0;
     if ((csrbank0_sel & (interface0_bank_bus_adr[8:0] == 1'd1))) begin
         csrbank0_scratch0_re <= interface0_bank_bus_we;
-        csrbank0_scratch0_we <= (~interface0_bank_bus_we);
+        csrbank0_scratch0_we <= interface0_bank_bus_re;
     end
 end
-assign csrbank0_bus_errors_r = interface0_bank_bus_dat_w[31:0];
+assign csrbank0_bus_errors_r = interface0_bank_bus_dat_w;
 always @(*) begin
     csrbank0_bus_errors_re <= 1'd0;
     csrbank0_bus_errors_we <= 1'd0;
     if ((csrbank0_sel & (interface0_bank_bus_adr[8:0] == 2'd2))) begin
         csrbank0_bus_errors_re <= interface0_bank_bus_we;
-        csrbank0_bus_errors_we <= (~interface0_bank_bus_we);
+        csrbank0_bus_errors_we <= interface0_bank_bus_re;
     end
 end
 always @(*) begin
@@ -2952,36 +2959,36 @@ always @(*) begin
     end
 end
 assign cpu_rst = reset_storage[1];
-assign csrbank0_reset0_w = reset_storage[1:0];
-assign csrbank0_scratch0_w = scratch_storage[31:0];
-assign csrbank0_bus_errors_w = bus_errors_status[31:0];
+assign csrbank0_reset0_w = reset_storage;
+assign csrbank0_scratch0_w = scratch_storage;
+assign csrbank0_bus_errors_w = bus_errors_status;
 assign bus_errors_we = csrbank0_bus_errors_we;
 assign csrbank1_sel = (interface1_bank_bus_adr[13:9] == 1'd1);
-assign csrbank1_dma_base1_r = interface1_bank_bus_dat_w[31:0];
+assign csrbank1_dma_base1_r = interface1_bank_bus_dat_w;
 always @(*) begin
     csrbank1_dma_base1_re <= 1'd0;
     csrbank1_dma_base1_we <= 1'd0;
     if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 1'd0))) begin
         csrbank1_dma_base1_re <= interface1_bank_bus_we;
-        csrbank1_dma_base1_we <= (~interface1_bank_bus_we);
+        csrbank1_dma_base1_we <= interface1_bank_bus_re;
     end
 end
-assign csrbank1_dma_base0_r = interface1_bank_bus_dat_w[31:0];
+assign csrbank1_dma_base0_r = interface1_bank_bus_dat_w;
 always @(*) begin
     csrbank1_dma_base0_re <= 1'd0;
     csrbank1_dma_base0_we <= 1'd0;
     if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 1'd1))) begin
         csrbank1_dma_base0_re <= interface1_bank_bus_we;
-        csrbank1_dma_base0_we <= (~interface1_bank_bus_we);
+        csrbank1_dma_base0_we <= interface1_bank_bus_re;
     end
 end
-assign csrbank1_dma_length0_r = interface1_bank_bus_dat_w[31:0];
+assign csrbank1_dma_length0_r = interface1_bank_bus_dat_w;
 always @(*) begin
     csrbank1_dma_length0_re <= 1'd0;
     csrbank1_dma_length0_we <= 1'd0;
     if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 2'd2))) begin
         csrbank1_dma_length0_re <= interface1_bank_bus_we;
-        csrbank1_dma_length0_we <= (~interface1_bank_bus_we);
+        csrbank1_dma_length0_we <= interface1_bank_bus_re;
     end
 end
 assign csrbank1_dma_enable0_r = interface1_bank_bus_dat_w[0];
@@ -2990,7 +2997,7 @@ always @(*) begin
     csrbank1_dma_enable0_we <= 1'd0;
     if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 2'd3))) begin
         csrbank1_dma_enable0_re <= interface1_bank_bus_we;
-        csrbank1_dma_enable0_we <= (~interface1_bank_bus_we);
+        csrbank1_dma_enable0_we <= interface1_bank_bus_re;
     end
 end
 assign csrbank1_dma_done_r = interface1_bank_bus_dat_w[0];
@@ -2999,7 +3006,7 @@ always @(*) begin
     csrbank1_dma_done_we <= 1'd0;
     if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 3'd4))) begin
         csrbank1_dma_done_re <= interface1_bank_bus_we;
-        csrbank1_dma_done_we <= (~interface1_bank_bus_we);
+        csrbank1_dma_done_we <= interface1_bank_bus_re;
     end
 end
 assign csrbank1_dma_loop0_r = interface1_bank_bus_dat_w[0];
@@ -3008,35 +3015,35 @@ always @(*) begin
     csrbank1_dma_loop0_we <= 1'd0;
     if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 3'd5))) begin
         csrbank1_dma_loop0_re <= interface1_bank_bus_we;
-        csrbank1_dma_loop0_we <= (~interface1_bank_bus_we);
+        csrbank1_dma_loop0_we <= interface1_bank_bus_re;
     end
 end
-assign csrbank1_dma_offset_r = interface1_bank_bus_dat_w[31:0];
+assign csrbank1_dma_offset_r = interface1_bank_bus_dat_w;
 always @(*) begin
     csrbank1_dma_offset_re <= 1'd0;
     csrbank1_dma_offset_we <= 1'd0;
     if ((csrbank1_sel & (interface1_bank_bus_adr[8:0] == 3'd6))) begin
         csrbank1_dma_offset_re <= interface1_bank_bus_we;
-        csrbank1_dma_offset_we <= (~interface1_bank_bus_we);
+        csrbank1_dma_offset_we <= interface1_bank_bus_re;
     end
 end
 assign csrbank1_dma_base1_w = sdcard_block2mem_wishbonedmawriter_base_storage[63:32];
 assign csrbank1_dma_base0_w = sdcard_block2mem_wishbonedmawriter_base_storage[31:0];
-assign csrbank1_dma_length0_w = sdcard_block2mem_wishbonedmawriter_length_storage[31:0];
+assign csrbank1_dma_length0_w = sdcard_block2mem_wishbonedmawriter_length_storage;
 assign csrbank1_dma_enable0_w = sdcard_block2mem_wishbonedmawriter_enable_storage;
 assign csrbank1_dma_done_w = sdcard_block2mem_wishbonedmawriter_done_status;
 assign sdcard_block2mem_wishbonedmawriter_done_we = csrbank1_dma_done_we;
 assign csrbank1_dma_loop0_w = sdcard_block2mem_wishbonedmawriter_loop_storage;
-assign csrbank1_dma_offset_w = sdcard_block2mem_wishbonedmawriter_offset_status[31:0];
+assign csrbank1_dma_offset_w = sdcard_block2mem_wishbonedmawriter_offset_status;
 assign sdcard_block2mem_wishbonedmawriter_offset_we = csrbank1_dma_offset_we;
 assign csrbank2_sel = (interface2_bank_bus_adr[13:9] == 2'd2);
-assign csrbank2_cmd_argument0_r = interface2_bank_bus_dat_w[31:0];
+assign csrbank2_cmd_argument0_r = interface2_bank_bus_dat_w;
 always @(*) begin
     csrbank2_cmd_argument0_re <= 1'd0;
     csrbank2_cmd_argument0_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 1'd0))) begin
         csrbank2_cmd_argument0_re <= interface2_bank_bus_we;
-        csrbank2_cmd_argument0_we <= (~interface2_bank_bus_we);
+        csrbank2_cmd_argument0_we <= interface2_bank_bus_re;
     end
 end
 assign csrbank2_cmd_command0_r = interface2_bank_bus_dat_w[13:0];
@@ -3045,7 +3052,7 @@ always @(*) begin
     csrbank2_cmd_command0_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 1'd1))) begin
         csrbank2_cmd_command0_re <= interface2_bank_bus_we;
-        csrbank2_cmd_command0_we <= (~interface2_bank_bus_we);
+        csrbank2_cmd_command0_we <= interface2_bank_bus_re;
     end
 end
 assign csrbank2_cmd_send0_r = interface2_bank_bus_dat_w[0];
@@ -3054,43 +3061,43 @@ always @(*) begin
     csrbank2_cmd_send0_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 2'd2))) begin
         csrbank2_cmd_send0_re <= interface2_bank_bus_we;
-        csrbank2_cmd_send0_we <= (~interface2_bank_bus_we);
+        csrbank2_cmd_send0_we <= interface2_bank_bus_re;
     end
 end
-assign csrbank2_cmd_response3_r = interface2_bank_bus_dat_w[31:0];
+assign csrbank2_cmd_response3_r = interface2_bank_bus_dat_w;
 always @(*) begin
     csrbank2_cmd_response3_re <= 1'd0;
     csrbank2_cmd_response3_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 2'd3))) begin
         csrbank2_cmd_response3_re <= interface2_bank_bus_we;
-        csrbank2_cmd_response3_we <= (~interface2_bank_bus_we);
+        csrbank2_cmd_response3_we <= interface2_bank_bus_re;
     end
 end
-assign csrbank2_cmd_response2_r = interface2_bank_bus_dat_w[31:0];
+assign csrbank2_cmd_response2_r = interface2_bank_bus_dat_w;
 always @(*) begin
     csrbank2_cmd_response2_re <= 1'd0;
     csrbank2_cmd_response2_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 3'd4))) begin
         csrbank2_cmd_response2_re <= interface2_bank_bus_we;
-        csrbank2_cmd_response2_we <= (~interface2_bank_bus_we);
+        csrbank2_cmd_response2_we <= interface2_bank_bus_re;
     end
 end
-assign csrbank2_cmd_response1_r = interface2_bank_bus_dat_w[31:0];
+assign csrbank2_cmd_response1_r = interface2_bank_bus_dat_w;
 always @(*) begin
     csrbank2_cmd_response1_re <= 1'd0;
     csrbank2_cmd_response1_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 3'd5))) begin
         csrbank2_cmd_response1_re <= interface2_bank_bus_we;
-        csrbank2_cmd_response1_we <= (~interface2_bank_bus_we);
+        csrbank2_cmd_response1_we <= interface2_bank_bus_re;
     end
 end
-assign csrbank2_cmd_response0_r = interface2_bank_bus_dat_w[31:0];
+assign csrbank2_cmd_response0_r = interface2_bank_bus_dat_w;
 always @(*) begin
     csrbank2_cmd_response0_re <= 1'd0;
     csrbank2_cmd_response0_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 3'd6))) begin
         csrbank2_cmd_response0_re <= interface2_bank_bus_we;
-        csrbank2_cmd_response0_we <= (~interface2_bank_bus_we);
+        csrbank2_cmd_response0_we <= interface2_bank_bus_re;
     end
 end
 assign csrbank2_cmd_event_r = interface2_bank_bus_dat_w[3:0];
@@ -3099,7 +3106,7 @@ always @(*) begin
     csrbank2_cmd_event_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 3'd7))) begin
         csrbank2_cmd_event_re <= interface2_bank_bus_we;
-        csrbank2_cmd_event_we <= (~interface2_bank_bus_we);
+        csrbank2_cmd_event_we <= interface2_bank_bus_re;
     end
 end
 assign csrbank2_data_event_r = interface2_bank_bus_dat_w[3:0];
@@ -3108,7 +3115,7 @@ always @(*) begin
     csrbank2_data_event_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 4'd8))) begin
         csrbank2_data_event_re <= interface2_bank_bus_we;
-        csrbank2_data_event_we <= (~interface2_bank_bus_we);
+        csrbank2_data_event_we <= interface2_bank_bus_re;
     end
 end
 assign csrbank2_block_length0_r = interface2_bank_bus_dat_w[9:0];
@@ -3117,23 +3124,23 @@ always @(*) begin
     csrbank2_block_length0_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 4'd9))) begin
         csrbank2_block_length0_re <= interface2_bank_bus_we;
-        csrbank2_block_length0_we <= (~interface2_bank_bus_we);
+        csrbank2_block_length0_we <= interface2_bank_bus_re;
     end
 end
-assign csrbank2_block_count0_r = interface2_bank_bus_dat_w[31:0];
+assign csrbank2_block_count0_r = interface2_bank_bus_dat_w;
 always @(*) begin
     csrbank2_block_count0_re <= 1'd0;
     csrbank2_block_count0_we <= 1'd0;
     if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 4'd10))) begin
         csrbank2_block_count0_re <= interface2_bank_bus_we;
-        csrbank2_block_count0_we <= (~interface2_bank_bus_we);
+        csrbank2_block_count0_we <= interface2_bank_bus_re;
     end
 end
-assign csrbank2_cmd_argument0_w = sdcard_core_cmd_argument_storage[31:0];
+assign csrbank2_cmd_argument0_w = sdcard_core_cmd_argument_storage;
 assign sdcard_core_csrfield_cmd_type = sdcard_core_cmd_command_storage[1:0];
 assign sdcard_core_csrfield_data_type = sdcard_core_cmd_command_storage[6:5];
 assign sdcard_core_csrfield_cmd = sdcard_core_cmd_command_storage[13:8];
-assign csrbank2_cmd_command0_w = sdcard_core_cmd_command_storage[13:0];
+assign csrbank2_cmd_command0_w = sdcard_core_cmd_command_storage;
 assign csrbank2_cmd_send0_w = sdcard_core_cmd_send_storage;
 assign csrbank2_cmd_response3_w = sdcard_core_cmd_response_status[127:96];
 assign csrbank2_cmd_response2_w = sdcard_core_cmd_response_status[95:64];
@@ -3147,7 +3154,7 @@ always @(*) begin
     sdcard_core_cmd_event_status[2] <= sdcard_core_csrfield_timeout0;
     sdcard_core_cmd_event_status[3] <= sdcard_core_csrfield_crc0;
 end
-assign csrbank2_cmd_event_w = sdcard_core_cmd_event_status[3:0];
+assign csrbank2_cmd_event_w = sdcard_core_cmd_event_status;
 assign sdcard_core_cmd_event_we = csrbank2_cmd_event_we;
 always @(*) begin
     sdcard_core_data_event_status <= 4'd0;
@@ -3156,10 +3163,10 @@ always @(*) begin
     sdcard_core_data_event_status[2] <= sdcard_core_csrfield_timeout1;
     sdcard_core_data_event_status[3] <= sdcard_core_csrfield_crc1;
 end
-assign csrbank2_data_event_w = sdcard_core_data_event_status[3:0];
+assign csrbank2_data_event_w = sdcard_core_data_event_status;
 assign sdcard_core_data_event_we = csrbank2_data_event_we;
-assign csrbank2_block_length0_w = sdcard_core_block_length_storage[9:0];
-assign csrbank2_block_count0_w = sdcard_core_block_count_storage[31:0];
+assign csrbank2_block_length0_w = sdcard_core_block_length_storage;
+assign csrbank2_block_count0_w = sdcard_core_block_count_storage;
 assign csrbank3_sel = (interface3_bank_bus_adr[13:9] == 2'd3);
 assign csrbank3_status_r = interface3_bank_bus_dat_w[3:0];
 always @(*) begin
@@ -3167,7 +3174,7 @@ always @(*) begin
     csrbank3_status_we <= 1'd0;
     if ((csrbank3_sel & (interface3_bank_bus_adr[8:0] == 1'd0))) begin
         csrbank3_status_re <= interface3_bank_bus_we;
-        csrbank3_status_we <= (~interface3_bank_bus_we);
+        csrbank3_status_we <= interface3_bank_bus_re;
     end
 end
 assign csrbank3_pending_r = interface3_bank_bus_dat_w[3:0];
@@ -3176,7 +3183,7 @@ always @(*) begin
     csrbank3_pending_we <= 1'd0;
     if ((csrbank3_sel & (interface3_bank_bus_adr[8:0] == 1'd1))) begin
         csrbank3_pending_re <= interface3_bank_bus_we;
-        csrbank3_pending_we <= (~interface3_bank_bus_we);
+        csrbank3_pending_we <= interface3_bank_bus_re;
     end
 end
 assign csrbank3_enable0_r = interface3_bank_bus_dat_w[3:0];
@@ -3185,7 +3192,7 @@ always @(*) begin
     csrbank3_enable0_we <= 1'd0;
     if ((csrbank3_sel & (interface3_bank_bus_adr[8:0] == 2'd2))) begin
         csrbank3_enable0_re <= interface3_bank_bus_we;
-        csrbank3_enable0_we <= (~interface3_bank_bus_we);
+        csrbank3_enable0_we <= interface3_bank_bus_re;
     end
 end
 always @(*) begin
@@ -3195,7 +3202,7 @@ always @(*) begin
     eventmanager_status_status[2] <= eventmanager_mem2block_dma0;
     eventmanager_status_status[3] <= eventmanager_cmd_done0;
 end
-assign csrbank3_status_w = eventmanager_status_status[3:0];
+assign csrbank3_status_w = eventmanager_status_status;
 assign eventmanager_status_we = csrbank3_status_we;
 always @(*) begin
     eventmanager_pending_status <= 4'd0;
@@ -3204,39 +3211,39 @@ always @(*) begin
     eventmanager_pending_status[2] <= eventmanager_mem2block_dma1;
     eventmanager_pending_status[3] <= eventmanager_cmd_done1;
 end
-assign csrbank3_pending_w = eventmanager_pending_status[3:0];
+assign csrbank3_pending_w = eventmanager_pending_status;
 assign eventmanager_pending_we = csrbank3_pending_we;
 assign eventmanager_card_detect2 = eventmanager_enable_storage[0];
 assign eventmanager_block2mem_dma2 = eventmanager_enable_storage[1];
 assign eventmanager_mem2block_dma2 = eventmanager_enable_storage[2];
 assign eventmanager_cmd_done2 = eventmanager_enable_storage[3];
-assign csrbank3_enable0_w = eventmanager_enable_storage[3:0];
+assign csrbank3_enable0_w = eventmanager_enable_storage;
 assign csrbank4_sel = (interface4_bank_bus_adr[13:9] == 3'd4);
-assign csrbank4_dma_base1_r = interface4_bank_bus_dat_w[31:0];
+assign csrbank4_dma_base1_r = interface4_bank_bus_dat_w;
 always @(*) begin
     csrbank4_dma_base1_re <= 1'd0;
     csrbank4_dma_base1_we <= 1'd0;
     if ((csrbank4_sel & (interface4_bank_bus_adr[8:0] == 1'd0))) begin
         csrbank4_dma_base1_re <= interface4_bank_bus_we;
-        csrbank4_dma_base1_we <= (~interface4_bank_bus_we);
+        csrbank4_dma_base1_we <= interface4_bank_bus_re;
     end
 end
-assign csrbank4_dma_base0_r = interface4_bank_bus_dat_w[31:0];
+assign csrbank4_dma_base0_r = interface4_bank_bus_dat_w;
 always @(*) begin
     csrbank4_dma_base0_re <= 1'd0;
     csrbank4_dma_base0_we <= 1'd0;
     if ((csrbank4_sel & (interface4_bank_bus_adr[8:0] == 1'd1))) begin
         csrbank4_dma_base0_re <= interface4_bank_bus_we;
-        csrbank4_dma_base0_we <= (~interface4_bank_bus_we);
+        csrbank4_dma_base0_we <= interface4_bank_bus_re;
     end
 end
-assign csrbank4_dma_length0_r = interface4_bank_bus_dat_w[31:0];
+assign csrbank4_dma_length0_r = interface4_bank_bus_dat_w;
 always @(*) begin
     csrbank4_dma_length0_re <= 1'd0;
     csrbank4_dma_length0_we <= 1'd0;
     if ((csrbank4_sel & (interface4_bank_bus_adr[8:0] == 2'd2))) begin
         csrbank4_dma_length0_re <= interface4_bank_bus_we;
-        csrbank4_dma_length0_we <= (~interface4_bank_bus_we);
+        csrbank4_dma_length0_we <= interface4_bank_bus_re;
     end
 end
 assign csrbank4_dma_enable0_r = interface4_bank_bus_dat_w[0];
@@ -3245,7 +3252,7 @@ always @(*) begin
     csrbank4_dma_enable0_we <= 1'd0;
     if ((csrbank4_sel & (interface4_bank_bus_adr[8:0] == 2'd3))) begin
         csrbank4_dma_enable0_re <= interface4_bank_bus_we;
-        csrbank4_dma_enable0_we <= (~interface4_bank_bus_we);
+        csrbank4_dma_enable0_we <= interface4_bank_bus_re;
     end
 end
 assign csrbank4_dma_done_r = interface4_bank_bus_dat_w[0];
@@ -3254,7 +3261,7 @@ always @(*) begin
     csrbank4_dma_done_we <= 1'd0;
     if ((csrbank4_sel & (interface4_bank_bus_adr[8:0] == 3'd4))) begin
         csrbank4_dma_done_re <= interface4_bank_bus_we;
-        csrbank4_dma_done_we <= (~interface4_bank_bus_we);
+        csrbank4_dma_done_we <= interface4_bank_bus_re;
     end
 end
 assign csrbank4_dma_loop0_r = interface4_bank_bus_dat_w[0];
@@ -3263,26 +3270,26 @@ always @(*) begin
     csrbank4_dma_loop0_we <= 1'd0;
     if ((csrbank4_sel & (interface4_bank_bus_adr[8:0] == 3'd5))) begin
         csrbank4_dma_loop0_re <= interface4_bank_bus_we;
-        csrbank4_dma_loop0_we <= (~interface4_bank_bus_we);
+        csrbank4_dma_loop0_we <= interface4_bank_bus_re;
     end
 end
-assign csrbank4_dma_offset_r = interface4_bank_bus_dat_w[31:0];
+assign csrbank4_dma_offset_r = interface4_bank_bus_dat_w;
 always @(*) begin
     csrbank4_dma_offset_re <= 1'd0;
     csrbank4_dma_offset_we <= 1'd0;
     if ((csrbank4_sel & (interface4_bank_bus_adr[8:0] == 3'd6))) begin
         csrbank4_dma_offset_re <= interface4_bank_bus_we;
-        csrbank4_dma_offset_we <= (~interface4_bank_bus_we);
+        csrbank4_dma_offset_we <= interface4_bank_bus_re;
     end
 end
 assign csrbank4_dma_base1_w = sdcard_mem2block_dma_base_storage[63:32];
 assign csrbank4_dma_base0_w = sdcard_mem2block_dma_base_storage[31:0];
-assign csrbank4_dma_length0_w = sdcard_mem2block_dma_length_storage[31:0];
+assign csrbank4_dma_length0_w = sdcard_mem2block_dma_length_storage;
 assign csrbank4_dma_enable0_w = sdcard_mem2block_dma_enable_storage;
 assign csrbank4_dma_done_w = sdcard_mem2block_dma_done_status;
 assign sdcard_mem2block_dma_done_we = csrbank4_dma_done_we;
 assign csrbank4_dma_loop0_w = sdcard_mem2block_dma_loop_storage;
-assign csrbank4_dma_offset_w = sdcard_mem2block_dma_offset_status[31:0];
+assign csrbank4_dma_offset_w = sdcard_mem2block_dma_offset_status;
 assign sdcard_mem2block_dma_offset_we = csrbank4_dma_offset_we;
 assign csrbank5_sel = (interface5_bank_bus_adr[13:9] == 3'd5);
 assign csrbank5_card_detect_r = interface5_bank_bus_dat_w[0];
@@ -3291,7 +3298,7 @@ always @(*) begin
     csrbank5_card_detect_we <= 1'd0;
     if ((csrbank5_sel & (interface5_bank_bus_adr[8:0] == 1'd0))) begin
         csrbank5_card_detect_re <= interface5_bank_bus_we;
-        csrbank5_card_detect_we <= (~interface5_bank_bus_we);
+        csrbank5_card_detect_we <= interface5_bank_bus_re;
     end
 end
 assign csrbank5_clocker_divider0_r = interface5_bank_bus_dat_w[8:0];
@@ -3300,7 +3307,7 @@ always @(*) begin
     csrbank5_clocker_divider0_we <= 1'd0;
     if ((csrbank5_sel & (interface5_bank_bus_adr[8:0] == 1'd1))) begin
         csrbank5_clocker_divider0_re <= interface5_bank_bus_we;
-        csrbank5_clocker_divider0_we <= (~interface5_bank_bus_we);
+        csrbank5_clocker_divider0_we <= interface5_bank_bus_re;
     end
 end
 assign init_initialize_r = interface5_bank_bus_dat_w[0];
@@ -3309,7 +3316,7 @@ always @(*) begin
     init_initialize_we <= 1'd0;
     if ((csrbank5_sel & (interface5_bank_bus_adr[8:0] == 2'd2))) begin
         init_initialize_re <= interface5_bank_bus_we;
-        init_initialize_we <= (~interface5_bank_bus_we);
+        init_initialize_we <= interface5_bank_bus_re;
     end
 end
 assign csrbank5_dataw_status_r = interface5_bank_bus_dat_w[2:0];
@@ -3318,21 +3325,22 @@ always @(*) begin
     csrbank5_dataw_status_we <= 1'd0;
     if ((csrbank5_sel & (interface5_bank_bus_adr[8:0] == 2'd3))) begin
         csrbank5_dataw_status_re <= interface5_bank_bus_we;
-        csrbank5_dataw_status_we <= (~interface5_bank_bus_we);
+        csrbank5_dataw_status_we <= interface5_bank_bus_re;
     end
 end
 assign csrbank5_card_detect_w = card_detect_status0;
 assign card_detect_we = csrbank5_card_detect_we;
-assign csrbank5_clocker_divider0_w = clocker_storage[8:0];
+assign csrbank5_clocker_divider0_w = clocker_storage;
 always @(*) begin
     dataw_status <= 3'd0;
     dataw_status[0] <= dataw_accepted0;
     dataw_status[1] <= dataw_crc_error0;
     dataw_status[2] <= dataw_write_error0;
 end
-assign csrbank5_dataw_status_w = dataw_status[2:0];
+assign csrbank5_dataw_status_w = dataw_status;
 assign dataw_we = csrbank5_dataw_status_we;
 assign adr = interface1_adr;
+assign re = interface1_re;
 assign we = interface1_we;
 assign dat_w = interface1_dat_w;
 assign interface1_dat_r = dat_r;
@@ -3342,6 +3350,12 @@ assign interface2_bank_bus_adr = adr;
 assign interface3_bank_bus_adr = adr;
 assign interface4_bank_bus_adr = adr;
 assign interface5_bank_bus_adr = adr;
+assign interface0_bank_bus_re = re;
+assign interface1_bank_bus_re = re;
+assign interface2_bank_bus_re = re;
+assign interface3_bank_bus_re = re;
+assign interface4_bank_bus_re = re;
+assign interface5_bank_bus_re = re;
 assign interface0_bank_bus_we = we;
 assign interface1_bank_bus_we = we;
 assign interface2_bank_bus_we = we;
@@ -3444,6 +3458,8 @@ always @(*) begin
     endcase
 end
 assign sdrio_clk = sys_clk;
+assign clk_i = xilinxmultiregimpl_xilinxmultiregimpl;
+assign xilinxmultiregimpl = (~clocker_clk0);
 assign sdrio_clk_1 = sys_clk;
 assign sdrio_clk_2 = sys_clk;
 assign sdrio_clk_3 = sys_clk;
@@ -3457,11 +3473,11 @@ assign sdrio_clk_10 = sys_clk;
 assign sdrio_clk_11 = sys_clk;
 assign sdrio_clk_12 = sys_clk;
 assign sdrio_clk_13 = sys_clk;
+assign sdrio_clk_14 = sys_clk;
 assign sdrio_clk_15 = sys_clk;
 assign sdrio_clk_16 = sys_clk;
 assign sdrio_clk_17 = sys_clk;
 assign sdrio_clk_18 = sys_clk;
-assign sdrio_clk_14 = sys_clk;
 
 
 //------------------------------------------------------------------------------
@@ -3527,7 +3543,11 @@ always @(posedge sys_clk) begin
     card_detect_d <= card_detect_status0;
     card_detect_irq <= (card_detect_status0 ^ card_detect_d);
     if ((~clocker_stop)) begin
-        clocker_clks <= (clocker_clks + 1'd1);
+        clocker_count <= (clocker_count + 1'd1);
+        if ((clocker_count >= (clocker_storage[8:1] - 1'd1))) begin
+            clocker_clk1 <= (~clocker_clk1);
+            clocker_count <= 1'd0;
+        end
     end
     clocker_clk_d <= clocker_clk1;
     if (clocker_clk_d) begin
@@ -3781,8 +3801,7 @@ always @(posedge sys_clk) begin
     if (datar_datar_reset_sdphydatar_next_value_ce2) begin
         datar_datar_reset <= datar_datar_reset_sdphydatar_next_value2;
     end
-    clocker_clk_delay <= {clocker_clk_delay, clocker_clk0};
-    sdpads_data_i_ce <= (clocker_clk_delay[1] & (~clocker_clk_delay[0]));
+    clk_i_d <= clk_i;
     sdcard_core_done_d <= sdcard_core_cmd_done;
     sdcard_core_irq <= (sdcard_core_cmd_done & (~sdcard_core_done_d));
     if (sdcard_core_crc7_inserter_crc_reset) begin
@@ -3948,11 +3967,11 @@ always @(posedge sys_clk) begin
         sdcard_block2mem_converter_source_payload_valid_token_count <= (sdcard_block2mem_converter_demux + 1'd1);
     end
     sdblock2memdma_state <= sdblock2memdma_next_state;
-    if (sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value_ce) begin
-        sdcard_block2mem_wishbonedmawriter_offset <= sdcard_block2mem_wishbonedmawriter_offset_sdblock2memdma_next_value;
+    if (sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value_ce) begin
+        sdcard_block2mem_wishbonedmawriter_offset1 <= sdcard_block2mem_wishbonedmawriter_offset1_sdblock2memdma_next_value;
     end
     if (sdcard_block2mem_wishbonedmawriter_reset) begin
-        sdcard_block2mem_wishbonedmawriter_offset <= 32'd0;
+        sdcard_block2mem_wishbonedmawriter_offset1 <= 32'd0;
         sdblock2memdma_state <= 2'd0;
     end
     if ((sdcard_mem2block_source_source_valid & sdcard_mem2block_source_source_ready)) begin
@@ -3979,11 +3998,11 @@ always @(posedge sys_clk) begin
         end
     end
     sdmem2blockdma_state <= sdmem2blockdma_next_state;
-    if (sdcard_mem2block_dma_offset_sdmem2blockdma_next_value_ce) begin
-        sdcard_mem2block_dma_offset <= sdcard_mem2block_dma_offset_sdmem2blockdma_next_value;
+    if (sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value_ce) begin
+        sdcard_mem2block_dma_offset1 <= sdcard_mem2block_dma_offset1_sdmem2blockdma_next_value;
     end
     if (sdcard_mem2block_dma_reset) begin
-        sdcard_mem2block_dma_offset <= 32'd0;
+        sdcard_mem2block_dma_offset1 <= 32'd0;
         sdmem2blockdma_state <= 2'd0;
     end
     if ((sdcard_mem2block_converter_converter_source_valid & sdcard_mem2block_converter_converter_source_ready)) begin
@@ -4049,11 +4068,11 @@ always @(posedge sys_clk) begin
         endcase
     end
     if (csrbank0_reset0_re) begin
-        reset_storage[1:0] <= csrbank0_reset0_r;
+        reset_storage <= csrbank0_reset0_r;
     end
     reset_re <= csrbank0_reset0_re;
     if (csrbank0_scratch0_re) begin
-        scratch_storage[31:0] <= csrbank0_scratch0_r;
+        scratch_storage <= csrbank0_scratch0_r;
     end
     scratch_re <= csrbank0_scratch0_re;
     bus_errors_re <= csrbank0_bus_errors_re;
@@ -4091,7 +4110,7 @@ always @(posedge sys_clk) begin
     end
     sdcard_block2mem_wishbonedmawriter_base_re <= csrbank1_dma_base0_re;
     if (csrbank1_dma_length0_re) begin
-        sdcard_block2mem_wishbonedmawriter_length_storage[31:0] <= csrbank1_dma_length0_r;
+        sdcard_block2mem_wishbonedmawriter_length_storage <= csrbank1_dma_length0_r;
     end
     sdcard_block2mem_wishbonedmawriter_length_re <= csrbank1_dma_length0_re;
     if (csrbank1_dma_enable0_re) begin
@@ -4143,11 +4162,11 @@ always @(posedge sys_clk) begin
         endcase
     end
     if (csrbank2_cmd_argument0_re) begin
-        sdcard_core_cmd_argument_storage[31:0] <= csrbank2_cmd_argument0_r;
+        sdcard_core_cmd_argument_storage <= csrbank2_cmd_argument0_r;
     end
     sdcard_core_cmd_argument_re <= csrbank2_cmd_argument0_re;
     if (csrbank2_cmd_command0_re) begin
-        sdcard_core_cmd_command_storage[13:0] <= csrbank2_cmd_command0_r;
+        sdcard_core_cmd_command_storage <= csrbank2_cmd_command0_r;
     end
     sdcard_core_cmd_command_re <= csrbank2_cmd_command0_re;
     if (csrbank2_cmd_send0_re) begin
@@ -4158,11 +4177,11 @@ always @(posedge sys_clk) begin
     sdcard_core_cmd_event_re <= csrbank2_cmd_event_re;
     sdcard_core_data_event_re <= csrbank2_data_event_re;
     if (csrbank2_block_length0_re) begin
-        sdcard_core_block_length_storage[9:0] <= csrbank2_block_length0_r;
+        sdcard_core_block_length_storage <= csrbank2_block_length0_r;
     end
     sdcard_core_block_length_re <= csrbank2_block_length0_re;
     if (csrbank2_block_count0_re) begin
-        sdcard_core_block_count_storage[31:0] <= csrbank2_block_count0_r;
+        sdcard_core_block_count_storage <= csrbank2_block_count0_r;
     end
     sdcard_core_block_count_re <= csrbank2_block_count0_re;
     interface3_bank_bus_dat_r <= 1'd0;
@@ -4181,11 +4200,11 @@ always @(posedge sys_clk) begin
     end
     eventmanager_status_re <= csrbank3_status_re;
     if (csrbank3_pending_re) begin
-        eventmanager_pending_r[3:0] <= csrbank3_pending_r;
+        eventmanager_pending_r <= csrbank3_pending_r;
     end
     eventmanager_pending_re <= csrbank3_pending_re;
     if (csrbank3_enable0_re) begin
-        eventmanager_enable_storage[3:0] <= csrbank3_enable0_r;
+        eventmanager_enable_storage <= csrbank3_enable0_r;
     end
     eventmanager_enable_re <= csrbank3_enable0_re;
     interface4_bank_bus_dat_r <= 1'd0;
@@ -4222,7 +4241,7 @@ always @(posedge sys_clk) begin
     end
     sdcard_mem2block_dma_base_re <= csrbank4_dma_base0_re;
     if (csrbank4_dma_length0_re) begin
-        sdcard_mem2block_dma_length_storage[31:0] <= csrbank4_dma_length0_r;
+        sdcard_mem2block_dma_length_storage <= csrbank4_dma_length0_r;
     end
     sdcard_mem2block_dma_length_re <= csrbank4_dma_length0_re;
     if (csrbank4_dma_enable0_re) begin
@@ -4254,7 +4273,7 @@ always @(posedge sys_clk) begin
     end
     card_detect_re <= csrbank5_card_detect_re;
     if (csrbank5_clocker_divider0_re) begin
-        clocker_storage[8:0] <= csrbank5_clocker_divider0_r;
+        clocker_storage <= csrbank5_clocker_divider0_r;
     end
     clocker_re <= csrbank5_clocker_divider0_re;
     dataw_re <= csrbank5_dataw_status_re;
@@ -4268,7 +4287,8 @@ always @(posedge sys_clk) begin
         card_detect_re <= 1'd0;
         clocker_storage <= 9'd256;
         clocker_re <= 1'd0;
-        clocker_clks <= 9'd0;
+        clocker_clk1 <= 1'd0;
+        clocker_count <= 10'd0;
         clocker_clk_d <= 1'd0;
         clocker_ce_delayed <= 1'd0;
         init_count <= 8'd0;
@@ -4306,8 +4326,7 @@ always @(posedge sys_clk) begin
         datar_datar_buf_pipe_valid_source_valid <= 1'd0;
         datar_datar_buf_pipe_valid_source_payload_data <= 8'd0;
         datar_datar_reset <= 1'd0;
-        sdpads_data_i_ce <= 1'd0;
-        clocker_clk_delay <= 2'd0;
+        clk_i_d <= 1'd0;
         card_detect_irq <= 1'd0;
         card_detect_d <= 1'd0;
         sdcard_core_irq <= 1'd0;
@@ -4352,6 +4371,7 @@ always @(posedge sys_clk) begin
         sdcard_block2mem_converter_source_payload_valid_token_count <= 3'd0;
         sdcard_block2mem_converter_demux <= 2'd0;
         sdcard_block2mem_converter_strobe_all <= 1'd0;
+        sdcard_block2mem_wishbonedmawriter_offset1 <= 32'd0;
         sdcard_block2mem_wishbonedmawriter_base_storage <= 64'd0;
         sdcard_block2mem_wishbonedmawriter_base_re <= 1'd0;
         sdcard_block2mem_wishbonedmawriter_length_storage <= 32'd0;
@@ -4362,13 +4382,13 @@ always @(posedge sys_clk) begin
         sdcard_block2mem_wishbonedmawriter_loop_storage <= 1'd0;
         sdcard_block2mem_wishbonedmawriter_loop_re <= 1'd0;
         sdcard_block2mem_wishbonedmawriter_offset_re <= 1'd0;
-        sdcard_block2mem_wishbonedmawriter_offset <= 32'd0;
         sdcard_block2mem_connect <= 1'd0;
         sdcard_block2mem_done_d <= 1'd0;
         sdcard_mem2block_irq <= 1'd0;
         sdcard_mem2block_dma_fifo_level <= 5'd0;
         sdcard_mem2block_dma_fifo_produce <= 4'd0;
         sdcard_mem2block_dma_fifo_consume <= 4'd0;
+        sdcard_mem2block_dma_offset1 <= 32'd0;
         sdcard_mem2block_dma_base_storage <= 64'd0;
         sdcard_mem2block_dma_base_re <= 1'd0;
         sdcard_mem2block_dma_length_storage <= 32'd0;
@@ -4379,7 +4399,6 @@ always @(posedge sys_clk) begin
         sdcard_mem2block_dma_loop_storage <= 1'd0;
         sdcard_mem2block_dma_loop_re <= 1'd0;
         sdcard_mem2block_dma_offset_re <= 1'd0;
-        sdcard_mem2block_dma_offset <= 32'd0;
         sdcard_mem2block_converter_converter_mux <= 2'd0;
         sdcard_mem2block_fifo_readable <= 1'd0;
         sdcard_mem2block_fifo_level0 <= 10'd0;
@@ -4409,23 +4428,13 @@ always @(posedge sys_clk) begin
         sdmem2blockdma_state <= 2'd0;
         wishbone2csr_state <= 1'd0;
     end
+    xilinxmultiregimpl_xilinxmultiregimpl <= (~clocker_clk0);
 end
 
 
 //------------------------------------------------------------------------------
 // Specialized Logic
 //------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// Instance BUFG of BUFG Module.
-//------------------------------------------------------------------------------
-BUFG BUFG(
-	// Inputs.
-	.I ((clocker_clk1 & (~clocker_clk_d))),
-
-	// Outputs.
-	.O (clocker_ce)
-);
 
 //------------------------------------------------------------------------------
 // Memory storage: 8-words x 10-bit
@@ -4583,5 +4592,5 @@ IOBUF IOBUF_4(
 endmodule
 
 // -----------------------------------------------------------------------------
-//  Auto-Generated by LiteX on 2024-04-03 20:02:06.
+//  Auto-Generated by LiteX on 2025-02-17 09:51:44.
 //------------------------------------------------------------------------------
