@@ -67,6 +67,9 @@
 #define   SYS_REG_GIT_IS_DIRTY			(1ull << 63)
 #define SYS_REG_CPU_CTRL		0x58
 #define   SYS_REG_CPU_CTRL_ENABLE		0xff
+#define SYS_REG_TB_CTRL			0x60
+#define   SYS_REG_TB_CTRL_FREEZE		0x01
+#define   SYS_REG_TB_CTRL_RD_PROTECT		0x02
 
 /*
  * Register definitions for the potato UART

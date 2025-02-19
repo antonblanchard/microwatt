@@ -183,6 +183,7 @@ architecture behaviour of soc is
     signal alt_reset     : std_ulogic;
     signal wb_syscon_in  : wb_io_master_out;
     signal wb_syscon_out : wb_io_slave_out;
+    signal tb_ctrl       : timebase_ctrl;
 
     -- UART0 signals:
     signal wb_uart0_in   : wb_io_master_out;
@@ -271,8 +272,6 @@ architecture behaviour of soc is
 
     signal core_run_out       : std_ulogic_vector(NCPUS-1 downto 0);
 
-    signal timebase : std_ulogic_vector(63 downto 0);
-
     function wishbone_widen_data(wb : wb_io_master_out) return wishbone_master_out is
         variable wwb : wishbone_master_out;
     begin
@@ -333,6 +332,7 @@ begin
 
     -- either external reset, or from syscon
     soc_reset <= rst or sw_soc_reset;
+    tb_ctrl.reset <= soc_reset;
 
     resets: process(system_clk)
     begin
@@ -349,21 +349,6 @@ begin
             rst_wbar    <= soc_reset;
             rst_wbdb    <= soc_reset;
             alt_reset_d <= alt_reset;
-        end if;
-    end process;
-
-    -- Timebase just increments at the system clock frequency.
-    -- There is currently no way to set it.
-    -- Ideally it would (appear to) run at 512MHz like IBM POWER systems,
-    -- but Linux seems to cope OK with it being 100MHz or whatever.
-    tbase: process(system_clk)
-    begin
-        if rising_edge(system_clk) then
-            if soc_reset = '1' then
-                timebase <= (others => '0');
-            else
-                timebase <= std_ulogic_vector(unsigned(timebase) + 1);
-            end if;
         end if;
     end process;
 
@@ -391,7 +376,7 @@ begin
 	    rst => rst_core(i),
 	    alt_reset => alt_reset_d,
             run_out => core_run_out(i),
-            timebase => timebase,
+            tb_ctrl => tb_ctrl,
 	    wishbone_insn_in => wb_masters_in(i + NCPUS),
 	    wishbone_insn_out => wb_masters_out(i + NCPUS),
 	    wishbone_data_in => wb_masters_in(i),
@@ -823,7 +808,9 @@ begin
 	    dram_at_0 => dram_at_0,
 	    core_reset => do_core_reset,
 	    soc_reset => sw_soc_reset,
-	    alt_reset => alt_reset
+	    alt_reset => alt_reset,
+            tb_rdp => tb_ctrl.rd_prot,
+            tb_frz => tb_ctrl.freeze
 	    );
 
     --

@@ -34,7 +34,7 @@ entity execute1 is
 	ext_irq_in : std_ulogic;
         interrupt_in : WritebackToExecute1Type;
 
-        timebase : std_ulogic_vector(63 downto 0);
+        tb_ctrl : timebase_ctrl;
 
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
@@ -101,6 +101,8 @@ architecture behaviour of execute1 is
         write_ciabr : std_ulogic;
         enter_wait : std_ulogic;
         scv_trap : std_ulogic;
+        write_tbl : std_ulogic;
+        write_tbu : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -279,6 +281,10 @@ architecture behaviour of execute1 is
 
     signal stage2_stall : std_ulogic;
 
+    signal timebase : std_ulogic_vector(63 downto 0);
+    signal tb_next  : std_ulogic_vector(63 downto 0);
+    signal tb_carry : std_ulogic;
+
     type privilege_level is (USER, SUPER);
     type op_privilege_array is array(insn_type_t) of privilege_level;
     constant op_privilege: op_privilege_array := (
@@ -425,6 +431,32 @@ architecture behaviour of execute1 is
         return ret;
     end;
 
+    -- return contents of DEXCR or HDEXCR
+    -- top 32 bits are zeroed for access via non-privileged number
+    function assemble_dexcr(c: ctrl_t; insn: std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
+        variable ret : std_ulogic_vector(63 downto 0);
+        variable spr : std_ulogic_vector(9 downto 0);
+        variable dexh, dexl : aspect_bits_t;
+    begin
+        ret := (others => '0');
+        spr := insn(15 downto 11) & insn(20 downto 16);
+        if spr(9) = '1' then
+            dexh := c.dexcr_pnh;
+            dexl := c.dexcr_pro;
+        else
+            dexh := c.hdexcr_hyp;
+            dexl := c.hdexcr_enf;
+        end if;
+        if spr(4) = '0' then
+            dexl := (others => '0');
+        end if;
+        ret := dexh(DEXCR_SBHE) & "00" & dexh(DEXCR_IBRTPD) & dexh(DEXCR_SRAPD) &
+               dexh(DEXCR_NPHIE) & dexh(DEXCR_PHIE) & 25x"0" &
+               dexl(DEXCR_SBHE) & "00" & dexl(DEXCR_IBRTPD) & dexl(DEXCR_SRAPD) &
+               dexl(DEXCR_NPHIE) & dexl(DEXCR_PHIE) & 25x"0";
+        return ret;
+    end;
+
     -- Tell vivado to keep the hierarchy for the random module so that the
     -- net names in the xdc file match.
     attribute keep_hierarchy : string;
@@ -526,6 +558,43 @@ begin
             p_in => x_to_pmu,
             p_out => pmu_to_x
             );
+
+    -- Timebase just increments at the system clock frequency.
+    -- Ideally it would (appear to) run at 512MHz like IBM POWER systems,
+    -- but Linux seems to cope OK with it being 100MHz or whatever.
+    tbase: process(clk)
+    begin
+        if rising_edge(clk) then
+            if tb_ctrl.reset = '1' then
+                timebase <= (others => '0');
+                tb_carry <= '0';
+            else
+                timebase <= tb_next;
+                tb_carry <= and(tb_next(31 downto 0));
+            end if;
+        end if;
+    end process;
+
+    tbase_comb: process(all)
+        variable thi, tlo : std_ulogic_vector(31 downto 0);
+        variable carry : std_ulogic;
+    begin
+        tlo := timebase(31 downto 0);
+        thi := timebase(63 downto 32);
+        carry := '0';
+        if stage2_stall = '0' and ex1.se.write_tbl = '1' then
+            tlo := ex1.e.write_data(31 downto 0);
+        elsif tb_ctrl.freeze = '0' then
+            tlo := std_ulogic_vector(unsigned(tlo) + 1);
+            carry := tb_carry;
+        end if;
+        if stage2_stall = '0' and ex1.se.write_tbu = '1' then
+            thi := ex1.e.write_data(31 downto 0);
+        else
+            thi := std_ulogic_vector(unsigned(thi) + carry);
+        end if;
+        tb_next <= thi & tlo;
+    end process;
 
     dbg_ctrl_out <= ctrl;
     log_rd_addr <= ex2.log_addr_spr;
@@ -1306,7 +1375,7 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
-		if e_in.spr_is_ram = '1' then
+		if e_in.spr_is_ram = '1' or e_in.spr_select.noop = '1' then
                     if e_in.valid = '1' and not is_X(e_in.insn) then
                         report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
                             "=" & to_hstring(alu_result);
@@ -1398,6 +1467,10 @@ begin
                             v.se.write_dscr := '1';
                         when SPRSEL_CIABR =>
                             v.se.write_ciabr := '1';
+                        when SPRSEL_TB =>
+                            v.se.write_tbl := '1';
+                        when SPRSEL_TBU =>
+                            v.se.write_tbu := '1';
                         when others =>
                     end case;
                 end if;
@@ -1600,6 +1673,7 @@ begin
         variable go : std_ulogic;
         variable bypass_valid : std_ulogic;
         variable is_scv : std_ulogic;
+        variable dex : aspect_bits_t;
     begin
 	v := ex1;
         if busy_out = '0' then
@@ -1735,6 +1809,13 @@ begin
         bperm_start <= go and actions.start_bperm;
         pmu_trace <= go and actions.do_trace;
 
+        -- evaluate DEXCR/HDEXCR bits that apply at present
+        if ex1.msr(MSR_PR) = '0' then
+            dex := ctrl.hdexcr_hyp;
+        else
+            dex := ctrl.dexcr_pro or ctrl.hdexcr_enf;
+        end if;
+
         if not HAS_FPU and ex1.div_in_progress = '1' then
             v.div_in_progress := not divider_to_x.valid;
             v.busy := not divider_to_x.valid;
@@ -1850,6 +1931,11 @@ begin
         lv.second := e_in.second;
         lv.e2stall := fp_in.f2stall;
         lv.hashkey := ramspr_odd;
+        if e_in.insn(7) = '0' then
+            lv.hash_enable := dex(DEXCR_PHIE);
+        else
+            lv.hash_enable := dex(DEXCR_NPHIE);
+        end if;
 
         -- Outputs to FPU
         fv.op := e_in.insn_type;
@@ -1897,6 +1983,7 @@ begin
         39x"0" & ctrl.dscr when SPRSEL_DSCR,
         56x"0" & std_ulogic_vector(to_unsigned(CPU_INDEX, 8)) when SPRSEL_PIR,
         ctrl.ciabr when SPRSEL_CIABR,
+        assemble_dexcr(ctrl, ex1.insn) when SPRSEL_DEXCR,
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
 
     stage2_stall <= l_in.l2stall or fp_in.f2stall;
