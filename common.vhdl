@@ -39,6 +39,8 @@ package common is
     constant SPR_DAR    : spr_num_t := 19;
     constant SPR_TB     : spr_num_t := 268;
     constant SPR_TBU    : spr_num_t := 269;
+    constant SPR_TBLW   : spr_num_t := 284;
+    constant SPR_TBUW   : spr_num_t := 285;
     constant SPR_DEC    : spr_num_t := 22;
     constant SPR_SRR0   : spr_num_t := 26;
     constant SPR_SRR1   : spr_num_t := 27;
@@ -71,6 +73,14 @@ package common is
     constant SPR_DAWRX1 : spr_num_t := 189;
     constant SPR_HASHKEYR  : spr_num_t := 468;
     constant SPR_HASHPKEYR : spr_num_t := 469;
+    constant SPR_DEXCR  : spr_num_t := 828;
+    constant SPR_DEXCRU : spr_num_t := 812;
+    constant SPR_HDEXCR : spr_num_t := 471;
+    constant SPR_HDEXCU : spr_num_t := 455;
+    constant SPR_NOOP0  : spr_num_t := 808;
+    constant SPR_NOOP1  : spr_num_t := 809;
+    constant SPR_NOOP2  : spr_num_t := 810;
+    constant SPR_NOOP3  : spr_num_t := 811;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -167,6 +177,7 @@ package common is
         ispmu : std_ulogic;
         ronly : std_ulogic;
         wonly : std_ulogic;
+        noop  : std_ulogic;
     end record;
     constant spr_id_init : spr_id := (sel => "0000", others => '0');
 
@@ -184,6 +195,7 @@ package common is
     constant SPRSEL_DSCR  : spr_selector := 4x"b";
     constant SPRSEL_PIR   : spr_selector := 4x"c";
     constant SPRSEL_CIABR : spr_selector := 4x"d";
+    constant SPRSEL_DEXCR : spr_selector := 4x"e";
     constant SPRSEL_XER   : spr_selector := 4x"f";
 
     -- FSCR and HFSCR bit numbers
@@ -266,6 +278,16 @@ package common is
         pri : std_ulogic_vector(31 downto 0);   -- 8 bits each for 4 cpus
     end record;
 
+    -- Bits in each half of DEXCR and HDEXCR
+    subtype aspect_bits_t is std_ulogic_vector(4 downto 0);
+    constant aspect_bits_init : aspect_bits_t := (others => '1');
+    -- Bit numbers in aspect_bits_t
+    constant DEXCR_SBHE   : integer := 4;       -- speculative branch hint enable
+    constant DEXCR_IBRTPD : integer := 3;       -- indirect branch recurrent target prediction disable
+    constant DEXCR_SRAPD  : integer := 2;       -- subroutine return address prediction disable
+    constant DEXCR_NPHIE  : integer := 1;       -- non-privileged hash instruction enable
+    constant DEXCR_PHIE   : integer := 0;       -- privileged hash instruction enable
+
     -- This needs to die...
     type ctrl_t is record
         wait_state: std_ulogic;
@@ -287,13 +309,25 @@ package common is
         heir: std_ulogic_vector(63 downto 0);
         dscr: std_ulogic_vector(24 downto 0);
         ciabr: std_ulogic_vector(63 downto 0);
+        dexcr_pnh: aspect_bits_t;
+        dexcr_pro: aspect_bits_t;
+        hdexcr_hyp: aspect_bits_t;
+        hdexcr_enf: aspect_bits_t;
     end record;
     constant ctrl_t_init : ctrl_t :=
         (wait_state => '0', run => '1', xer_low => 18x"0",
          fscr_ic => x"0", fscr_pref => '1', fscr_scv => '1', fscr_tar => '1', fscr_dscr => '1',
          hfscr_ic => x"0", hfscr_pref => '1', hfscr_tar => '1', hfscr_dscr => '1', hfscr_fp => '1',
          dscr => (others => '0'),
+         dexcr_pnh => aspect_bits_init, dexcr_pro => aspect_bits_init,
+         hdexcr_hyp => aspect_bits_init, hdexcr_enf => aspect_bits_init,
          others => (others => '0'));
+
+    type timebase_ctrl is record
+        reset   : std_ulogic;
+        rd_prot : std_ulogic;           -- read-protect => userspace can't read TB
+        freeze  : std_ulogic;
+    end record;
 
     type Fetch1ToIcacheType is record
 	req: std_ulogic;
@@ -604,6 +638,7 @@ package common is
         e2stall : std_ulogic;
         msr : std_ulogic_vector(63 downto 0);
         hashkey : std_ulogic_vector(63 downto 0);
+        hash_enable : std_ulogic;
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
         (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
@@ -616,7 +651,7 @@ package common is
          length => (others => '0'),
          mode_32bit => '0', is_32bit => '0', prefixed => '0',
          repeat => '0', second => '0', e2stall => '0',
-         msr => (others => '0'), hashkey => (others => '0'));
+         msr => (others => '0'), hashkey => (others => '0'), hash_enable => '0');
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;

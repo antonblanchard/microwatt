@@ -565,6 +565,7 @@ begin
         variable sprn : std_ulogic_vector(9 downto 0);
         variable misaligned : std_ulogic;
         variable addr_mask : std_ulogic_vector(2 downto 0);
+        variable hash_nop : std_ulogic;
     begin
         v := request_init;
         sprn := l_in.insn(15 downto 11) & l_in.insn(20 downto 16);
@@ -641,7 +642,7 @@ begin
         if l_in.repeat = '1' and l_in.update = '0' and addr(3) /= l_in.second then
             misaligned := '1';
         end if;
-        v.align_intr := (l_in.reserve or l_in.hash) and misaligned;
+        v.align_intr := (l_in.reserve or (l_in.hash and l_in.hash_enable)) and misaligned;
 
         v.atomic_first := not misaligned and not l_in.second;
         v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
@@ -661,6 +662,7 @@ begin
             end if;
         end if;
 
+        hash_nop := '0';
         case l_in.op is
             when OP_SYNC =>
                 v.sync := '1';
@@ -671,6 +673,7 @@ begin
                     v.touch := '1';
                 end if;
                 v.hashst := l_in.hash;
+                hash_nop := not l_in.hash_enable;
             when OP_LOAD =>
                 if l_in.update = '0' or l_in.second = '0' then
                     v.load := '1';
@@ -686,6 +689,7 @@ begin
                     v.do_update := '1';
                 end if;
                 v.hashcmp := l_in.hash;
+                hash_nop := not l_in.hash_enable;
             when OP_DCBF =>
                 v.load := '1';
                 v.flush := '1';
@@ -709,7 +713,8 @@ begin
                 v.mmu_op := '1';
             when others =>
         end case;
-        v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz) and not v.align_intr;
+        v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz) and not v.align_intr and
+                    not hash_nop;
         v.incomplete := v.dc_req and v.two_dwords;
 
         -- Work out controls for load and store formatting

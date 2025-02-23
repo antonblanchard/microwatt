@@ -457,11 +457,20 @@ architecture behaviour of decode1 is
         i.ispmu := '0';
         i.ronly := '0';
         i.wonly := '0';
+        i.noop  := '0';
         case sprn is
             when SPR_TB =>
                 i.sel := SPRSEL_TB;
+                i.ronly := '1';
             when SPR_TBU =>
                 i.sel := SPRSEL_TBU;
+                i.ronly := '1';
+            when SPR_TBLW =>
+                i.sel := SPRSEL_TB;
+                i.wonly := '1';
+            when SPR_TBUW =>
+                i.sel := SPRSEL_TB;
+                i.wonly := '1';
             when SPR_DEC =>
                 i.sel := SPRSEL_DEC;
             when SPR_PVR =>
@@ -499,6 +508,13 @@ architecture behaviour of decode1 is
                 i.sel := SPRSEL_PIR;
             when SPR_CIABR =>
                 i.sel := SPRSEL_CIABR;
+            when SPR_DEXCR | SPR_HDEXCR =>
+                i.sel := SPRSEL_DEXCR;
+            when SPR_DEXCRU | SPR_HDEXCU =>
+                i.sel := SPRSEL_DEXCR;
+                i.ronly := '1';
+            when SPR_NOOP0 | SPR_NOOP1 | SPR_NOOP2 | SPR_NOOP3 =>
+                i.noop := '1';
             when others =>
                 i.valid := '0';
         end case;
