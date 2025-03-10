@@ -367,6 +367,7 @@ architecture rtl of dcache is
         write_tag        : std_ulogic;
         slow_valid       : std_ulogic;
         wb               : wishbone_master_out;
+        reloading        : std_ulogic;
         reload_tag       : cache_tag_t;
 	store_way        : way_t;
 	store_row        : row_t;
@@ -431,7 +432,6 @@ architecture rtl of dcache is
     signal r0_valid   : std_ulogic;
     signal r0_stall   : std_ulogic;
 
-    signal fwd_same_tag : std_ulogic;
     signal use_forward_st : std_ulogic;
     signal use_forward_rl : std_ulogic;
     signal use_forward2 : std_ulogic;
@@ -957,7 +957,6 @@ begin
         variable hit_ways    : way_expand_t;
         variable go          : std_ulogic;
         variable nc          : std_ulogic;
-        variable s_hit       : std_ulogic;
         variable s_tag       : cache_tag_t;
         variable s_pte       : tlb_pte_t;
         variable s_ra        : real_addr_t;
@@ -999,7 +998,6 @@ begin
         if r0.req.virt_mode = '1' then
             for j in tlb_way_t loop
                 if tlb_valid_way(j) = '1' then
-                    s_hit := '0';
                     s_pte := read_tlb_pte(j, tlb_pte_way);
                     s_ra := s_pte(REAL_ADDR_BITS - 1 downto TLB_LG_PGSZ) &
                             r0.req.addr(TLB_LG_PGSZ - 1 downto 0);
@@ -1053,7 +1051,6 @@ begin
             end if;
         end if;
         req_same_tag <= rel_match;
-        fwd_same_tag <= fwd_match;
 
         -- This is 1 if the snooped write from the previous cycle hits the same
         -- cache line that is being accessed in this cycle.
@@ -1072,7 +1069,7 @@ begin
         if rel_match = '1' and r1.store_row = req_row then
             -- Use the forwarding path if this cycle is a write to this row
             use_forward_st <= r1.write_bram;
-            if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' then
+            if r1.reloading = '1' and wishbone_in.ack = '1' then
                 use_forward_rl <= '1';
             end if;
         end if;
@@ -1105,12 +1102,12 @@ begin
         end if;
 
         -- See if the request matches the line currently being reloaded
-        if r1.state = RELOAD_WAIT_ACK and rel_match = '1' then
+        if r1.reloading = '1' and rel_match = '1' then
             assert not is_X(rindex);
             assert not is_X(r1.store_index);
         end if;
         hit_reload := '0';
-        if r1.state = RELOAD_WAIT_ACK and rel_match = '1' and
+        if r1.reloading = '1' and rel_match = '1' and
             rindex = r1.store_index then
             -- Ignore is_hit from above, because a load miss writes the new tag
             -- but doesn't clear the valid bit on the line before refilling it.
@@ -1347,7 +1344,7 @@ begin
 
             wr_sel_m <= (others => '0');
             if r1.write_bram = '1' or
-                (r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1') then
+                (r1.reloading = '1' and wishbone_in.ack = '1') then
                 assert not is_X(replace_way);
                 if to_unsigned(i, WAY_BITS) = replace_way then
                     wr_sel_m <= ram_wr_select;
@@ -1410,7 +1407,7 @@ begin
             r1.forward_row <= r1.store_row;
             r1.forward_sel <= ram_wr_select;
             r1.forward_valid <= r1.write_bram;
-            if r1.state = RELOAD_WAIT_ACK and wishbone_in.ack = '1' then
+            if r1.reloading = '1' and wishbone_in.ack = '1' then
                 r1.forward_valid <= '1';
             end if;
 
@@ -1476,6 +1473,7 @@ begin
                 r1.wb.stb <= '0';
                 r1.ls_valid <= '0';
                 r1.mmu_done <= '0';
+                r1.reloading <= '0';
                 r1.acks_pending <= to_unsigned(0, 3);
                 r1.stalled <= '0';
                 r1.dec_acks <= '0';
@@ -1654,6 +1652,7 @@ begin
                         if req.nc = '0' then
                             -- Track that we had one request sent
                             r1.state <= RELOAD_WAIT_ACK;
+                            r1.reloading <= '1';
                             r1.write_tag <= '1';
                             ev.load_miss <= '1';
 
@@ -1690,7 +1689,8 @@ begin
                             -- dcbz is handled much like a load miss except
                             -- that we are writing to memory instead of reading
                             r1.state <= RELOAD_WAIT_ACK;
-                            r1.write_tag <= not req.is_hit;
+                            r1.reloading <= not req.nc;
+                            r1.write_tag <= not req.nc and not req.is_hit;
                             r1.wb.we <= '1';
                             r1.wb.cyc <= '1';
                             r1.wb.stb <= '1';
@@ -1763,7 +1763,10 @@ begin
 			    -- Cache line is now valid
                             assert not is_X(r1.store_index);
                             assert not is_X(r1.store_way);
-			    cache_valids(to_integer(r1.store_index))(to_integer(r1.store_way)) <= '1';
+                            if r1.reloading = '1' then
+                                cache_valids(to_integer(r1.store_index))(to_integer(r1.store_way)) <= '1';
+                            end if;
+                            r1.reloading <= '0';
 
                             ev.dcache_refill <= not r1.dcbz;
                             -- Second half of a lq/lqarx can assume a hit on this line now

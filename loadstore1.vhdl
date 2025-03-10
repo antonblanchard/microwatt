@@ -695,7 +695,6 @@ begin
                 v.flush := '1';
             when OP_DCBZ =>
                 v.dcbz := '1';
-                v.align_intr := v.nc;
             when OP_TLBIE =>
                 v.tlbie := '1';
                 v.is_slbia := l_in.insn(7);
