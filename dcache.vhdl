@@ -14,6 +14,7 @@ use work.wishbone_types.all;
 
 entity dcache is
     generic (
+        SIM : boolean := false;
         -- Line size in bytes
         LINE_SIZE : positive := 64;
         -- Number of lines in a set
@@ -922,10 +923,10 @@ begin
                 index := get_index(d_in.addr);
                 valid := d_in.valid;
             end if;
-            if valid = '1' then
+            if valid = '1' or not SIM then
                 cache_tag_set <= cache_tags(to_integer(index));
             else
-                cache_tag_set <= (others => '0');
+                cache_tag_set <= (others => 'X');
             end if;
         end if;
     end process;
