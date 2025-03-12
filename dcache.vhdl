@@ -416,7 +416,6 @@ architecture rtl of dcache is
 
     signal reservation : reservation_t;
     signal kill_rsrv   : std_ulogic;
-    signal kill_rsrv2  : std_ulogic;
 
     -- Async signals on incoming request
     signal req_index        : index_t;
@@ -936,9 +935,6 @@ begin
     snoop_addr <= addr_to_real(wb_to_addr(snoop_in.adr));
     snoop_active <= snoop_in.cyc and snoop_in.stb and snoop_in.we and
                     not (r1.wb.cyc and not wishbone_in.stall);
-    kill_rsrv <= '1' when (snoop_active = '1' and reservation.valid = '1' and
-                           snoop_addr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) = reservation.addr)
-                 else '0';
 
     -- Cache tag RAM second read port, for snooping
     cache_tag_read_2 : process(clk)
@@ -954,10 +950,9 @@ begin
         end if;
     end process;
 
-    -- Compare the previous cycle's snooped store address to the reservation,
-    -- to catch the case where a write happens on cycle 1 of a cached larx
-    kill_rsrv2 <= '1' when (snoop_valid = '1' and reservation.valid = '1' and
-                            snoop_paddr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) = reservation.addr)
+    -- Compare the previous cycle's snooped store address to the reservation
+    kill_rsrv <= '1' when (snoop_valid = '1' and reservation.valid = '1' and
+                           snoop_paddr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) = reservation.addr)
                   else '0';
 
     snoop_tag_match : process(all)
@@ -1493,10 +1488,8 @@ begin
                 r1.mmu_done <= (r0_valid and (r0.tlbie or r0.tlbld)) or
                                (req_op_load_hit and r0.mmu_req);
 
-                -- The kill_rsrv2 term covers the case where the reservation
-                -- address was set at the beginning of this cycle, and a store
-                -- to that address happened in the previous cycle.
-                if kill_rsrv = '1' or kill_rsrv2 = '1' then
+                -- Clear the reservation if another entity writes to that line
+                if kill_rsrv = '1' then
                     reservation.valid <= '0';
                 end if;
                 if req_go = '1' and access_ok = '1' and r0.req.load = '1' and
@@ -1689,9 +1682,18 @@ begin
 
                     if req.op_store = '1' then
                         if req.reserve = '1' then
-                            -- stcx needs to wait until next cycle
-                            -- for the reservation address check
-                            r1.state <= DO_STCX;
+                            if reservation.valid = '0' or kill_rsrv = '1' then
+                                -- someone else has stored to the reservation granule
+                                r1.stcx_fail <= '1';
+                                r1.full <= '0';
+                                r1.ls_valid <= '1';
+                            else
+                                r1.wb.we <= '1';
+                                r1.wb.cyc <= '1';
+                                -- stcx needs to wait to assert stb until next cycle
+                                -- for the reservation address check
+                                r1.state <= DO_STCX;
+                            end if;
                         elsif req.dcbz = '0' then
                             r1.state <= STORE_WAIT_ACK;
                             r1.full <= '0';
@@ -1876,28 +1878,21 @@ begin
                     if reservation.valid = '0' or kill_rsrv = '1' or
                         r1.req.real_addr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) /= reservation.addr then
                         -- Wrong address, didn't have reservation, or lost reservation
-                        -- Abandon the wishbone cycle if started and fail the stcx.
+                        -- Abandon the wishbone cycle and fail the stcx.
                         r1.stcx_fail <= '1';
                         r1.full <= '0';
                         r1.ls_valid <= '1';
                         r1.state <= IDLE;
                         r1.wb.cyc <= '0';
-                        r1.wb.stb <= '0';
                         reservation.valid <= '0';
                         -- If this is the first half of a stqcx., the second half
                         -- will fail also because the reservation is not valid.
                         r1.state <= IDLE;
-                    elsif r1.wb.cyc = '0' then
-                        -- Right address and have reservation, so start the
-                        -- wishbone cycle
-                        r1.wb.we <= '1';
-                        r1.wb.cyc <= '1';
-                        r1.wb.stb <= '1';
-                    elsif r1.wb.stb = '1' and wishbone_in.stall = '0' then
-                        -- Store has been accepted, so now we can write the
-                        -- cache data RAM and complete the request
+                    elsif wishbone_in.stall = '0' then
+                        -- We have the wishbone, so now we can assert stb,
+                        -- write the cache data RAM and complete the request
                         r1.write_bram <= r1.req.is_hit;
-                        r1.wb.stb <= '0';
+                        r1.wb.stb <= '1';
                         r1.full <= '0';
                         r1.slow_valid <= '1';
                         r1.ls_valid <= '1';
