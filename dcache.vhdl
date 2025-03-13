@@ -181,9 +181,9 @@ architecture rtl of dcache is
         return pa;
     end;
 
-    function andor(mask : std_ulogic; in1 : std_ulogic_vector(7 downto 0);
-                   in2 : std_ulogic_vector(7 downto 0)) return std_ulogic_vector is
-        variable t : std_ulogic_vector(7 downto 0) := (others => mask);
+    function andor(mask : std_ulogic; in1 : std_ulogic_vector(wishbone_data_bits-1 downto 0);
+                   in2 : std_ulogic_vector(wishbone_data_bits-1 downto 0)) return std_ulogic_vector is
+        variable t : std_ulogic_vector(wishbone_data_bits-1 downto 0) := (others => mask);
     begin
         return in2 or (in1 and t);
     end;
@@ -442,9 +442,9 @@ architecture rtl of dcache is
     signal r0_valid   : std_ulogic;
     signal r0_stall   : std_ulogic;
 
-    signal use_forward_st : std_ulogic;
-    signal use_forward_rl : std_ulogic;
-    signal use_forward2 : std_ulogic;
+    signal use_forward_st : way_expand_t;
+    signal use_forward_rl : way_expand_t;
+    signal use_forward2 : way_expand_t;
 
     -- Cache RAM interface
     type cache_ram_out_t is array(0 to NUM_WAYS-1) of cache_row_t;
@@ -1109,9 +1109,14 @@ begin
         end if;
 
         -- Whether to use forwarded data for a load or not
-        use_forward_rl <= or (hit_ways and maybe_fwd_rl);
-        use_forward_st <= or (hit_ways and maybe_fwd_st);
-        use_forward2   <= or (hit_ways and maybe_fwd2);
+        if r1.dcbz = '0' then
+            use_forward_rl <= maybe_fwd_rl;
+            use_forward_st <= maybe_fwd_st;
+        else
+            use_forward_rl <= (others => '0');
+            use_forward_st <= maybe_fwd_rl;
+        end if;
+        use_forward2   <= maybe_fwd2;
 
         -- The way to replace on a miss
         replace_way <= to_unsigned(0, WAY_BITS);
@@ -1319,11 +1324,28 @@ begin
 		wr_data => ram_wr_data
 		);
 	process(all)
+            variable dword : cache_row_t;
+            variable j     : integer;
 	begin
 	    -- Cache hit reads
 	    do_read <= early_rd_valid;
             rd_addr <= std_ulogic_vector(early_req_row);
-	    cache_out(i) <= dout;
+
+            -- Forward write data from this cycle or the previous
+            dword := (others => '0');
+            for b in 0 to ROW_SIZE - 1 loop
+                j := b * 8;
+                if use_forward_rl(i) = '1' then
+                    dword(j + 7 downto j) := wishbone_in.dat(j + 7 downto j);
+                elsif use_forward_st(i) = '1' and r1.req.byte_sel(b) = '1' then
+                    dword(j + 7 downto j) := r1.req.data(j + 7 downto j);
+                elsif use_forward2(i) = '1' and r1.forward_sel(b) = '1' then
+                    dword(j + 7 downto j) := r1.forward_data(j + 7 downto j);
+                else
+                    dword(j + 7 downto j) := dout(j + 7 downto j);
+                end if;
+            end loop;
+	    cache_out(i) <= dword;
 
 	    -- Write mux:
 	    --
@@ -1354,44 +1376,20 @@ begin
         variable j        : integer;
         variable sel      : std_ulogic_vector(1 downto 0);
         variable data_out : std_ulogic_vector(63 downto 0);
-        variable byte_out : std_ulogic_vector(7 downto 0);
     begin
         if rising_edge(clk) then
             if r0_valid = '1' then
                 r1.mmu_req <= r0.mmu_req;
             end if;
 
-            -- Bypass/forwarding multiplexer for load data.
-            -- Use the bypass if are reading the row of BRAM that was written 0 or 1
-            -- cycles ago, including for the slow_valid = 1 cases (i.e. completing a
-            -- load miss or a non-cacheable load), which are handled via the r1.full case.
-            for i in 0 to 7 loop
-                if r1.full = '1' or use_forward_rl = '1' then
-                    sel := '0' & r1.dcbz;
-                elsif use_forward_st = '1' and r1.req.byte_sel(i) = '1' then
-                    sel := "01";
-                elsif use_forward2 = '1' and r1.forward_sel(i) = '1' then
-                    sel := "10";
-                else
-                    sel := "11";
-                end if;
-                j := i * 8;
-                case sel is
-                    when "00" =>
-                        data_out(j + 7 downto j) := wishbone_in.dat(j + 7 downto j);
-                    when "01" =>
-                        data_out(j + 7 downto j) := r1.req.data(j + 7 downto j);
-                    when "10" =>
-                        data_out(j + 7 downto j) := r1.forward_data(j + 7 downto j);
-                    when others =>
-                        byte_out := (others => '0');
-                        for w in 0 to NUM_WAYS-1 loop
-                            byte_out := andor(req_hit_ways(w), cache_out(w)(j + 7 downto j),
-                                              byte_out);
-                        end loop;
-                        data_out(j + 7 downto j) := byte_out;
-                end case;
-            end loop;
+            data_out := (others => '0');
+            if r1.full = '1' then
+                data_out := wishbone_in.dat;
+            else
+                for w in 0 to NUM_WAYS-1 loop
+                    data_out := andor(req_hit_ways(w), cache_out(w), data_out);
+                end loop;
+            end if;
             r1.data_out <= data_out;
 
             r1.forward_data <= ram_wr_data;
