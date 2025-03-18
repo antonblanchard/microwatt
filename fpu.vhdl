@@ -201,6 +201,7 @@ architecture behaviour of fpu is
     signal opsel_aneg    : std_ulogic;
     signal opsel_aabs    : std_ulogic;
     signal opsel_mask    : std_ulogic;
+    signal opsel_sel     : std_ulogic_vector(2 downto 0);
     signal in_a          : std_ulogic_vector(63 downto 0);
     signal in_b          : std_ulogic_vector(63 downto 0);
     signal result        : std_ulogic_vector(63 downto 0);
@@ -1320,6 +1321,7 @@ begin
         opsel_r <= RES_SUM;
         opsel_s <= S_ZERO;
         misc_sel <= "000";
+        opsel_sel <= AIN_ZERO;
         fpscr_mask := (others => '1');
         cr_op := CROP_NONE;
         update_fx := '0';
@@ -1566,8 +1568,9 @@ begin
                 v.instr_done := '1';
 
             when DO_FMR =>
-                opsel_a <= AIN_B;
-                opsel_b <= BIN_ZERO;
+                opsel_r <= RES_MISC;
+                misc_sel <= "111";
+                opsel_sel <= AIN_B;
                 set_r := '1';
                 rcls_op <= RCLS_SEL;
                 re_sel2 <= REXP2_B;
@@ -1652,6 +1655,7 @@ begin
                 opsel_aabs <= '1';
                 opsel_b <= BIN_ZERO;
                 set_r := '1';
+                opsel_sel <= AIN_B;
                 rcls_op <= RCLS_SEL;
                 re_con2 <= RECON2_UNIT;
                 re_set_result <= '1';
@@ -1710,13 +1714,14 @@ begin
                 rsgn_op := RSGN_SEL;
                 rcls_op <= RCLS_SEL;
                 if r.a.class = ZERO or (r.a.negative = '0' and r.a.class /= NAN) then
-                    opsel_a <= AIN_C;
+                    opsel_sel <= AIN_C;
                     re_sel2 <= REXP2_C;
                 else
-                    opsel_a <= AIN_B;
+                    opsel_sel <= AIN_B;
                     re_sel2 <= REXP2_B;
                 end if;
-                opsel_b <= BIN_ZERO;
+                opsel_r <= RES_MISC;
+                misc_sel <= "111";
                 set_r := '1';
                 re_set_result <= '1';
                 arith_done := '1';
@@ -3083,15 +3088,16 @@ begin
                 -- state machine is in the DO_SPECIAL or DO_FSQRT state here
                 arith_done := '1';
                 set_r := '1';
-                opsel_a <= scinfo.result_sel;
-                opsel_b <= BIN_ZERO;
+                opsel_r <= RES_MISC;
+                opsel_sel <= scinfo.result_sel;
                 if scinfo.qnan_result = '1' then
-                    opsel_r <= RES_MISC;
                     if r.int_result = '0' then
                         misc_sel <= "001";
                     else
                         misc_sel <= "110";
                     end if;
+                else
+                    misc_sel <= "111";
                 end if;
                 rsgn_op := scinfo.rsgn_op;
                 v.result_class := scinfo.result_class;
@@ -3107,7 +3113,7 @@ begin
         rsign := r.result_sign;
         case rsgn_op is
             when RSGN_SEL =>
-                case opsel_a is
+                case opsel_sel is
                     when AIN_A =>
                         rsign := r.a.negative;
                     when AIN_B =>
@@ -3128,7 +3134,7 @@ begin
 
         case rcls_op is
             when RCLS_SEL =>
-                case opsel_a is
+                case opsel_sel is
                     when AIN_A =>
                         v.result_class := r.a.class;
                     when AIN_B =>
@@ -3366,6 +3372,7 @@ begin
                             misc := r.a.mantissa(63 downto 32) & r.b.mantissa(63 downto 32);
                         end if;
                     when "101" =>
+                        -- LUT value
                         misc := std_ulogic_vector(shift_left(resize(unsigned(inverse_est), 64),
                                                              UNIT_BIT - 19));
                     when "110" =>
@@ -3382,6 +3389,16 @@ begin
                             end if;
                         end if;
                     when others =>
+                        -- A, B or C, according to opsel_sel
+                        case opsel_sel is
+                            when AIN_A =>
+                                misc := r.a.mantissa;
+                            when AIN_B =>
+                                misc := r.b.mantissa;
+                            when AIN_C =>
+                                misc := r.c.mantissa;
+                            when others =>
+                        end case;
                 end case;
                 result <= misc;
         end case;
