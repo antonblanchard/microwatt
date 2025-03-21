@@ -57,7 +57,7 @@ architecture behaviour of fpu is
                      DO_FSEL,
                      DO_IDIVMOD,
                      FRI_1,
-                     ADD_1, ADD_SHIFT, ADD_2, ADD_3,
+                     ADD_1, ADD_SHIFT, ADD_2, ADD_2B, ADD_3,
                      CMP_1, CMP_2,
                      MULT_1,
                      FMADD_0, FMADD_1, FMADD_2, FMADD_3,
@@ -73,7 +73,7 @@ architecture behaviour of fpu is
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
                      ROUND_UFLOW, ROUND_OFLOW,
-                     ROUNDING, ROUNDING_2, ROUNDING_3,
+                     ROUNDING, ROUND_INC, ROUNDING_2, ROUNDING_3,
                      DENORM,
                      RENORM_A, RENORM_B, RENORM_C,
                      RENORM_1, RENORM_2,
@@ -87,7 +87,8 @@ architecture behaviour of fpu is
                      IDIV_EXT_TBH4, IDIV_EXT_TBH5,
                      IDIV_EXTDIV, IDIV_EXTDIV1, IDIV_EXTDIV2, IDIV_EXTDIV3,
                      IDIV_EXTDIV4, IDIV_EXTDIV5, IDIV_EXTDIV6,
-                     IDIV_MODADJ, IDIV_MODSUB, IDIV_DIVADJ, IDIV_OVFCHK, IDIV_DONE, IDIV_ZERO);
+                     IDIV_MODADJ, IDIV_MODADJ_NEG, IDIV_MODSUB,
+                     IDIV_DIVADJ, IDIV_OVFCHK, IDIV_DONE, IDIV_ZERO);
 
     type decode32 is array(0 to 31) of state_t;
     type decode8 is array(0 to 7) of state_t;
@@ -1027,7 +1028,6 @@ begin
         variable mulexp      : signed(EXP_BITS-1 downto 0);
         variable maddend     : std_ulogic_vector(127 downto 0);
         variable sum         : std_ulogic_vector(63 downto 0);
-        variable round_inc   : std_ulogic_vector(63 downto 0);
         variable mult_mask   : std_ulogic;
         variable sign_bit    : std_ulogic;
         variable rexp_in1    : signed(EXP_BITS-1 downto 0);
@@ -1678,7 +1678,7 @@ begin
                 rs_sel2 <= RSH2_A;
                 v.add_bsmall := '0';
                 if r.a.exponent = r.b.exponent then
-                    v.state := ADD_2;
+                    v.state := ADD_2B;
                 elsif r.a.exponent < r.b.exponent then
                     v.longmask := '0';
                     v.state := ADD_SHIFT;
@@ -1841,14 +1841,24 @@ begin
                 v.x := s_nz;
                 set_x := '1';
                 v.longmask := r.single_prec;
-                v.state := ADD_2;
+                if r.add_bsmall = '1' then
+                    v.state := ADD_2;
+                else
+                    v.state := ADD_2B;
+                end if;
 
             when ADD_2 =>
-                if r.add_bsmall = '1' then
-                    opsel_a <= AIN_A;
-                else
-                    opsel_a <= AIN_B;
-                end if;
+                opsel_a <= AIN_A;
+                opsel_b <= BIN_ADDSUBR;
+                opsel_c <= CIN_SUBEXT;
+                set_r := '1';
+                -- set shift to -1
+                rs_con2 <= RSCON2_1;
+                rs_neg2 <= '1';
+                v.state := ADD_3;
+
+            when ADD_2B =>
+                opsel_a <= AIN_B;
                 opsel_b <= BIN_ADDSUBR;
                 opsel_c <= CIN_SUBEXT;
                 set_r := '1';
@@ -2484,20 +2494,14 @@ begin
                 v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
                 if round(1) = '1' then
                     -- increment the LSB for the precision
-                    opsel_a <= AIN_RND;
-                    -- set shift to -1
-                    rs_con2 <= RSCON2_1;
-                    rs_neg2 <= '1';
-                    v.state := ROUNDING_2;
+                    v.state := ROUND_INC;
+                elsif r.r(UNIT_BIT) = '0' then
+                    -- result after masking could be zero, or could be a
+                    -- denormalized result that needs to be renormalized
+                    rs_norm <= '1';
+                    v.state := ROUNDING_3;
                 else
-                    if r.r(UNIT_BIT) = '0' then
-                        -- result after masking could be zero, or could be a
-                        -- denormalized result that needs to be renormalized
-                        rs_norm <= '1';
-                        v.state := ROUNDING_3;
-                    else
-                        arith_done := '1';
-                    end if;
+                    arith_done := '1';
                 end if;
                 if round(0) = '1' then
                     v.fpscr(FPSCR_XX) := '1';
@@ -2505,6 +2509,14 @@ begin
                         v.fpscr(FPSCR_UX) := '1';
                     end if;
                 end if;
+
+            when ROUND_INC =>
+                set_r := '1';
+                opsel_a <= AIN_RND;
+                -- set shift to -1
+                rs_con2 <= RSCON2_1;
+                rs_neg2 <= '1';
+                v.state := ROUNDING_2;
 
             when ROUNDING_2 =>
                 -- Check for overflow during rounding
@@ -2804,12 +2816,10 @@ begin
                 msel_1 <= MUL1_Y;
                 msel_2 <= MUL2_P;
                 v.inc_quot := not pcmpc_lt and not r.divmod;
-                if r.divmod = '0' then
-                    -- get B into R for IDIV_DIVADJ state
-                    opsel_a <= AIN_B;
-                    opsel_b <= BIN_ZERO;
-                    set_r := '1';
-                end if;
+                -- if dividing, get B into R for IDIV_DIVADJ state
+                opsel_a <= AIN_B;
+                opsel_b <= BIN_ZERO;
+                set_r := not r.divmod;
                 -- set shift to UNIT_BIT (== 56)
                 rs_con2 <= RSCON2_UNIT;
                 if pcmpc_lt = '1' or pcmpc_eq = '1' then
@@ -2872,11 +2882,11 @@ begin
                 v.inc_quot := not pcmpc_lt and not r.divmod;
                 -- set shift to UNIT_BIT (== 56)
                 rs_con2 <= RSCON2_UNIT;
+                -- if dividing, get B into R for IDIV_DIVADJ state
+                opsel_a <= AIN_B;
+                opsel_b <= BIN_ZERO;
+                set_r := not r.divmod;
                 if r.divmod = '0' then
-                    -- get B into R for IDIV_DIVADJ state
-                    opsel_a <= AIN_B;
-                    opsel_b <= BIN_ZERO;
-                    set_r := '1';
                     v.state := IDIV_DIVADJ;
                 elsif pcmpc_eq = '1' then
                     v.state := IDIV_ZERO;
@@ -3026,8 +3036,15 @@ begin
                 elsif r.result_sign = '0' then
                     v.state := IDIV_DONE;
                 else
-                    v.state := IDIV_DIVADJ;
+                    v.state := IDIV_MODADJ_NEG;
                 end if;
+            when IDIV_MODADJ_NEG =>
+                -- result (so far) is in R
+                -- set carry to increment quotient if needed
+                -- and also negate R since the answer is negative
+                opsel_b <= BIN_MINUSR;
+                set_r := '1';
+                v.state := IDIV_OVFCHK;
             when IDIV_MODSUB =>
                 -- Subtract divisor from remainder
                 opsel_a <= AIN_C;
@@ -3043,12 +3060,10 @@ begin
                 -- result (so far) is in R
                 -- set carry to increment quotient if needed
                 -- and also negate R if the answer is negative
+                opsel_a <= AIN_RND_B32;
                 opsel_b <= BIN_RSIGNR;
                 opsel_c <= CIN_RNDQ;
                 set_r := '1';
-                if r.divmod = '0' then
-                    opsel_a <= AIN_RND_B32;
-                end if;
                 if r.is_signed = '0' then
                     v.state := IDIV_DONE;
                 else
