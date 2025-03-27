@@ -189,7 +189,6 @@ package common is
     constant SPRSEL_LOGD  : spr_selector := 4x"5";
     constant SPRSEL_CFAR  : spr_selector := 4x"6";
     constant SPRSEL_FSCR  : spr_selector := 4x"7";
-    constant SPRSEL_HFSCR : spr_selector := 4x"8";
     constant SPRSEL_HEIR  : spr_selector := 4x"9";
     constant SPRSEL_CTRL  : spr_selector := 4x"a";
     constant SPRSEL_DSCR  : spr_selector := 4x"b";
@@ -198,17 +197,11 @@ package common is
     constant SPRSEL_DEXCR : spr_selector := 4x"e";
     constant SPRSEL_XER   : spr_selector := 4x"f";
 
-    -- FSCR and HFSCR bit numbers
+    -- FSCR bit numbers
     constant FSCR_PREFIX   : integer := 63 - 50;
     constant FSCR_SCV      : integer := 63 - 51;
     constant FSCR_TAR      : integer := 63 - 55;
     constant FSCR_DSCR     : integer := 63 - 61;
-    constant HFSCR_PREFIX  : integer := 63 - 50;
-    constant HFSCR_MSG     : integer := 63 - 53;
-    constant HFSCR_TAR     : integer := 63 - 55;
-    constant HFSCR_PMUSPR  : integer := 63 - 60;
-    constant HFSCR_DSCR    : integer := 63 - 61;
-    constant HFSCR_FP      : integer := 63 - 63;
 
     -- FPSCR bit numbers
     constant FPSCR_FX     : integer := 63 - 32;
@@ -301,11 +294,6 @@ package common is
         fscr_scv: std_ulogic;
         fscr_tar: std_ulogic;
         fscr_dscr: std_ulogic;
-        hfscr_ic: std_ulogic_vector(3 downto 0);
-        hfscr_pref: std_ulogic;
-        hfscr_tar: std_ulogic;
-        hfscr_dscr: std_ulogic;
-        hfscr_fp: std_ulogic;
         heir: std_ulogic_vector(63 downto 0);
         dscr: std_ulogic_vector(24 downto 0);
         ciabr: std_ulogic_vector(63 downto 0);
@@ -317,7 +305,6 @@ package common is
     constant ctrl_t_init : ctrl_t :=
         (wait_state => '0', run => '1', xer_low => 18x"0",
          fscr_ic => x"0", fscr_pref => '1', fscr_scv => '1', fscr_tar => '1', fscr_dscr => '1',
-         hfscr_ic => x"0", hfscr_pref => '1', hfscr_tar => '1', hfscr_dscr => '1', hfscr_fp => '1',
          dscr => (others => '0'),
          dexcr_pnh => aspect_bits_init, dexcr_pro => aspect_bits_init,
          hdexcr_hyp => aspect_bits_init, hdexcr_enf => aspect_bits_init,

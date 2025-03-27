@@ -92,8 +92,6 @@ architecture behaviour of execute1 is
         mult_32s : std_ulogic;
         write_fscr : std_ulogic;
         write_ic : std_ulogic;
-        write_hfscr : std_ulogic;
-        write_hic : std_ulogic;
         write_heir : std_ulogic;
         set_heir : std_ulogic;
         write_ctrl : std_ulogic;
@@ -407,18 +405,6 @@ architecture behaviour of execute1 is
         ret(FSCR_SCV) := c.fscr_scv;
         ret(FSCR_TAR) := c.fscr_tar;
         ret(FSCR_DSCR) := c.fscr_dscr;
-        return ret;
-    end;
-
-    function assemble_hfscr(c: ctrl_t) return std_ulogic_vector is
-        variable ret : std_ulogic_vector(63 downto 0);
-    begin
-        ret := (others => '0');
-        ret(59 downto 56) := c.hfscr_ic;
-        ret(HFSCR_PREFIX) := c.hfscr_pref;
-        ret(HFSCR_TAR) := c.hfscr_tar;
-        ret(HFSCR_DSCR) := c.hfscr_dscr;
-        ret(HFSCR_FP) := c.hfscr_fp;
         return ret;
     end;
 
@@ -796,8 +782,6 @@ begin
                         case dbg_spr_addr(3 downto 0) is
                             when SPRSEL_FSCR =>
                                 dbg_spr_data <= assemble_fscr(ctrl);
-                            when SPRSEL_HFSCR =>
-                                dbg_spr_data <= assemble_hfscr(ctrl);
                             when SPRSEL_HEIR =>
                                 dbg_spr_data <= ctrl.heir;
                             when SPRSEL_CFAR =>
@@ -1457,8 +1441,6 @@ begin
                             v.se.write_cfar := '1';
                         when SPRSEL_FSCR =>
                             v.se.write_fscr := '1';
-                        when SPRSEL_HFSCR =>
-                            v.se.write_hfscr := '1';
                         when SPRSEL_HEIR =>
                             v.se.write_heir := '1';
                         when SPRSEL_CTRL =>
@@ -1548,22 +1530,15 @@ begin
         end case;
 
         if ex1.msr(MSR_PR) = '1' and e_in.prefixed = '1' and
-            (ctrl.hfscr_pref = '0' or ctrl.fscr_pref = '0') then
-            -- [Hypervisor] facility unavailable for prefixed instructions,
+            ctrl.fscr_pref = '0' then
+            -- Facility unavailable for prefixed instructions,
             -- which has higher priority than the alignment interrupt for
             -- misaligned prefixed instructions, which has higher priority than
-            -- other [hypervisor] facility unavailable interrupts (e.g. for
-            -- plfs with HFSCR[FP] = 0).
+            -- other facility unavailable interrupts.
             v.exception := '1';
             v.ic := x"b";
-            if ctrl.hfscr_pref = '0' then
-                v.e.hv_intr := '1';
-                v.e.intr_vec := 16#f80#;
-                v.se.write_hic := '1';
-            else
-                v.e.intr_vec := 16#f60#;
-                v.se.write_ic := '1';
-            end if;
+            v.e.intr_vec := 16#f60#;
+            v.se.write_ic := '1';
 
         elsif misaligned = '1' then
             -- generate an alignment interrupt
@@ -1608,41 +1583,20 @@ begin
             v.se.write_ic := '1';
 
         elsif ex1.msr(MSR_PR) = '1' and e_in.uses_tar = '1' and
-            (ctrl.hfscr_tar = '0' or ctrl.fscr_tar = '0') then
-            -- [Hypervisor] facility unavailable for TAR access
+            ctrl.fscr_tar = '0' then
+            -- Facility unavailable for TAR access
             v.exception := '1';
             v.ic := x"8";
-            if ctrl.hfscr_tar = '0' then
-                v.e.hv_intr := '1';
-                v.e.intr_vec := 16#f80#;
-                v.se.write_hic := '1';
-            else
-                v.e.intr_vec := 16#f60#;
-                v.se.write_ic := '1';
-            end if;
+            v.e.intr_vec := 16#f60#;
+            v.se.write_ic := '1';
 
         elsif ex1.msr(MSR_PR) = '1' and e_in.uses_dscr = '1' and
-            (ctrl.hfscr_dscr = '0' or ctrl.fscr_dscr = '0') then
-            -- [Hypervisor] facility unavailable for DSCR access
+            ctrl.fscr_dscr = '0' then
+            -- Facility unavailable for DSCR access
             v.exception := '1';
             v.ic := x"2";
-            if ctrl.hfscr_dscr = '0' then
-                v.e.hv_intr := '1';
-                v.e.intr_vec := 16#f80#;
-                v.se.write_hic := '1';
-            else
-                v.e.intr_vec := 16#f60#;
-                v.se.write_ic := '1';
-            end if;
-
-        elsif HAS_FPU and ex1.msr(MSR_PR) = '1' and e_in.fac = FPU and
-            ctrl.hfscr_fp = '0' then
-            -- Hypervisor facility unavailable for FP instructions
-            v.exception := '1';
-            v.ic := x"0";
-            v.e.hv_intr := '1';
-            v.e.intr_vec := 16#f80#;
-            v.se.write_hic := '1';
+            v.e.intr_vec := 16#f60#;
+            v.se.write_ic := '1';
 
         elsif HAS_FPU and ex1.msr(MSR_FP) = '0' and e_in.fac = FPU then
             -- generate a floating-point unavailable interrupt
@@ -1977,7 +1931,6 @@ begin
         log_rd_data when SPRSEL_LOGD,
         ctrl.cfar when SPRSEL_CFAR,
         assemble_fscr(ctrl) when SPRSEL_FSCR,
-        assemble_hfscr(ctrl) when SPRSEL_HFSCR,
         ctrl.heir when SPRSEL_HEIR,
         assemble_ctrl(ctrl, ex1.msr(MSR_PR)) when SPRSEL_CTRL,
         39x"0" & ctrl.dscr when SPRSEL_DSCR,
@@ -2127,15 +2080,6 @@ begin
                 v.log_addr_spr := std_ulogic_vector(unsigned(ex2.log_addr_spr) + 1);
             end if;
             x_to_pmu.mtspr <= ex1.se.write_pmuspr;
-            if ex1.se.write_hfscr = '1' then
-                ctrl_tmp.hfscr_ic <= ex1.e.write_data(59 downto 56);
-                ctrl_tmp.hfscr_pref <= ex1.e.write_data(HFSCR_PREFIX);
-                ctrl_tmp.hfscr_tar <= ex1.e.write_data(HFSCR_TAR);
-                ctrl_tmp.hfscr_dscr <= ex1.e.write_data(HFSCR_DSCR);
-                ctrl_tmp.hfscr_fp <= ex1.e.write_data(HFSCR_FP);
-            elsif ex1.se.write_hic = '1' then
-                ctrl_tmp.hfscr_ic <= ex1.ic;
-            end if;
             if ex1.se.write_fscr = '1' then
                 ctrl_tmp.fscr_ic <= ex1.e.write_data(59 downto 56);
                 ctrl_tmp.fscr_pref <= ex1.e.write_data(FSCR_PREFIX);
