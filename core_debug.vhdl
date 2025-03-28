@@ -327,6 +327,9 @@ begin
                 when 5x"0e" =>
                     isram := '0';
                     sel := SPRSEL_FSCR;
+                when 5x"0f" =>
+                    isram := '0';
+                    sel := SPRSEL_LPCR;
                 when 5x"10" =>
                     isram := '0';
                     sel := SPRSEL_HEIR;

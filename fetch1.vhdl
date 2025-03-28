@@ -391,11 +391,11 @@ begin
 		v_int.next_nia :=  RESET_ADDRESS;
 	    end if;
         elsif w_in.interrupt = '1' then
-            v_int.next_nia := 47x"0" & w_in.intr_vec(16 downto 2) & "00";
+            v_int.next_nia := w_in.intr_vec(63 downto 2) & "00";
         end if;
 	if rst /= '0' or w_in.interrupt = '1' then
             v.req := '0';
-            v.virt_mode := '0';
+            v.virt_mode := w_in.alt_intr and not rst;
             v.priv_mode := '1';
             v.big_endian := '0';
             v_int.mode_32bit := '0';

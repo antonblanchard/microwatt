@@ -490,6 +490,8 @@ architecture behaviour of decode1 is
                 i.sel := SPRSEL_XER;
             when SPR_FSCR =>
                 i.sel := SPRSEL_FSCR;
+            when SPR_LPCR =>
+                i.sel := SPRSEL_LPCR;
             when SPR_HEIR =>
                 i.sel := SPRSEL_HEIR;
             when SPR_CTRL =>

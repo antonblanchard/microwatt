@@ -92,6 +92,7 @@ architecture behaviour of execute1 is
         mult_32s : std_ulogic;
         write_fscr : std_ulogic;
         write_ic : std_ulogic;
+        write_lpcr : std_ulogic;
         write_heir : std_ulogic;
         set_heir : std_ulogic;
         write_ctrl : std_ulogic;
@@ -210,6 +211,7 @@ architecture behaviour of execute1 is
     signal valid_in : std_ulogic;
     signal ctrl: ctrl_t := ctrl_t_init;
     signal ctrl_tmp: ctrl_t := ctrl_t_init;
+    signal dec_sign: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
@@ -408,6 +410,20 @@ architecture behaviour of execute1 is
         return ret;
     end;
 
+    function assemble_lpcr(c: ctrl_t) return std_ulogic_vector is
+        variable ret : std_ulogic_vector(63 downto 0);
+    begin
+        ret := (others => '0');
+        ret(LPCR_HAIL) := c.lpcr_hail;
+        ret(LPCR_UPRT) := '1';
+        ret(LPCR_HR) := '1';
+        ret(LPCR_LD) := c.lpcr_ld;
+        ret(LPCR_HEIC) := c.lpcr_heic;
+        ret(LPCR_LPES) := c.lpcr_lpes;
+        ret(LPCR_HVICE) := c.lpcr_hvice;
+        return ret;
+    end;
+
     function assemble_ctrl(c: ctrl_t; msrpr: std_ulogic) return std_ulogic_vector is
         variable ret : std_ulogic_vector(63 downto 0);
     begin
@@ -441,6 +457,15 @@ architecture behaviour of execute1 is
                dexl(DEXCR_SBHE) & "00" & dexl(DEXCR_IBRTPD) & dexl(DEXCR_SRAPD) &
                dexl(DEXCR_NPHIE) & dexl(DEXCR_PHIE) & 25x"0";
         return ret;
+    end;
+
+    function assemble_dec(c: ctrl_t) return std_ulogic_vector is
+    begin
+        if c.lpcr_ld = '1' then
+            return c.dec;
+        else
+            return 32x"0" & c.dec(31 downto 0);
+        end if;
     end;
 
     -- Tell vivado to keep the hierarchy for the random module so that the
@@ -581,6 +606,8 @@ begin
         end if;
         tb_next <= thi & tlo;
     end process;
+
+    dec_sign <= (ctrl.dec(63) and ctrl.lpcr_ld) or (ctrl.dec(31) and not ctrl.lpcr_ld);
 
     dbg_ctrl_out <= ctrl;
     log_rd_addr <= ex2.log_addr_spr;
@@ -782,6 +809,8 @@ begin
                         case dbg_spr_addr(3 downto 0) is
                             when SPRSEL_FSCR =>
                                 dbg_spr_data <= assemble_fscr(ctrl);
+                            when SPRSEL_LPCR =>
+                                dbg_spr_data <= assemble_lpcr(ctrl);
                             when SPRSEL_HEIR =>
                                 dbg_spr_data <= ctrl.heir;
                             when SPRSEL_CFAR =>
@@ -1173,6 +1202,7 @@ begin
         v.e.redir_mode := ex1.msr(MSR_IR) & not ex1.msr(MSR_PR) &
                           not ex1.msr(MSR_LE) & not ex1.msr(MSR_SF);
         v.e.intr_vec := 16#700#;
+        v.e.alt_intr := ctrl.lpcr_hail and ex1.msr(MSR_IR) and ex1.msr(MSR_DR);
         v.e.mode_32bit := not ex1.msr(MSR_SF);
         v.e.instr_tag := e_in.instr_tag;
         v.e.last_nia := e_in.nia;
@@ -1441,6 +1471,8 @@ begin
                             v.se.write_cfar := '1';
                         when SPRSEL_FSCR =>
                             v.se.write_fscr := '1';
+                        when SPRSEL_LPCR =>
+                            v.se.write_lpcr := '1';
                         when SPRSEL_HEIR =>
                             v.se.write_heir := '1';
                         when SPRSEL_CTRL =>
@@ -1659,7 +1691,8 @@ begin
         v.busy := '0';
         bypass_valid := actions.bypass_valid;
 
-        irq_valid := ex1.msr(MSR_EE) and (pmu_to_x.intr or ctrl.dec(63) or ext_irq_in);
+        irq_valid := ex1.msr(MSR_EE) and (pmu_to_x.intr or dec_sign or
+                                          (ext_irq_in and not ctrl.lpcr_heic));
 
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
@@ -1701,14 +1734,14 @@ begin
                 if pmu_to_x.intr = '1' then
                     v.e.intr_vec := 16#f00#;
                     report "IRQ valid: PMU";
-                elsif ctrl.dec(63) = '1' then
+                elsif dec_sign = '1' then
                     v.e.intr_vec := 16#900#;
                     report "IRQ valid: DEC";
                 elsif ext_irq_in = '1' then
                     v.e.intr_vec := 16#500#;
                     report "IRQ valid: External";
                     v.ext_interrupt := '1';
-                    v.e.hv_intr := '1';
+                    v.e.hv_intr := not ctrl.lpcr_lpes;
                 end if;
                 v.e.srr1 := (others => '0');
                 exception := '1';
@@ -1925,12 +1958,13 @@ begin
     with ex1.spr_select.sel select spr_result <=
         timebase when SPRSEL_TB,
         32x"0" & timebase(63 downto 32) when SPRSEL_TBU,
-        ctrl.dec when SPRSEL_DEC,
+        assemble_dec(ctrl) when SPRSEL_DEC,
         32x"0" & PVR_MICROWATT when SPRSEL_PVR,
         log_wr_addr & ex2.log_addr_spr when SPRSEL_LOGA,
         log_rd_data when SPRSEL_LOGD,
         ctrl.cfar when SPRSEL_CFAR,
         assemble_fscr(ctrl) when SPRSEL_FSCR,
+        assemble_lpcr(ctrl) when SPRSEL_LPCR,
         ctrl.heir when SPRSEL_HEIR,
         assemble_ctrl(ctrl, ex1.msr(MSR_PR)) when SPRSEL_CTRL,
         39x"0" & ctrl.dscr when SPRSEL_DSCR,
@@ -2089,6 +2123,13 @@ begin
             elsif ex1.se.write_ic = '1' then
                 ctrl_tmp.fscr_ic <= ex1.ic;
             end if;
+            if ex1.se.write_lpcr = '1' then
+                ctrl_tmp.lpcr_hail <= ex1.e.write_data(LPCR_HAIL);
+                ctrl_tmp.lpcr_ld <= ex1.e.write_data(LPCR_LD);
+                ctrl_tmp.lpcr_heic <= ex1.e.write_data(LPCR_HEIC);
+                ctrl_tmp.lpcr_lpes <= ex1.e.write_data(LPCR_LPES);
+                ctrl_tmp.lpcr_hvice <= ex1.e.write_data(LPCR_HVICE);
+            end if;
             if ex1.se.write_heir = '1' then
                 ctrl_tmp.heir <= ex1.e.write_data;
             elsif ex1.se.set_heir = '1' then
@@ -2117,7 +2158,7 @@ begin
         -- pending exceptions clear any wait state
         -- ex1.fp_exception_next is not tested because it is not possible to
         -- get into wait state with a pending FP exception.
-        irq_exc := pmu_to_x.intr or ctrl.dec(63) or ext_irq_in;
+        irq_exc := pmu_to_x.intr or dec_sign or ext_irq_in;
         if ex1.trace_next = '1' or irq_exc = '1' or interrupt_in.intr = '1' then
             ctrl_tmp.wait_state <= '0';
         end if;
@@ -2130,11 +2171,13 @@ begin
             ctrl_tmp.msr(MSR_FP) <= '0';
             ctrl_tmp.msr(MSR_FE0) <= '0';
             ctrl_tmp.msr(MSR_FE1) <= '0';
-            ctrl_tmp.msr(MSR_IR) <= '0';
-            ctrl_tmp.msr(MSR_DR) <= '0';
+            ctrl_tmp.msr(MSR_IR) <= interrupt_in.alt_int;
+            ctrl_tmp.msr(MSR_DR) <= interrupt_in.alt_int;
             ctrl_tmp.msr(MSR_LE) <= '1';
             if interrupt_in.scv_int = '0' then
                 ctrl_tmp.msr(MSR_EE) <= '0';
+            end if;
+            if interrupt_in.scv_int = '0' and interrupt_in.hv_intr = '0' then
                 ctrl_tmp.msr(MSR_RI) <= '0';
             end if;
         end if;
@@ -2158,7 +2201,6 @@ begin
 
 	-- update outputs
 	e_out <= ex2.e;
-        e_out.msr <= msr_copy(ctrl.msr);
 
         run_out <= ctrl.run;
         terminate_out <= ex2.se.terminate;
