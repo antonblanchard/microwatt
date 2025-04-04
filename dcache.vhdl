@@ -135,7 +135,8 @@ architecture rtl of dcache is
     constant TLB_SET_BITS : natural := log2(TLB_SET_SIZE);
     constant TLB_WAY_BITS : natural := maximum(log2(TLB_NUM_WAYS), 1);
     constant TLB_EA_TAG_BITS : natural := 64 - (TLB_LG_PGSZ + TLB_SET_BITS);
-    constant TLB_TAG_WAY_BITS : natural := TLB_NUM_WAYS * TLB_EA_TAG_BITS;
+    constant TLB_EA_TAG_WIDTH : natural := TLB_EA_TAG_BITS + 7 - ((TLB_EA_TAG_BITS + 7) mod 8);
+    constant TLB_TAG_WAY_BITS : natural := TLB_NUM_WAYS * TLB_EA_TAG_WIDTH;
     constant TLB_PTE_BITS : natural := 64;
     constant TLB_PTE_WAY_BITS : natural := TLB_NUM_WAYS * TLB_PTE_BITS;
 
@@ -294,9 +295,6 @@ architecture rtl of dcache is
     -- Stage 0 register, basically contains just the latched request
     type reg_stage_0_t is record
         req   : Loadstore1ToDcacheType;
-        tlbie : std_ulogic;     -- indicates a tlbie request (from MMU)
-        doall : std_ulogic;     -- with tlbie, indicates flush whole TLB
-        tlbld : std_ulogic;     -- indicates a TLB load request (from MMU)
         mmu_req : std_ulogic;   -- indicates source of request
         d_valid : std_ulogic;   -- indicates req.data is valid now
     end record;
@@ -356,6 +354,7 @@ architecture rtl of dcache is
         -- TLB hit state
         tlb_hit          : std_ulogic;
         tlb_hit_way      : tlb_way_sig_t;
+        tlb_hit_ways     : tlb_expand_t;
         tlb_hit_index    : tlb_index_sig_t;
         tlb_victim       : tlb_way_sig_t;
         ls_tlb_hit       : std_ulogic;
@@ -566,17 +565,8 @@ architecture rtl of dcache is
     function read_tlb_tag(way: tlb_way_t; tags: tlb_way_tags_t) return tlb_tag_t is
         variable j : integer;
     begin
-        j := way * TLB_EA_TAG_BITS;
+        j := way * TLB_EA_TAG_WIDTH;
         return tags(j + TLB_EA_TAG_BITS - 1 downto j);
-    end;
-
-    -- Write a TLB tag to a TLB tag memory row
-    procedure write_tlb_tag(way: tlb_way_t; tags: inout tlb_way_tags_t;
-                            tag: tlb_tag_t) is
-        variable j : integer;
-    begin
-        j := way * TLB_EA_TAG_BITS;
-        tags(j + TLB_EA_TAG_BITS - 1 downto j) := tag;
     end;
 
     -- Read a PTE from a TLB PTE memory row
@@ -585,13 +575,6 @@ architecture rtl of dcache is
     begin
         j := way * TLB_PTE_BITS;
         return ptes(j + TLB_PTE_BITS - 1 downto j);
-    end;
-
-    procedure write_tlb_pte(way: tlb_way_t; ptes: inout tlb_way_ptes_t; newpte: tlb_pte_t) is
-        variable j : integer;
-    begin
-        j := way * TLB_PTE_BITS;
-        ptes(j + TLB_PTE_BITS - 1 downto j) := newpte;
     end;
 
 begin
@@ -623,26 +606,19 @@ begin
             if m_in.valid = '1' then
                 r.req := Loadstore1ToDcacheInit;
                 r.req.valid := '1';
-                r.req.load := not (m_in.tlbie or m_in.tlbld);
+                r.req.load := '1';
                 r.req.priv_mode := '1';
                 r.req.addr := m_in.addr;
-                r.req.data := m_in.pte;
                 r.req.byte_sel := (others => '1');
-                r.tlbie := m_in.tlbie;
-                r.doall := m_in.doall;
-                r.tlbld := m_in.tlbld;
                 r.mmu_req := '1';
                 r.d_valid := '1';
             else
                 r.req := d_in;
                 r.req.data := (others => '0');
-                r.tlbie := '0';
-                r.doall := '0';
-                r.tlbld := '0';
                 r.mmu_req := '0';
                 r.d_valid := '0';
             end if;
-            if r.req.valid = '1' and r.doall = '0' then
+            if r.req.valid = '1' then
                 assert not is_X(r.req.addr) severity failure;
             end if;
             if rst = '1' then
@@ -809,48 +785,39 @@ begin
     end process;
 
     tlb_update : process(clk)
-        variable tlbie : std_ulogic;
-        variable tlbwe : std_ulogic;
-        variable repl_way : tlb_way_sig_t;
-        variable eatag : tlb_tag_t;
-        variable tagset : tlb_way_tags_t;
-        variable pteset : tlb_way_ptes_t;
+        variable tlb_wr_index : tlb_index_sig_t;
+        variable j, k : integer;
     begin
         if rising_edge(clk) then
-            tlbie := r0_valid and r0.tlbie;
-            tlbwe := r0_valid and r0.tlbld;
-            ev.dtlb_miss_resolved <= tlbwe;
-            if rst = '1' or (tlbie = '1' and r0.doall = '1') then
+            tlb_wr_index := unsigned(m_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1
+                                               downto TLB_LG_PGSZ));
+            ev.dtlb_miss_resolved <= m_in.tlbld;
+            if rst = '1' or (m_in.tlbie = '1' and m_in.doall = '1') then
                 -- clear all valid bits at once
                 for i in tlb_index_t loop
                     dtlb_valids(i) <= (others => '0');
                 end loop;
-            elsif tlbie = '1' then
+            elsif m_in.tlbie = '1' then
                 for i in tlb_way_t loop
-                    if tlb_hit_expand(i) = '1' then
-                        assert not is_X(tlb_req_index);
-                        dtlb_valids(to_integer(tlb_req_index))(i) <= '0';
+                    if r1.tlb_hit_ways(i) = '1' then
+                        assert not is_X(tlb_wr_index);
+                        dtlb_valids(to_integer(tlb_wr_index))(i) <= '0';
                     end if;
                 end loop;
-            elsif tlbwe = '1' then
-                assert not is_X(tlb_req_index);
-                repl_way := to_unsigned(0, TLB_WAY_BITS);
-                if TLB_NUM_WAYS > 1 then
-                    if tlb_hit = '1' then
-                        repl_way := tlb_hit_way;
-                    else
-                        repl_way := unsigned(r1.tlb_victim);
+            elsif m_in.tlbld = '1' then
+                assert not is_X(tlb_wr_index);
+                assert not is_X(r1.tlb_victim);
+                for way in 0 to TLB_NUM_WAYS - 1 loop
+                    if TLB_NUM_WAYS = 1 or way = to_integer(unsigned(r1.tlb_victim)) then
+                        j := way * TLB_EA_TAG_WIDTH;
+                        dtlb_tags(to_integer(tlb_wr_index))(j + TLB_EA_TAG_WIDTH - 1 downto j) <=
+                            (TLB_EA_TAG_WIDTH - 1 downto TLB_EA_TAG_BITS => '0') &
+                            m_in.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
+                        k := way * TLB_PTE_BITS;
+                        dtlb_ptes(to_integer(tlb_wr_index))(k + TLB_PTE_BITS - 1 downto k) <= m_in.pte;
+                        dtlb_valids(to_integer(tlb_wr_index))(way) <= '1';
                     end if;
-                    assert not is_X(repl_way);
-                end if;
-                eatag := r0.req.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
-                tagset := tlb_tag_way;
-                write_tlb_tag(to_integer(repl_way), tagset, eatag);
-                dtlb_tags(to_integer(tlb_req_index)) <= tagset;
-                pteset := tlb_pte_way;
-                write_tlb_pte(to_integer(repl_way), pteset, r0.req.data);
-                dtlb_ptes(to_integer(tlb_req_index)) <= pteset;
-                dtlb_valids(to_integer(tlb_req_index))(to_integer(repl_way)) <= '1';
+                end loop;
             end if;
         end if;
     end process;
@@ -914,10 +881,10 @@ begin
         if rising_edge(clk) then
             if r0_stall = '1' then
                 index := req_index;
-                valid := r0.req.valid and not (r0.tlbie or r0.tlbld);
+                valid := r0.req.valid;
             elsif m_in.valid = '1' then
                 index := get_index(m_in.addr);
-                valid := not (m_in.tlbie or m_in.tlbld);
+                valid := '1';
             else
                 index := get_index(d_in.addr);
                 valid := d_in.valid;
@@ -999,7 +966,7 @@ begin
             dawr_match := r0.req.dawr_match;
         end if;
 
-        go := r0_valid and not (r0.tlbie or r0.tlbld) and not r1.ls_error;
+        go := r0_valid and not r1.ls_error;
         if is_X(ra) then
             go := '0';
         end if;
@@ -1173,6 +1140,12 @@ begin
                 else
                     req_op_nop <= '1';
                 end if;
+            elsif r0.req.tlb_probe = '1' then
+                -- TLB probe is sent down by loadstore1 before sending a TLB
+                -- invalidation to mmu, to get r1.tlb_hit_* set correctly
+                -- (for a single-page invalidation) for the address.
+                -- It doesn't require r1.ls_valid to be set on completion,
+                -- so there is nothing else to do here.
             elsif access_ok = '0' then
                 req_op_bad <= '1';
             elsif r0.req.flush = '1' then
@@ -1198,7 +1171,7 @@ begin
         if r0_stall = '0' then
             if m_in.valid = '1' then
                 early_req_row <= get_row(m_in.addr);
-                early_rd_valid <= not (m_in.tlbie or m_in.tlbld);
+                early_rd_valid <= '1';
             else
                 early_req_row <= get_row(d_in.addr);
                 early_rd_valid <= d_in.valid and d_in.load;
@@ -1417,13 +1390,23 @@ begin
             end if;
 
             -- Record TLB hit information for updating TLB PLRU
-            r1.tlb_hit <= tlb_hit;
-            r1.tlb_hit_way <= tlb_hit_way;
-            r1.tlb_hit_index <= tlb_req_index;
+            -- and for invalidating or updating TLB contents
+            if r0_valid = '1' then
+                r1.tlb_hit <= tlb_hit;
+                r1.tlb_hit_way <= tlb_hit_way;
+                r1.tlb_hit_ways <= tlb_hit_expand;
+                r1.tlb_hit_index <= tlb_req_index;
+            else
+                r1.tlb_hit <= '0';
+            end if;
             -- determine victim way in the TLB in the cycle after
             -- we detect the TLB miss
             if r1.ls_error = '1' then
-                r1.tlb_victim <= unsigned(tlb_plru_victim);
+                if r1.tlb_hit = '0' then
+                    r1.tlb_victim <= unsigned(tlb_plru_victim);
+                else
+                    r1.tlb_victim <= r1.tlb_hit_way;
+                end if;
             end if;
 
 	end if;
@@ -1482,9 +1465,7 @@ begin
                 r1.stcx_fail <= '0';
 
                 r1.ls_valid <= (req_op_load_hit or req_op_nop) and not r0.mmu_req;
-                -- complete tlbies and TLB loads in the third cycle
-                r1.mmu_done <= (r0_valid and (r0.tlbie or r0.tlbld)) or
-                               (req_op_load_hit and r0.mmu_req);
+                r1.mmu_done <= req_op_load_hit and r0.mmu_req;
 
                 -- Clear the reservation if another entity writes to that line
                 if kill_rsrv = '1' then
@@ -1582,7 +1563,7 @@ begin
                         r1.full <= req_op_load_miss or req_op_store or req_op_flush or req_op_sync;
                     end if;
                 end if;
-                if r0_valid = '1' and r0.tlbld = '1' then
+                if m_in.tlbld = '1' or m_in.tlbie = '1' then
                     r1.ls_tlb_hit <= '0';
                 end if;
 
