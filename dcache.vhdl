@@ -442,7 +442,6 @@ architecture rtl of dcache is
     signal r0_stall   : std_ulogic;
 
     signal use_forward_st : way_expand_t;
-    signal use_forward_rl : way_expand_t;
     signal use_forward2 : way_expand_t;
 
     -- Cache RAM interface
@@ -950,7 +949,6 @@ begin
         variable hit_reload  : std_ulogic;
         variable dawr_match  : std_ulogic;
         variable idx_reload   : way_expand_t;
-        variable maybe_fwd_rl : way_expand_t;
         variable maybe_fwd_st : way_expand_t;
         variable maybe_fwd2   : way_expand_t;
         variable wr_row_match : std_ulogic;
@@ -982,16 +980,13 @@ begin
             wr_row_match := '1';
         end if;
         idx_reload := (others => '0');
-        maybe_fwd_rl := (others => '0');
         if go = '1' and r1.reloading = '1' and rindex = r1.store_index then
             -- Way r1.store_way at this index is currently being reloaded.
             -- If we detect that this way is the one that hits below,
             -- and this is a load, then this is a hit only if r1.rows_valid()
             -- is true, or if the data currently arriving on the wishbone is
             -- the row we want.
-            if wr_row_match = '1' and wishbone_in.ack = '1' then
-                maybe_fwd_rl := r1.store_ways;
-            elsif r0.req.load = '1' and r0.req.touch = '0' and
+            if r0.req.load = '1' and r0.req.touch = '0' and
                 r1.rows_valid(to_integer(req_row(ROW_LINEBITS-1 downto 0))) = '0' then
                 idx_reload := r1.store_ways;
             end if;
@@ -1076,14 +1071,8 @@ begin
         end if;
 
         -- Whether to use forwarded data for a load or not
-        if r1.dcbz = '0' then
-            use_forward_rl <= maybe_fwd_rl;
-            use_forward_st <= maybe_fwd_st;
-        else
-            use_forward_rl <= (others => '0');
-            use_forward_st <= maybe_fwd_rl;
-        end if;
-        use_forward2   <= maybe_fwd2;
+        use_forward_st <= maybe_fwd_st;
+        use_forward2 <= maybe_fwd2;
 
         -- The way to replace on a miss
         replace_way <= to_unsigned(0, WAY_BITS);
@@ -1256,9 +1245,8 @@ begin
     end process;
 
     -- RAM write data and select multiplexers
-    ram_wr_data <= r1.req.data when r1.write_bram = '1' else
-                   wishbone_in.dat when r1.dcbz = '0' else
-                   (others => '0');
+    ram_wr_data <= r1.req.data when r1.write_bram = '1' or r1.dcbz = '1' else
+                   wishbone_in.dat;
     ram_wr_select <= r1.req.byte_sel when r1.write_bram = '1' else
                      (others => '1');
 
@@ -1308,9 +1296,7 @@ begin
             dword := (others => '0');
             for b in 0 to ROW_SIZE - 1 loop
                 j := b * 8;
-                if use_forward_rl(i) = '1' then
-                    dword(j + 7 downto j) := wishbone_in.dat(j + 7 downto j);
-                elsif use_forward_st(i) = '1' and r1.req.byte_sel(b) = '1' then
+                if use_forward_st(i) = '1' and r1.req.byte_sel(b) = '1' then
                     dword(j + 7 downto j) := r1.req.data(j + 7 downto j);
                 elsif use_forward2(i) = '1' and r1.forward_sel(b) = '1' then
                     dword(j + 7 downto j) := r1.forward_data(j + 7 downto j);
@@ -1356,7 +1342,7 @@ begin
             end if;
 
             data_out := (others => '0');
-            if r1.full = '1' then
+            if req_is_hit = '0' then
                 data_out := wishbone_in.dat;
             else
                 for w in 0 to NUM_WAYS-1 loop
@@ -1551,7 +1537,7 @@ begin
                     req.hit_way := req_hit_way;
                     req.hit_ways := req_hit_ways;
                     req.is_hit := req_is_hit;
-                    req.hit_reload := req_hit_reload;
+                    req.hit_reload := req_hit_reload and req_op_load_miss;
                     req.same_page := req_same_page;
 
                     -- Store the incoming request from r0, if it is a slow request
@@ -1604,7 +1590,7 @@ begin
                     r1.wb.adr <= addr_to_wb(req.real_addr);
                     r1.wb.sel <= req.byte_sel;
                     r1.wb.dat <= req.data;
-                    r1.dcbz <= req.dcbz;
+                    r1.dcbz <= req.dcbz and req.valid;
                     r1.atomic_more <= not req.last_dw;
 
                     -- Keep track of our index and way for subsequent stores.
@@ -1741,9 +1727,8 @@ begin
                         -- r1.req.hit_reload is always 1 for the request that
                         -- started this reload, and otherwise always 0 for dcbz
                         -- (since it is considered a store).
-			if r1.full = '1' and r1.req.hit_reload = '1' and
-                            get_row_of_line(r1.store_row) =
-                            get_row_of_line(get_row(r1.req.real_addr)) then
+			if req.hit_reload = '1' and
+                            get_row_of_line(r1.store_row) = get_row_of_line(get_row(req.real_addr)) then
                             r1.full <= '0';
                             r1.slow_valid <= '1';
                             if r1.mmu_req = '0' then
