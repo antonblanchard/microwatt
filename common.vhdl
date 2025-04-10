@@ -82,6 +82,8 @@ package common is
     constant SPR_NOOP1  : spr_num_t := 809;
     constant SPR_NOOP2  : spr_num_t := 810;
     constant SPR_NOOP3  : spr_num_t := 811;
+    constant SPR_HMER   : spr_num_t := 336;
+    constant SPR_HMEER  : spr_num_t := 337;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -97,6 +99,9 @@ package common is
     constant SPR_USIER  : spr_num_t := 768;
     constant SPR_USIAR  : spr_num_t := 780;
     constant SPR_USDAR  : spr_num_t := 781;
+    constant SPR_USIER2 : spr_num_t := 736;
+    constant SPR_USIER3 : spr_num_t := 737;
+    constant SPR_UMMCR3 : spr_num_t := 738;
     constant SPR_PMC1   : spr_num_t := 787;
     constant SPR_PMC2   : spr_num_t := 788;
     constant SPR_PMC3   : spr_num_t := 789;
@@ -110,6 +115,9 @@ package common is
     constant SPR_SIER   : spr_num_t := 784;
     constant SPR_SIAR   : spr_num_t := 796;
     constant SPR_SDAR   : spr_num_t := 797;
+    constant SPR_SIER2  : spr_num_t := 752;
+    constant SPR_SIER3  : spr_num_t := 753;
+    constant SPR_MMCR3  : spr_num_t := 754;
 
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
@@ -182,12 +190,12 @@ package common is
     end record;
     constant spr_id_init : spr_id := (sel => "0000", others => '0');
 
-    constant SPRSEL_TB    : spr_selector := 4x"0";
-    constant SPRSEL_TBU   : spr_selector := 4x"1";
-    constant SPRSEL_DEC   : spr_selector := 4x"2";
-    constant SPRSEL_PVR   : spr_selector := 4x"3";
-    constant SPRSEL_LOGA  : spr_selector := 4x"4";
-    constant SPRSEL_LOGD  : spr_selector := 4x"5";
+    constant SPRSEL_ZERO  : spr_selector := 4x"0";
+    constant SPRSEL_TB    : spr_selector := 4x"1";
+    constant SPRSEL_TBU   : spr_selector := 4x"2";
+    constant SPRSEL_DEC   : spr_selector := 4x"3";
+    constant SPRSEL_PVR   : spr_selector := 4x"4";
+    constant SPRSEL_LOGR  : spr_selector := 4x"5";
     constant SPRSEL_CFAR  : spr_selector := 4x"6";
     constant SPRSEL_FSCR  : spr_selector := 4x"7";
     constant SPRSEL_LPCR  : spr_selector := 4x"8";

@@ -224,6 +224,7 @@ architecture behaviour of execute1 is
     signal spr_result: std_ulogic_vector(63 downto 0);
     signal next_nia : std_ulogic_vector(63 downto 0);
     signal s1_sel : std_ulogic_vector(2 downto 0);
+    signal log_spr_data : std_ulogic_vector(63 downto 0);
 
     signal carry_32 : std_ulogic;
     signal carry_64 : std_ulogic;
@@ -1401,8 +1402,10 @@ begin
                     slow_op := '1';
                     if e_in.spr_select.ispmu = '0' then
                         case e_in.spr_select.sel is
-                            when SPRSEL_LOGD =>
-                                v.se.inc_loga := '1';
+                            when SPRSEL_LOGR =>
+                                if e_in.insn(16) = '0' then
+                                    v.se.inc_loga := '1';
+                                end if;
                             when others =>
                         end case;
                         v.res2_sel := "10";
@@ -1465,7 +1468,7 @@ begin
                             v.se.write_xerlow := '1';
                         when SPRSEL_DEC =>
                             v.se.write_dec := '1';
-                        when SPRSEL_LOGA =>
+                        when SPRSEL_LOGR =>
                             v.se.write_loga := '1';
                         when SPRSEL_CFAR =>
                             v.se.write_cfar := '1';
@@ -1955,13 +1958,14 @@ begin
     end process;
 
     -- Slow SPR read mux
+    log_spr_data <= (log_wr_addr & ex2.log_addr_spr) when ex1.insn(16) = '0'
+         else log_rd_data;
     with ex1.spr_select.sel select spr_result <=
         timebase when SPRSEL_TB,
         32x"0" & timebase(63 downto 32) when SPRSEL_TBU,
         assemble_dec(ctrl) when SPRSEL_DEC,
         32x"0" & PVR_MICROWATT when SPRSEL_PVR,
-        log_wr_addr & ex2.log_addr_spr when SPRSEL_LOGA,
-        log_rd_data when SPRSEL_LOGD,
+        log_spr_data when SPRSEL_LOGR,
         ctrl.cfar when SPRSEL_CFAR,
         assemble_fscr(ctrl) when SPRSEL_FSCR,
         assemble_lpcr(ctrl) when SPRSEL_LPCR,
@@ -1971,7 +1975,8 @@ begin
         56x"0" & std_ulogic_vector(to_unsigned(CPU_INDEX, 8)) when SPRSEL_PIR,
         ctrl.ciabr when SPRSEL_CIABR,
         assemble_dexcr(ctrl, ex1.insn) when SPRSEL_DEXCR,
-        assemble_xer(ex1.e.xerc, ctrl.xer_low) when others;
+        assemble_xer(ex1.e.xerc, ctrl.xer_low) when SPRSEL_XER,
+        64x"0" when others;
 
     stage2_stall <= l_in.l2stall or fp_in.f2stall;
 
