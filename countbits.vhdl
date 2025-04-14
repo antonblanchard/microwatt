@@ -42,6 +42,10 @@ architecture behaviour of bit_counter is
     type fourbit8 is array(0 to 7) of fourbit;
     signal pc8      : fourbit8;
     signal pc8_r    : fourbit8;
+    subtype fivebit is unsigned(4 downto 0);
+    type fivebit4 is array(0 to 3) of fivebit;
+    signal pc16     : fivebit4;
+    signal pc16_r   : fivebit4;
     subtype sixbit is unsigned(5 downto 0);
     type sixbit2 is array(0 to 1) of sixbit;
     signal pc32     : sixbit2;
@@ -96,6 +100,9 @@ begin
                 for i in 0 to 7 loop
                     pc8_r(i) <= pc8(i);
                 end loop;
+                for i in 0 to 3 loop
+                    pc16_r(i) <= pc16(i);
+                end loop;
                 dlen_r <= datalen;
                 pcnt_r <= do_popcnt;
             end if;
@@ -113,11 +120,13 @@ begin
         for i in 0 to 7 loop
             pc8(i) <= ('0' & pc4(i * 2)) + ('0' & pc4(i * 2 + 1));
         end loop;
+        for i in 0 to 3 loop
+            pc16(i) <= ('0' & pc8(i * 2)) + ('0' & pc8(i * 2 + 1));
+        end loop;
 
         -- after a clock edge
         for i in 0 to 1 loop
-            pc32(i) <= ("00" & pc8_r(i * 4)) + ("00" & pc8_r(i * 4 + 1)) +
-                       ("00" & pc8_r(i * 4 + 2)) + ("00" & pc8_r(i * 4 + 3));
+            pc32(i) <= ('0' & pc16_r(i * 2)) + ('0' & pc16_r(i * 2 + 1));
         end loop;
         
         popcnt <= (others => '0');
