@@ -695,7 +695,6 @@ begin
                 v.flush := '1';
             when OP_DCBZ =>
                 v.dcbz := '1';
-                v.align_intr := v.nc;
             when OP_TLBIE =>
                 v.tlbie := '1';
                 v.is_slbia := l_in.insn(7);
@@ -713,8 +712,8 @@ begin
                 v.mmu_op := '1';
             when others =>
         end case;
-        v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz) and not v.align_intr and
-                    not hash_nop;
+        v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz or v.tlbie) and
+                    not v.align_intr and not hash_nop;
         v.incomplete := v.dc_req and v.two_dwords;
 
         -- Work out controls for load and store formatting
@@ -874,7 +873,7 @@ begin
                 dawrx_match_enable(r3.dawrx(i), r1.req.virt_mode,
                                    r1.req.priv_mode, r1.req.store) then
                 dawr_match := r1.req.valid and r1.req.dc_req and not r3.dawr_upd and
-                              not (r1.req.touch or r1.req.sync or r1.req.flush);
+                              not (r1.req.touch or r1.req.sync or r1.req.flush or r1.req.tlbie);
             end if;
         end loop;
         stage1_dawr_match <= dawr_match;
@@ -919,7 +918,7 @@ begin
                 v.req.store_data := store_data;
                 v.req.dawr_intr := dawr_match;
                 v.wait_dc := r1.req.valid and r1.req.dc_req and not r1.req.load_sp and
-                             not r1.req.incomplete and not r1.req.hashcmp;
+                             not r1.req.incomplete and not r1.req.hashcmp and not r1.req.tlbie;
                 v.wait_mmu := r1.req.valid and r1.req.mmu_op;
                 if r1.req.valid = '1' and (r1.req.align_intr or r1.req.hashcmp) = '1' then
                     v.busy := '1';
@@ -1264,6 +1263,7 @@ begin
             d_out.sync <= stage1_req.sync;
             d_out.nc <= stage1_req.nc;
             d_out.reserve <= stage1_req.reserve;
+            d_out.tlb_probe <= stage1_req.tlbie;
             d_out.atomic_qw <= stage1_req.atomic_qw;
             d_out.atomic_first <= stage1_req.atomic_first;
             d_out.atomic_last <= stage1_req.atomic_last;
@@ -1280,6 +1280,7 @@ begin
             d_out.sync <= r2.req.sync;
             d_out.nc <= r2.req.nc;
             d_out.reserve <= r2.req.reserve;
+            d_out.tlb_probe <= r2.req.tlbie;
             d_out.atomic_qw <= r2.req.atomic_qw;
             d_out.atomic_first <= r2.req.atomic_first;
             d_out.atomic_last <= r2.req.atomic_last;

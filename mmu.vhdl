@@ -28,7 +28,6 @@ architecture behave of mmu is
 
     type state_t is (IDLE,
                      DO_TLBIE,
-                     TLB_WAIT,
                      PART_TBL_READ,
                      PART_TBL_WAIT,
                      PART_TBL_DONE,
@@ -195,7 +194,6 @@ begin
         variable v : reg_stage_t;
         variable dcreq : std_ulogic;
         variable tlb_load : std_ulogic;
-        variable itlb_load : std_ulogic;
         variable tlbie_req : std_ulogic;
         variable ptbl_rd : std_ulogic;
         variable prtbl_rd : std_ulogic;
@@ -225,7 +223,6 @@ begin
         v.perm_err := '0';
         v.rc_error := '0';
         tlb_load := '0';
-        itlb_load := '0';
         tlbie_req := '0';
         v.inval_all := '0';
         ptbl_rd := '0';
@@ -309,14 +306,8 @@ begin
             end if;
 
         when DO_TLBIE =>
-            dcreq := '1';
             tlbie_req := '1';
-            v.state := TLB_WAIT;
-
-        when TLB_WAIT =>
-            if d_in.done = '1' then
-                v.state := RADIX_FINISH;
-            end if;
+            v.state := RADIX_FINISH;
 
         when PART_TBL_READ =>
             dcreq := '1';
@@ -438,20 +429,14 @@ begin
 
         when RADIX_LOAD_TLB =>
             tlb_load := '1';
-            if r.iside = '0' then
-                dcreq := '1';
-                v.state := TLB_WAIT;
-            else
-                itlb_load := '1';
-                v.state := IDLE;
-            end if;
+            v.state := RADIX_FINISH;
 
         when RADIX_FINISH =>
             v.state := IDLE;
 
         end case;
 
-        if v.state = RADIX_FINISH or (v.state = RADIX_LOAD_TLB and r.iside = '1') then
+        if v.state = RADIX_FINISH then
             v.err := v.invalid or v.badtree or v.segerror or v.perm_err or v.rc_error;
             v.done := not v.err;
         end if;
@@ -505,11 +490,11 @@ begin
         d_out.valid <= dcreq;
         d_out.tlbie <= tlbie_req;
         d_out.doall <= r.inval_all;
-        d_out.tlbld <= tlb_load;
+        d_out.tlbld <= tlb_load and not r.iside;
         d_out.addr <= addr;
         d_out.pte <= tlb_data;
 
-        i_out.tlbld <= itlb_load;
+        i_out.tlbld <= tlb_load and r.iside;
         i_out.tlbie <= tlbie_req;
         i_out.doall <= r.inval_all;
         i_out.addr <= addr;

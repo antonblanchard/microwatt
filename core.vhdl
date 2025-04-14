@@ -468,6 +468,7 @@ begin
 
     dcache_0: entity work.dcache
         generic map(
+            SIM => SIM,
             LINE_SIZE => 64,
             NUM_LINES => DCACHE_NUM_LINES,
             NUM_WAYS => DCACHE_NUM_WAYS,
