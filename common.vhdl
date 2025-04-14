@@ -56,6 +56,7 @@ package common is
     constant SPR_HSPRG1 : spr_num_t := 305;
     constant SPR_PID    : spr_num_t := 48;
     constant SPR_PTCR   : spr_num_t := 464;
+    constant SPR_LPCR   : spr_num_t := 318;
     constant SPR_PVR	: spr_num_t := 287;
     constant SPR_FSCR   : spr_num_t := 153;
     constant SPR_HFSCR  : spr_num_t := 190;
@@ -81,6 +82,8 @@ package common is
     constant SPR_NOOP1  : spr_num_t := 809;
     constant SPR_NOOP2  : spr_num_t := 810;
     constant SPR_NOOP3  : spr_num_t := 811;
+    constant SPR_HMER   : spr_num_t := 336;
+    constant SPR_HMEER  : spr_num_t := 337;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -96,6 +99,9 @@ package common is
     constant SPR_USIER  : spr_num_t := 768;
     constant SPR_USIAR  : spr_num_t := 780;
     constant SPR_USDAR  : spr_num_t := 781;
+    constant SPR_USIER2 : spr_num_t := 736;
+    constant SPR_USIER3 : spr_num_t := 737;
+    constant SPR_UMMCR3 : spr_num_t := 738;
     constant SPR_PMC1   : spr_num_t := 787;
     constant SPR_PMC2   : spr_num_t := 788;
     constant SPR_PMC3   : spr_num_t := 789;
@@ -109,6 +115,9 @@ package common is
     constant SPR_SIER   : spr_num_t := 784;
     constant SPR_SIAR   : spr_num_t := 796;
     constant SPR_SDAR   : spr_num_t := 797;
+    constant SPR_SIER2  : spr_num_t := 752;
+    constant SPR_SIER3  : spr_num_t := 753;
+    constant SPR_MMCR3  : spr_num_t := 754;
 
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
@@ -181,15 +190,15 @@ package common is
     end record;
     constant spr_id_init : spr_id := (sel => "0000", others => '0');
 
-    constant SPRSEL_TB    : spr_selector := 4x"0";
-    constant SPRSEL_TBU   : spr_selector := 4x"1";
-    constant SPRSEL_DEC   : spr_selector := 4x"2";
-    constant SPRSEL_PVR   : spr_selector := 4x"3";
-    constant SPRSEL_LOGA  : spr_selector := 4x"4";
-    constant SPRSEL_LOGD  : spr_selector := 4x"5";
+    constant SPRSEL_ZERO  : spr_selector := 4x"0";
+    constant SPRSEL_TB    : spr_selector := 4x"1";
+    constant SPRSEL_TBU   : spr_selector := 4x"2";
+    constant SPRSEL_DEC   : spr_selector := 4x"3";
+    constant SPRSEL_PVR   : spr_selector := 4x"4";
+    constant SPRSEL_LOGR  : spr_selector := 4x"5";
     constant SPRSEL_CFAR  : spr_selector := 4x"6";
     constant SPRSEL_FSCR  : spr_selector := 4x"7";
-    constant SPRSEL_HFSCR : spr_selector := 4x"8";
+    constant SPRSEL_LPCR  : spr_selector := 4x"8";
     constant SPRSEL_HEIR  : spr_selector := 4x"9";
     constant SPRSEL_CTRL  : spr_selector := 4x"a";
     constant SPRSEL_DSCR  : spr_selector := 4x"b";
@@ -198,17 +207,11 @@ package common is
     constant SPRSEL_DEXCR : spr_selector := 4x"e";
     constant SPRSEL_XER   : spr_selector := 4x"f";
 
-    -- FSCR and HFSCR bit numbers
+    -- FSCR bit numbers
     constant FSCR_PREFIX   : integer := 63 - 50;
     constant FSCR_SCV      : integer := 63 - 51;
     constant FSCR_TAR      : integer := 63 - 55;
     constant FSCR_DSCR     : integer := 63 - 61;
-    constant HFSCR_PREFIX  : integer := 63 - 50;
-    constant HFSCR_MSG     : integer := 63 - 53;
-    constant HFSCR_TAR     : integer := 63 - 55;
-    constant HFSCR_PMUSPR  : integer := 63 - 60;
-    constant HFSCR_DSCR    : integer := 63 - 61;
-    constant HFSCR_FP      : integer := 63 - 63;
 
     -- FPSCR bit numbers
     constant FPSCR_FX     : integer := 63 - 32;
@@ -241,6 +244,15 @@ package common is
     constant FPSCR_XE     : integer := 63 - 60;
     constant FPSCR_NI     : integer := 63 - 61;
     constant FPSCR_RN     : integer := 63 - 63;
+
+    -- LPCR bit numbers
+    constant LPCR_HAIL    : integer := 63 - 37;
+    constant LPCR_UPRT    : integer := 63 - 41;
+    constant LPCR_HR      : integer := 63 - 43;
+    constant LPCR_LD      : integer := 63 - 46;
+    constant LPCR_HEIC    : integer := 63 - 59;
+    constant LPCR_LPES    : integer := 63 - 60;
+    constant LPCR_HVICE   : integer := 63 - 62;
 
     -- Real addresses
     -- REAL_ADDR_BITS is the number of real address bits that we store
@@ -301,11 +313,6 @@ package common is
         fscr_scv: std_ulogic;
         fscr_tar: std_ulogic;
         fscr_dscr: std_ulogic;
-        hfscr_ic: std_ulogic_vector(3 downto 0);
-        hfscr_pref: std_ulogic;
-        hfscr_tar: std_ulogic;
-        hfscr_dscr: std_ulogic;
-        hfscr_fp: std_ulogic;
         heir: std_ulogic_vector(63 downto 0);
         dscr: std_ulogic_vector(24 downto 0);
         ciabr: std_ulogic_vector(63 downto 0);
@@ -313,14 +320,20 @@ package common is
         dexcr_pro: aspect_bits_t;
         hdexcr_hyp: aspect_bits_t;
         hdexcr_enf: aspect_bits_t;
+        lpcr_hail: std_ulogic;
+        lpcr_ld: std_ulogic;
+        lpcr_heic: std_ulogic;
+        lpcr_lpes: std_ulogic;
+        lpcr_hvice: std_ulogic;
     end record;
     constant ctrl_t_init : ctrl_t :=
         (wait_state => '0', run => '1', xer_low => 18x"0",
          fscr_ic => x"0", fscr_pref => '1', fscr_scv => '1', fscr_tar => '1', fscr_dscr => '1',
-         hfscr_ic => x"0", hfscr_pref => '1', hfscr_tar => '1', hfscr_dscr => '1', hfscr_fp => '1',
          dscr => (others => '0'),
          dexcr_pnh => aspect_bits_init, dexcr_pro => aspect_bits_init,
          hdexcr_hyp => aspect_bits_init, hdexcr_enf => aspect_bits_init,
+         lpcr_hail => '0', lpcr_ld => '1', lpcr_heic => '0',
+         lpcr_lpes => '0', lpcr_hvice => '0',
          others => (others => '0'));
 
     type timebase_ctrl is record
@@ -792,6 +805,7 @@ package common is
 	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
         interrupt : std_ulogic;
+        alt_intr : std_ulogic;
         hv_intr : std_ulogic;
         is_scv : std_ulogic;
         intr_vec : intr_vector_t;
@@ -802,7 +816,6 @@ package common is
         br_taken: std_ulogic;
         abs_br: std_ulogic;
         srr1: std_ulogic_vector(15 downto 0);
-        msr: std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToWritebackInit : Execute1ToWritebackType :=
         (valid => '0', instr_tag => instr_tag_init, rc => '0', mode_32bit => '0',
@@ -810,11 +823,11 @@ package common is
          write_xerc_enable => '0', xerc => xerc_init,
          write_data => (others => '0'), write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'), write_reg => (others => '0'),
-         interrupt => '0', hv_intr => '0', is_scv => '0', intr_vec => 0,
+         interrupt => '0', alt_intr => '0', hv_intr => '0', is_scv => '0', intr_vec => 0,
          redirect => '0', redir_mode => "0000",
          last_nia => (others => '0'),
          br_last => '0', br_taken => '0', abs_br => '0',
-         srr1 => (others => '0'), msr => (others => '0'));
+         srr1 => (others => '0'));
 
     type Execute1ToFPUType is record
         valid     : std_ulogic;
@@ -899,13 +912,14 @@ package common is
         br_last : std_ulogic;
         br_taken : std_ulogic;
         interrupt : std_ulogic;
-        intr_vec : std_ulogic_vector(16 downto 0);
+        alt_intr : std_ulogic;
+        intr_vec : std_ulogic_vector(63 downto 0);
     end record;
     constant WritebackToFetch1Init : WritebackToFetch1Type :=
         (redirect => '0', virt_mode => '0', priv_mode => '0', big_endian => '0',
          mode_32bit => '0', redirect_nia => (others => '0'),
          br_last => '0', br_taken => '0', br_nia => (others => '0'),
-         interrupt => '0', intr_vec => 17x"0");
+         interrupt => '0', alt_intr => '0', intr_vec => 64x"0");
 
     type WritebackToRegisterFileType is record
 	write_reg : gspr_index_t;
@@ -931,6 +945,7 @@ package common is
         intr    : std_ulogic;
         hv_intr : std_ulogic;
         scv_int : std_ulogic;
+        alt_int : std_ulogic;
         srr1    : std_ulogic_vector(15 downto 0);
     end record;
 

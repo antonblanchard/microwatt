@@ -476,22 +476,25 @@ architecture behaviour of decode1 is
             when SPR_PVR =>
                 i.sel := SPRSEL_PVR;
             when 724 =>     -- LOG_ADDR SPR
-                i.sel := SPRSEL_LOGA;
+                i.sel := SPRSEL_LOGR;
             when 725 =>     -- LOG_DATA SPR
-                i.sel := SPRSEL_LOGD;
+                i.sel := SPRSEL_LOGR;
+                i.ronly := '1';
             when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
                 SPR_UMMCR0 | SPR_UMMCR1 | SPR_UMMCR2 | SPR_UMMCRA | SPR_USIER | SPR_USIAR | SPR_USDAR |
                 SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
                 SPR_MMCR0 | SPR_MMCR1 | SPR_MMCR2 | SPR_MMCRA | SPR_SIER | SPR_SIAR | SPR_SDAR =>
                 i.ispmu := '1';
+            when SPR_USIER2 | SPR_USIER3 | SPR_UMMCR3 | SPR_SIER2 | SPR_SIER3 | SPR_MMCR3 =>
+                i.sel := SPRSEL_ZERO;
             when SPR_CFAR =>
                 i.sel := SPRSEL_CFAR;
             when SPR_XER =>
                 i.sel := SPRSEL_XER;
             when SPR_FSCR =>
                 i.sel := SPRSEL_FSCR;
-            when SPR_HFSCR =>
-                i.sel := SPRSEL_HFSCR;
+            when SPR_LPCR =>
+                i.sel := SPRSEL_LPCR;
             when SPR_HEIR =>
                 i.sel := SPRSEL_HEIR;
             when SPR_CTRL =>
@@ -515,6 +518,8 @@ architecture behaviour of decode1 is
                 i.ronly := '1';
             when SPR_NOOP0 | SPR_NOOP1 | SPR_NOOP2 | SPR_NOOP3 =>
                 i.noop := '1';
+            when SPR_HMER | SPR_HMEER =>
+                i.sel := SPRSEL_ZERO;
             when others =>
                 i.valid := '0';
         end case;

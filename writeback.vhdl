@@ -75,6 +75,7 @@ begin
         variable hvi  : std_ulogic;
         variable scv  : std_ulogic;
         variable intr_page : std_ulogic_vector(4 downto 0);
+        variable intr_seg  : std_ulogic_vector(1 downto 0);
     begin
         w_out <= WritebackToRegisterFileInit;
         c_out <= WritebackToCrFileInit;
@@ -98,6 +99,10 @@ begin
 
         srr1 := (others => '0');
         intr_page := 5x"0";
+        if e_in.alt_intr = '1' then
+            intr_page := 5x"4";
+        end if;
+        intr_seg := e_in.alt_intr & e_in.alt_intr;
         scv := '0';
         if e_in.interrupt = '1' then
             vec := e_in.intr_vec;
@@ -105,7 +110,11 @@ begin
             hvi := e_in.hv_intr;
             scv := e_in.is_scv;
             if e_in.is_scv = '1' then
-                intr_page := 5x"17";
+                if e_in.alt_intr = '0' then
+                    intr_page := 5x"17";
+                else
+                    intr_page := 5x"3";
+                end if;
             end if;
         elsif l_in.interrupt = '1' then
             vec := l_in.intr_vec;
@@ -117,6 +126,7 @@ begin
         interrupt_out.hv_intr <= hvi;
         interrupt_out.srr1 <= srr1;
         interrupt_out.scv_int <= scv;
+        interrupt_out.alt_int <= e_in.alt_intr;
 
         if intr = '0' then
             if e_in.write_enable = '1' then
@@ -174,7 +184,8 @@ begin
 
         -- Outputs to fetch1
         f.interrupt := intr;
-        f.intr_vec := intr_page & std_ulogic_vector(to_unsigned(vec, 12));
+        f.alt_intr := e_in.alt_intr;
+        f.intr_vec := intr_seg & 45x"0" & intr_page & std_ulogic_vector(to_unsigned(vec, 12));
         f.redirect := e_in.redirect;
         f.redirect_nia := e_in.write_data;
         f.br_nia := e_in.last_nia;
