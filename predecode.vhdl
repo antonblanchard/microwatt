@@ -240,6 +240,7 @@ architecture behaviour of predecoder is
         2#0_00000_11010#  =>  INSN_cntlzw,
         2#0_10001_11010#  =>  INSN_cnttzd,
         2#0_10000_11010#  =>  INSN_cnttzw,
+        2#0_11010_00110#  =>  INSN_rnop, -- cpabort
         2#0_10111_10011#  =>  INSN_darn,
         2#0_00010_10110#  =>  INSN_dcbf,
         2#0_00001_10110#  =>  INSN_dcbst,
