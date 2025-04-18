@@ -140,8 +140,6 @@ architecture behaviour of decode2 is
                 ret := x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11);
             when CONST_SH32 =>
                 ret := x"00000000000000" & "000" & insn_in(15 downto 11);
-            when CONST_DSX =>
-                ret := 55x"7FFFFFFFFFFFFF" & insn_in(0) & insn_in(25 downto 21) & "000";
             when others =>
                 ret := (others => '0');
         end case;
@@ -188,8 +186,6 @@ architecture behaviour of decode2 is
                 else
                     return ('0', (others => '0'));
                 end if;
-            when RBC =>
-                return ('1', gpr_to_gspr(insn_rb(insn_in)));
             when NONE =>
                 return ('0', (others => '0'));
         end case;

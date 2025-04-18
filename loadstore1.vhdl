@@ -108,6 +108,7 @@ architecture behave of loadstore1 is
         two_dwords   : std_ulogic;
         incomplete   : std_ulogic;
         ea_valid     : std_ulogic;
+        hash_addr    : std_ulogic_vector(63 downto 0);
     end record;
     constant request_init : request_t := (addr => (others => '0'),
                                           byte_sel => x"00", second_bytes => x"00",
@@ -116,6 +117,7 @@ architecture behave of loadstore1 is
                                           elt_length => x"0", brev_mask => "000",
                                           xerc => xerc_init,
                                           sprsel => "0000", ric => "00",
+                                          hash_addr => 64x"0",
                                           others => '0');
 
     type reg_stage1_t is record
@@ -529,7 +531,7 @@ begin
             -- start a new hash process
             hv.z0 := 31x"7D12B0E6";     -- 0xFA2561CD >> 1
             ra := l_in.addr1;
-            rb := l_in.data;
+            rb := l_in.addr2;
             key := l_in.hashkey;
             for lane in 0 to 3 loop
                 j := lane * 16;
@@ -566,6 +568,7 @@ begin
         variable misaligned : std_ulogic;
         variable addr_mask : std_ulogic_vector(2 downto 0);
         variable hash_nop : std_ulogic;
+        variable disp : std_ulogic_vector(63 downto 0);
     begin
         v := request_init;
         sprn := l_in.insn(15 downto 11) & l_in.insn(20 downto 16);
@@ -598,6 +601,9 @@ begin
             v.sprsel := "100" & sprn(8);
         end if;
 
+        disp := l_in.addr2;
+        if l_in.hash = '1' then
+        end if;
         lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
 
         if HAS_FPU and l_in.is_32bit = '1' then
@@ -615,8 +621,13 @@ begin
             addr := std_ulogic_vector(unsigned(r1.addr0(63 downto 3)) + not l_in.update) &
                     r1.addr0(2 downto 0);
         end if;
+        -- Hash instructions have a short immediate displacement field,
+        -- interpreted as a negative multiple of 8
+        disp := 55x"7FFFFFFFFFFFFF" & l_in.insn(0) & l_in.insn(25 downto 21) & "000";
+        v.hash_addr := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(disp));
         if l_in.mode_32bit = '1' then
             addr(63 downto 32) := (others => '0');
+            v.hash_addr(63 downto 32) := (others => '0');
         end if;
         v.addr := addr;
         v.ea_valid := l_in.valid;
@@ -812,6 +823,9 @@ begin
                 -- need to initiate and then wait for the hash computation
                 hash_start <= not r1.busy;
                 v.busy := not hash_r.done;
+                if r1.busy = '1' then
+                    v.req.addr := r1.req.hash_addr;
+                end if;
                 if hash_r.done = '0' then
                     issue := '0';
                 else

@@ -420,9 +420,8 @@ package decode_types is
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA);
     type input_reg_b_t is (IMM, RB, FRB);
     type const_sel_t is   (NONE, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
-                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI,
-                           CONST_DSX);
-    type input_reg_c_t is (NONE, RS, RCR, RBC, FRC, FRS);
+                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI);
+    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS);
     type output_reg_a_t is (NONE, RT, RA, FRT);
     type rc_t is (NONE, ONE, RC, RCOE);
     type carry_in_t is (ZERO, CA, OV, ONE);
