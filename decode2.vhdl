@@ -85,16 +85,16 @@ architecture behaviour of decode2 is
 
     function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
                                  prefix : std_ulogic_vector(25 downto 0))
-        return decode_input_reg_t is
+        return std_ulogic is
     begin
         if t = RA or ((t = RA_OR_ZERO or t = RA0_OR_CIA) and insn_ra(insn_in) /= "00000") then
-            return ('1', gpr_to_gspr(insn_ra(insn_in)));
+            return '1';
         elsif t = CIA or (t = RA0_OR_CIA and insn_prefix_r(prefix) = '1') then
-            return ('0', (others => '0'));
-        elsif HAS_FPU and t = FRA then
-            return ('1', fpr_to_gspr(insn_fra(insn_in)));
+            return '0';
+        elsif t = FRA then
+            return '1';
         else
-            return ('0', (others => '0'));
+            return '0';
         end if;
     end;
 
@@ -147,47 +147,25 @@ architecture behaviour of decode2 is
         return ret;
     end;
 
-    function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0))
-        return decode_input_reg_t is
-        variable ret : decode_input_reg_t;
+    function decode_input_reg_b (t : input_reg_b_t)
+        return std_ulogic is
     begin
         case t is
-            when RB =>
-                ret := ('1', gpr_to_gspr(insn_rb(insn_in)));
-            when FRB =>
-                if HAS_FPU then
-                    ret := ('1', fpr_to_gspr(insn_frb(insn_in)));
-                else
-                    ret := ('0', (others => '0'));
-                end if;
+            when RB | FRB =>
+                return '1';
             when IMM =>
-                ret := ('0', (others => '0'));
+                return '0';
         end case;
-        return ret;
     end;
 
-    function decode_input_reg_c (t : input_reg_c_t; insn_in : std_ulogic_vector(31 downto 0))
-        return decode_input_reg_t is
+    function decode_input_reg_c (t : input_reg_c_t)
+        return std_ulogic is
     begin
         case t is
-            when RS =>
-                return ('1', gpr_to_gspr(insn_rs(insn_in)));
-            when RCR =>
-                return ('1', gpr_to_gspr(insn_rcreg(insn_in)));
-            when FRS =>
-                if HAS_FPU then
-                    return ('1', fpr_to_gspr(insn_frt(insn_in)));
-                else
-                    return ('0', (others => '0'));
-                end if;
-            when FRC =>
-                if HAS_FPU then
-                    return ('1', fpr_to_gspr(insn_frc(insn_in)));
-                else
-                    return ('0', (others => '0'));
-                end if;
+            when RS | RCR | FRS | FRC =>
+                return '1';
             when NONE =>
-                return ('0', (others => '0'));
+                return '0';
         end case;
     end;
 
@@ -398,11 +376,6 @@ begin
                 dc2.e.ramspr_odd_rdaddr <= dc2in.e.ramspr_odd_rdaddr;
                 dc2.e.ramspr_rd_odd <= dc2in.e.ramspr_rd_odd;
             end if;
-            if d_in.valid = '1' then
-                assert decoded_reg_a.reg_valid = '0' or decoded_reg_a.reg = d_in.reg_a severity failure;
-                assert decoded_reg_b.reg_valid = '0' or decoded_reg_b.reg = d_in.reg_b severity failure;
-                assert decoded_reg_c.reg_valid = '0' or decoded_reg_c.reg = d_in.reg_c severity failure;
-            end if;
         end if;
     end process;
 
@@ -412,9 +385,12 @@ begin
         variable dec_a, dec_b, dec_c : decode_input_reg_t;
         variable dec_o : decode_output_reg_t;
     begin
-        dec_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.prefix);
-        dec_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn);
-        dec_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn);
+        dec_a.reg_valid := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.prefix);
+        dec_a.reg := d_in.reg_a;
+        dec_b.reg_valid := decode_input_reg_b (d_in.decode.input_reg_b);
+        dec_b.reg := d_in.reg_b;
+        dec_c.reg_valid := decode_input_reg_c (d_in.decode.input_reg_c);
+        dec_c.reg := d_in.reg_c;
         dec_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn);
         case d_in.decode.repeat is
             when DUPD =>
