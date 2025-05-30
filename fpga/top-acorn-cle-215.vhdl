@@ -10,6 +10,7 @@ use work.wishbone_types.all;
 
 entity toplevel is
     generic (
+        CPUS          : natural := 1;
 	MEMORY_SIZE   : integer := 16384;
 	RAM_INIT_FILE : string   := "firmware.hex";
 	CLK_FREQUENCY : positive := 100000000;
@@ -65,6 +66,9 @@ architecture behaviour of toplevel is
 
     -- Internal clock
     signal ext_clk : std_ulogic;
+
+    -- Status
+    signal run_outs : std_ulogic_vector(CPUS-1 downto 0);
 
     -- Reset signals:
     signal soc_rst : std_ulogic;
@@ -124,6 +128,7 @@ begin
 	    MEMORY_SIZE   => BRAM_SIZE,
 	    RAM_INIT_FILE => RAM_INIT_FILE,
 	    SIM           => false,
+            NCPUS         => CPUS,
 	    CLK_FREQ      => CLK_FREQUENCY,
 	    HAS_DRAM      => USE_LITEDRAM,
 	    DRAM_SIZE     => 1024 * 1024 * 1024,
@@ -141,6 +146,7 @@ begin
             -- System signals
 	    system_clk        => system_clk,
 	    rst               => soc_rst,
+            run_outs          => run_outs,
 
             -- UART signals
             uart0_txd         => uart_tx,
@@ -223,10 +229,10 @@ begin
 		pll_locked_out => system_clk_locked
 		);
 
-	led0 <= soc_rst;
-	led1 <= pll_rst;
-        led2 <= not system_clk_locked;
-	led3 <= '0';
+	led0 <= run_outs(0);
+	led1 <= run_outs(1) when CPUS > 1 else pll_rst;
+        led2 <= run_outs(2) when CPUS > 2 else not system_clk_locked;
+	led3 <= run_outs(3) when CPUS > 3 else '0';
 
         -- Vivado barfs on those differential signals if left
         -- unconnected. So instanciate a diff. buffer and feed
