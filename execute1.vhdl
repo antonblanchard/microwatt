@@ -223,7 +223,7 @@ architecture behaviour of execute1 is
     signal bsort_result: std_ulogic_vector(63 downto 0);
     signal spr_result: std_ulogic_vector(63 downto 0);
     signal next_nia : std_ulogic_vector(63 downto 0);
-    signal s1_sel : std_ulogic_vector(2 downto 0);
+    signal s1_sel : result_sel_t;
     signal log_spr_data : std_ulogic_vector(63 downto 0);
 
     signal carry_32 : std_ulogic;
@@ -761,14 +761,15 @@ begin
     end process;
 
     -- First stage result mux
-    s1_sel <= e_in.result_sel when ex1.busy = '0' else "100";
+    s1_sel <= e_in.result_sel when ex1.busy = '0' else MCYC;
     with s1_sel select alu_result <=
-        adder_result       when "000",
-        logical_result     when "001",
-        rotator_result     when "010",
-        multicyc_result    when "100",
-        ramspr_result      when "101",
-        misc_result        when others;
+        adder_result       when ADD,
+        logical_result     when LOG,
+        rotator_result     when ROT,
+        multicyc_result    when MCYC,
+        ramspr_result      when SPR,
+        misc_result        when MSC,
+        64x"0"             when others;
 
     execute1_0: process(clk)
     begin

@@ -217,59 +217,6 @@ architecture behaviour of decode2 is
         return t;
     end;
 
-    -- control signals that are derived from insn_type
-    type mux_select_array_t is array(insn_type_t) of std_ulogic_vector(2 downto 0);
-
-    constant result_select : mux_select_array_t := (
-        OP_LOGIC    => "001",           -- logical_result
-        OP_XOR      => "001",
-        OP_PRTY     => "001",
-        OP_CMPB     => "001",
-        OP_EXTS     => "001",
-        OP_BREV     => "001",
-        OP_BCD      => "001",
-        OP_MTSPR    => "001",
-        OP_RLC      => "010",           -- rotator_result
-        OP_RLCL     => "010",
-        OP_RLCR     => "010",
-        OP_SHL      => "010",
-        OP_SHR      => "010",
-        OP_EXTSWSLI => "010",
-        OP_BCREG    => "101",           -- ramspr_result
-        OP_RFID     => "101",
-        OP_ADDG6S   => "111",           -- misc_result
-        OP_ISEL     => "111",
-        OP_DARN     => "111",
-        OP_MFMSR    => "111",
-        OP_MFCR     => "111",
-        OP_SETB     => "111",
-        others      => "000"            -- default to adder_result
-        );
-
-    constant subresult_select : mux_select_array_t := (
-        OP_MUL_L64 => "000",            -- multicyc_result
-        OP_MUL_H64 => "010",
-        OP_MUL_H32 => "001",
-        OP_DIV     => "101",
-        OP_DIVE    => "101",
-        OP_MOD     => "101",
-        OP_BSORT   => "100",
-        OP_BPERM   => "100",
-        OP_ADDG6S  => "001",            -- misc_result
-        OP_ISEL    => "010",
-        OP_DARN    => "011",
-        OP_MFMSR   => "100",
-        OP_MFCR    => "101",
-        OP_SETB    => "110",
-        OP_CMP     => "000",            -- cr_result
-        OP_CMPRB   => "001",
-        OP_CMPEQB  => "010",
-        OP_CROP    => "011",
-        OP_MCRXRX  => "100",
-        OP_MTCRF   => "101",
-        others     => "000"
-        );
-
     signal decoded_reg_a : decode_input_reg_t;
     signal decoded_reg_b : decode_input_reg_t;
     signal decoded_reg_c : decode_input_reg_t;
@@ -665,17 +612,17 @@ begin
             v.e.update := d_in.decode.update;
             v.e.reserve := d_in.decode.reserve;
             v.e.br_pred := d_in.br_pred;
-            v.e.result_sel := result_select(op);
-            v.e.sub_select := subresult_select(op);
+            v.e.result_sel := d_in.decode.result;
+            v.e.sub_select := d_in.decode.subresult;
             if op = OP_MFSPR then
                 if d_in.ram_spr.valid = '1' then
-                    v.e.result_sel := "101";        -- ramspr_result
+                    v.e.result_sel := SPR;        -- ramspr_result
                 elsif d_in.spr_info.valid = '0' or d_in.spr_info.wonly = '1' or
                     d_in.spr_info.noop = '1' then
                     -- Privileged mfspr to invalid/unimplemented SPR numbers
                     -- writes the contents of RT back to RT (i.e. it's a no-op)
                     -- as does any mfspr from the reserved/noop SPR numbers
-                    v.e.result_sel := "001";        -- logical_result
+                    v.e.result_sel := LOG;        -- logical_result
                 end if;
             end if;
             v.e.privileged := d_in.decode.privileged;
