@@ -496,7 +496,7 @@ begin
 	port map (
 	    rs => c_in,
 	    rb => b_in,
-	    op => e_in.insn_type,
+	    op => e_in.sub_select,
 	    invert_in => e_in.invert_a,
 	    invert_out => e_in.invert_out,
             is_signed => e_in.is_signed,

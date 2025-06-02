@@ -617,12 +617,6 @@ begin
             if op = OP_MFSPR then
                 if d_in.ram_spr.valid = '1' then
                     v.e.result_sel := SPR;        -- ramspr_result
-                elsif d_in.spr_info.valid = '0' or d_in.spr_info.wonly = '1' or
-                    d_in.spr_info.noop = '1' then
-                    -- Privileged mfspr to invalid/unimplemented SPR numbers
-                    -- writes the contents of RT back to RT (i.e. it's a no-op)
-                    -- as does any mfspr from the reserved/noop SPR numbers
-                    v.e.result_sel := LOG;        -- logical_result
                 end if;
             end if;
             v.e.privileged := d_in.decode.privileged;
