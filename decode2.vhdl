@@ -614,11 +614,6 @@ begin
             v.e.br_pred := d_in.br_pred;
             v.e.result_sel := d_in.decode.result;
             v.e.sub_select := d_in.decode.subresult;
-            if op = OP_MFSPR then
-                if d_in.ram_spr.valid = '1' then
-                    v.e.result_sel := SPR;        -- ramspr_result
-                end if;
-            end if;
             v.e.privileged := d_in.decode.privileged;
             if (op = OP_MFSPR or op = OP_MTSPR) and d_in.insn(20) = '1' then
                 v.e.privileged := '1';

@@ -102,6 +102,7 @@ architecture behaviour of execute1 is
         scv_trap : std_ulogic;
         write_tbl : std_ulogic;
         write_tbu : std_ulogic;
+        noop_spr_read : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (others => '0');
 
@@ -125,13 +126,13 @@ architecture behaviour of execute1 is
         fp_intr : std_ulogic;
         res2_sel : std_ulogic_vector(1 downto 0);
         bypass_valid : std_ulogic;
-        ramspr_odd_data : std_ulogic_vector(63 downto 0);
+        spr_write_data : std_ulogic_vector(63 downto 0);
         ic : std_ulogic_vector(3 downto 0);
     end record;
     constant actions_type_init : actions_type :=
         (e => Execute1ToWritebackInit, se => side_effect_init,
          new_msr => (others => '0'), res2_sel => "00",
-         ramspr_odd_data => 64x"0", ic => x"0", others => '0');
+         spr_write_data => 64x"0", ic => x"0", others => '0');
 
     type reg_stage1_type is record
 	e : Execute1ToWritebackType;
@@ -164,7 +165,7 @@ architecture behaviour of execute1 is
         xerc : xer_common_t;
         xerc_valid : std_ulogic;
         ramspr_wraddr : ramspr_index;
-        ramspr_odd_data : std_ulogic_vector(63 downto 0);
+        spr_write_data : std_ulogic_vector(63 downto 0);
         ic : std_ulogic_vector(3 downto 0);
         prefixed : std_ulogic;
         insn : std_ulogic_vector(31 downto 0);
@@ -184,7 +185,7 @@ architecture behaviour of execute1 is
          taken_branch_event => '0', br_mispredict => '0',
          msr => 64x"0",
          xerc => xerc_init, xerc_valid => '0',
-         ramspr_wraddr => (others => '0'), ramspr_odd_data => 64x"0",
+         ramspr_wraddr => (others => '0'), spr_write_data => 64x"0",
          ic => x"0",
          prefixed => '0', insn => 32x"0", prefix => 26x"0");
 
@@ -595,13 +596,13 @@ begin
         thi := timebase(63 downto 32);
         carry := '0';
         if stage2_stall = '0' and ex1.se.write_tbl = '1' then
-            tlo := ex1.e.write_data(31 downto 0);
+            tlo := ex1.spr_write_data(31 downto 0);
         elsif tb_ctrl.freeze = '0' then
             tlo := std_ulogic_vector(unsigned(tlo) + 1);
             carry := tb_carry;
         end if;
         if stage2_stall = '0' and ex1.se.write_tbu = '1' then
-            thi := ex1.e.write_data(31 downto 0);
+            thi := ex1.spr_write_data(31 downto 0);
         else
             thi := std_ulogic_vector(unsigned(thi) + carry);
         end if;
@@ -640,7 +641,7 @@ begin
     x_to_pmu.addr <= l_in.ea_for_pmu;
     x_to_pmu.addr_v <= l_in.ea_valid;
     x_to_pmu.spr_num <= ex1.pmu_spr_num;
-    x_to_pmu.spr_val <= ex1.e.write_data;
+    x_to_pmu.spr_val <= ex1.spr_write_data;
     x_to_pmu.run <= ctrl.run;
     x_to_pmu.trace <= pmu_trace;
 
@@ -704,14 +705,14 @@ begin
         if ex1.lr_from_next = '1' then
             ramspr_even_data := next_nia;
         else
-            ramspr_even_data := ex1.e.write_data;
+            ramspr_even_data := ex1.spr_write_data;
         end if;
         if interrupt_in.intr = '1' then
             even_wr_data := ex2.e.last_nia;
             odd_wr_data := intr_srr1(ctrl.msr, interrupt_in.srr1);
         else
             even_wr_data := ramspr_even_data;
-            odd_wr_data := ex1.ramspr_odd_data;
+            odd_wr_data := ex1.spr_write_data;
         end if;
         ramspr_wr_addr <= wr_addr;
         ramspr_even_wr_data <= even_wr_data;
@@ -728,7 +729,7 @@ begin
             ramspr_even <= even_rd_data;
         end if;
         if ex1.se.ramspr_write_odd = '1' and e_in.ramspr_odd_rdaddr = ex1.ramspr_wraddr then
-            ramspr_odd <= ex1.ramspr_odd_data;
+            ramspr_odd <= ex1.spr_write_data;
         else
             ramspr_odd <= odd_rd_data;
         end if;
@@ -1211,9 +1212,9 @@ begin
 
         v.se.ramspr_write_even := e_in.ramspr_write_even;
         v.se.ramspr_write_odd := e_in.ramspr_write_odd;
-        v.ramspr_odd_data := c_in;
+        v.spr_write_data := c_in;
         if e_in.dec_ctr = '1' then
-            v.ramspr_odd_data := std_ulogic_vector(unsigned(ramspr_odd) - 1);
+            v.spr_write_data := std_ulogic_vector(unsigned(ramspr_odd) - 1);
         end if;
 
         -- Note the difference between v.exception and v.trap:
@@ -1391,16 +1392,17 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
-		if e_in.spr_is_ram = '1' or e_in.spr_select.noop = '1' then
+		if e_in.spr_is_ram = '1' then
                     if e_in.valid = '1' and not is_X(e_in.insn) then
                         report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
                             "=" & to_hstring(alu_result);
                     end if;
-		elsif e_in.spr_select.valid = '1' then
+		elsif e_in.spr_select.valid = '1' and e_in.spr_select.wonly = '0' then
                     if e_in.valid = '1' and not is_X(e_in.insn) then
                         report "MFSPR to slow SPR " & integer'image(decode_spr_num(e_in.insn));
                     end if;
                     slow_op := '1';
+                    v.se.noop_spr_read := e_in.spr_select.noop;
                     if e_in.spr_select.ispmu = '0' then
                         case e_in.spr_select.sel is
                             when SPRSEL_LOGR =>
@@ -1420,6 +1422,8 @@ begin
                         report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
                             " invalid";
                     end if;
+                    slow_op := '1';
+                    v.se.noop_spr_read := '1';
                     if ex1.msr(MSR_PR) = '1' then
                         illegal := '1';
                     end if;
@@ -1676,7 +1680,7 @@ begin
             v.se := side_effect_init;
             v.ramspr_wraddr := e_in.ramspr_wraddr;
             v.lr_from_next := e_in.lr;
-            v.ramspr_odd_data := actions.ramspr_odd_data;
+            v.spr_write_data := actions.spr_write_data;
             v.ic := actions.ic;
             v.prefixed := e_in.prefixed;
             v.insn := e_in.insn;
@@ -2060,7 +2064,9 @@ begin
         else
             rcresult := countbits_result;
         end if;
-        if ex1.res2_sel(0) = '0' then
+        if ex1.se.noop_spr_read = '1' then
+            sprres := ex1.spr_write_data;
+        elsif ex1.res2_sel(0) = '0' then
             sprres := spr_result;
         else
             sprres := pmu_to_x.spr_val;
@@ -2104,40 +2110,40 @@ begin
                 ctrl_tmp.msr <= ex1.msr;
             end if;
             if ex1.se.write_xerlow = '1' then
-                ctrl_tmp.xer_low <= ex1.e.write_data(17 downto 0);
+                ctrl_tmp.xer_low <= ex1.spr_write_data(17 downto 0);
             end if;
             if ex1.se.write_dec = '1' then
-                ctrl_tmp.dec <= ex1.e.write_data;
+                ctrl_tmp.dec <= ex1.spr_write_data;
             end if;
             if ex1.se.write_cfar = '1' then
-                ctrl_tmp.cfar <= ex1.e.write_data;
+                ctrl_tmp.cfar <= ex1.spr_write_data;
             elsif ex1.se.set_cfar = '1' then
                 ctrl_tmp.cfar <= ex1.e.last_nia;
             end if;
             if ex1.se.write_loga = '1' then
-                v.log_addr_spr := ex1.e.write_data(31 downto 0);
+                v.log_addr_spr := ex1.spr_write_data(31 downto 0);
             elsif ex1.se.inc_loga = '1' then
                 v.log_addr_spr := std_ulogic_vector(unsigned(ex2.log_addr_spr) + 1);
             end if;
             x_to_pmu.mtspr <= ex1.se.write_pmuspr;
             if ex1.se.write_fscr = '1' then
-                ctrl_tmp.fscr_ic <= ex1.e.write_data(59 downto 56);
-                ctrl_tmp.fscr_pref <= ex1.e.write_data(FSCR_PREFIX);
-                ctrl_tmp.fscr_scv <= ex1.e.write_data(FSCR_SCV);
-                ctrl_tmp.fscr_tar <= ex1.e.write_data(FSCR_TAR);
-                ctrl_tmp.fscr_dscr <= ex1.e.write_data(FSCR_DSCR);
+                ctrl_tmp.fscr_ic <= ex1.spr_write_data(59 downto 56);
+                ctrl_tmp.fscr_pref <= ex1.spr_write_data(FSCR_PREFIX);
+                ctrl_tmp.fscr_scv <= ex1.spr_write_data(FSCR_SCV);
+                ctrl_tmp.fscr_tar <= ex1.spr_write_data(FSCR_TAR);
+                ctrl_tmp.fscr_dscr <= ex1.spr_write_data(FSCR_DSCR);
             elsif ex1.se.write_ic = '1' then
                 ctrl_tmp.fscr_ic <= ex1.ic;
             end if;
             if ex1.se.write_lpcr = '1' then
-                ctrl_tmp.lpcr_hail <= ex1.e.write_data(LPCR_HAIL);
-                ctrl_tmp.lpcr_ld <= ex1.e.write_data(LPCR_LD);
-                ctrl_tmp.lpcr_heic <= ex1.e.write_data(LPCR_HEIC);
-                ctrl_tmp.lpcr_lpes <= ex1.e.write_data(LPCR_LPES);
-                ctrl_tmp.lpcr_hvice <= ex1.e.write_data(LPCR_HVICE);
+                ctrl_tmp.lpcr_hail <= ex1.spr_write_data(LPCR_HAIL);
+                ctrl_tmp.lpcr_ld <= ex1.spr_write_data(LPCR_LD);
+                ctrl_tmp.lpcr_heic <= ex1.spr_write_data(LPCR_HEIC);
+                ctrl_tmp.lpcr_lpes <= ex1.spr_write_data(LPCR_LPES);
+                ctrl_tmp.lpcr_hvice <= ex1.spr_write_data(LPCR_HVICE);
             end if;
             if ex1.se.write_heir = '1' then
-                ctrl_tmp.heir <= ex1.e.write_data;
+                ctrl_tmp.heir <= ex1.spr_write_data;
             elsif ex1.se.set_heir = '1' then
                 ctrl_tmp.heir(31 downto 0) <= ex1.insn;
                 if ex1.prefixed = '1' then
@@ -2148,13 +2154,13 @@ begin
                 end if;
             end if;
             if ex1.se.write_ctrl = '1' then
-                ctrl_tmp.run <= ex1.e.write_data(0);
+                ctrl_tmp.run <= ex1.spr_write_data(0);
             end if;
             if ex1.se.write_dscr = '1' then
-                ctrl_tmp.dscr <= ex1.e.write_data(24 downto 0);
+                ctrl_tmp.dscr <= ex1.spr_write_data(24 downto 0);
             end if;
             if ex1.se.write_ciabr = '1' then
-                ctrl_tmp.ciabr <= ex1.e.write_data;
+                ctrl_tmp.ciabr <= ex1.spr_write_data;
             end if;
             if ex1.se.enter_wait = '1' then
                 ctrl_tmp.wait_state <= '1';
