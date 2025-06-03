@@ -1120,10 +1120,10 @@ begin
             when "010" =>
                 newcrf := ppc_cmpeqb(a_in, b_in);
             when "011" =>
+                -- CR logical instructions
                 if is_X(e_in.insn) then
                     newcrf := (others => 'X');
-                elsif e_in.insn(1) = '1' then
-                    -- CR logical instructions
+                else
                     crnum := to_integer(unsigned(bf));
                     j := (7 - crnum) * 4;
                     newcrf := cr_in(j + 3 downto j);
@@ -1142,14 +1142,18 @@ begin
                             newcrf(i) := crresult;
                         end if;
                     end loop;
+                end if;
+            when "100" =>
+                -- MCRF
+                if is_X(e_in.insn) then
+                    newcrf := (others => 'X');
                 else
-                    -- MCRF
                     bfa := insn_bfa(e_in.insn);
                     scrnum := to_integer(unsigned(bfa));
                     j := (7 - scrnum) * 4;
                     newcrf := cr_in(j + 3 downto j);
                 end if;
-            when "100" =>
+            when "101" =>
                 -- MCRXRX
                 newcrf := xerc_in.ov & xerc_in.ov32 & xerc_in.ca & xerc_in.ca32;
             when others =>
@@ -1190,6 +1194,7 @@ begin
         variable slow_op : std_ulogic;
         variable owait : std_ulogic;
         variable srr1 : std_ulogic_vector(63 downto 0);
+        variable c32, c64 : std_ulogic;
     begin
         v := actions_type_init;
         v.e.write_data := alu_result;
@@ -1247,6 +1252,26 @@ begin
             v.ciabr_trace := '1';
         end if;
 
+        if e_in.output_carry = '1' then
+            case e_in.result_sel is
+                when ADD =>
+                    c32 := carry_32;
+                    c64 := carry_64;
+                when ROT =>
+                    c32 := rotator_carry;
+                    c64 := rotator_carry;
+                when others =>
+                    c32 := '0';
+                    c64 := '0';
+            end case;
+            if e_in.input_carry /= OV then
+                set_carry(v.e, c32, c64);
+            else
+                v.e.xerc.ov := carry_64;
+                v.e.xerc.ov32 := carry_32;
+            end if;
+        end if;
+
         case_0: case e_in.insn_type is
 	    when OP_ILLEGAL =>
 		illegal := '1';
@@ -1279,17 +1304,10 @@ begin
 	    when OP_NOP | OP_DCBST | OP_ICBT =>
                 -- Do nothing
 	    when OP_ADD =>
-                if e_in.output_carry = '1' then
-                    if e_in.input_carry /= OV then
-                        set_carry(v.e, carry_32, carry_64);
-                    else
-                        v.e.xerc.ov := carry_64;
-                        v.e.xerc.ov32 := carry_32;
-                    end if;
-                end if;
                 if e_in.oe = '1' then
                     set_ov(v.e, overflow_64, overflow_32);
                 end if;
+            when OP_COMPUTE =>
             when OP_CMP =>
             when OP_TRAP =>
                 -- trap instructions (tw, twi, td, tdi)
@@ -1303,11 +1321,6 @@ begin
                         report "trap";
                     end if;
                 end if;
-            when OP_ADDG6S =>
-            when OP_CMPRB =>
-            when OP_CMPEQB =>
-            when OP_LOGIC | OP_XOR | OP_PRTY | OP_CMPB | OP_EXTS |
-                OP_BREV | OP_BCD =>
 
 	    when OP_B =>
                 v.take_branch := '1';
@@ -1386,8 +1399,6 @@ begin
             when OP_COUNTB =>
                 v.res2_sel := "01";
                 slow_op := '1';
-	    when OP_ISEL =>
-            when OP_CROP =>
             when OP_MCRXRX =>
             when OP_DARN =>
 	    when OP_MFMSR =>
@@ -1429,7 +1440,6 @@ begin
                     end if;
                 end if;
 
-	    when OP_MFCR =>
 	    when OP_MTCRF =>
             when OP_MTMSRD =>
                 v.se.write_msr := '1';
@@ -1503,11 +1513,6 @@ begin
                         illegal := '1';
                     end if;
 		end if;
-	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR | OP_EXTSWSLI =>
-		if e_in.output_carry = '1' then
-		    set_carry(v.e, rotator_carry, rotator_carry);
-		end if;
-            when OP_SETB =>
 
 	    when OP_ISYNC =>
 		v.e.redirect := '1';

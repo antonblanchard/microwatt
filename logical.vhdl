@@ -114,7 +114,7 @@ begin
         end if;
 
         case op is
-            when "000" =>       -- OP_LOGIC
+            when "000" =>       -- and, or, etc.
                 -- for now, abuse the 'is_signed' field to indicate inversion of RS
                 rs_adj := rs;
                 if is_signed = '1' then
@@ -124,13 +124,13 @@ begin
                 if invert_out = '1' then
                     tmp := not tmp;
                 end if;
-            when "001" =>       -- OP_XOR
+            when "001" =>       -- xor, eqv
                 tmp := rs xor rb;
                 if invert_out = '1' then
                     tmp := not tmp;
                 end if;
 
-            when "010" =>       -- OP_BREV
+            when "010" =>       -- brev
                 if datalen(3) = '1' then
                     tmp := rs( 7 downto  0) & rs(15 downto  8) & rs(23 downto 16) & rs(31 downto 24) & 
                            rs(39 downto 32) & rs(47 downto 40) & rs(55 downto 48) & rs(63 downto 56);
@@ -142,22 +142,17 @@ begin
                            rs(23 downto 16) & rs(31 downto 24) & rs( 7 downto  0) & rs(15 downto  8);
                 end if;
 
-            when "011" =>       -- OP_PRTY
+            when "011" =>       -- prty*
                 tmp := parity;
-            when "100" =>       -- OP_CMPB
+            when "100" =>       -- cmpb
                 tmp := ppc_cmpb(rs, rb);
-            when "101" =>       -- OP_BCD
-                -- invert_in is abused to indicate direction of conversion
-                if invert_in = '0' then
-                    -- cbcdtd
-                    tmp := x"000" & bcd_to_dpd(rs(55 downto 44)) & bcd_to_dpd(rs(43 downto 32)) &
-                           x"000" & bcd_to_dpd(rs(23 downto 12)) & bcd_to_dpd(rs(11 downto 0));
-                else
-                    -- cdtbcd
-                    tmp := x"00" & dpd_to_bcd(rs(51 downto 42)) & dpd_to_bcd(rs(41 downto 32)) &
-                           x"00" & dpd_to_bcd(rs(19 downto 10)) & dpd_to_bcd(rs(9 downto 0));
-                end if;
-            when "110" =>       -- OP_EXTS
+            when "101" =>       -- cbcdtd
+                tmp := x"000" & bcd_to_dpd(rs(55 downto 44)) & bcd_to_dpd(rs(43 downto 32)) &
+                       x"000" & bcd_to_dpd(rs(23 downto 12)) & bcd_to_dpd(rs(11 downto 0));
+            when "110" =>       -- cdtbcd
+                tmp := x"00" & dpd_to_bcd(rs(51 downto 42)) & dpd_to_bcd(rs(41 downto 32)) &
+                       x"00" & dpd_to_bcd(rs(19 downto 10)) & dpd_to_bcd(rs(9 downto 0));
+            when "111" =>       -- exts*
                 -- note datalen is a 1-hot encoding
 		negative := (datalen(0) and rs(7)) or
 			    (datalen(1) and rs(15)) or
