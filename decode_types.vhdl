@@ -420,9 +420,8 @@ package decode_types is
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA);
     type input_reg_b_t is (IMM, RB, FRB);
     type const_sel_t is   (NONE, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
-                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI,
-                           CONST_DSX);
-    type input_reg_c_t is (NONE, RS, RCR, RBC, FRC, FRS);
+                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI);
+    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS);
     type output_reg_a_t is (NONE, RT, RA, FRT);
     type rc_t is (NONE, ONE, RC, RCOE);
     type carry_in_t is (ZERO, CA, OV, ONE);
@@ -449,6 +448,9 @@ package decode_types is
     type facility_t is (NONE, FPU);
     type length_t is (NONE, is1B, is2B, is4B, is8B);
 
+    type result_sel_t is (ADD, LOG, ROT, UN3, MCYC, SPR, UN6, MSC);
+    subtype subresult_sel_t is std_ulogic_vector(2 downto 0);
+
     type repeat_t is (NONE,      -- instruction is not repeated
                       DUPD,      -- update-form load
                       DRSP,      -- double RS (RS, RS+1)
@@ -463,6 +465,10 @@ package decode_types is
         const_sel    : const_sel_t;
 	input_reg_c  : input_reg_c_t;
 	output_reg_a : output_reg_a_t;
+
+        -- Result multiplexor control
+        result       : result_sel_t;
+        subresult    : subresult_sel_t;
 
 	input_cr     : std_ulogic;
 	output_cr    : std_ulogic;
@@ -493,7 +499,8 @@ package decode_types is
     constant decode_rom_init : decode_rom_t := (unit => ALU, facility => NONE,
 						insn_type => OP_ILLEGAL, input_reg_a => NONE,
 						input_reg_b => IMM, const_sel => NONE, input_reg_c => NONE,
-						output_reg_a => NONE, input_cr => '0', output_cr => '0',
+						output_reg_a => NONE, result => ADD, subresult => "000",
+                                                input_cr => '0', output_cr => '0',
 						invert_a => '0', invert_out => '0', input_carry => ZERO, output_carry => '0',
 						length => NONE, byte_reverse => '0', sign_extend => '0',
 						update => '0', reserve => '0', is_32bit => '0',

@@ -85,16 +85,16 @@ architecture behaviour of decode2 is
 
     function decode_input_reg_a (t : input_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
                                  prefix : std_ulogic_vector(25 downto 0))
-        return decode_input_reg_t is
+        return std_ulogic is
     begin
         if t = RA or ((t = RA_OR_ZERO or t = RA0_OR_CIA) and insn_ra(insn_in) /= "00000") then
-            return ('1', gpr_to_gspr(insn_ra(insn_in)));
+            return '1';
         elsif t = CIA or (t = RA0_OR_CIA and insn_prefix_r(prefix) = '1') then
-            return ('0', (others => '0'));
-        elsif HAS_FPU and t = FRA then
-            return ('1', fpr_to_gspr(insn_fra(insn_in)));
+            return '0';
+        elsif t = FRA then
+            return '1';
         else
-            return ('0', (others => '0'));
+            return '0';
         end if;
     end;
 
@@ -140,8 +140,6 @@ architecture behaviour of decode2 is
                 ret := x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11);
             when CONST_SH32 =>
                 ret := x"00000000000000" & "000" & insn_in(15 downto 11);
-            when CONST_DSX =>
-                ret := 55x"7FFFFFFFFFFFFF" & insn_in(0) & insn_in(25 downto 21) & "000";
             when others =>
                 ret := (others => '0');
         end case;
@@ -149,49 +147,25 @@ architecture behaviour of decode2 is
         return ret;
     end;
 
-    function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0))
-        return decode_input_reg_t is
-        variable ret : decode_input_reg_t;
+    function decode_input_reg_b (t : input_reg_b_t)
+        return std_ulogic is
     begin
         case t is
-            when RB =>
-                ret := ('1', gpr_to_gspr(insn_rb(insn_in)));
-            when FRB =>
-                if HAS_FPU then
-                    ret := ('1', fpr_to_gspr(insn_frb(insn_in)));
-                else
-                    ret := ('0', (others => '0'));
-                end if;
+            when RB | FRB =>
+                return '1';
             when IMM =>
-                ret := ('0', (others => '0'));
+                return '0';
         end case;
-        return ret;
     end;
 
-    function decode_input_reg_c (t : input_reg_c_t; insn_in : std_ulogic_vector(31 downto 0))
-        return decode_input_reg_t is
+    function decode_input_reg_c (t : input_reg_c_t)
+        return std_ulogic is
     begin
         case t is
-            when RS =>
-                return ('1', gpr_to_gspr(insn_rs(insn_in)));
-            when RCR =>
-                return ('1', gpr_to_gspr(insn_rcreg(insn_in)));
-            when FRS =>
-                if HAS_FPU then
-                    return ('1', fpr_to_gspr(insn_frt(insn_in)));
-                else
-                    return ('0', (others => '0'));
-                end if;
-            when FRC =>
-                if HAS_FPU then
-                    return ('1', fpr_to_gspr(insn_frc(insn_in)));
-                else
-                    return ('0', (others => '0'));
-                end if;
-            when RBC =>
-                return ('1', gpr_to_gspr(insn_rb(insn_in)));
+            when RS | RCR | FRS | FRC =>
+                return '1';
             when NONE =>
-                return ('0', (others => '0'));
+                return '0';
         end case;
     end;
 
@@ -242,59 +216,6 @@ architecture behaviour of decode2 is
         end if;
         return t;
     end;
-
-    -- control signals that are derived from insn_type
-    type mux_select_array_t is array(insn_type_t) of std_ulogic_vector(2 downto 0);
-
-    constant result_select : mux_select_array_t := (
-        OP_LOGIC    => "001",           -- logical_result
-        OP_XOR      => "001",
-        OP_PRTY     => "001",
-        OP_CMPB     => "001",
-        OP_EXTS     => "001",
-        OP_BREV     => "001",
-        OP_BCD      => "001",
-        OP_MTSPR    => "001",
-        OP_RLC      => "010",           -- rotator_result
-        OP_RLCL     => "010",
-        OP_RLCR     => "010",
-        OP_SHL      => "010",
-        OP_SHR      => "010",
-        OP_EXTSWSLI => "010",
-        OP_BCREG    => "101",           -- ramspr_result
-        OP_RFID     => "101",
-        OP_ADDG6S   => "111",           -- misc_result
-        OP_ISEL     => "111",
-        OP_DARN     => "111",
-        OP_MFMSR    => "111",
-        OP_MFCR     => "111",
-        OP_SETB     => "111",
-        others      => "000"            -- default to adder_result
-        );
-
-    constant subresult_select : mux_select_array_t := (
-        OP_MUL_L64 => "000",            -- multicyc_result
-        OP_MUL_H64 => "010",
-        OP_MUL_H32 => "001",
-        OP_DIV     => "101",
-        OP_DIVE    => "101",
-        OP_MOD     => "101",
-        OP_BSORT   => "100",
-        OP_BPERM   => "100",
-        OP_ADDG6S  => "001",            -- misc_result
-        OP_ISEL    => "010",
-        OP_DARN    => "011",
-        OP_MFMSR   => "100",
-        OP_MFCR    => "101",
-        OP_SETB    => "110",
-        OP_CMP     => "000",            -- cr_result
-        OP_CMPRB   => "001",
-        OP_CMPEQB  => "010",
-        OP_CROP    => "011",
-        OP_MCRXRX  => "100",
-        OP_MTCRF   => "101",
-        others     => "000"
-        );
 
     signal decoded_reg_a : decode_input_reg_t;
     signal decoded_reg_b : decode_input_reg_t;
@@ -402,11 +323,6 @@ begin
                 dc2.e.ramspr_odd_rdaddr <= dc2in.e.ramspr_odd_rdaddr;
                 dc2.e.ramspr_rd_odd <= dc2in.e.ramspr_rd_odd;
             end if;
-            if d_in.valid = '1' then
-                assert decoded_reg_a.reg_valid = '0' or decoded_reg_a.reg = d_in.reg_a severity failure;
-                assert decoded_reg_b.reg_valid = '0' or decoded_reg_b.reg = d_in.reg_b severity failure;
-                assert decoded_reg_c.reg_valid = '0' or decoded_reg_c.reg = d_in.reg_c severity failure;
-            end if;
         end if;
     end process;
 
@@ -416,9 +332,12 @@ begin
         variable dec_a, dec_b, dec_c : decode_input_reg_t;
         variable dec_o : decode_output_reg_t;
     begin
-        dec_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.prefix);
-        dec_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn);
-        dec_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn);
+        dec_a.reg_valid := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, d_in.prefix);
+        dec_a.reg := d_in.reg_a;
+        dec_b.reg_valid := decode_input_reg_b (d_in.decode.input_reg_b);
+        dec_b.reg := d_in.reg_b;
+        dec_c.reg_valid := decode_input_reg_c (d_in.decode.input_reg_c);
+        dec_c.reg := d_in.reg_c;
         dec_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn);
         case d_in.decode.repeat is
             when DUPD =>
@@ -693,19 +612,8 @@ begin
             v.e.update := d_in.decode.update;
             v.e.reserve := d_in.decode.reserve;
             v.e.br_pred := d_in.br_pred;
-            v.e.result_sel := result_select(op);
-            v.e.sub_select := subresult_select(op);
-            if op = OP_MFSPR then
-                if d_in.ram_spr.valid = '1' then
-                    v.e.result_sel := "101";        -- ramspr_result
-                elsif d_in.spr_info.valid = '0' or d_in.spr_info.wonly = '1' or
-                    d_in.spr_info.noop = '1' then
-                    -- Privileged mfspr to invalid/unimplemented SPR numbers
-                    -- writes the contents of RT back to RT (i.e. it's a no-op)
-                    -- as does any mfspr from the reserved/noop SPR numbers
-                    v.e.result_sel := "001";        -- logical_result
-                end if;
-            end if;
+            v.e.result_sel := d_in.decode.result;
+            v.e.sub_select := d_in.decode.subresult;
             v.e.privileged := d_in.decode.privileged;
             if (op = OP_MFSPR or op = OP_MTSPR) and d_in.insn(20) = '1' then
                 v.e.privileged := '1';

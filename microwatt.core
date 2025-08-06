@@ -197,6 +197,7 @@ targets:
     default_tool: vivado
     filesets: [core, acorn_cle_215, soc, fpga, debug_xilinx, litedram, uart16550, xilinx_specific]
     parameters :
+      - cpus
       - memory_size
       - ram_init_file
       - use_litedram=true
@@ -205,6 +206,8 @@ targets:
       - spi_flash_offset=10485760
       - log_length=2048
       - uart_is_16550
+      - has_fpu
+      - has_btc
     generate: [litedram_acorn_cle_215, git_hash]
     tools:
       vivado: {part : xc7a200tsbg484-2}

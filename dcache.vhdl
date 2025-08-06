@@ -1158,12 +1158,11 @@ begin
         -- If we're stalling then we need to keep reading the last
         -- row requested.
         if r0_stall = '0' then
+            early_rd_valid <= '1';
             if m_in.valid = '1' then
                 early_req_row <= get_row(m_in.addr);
-                early_rd_valid <= '1';
             else
                 early_req_row <= get_row(d_in.addr);
-                early_rd_valid <= d_in.valid and d_in.load;
             end if;
         else
             early_req_row <= req_row;

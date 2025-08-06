@@ -469,8 +469,8 @@ package common is
 	update : std_ulogic;				-- is this an update instruction?
         reserve : std_ulogic;                           -- set for larx/stcx
         br_pred : std_ulogic;
-        result_sel : std_ulogic_vector(2 downto 0);     -- select source of result
-        sub_select : std_ulogic_vector(2 downto 0);     -- sub-result selection
+        result_sel : result_sel_t;                      -- select source of result
+        sub_select : subresult_sel_t;                   -- sub-result selection
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
         spr_select : spr_id;
@@ -509,7 +509,7 @@ package common is
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          reg_valid1 => '0', reg_valid2 => '0', reg_valid3 => '0',
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
-         result_sel => "000", sub_select => "000",
+         result_sel => ADD, sub_select => "000",
          repeat => '0', second => '0', spr_select => spr_id_init,
          spr_is_ram => '0',
          ramspr_even_rdaddr => (others => '0'), ramspr_odd_rdaddr => (others => '0'), ramspr_rd_odd => '0',

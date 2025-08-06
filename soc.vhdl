@@ -431,6 +431,7 @@ begin
     -- From CPU to BRAM, DRAM, IO, selected on top 3 bits and dram_at_0
     -- 0000  - BRAM
     -- 0001  - DRAM
+    -- 001x  - DRAM
     -- 01xx  - DRAM
     -- 10xx  - BRAM
     -- 11xx  - IO
@@ -449,6 +450,8 @@ begin
 	    slave_top := SLAVE_TOP_BRAM;
 	elsif std_match(top_decode, "0001") then
 	    slave_top := SLAVE_TOP_DRAM;
+        elsif std_match(top_decode, "001-") then
+            slave_top := SLAVE_TOP_DRAM;
 	elsif std_match(top_decode, "01--") then
 	    slave_top := SLAVE_TOP_DRAM;
 	elsif std_match(top_decode, "10--") then

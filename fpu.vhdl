@@ -582,26 +582,6 @@ architecture behaviour of fpu is
         return shift_result;
     end;
 
-    -- Generate a mask with 0-bits on the left and 1-bits on the right which
-    -- selects the bits will be lost in doing a right shift.  The shift
-    -- parameter is the bottom 6 bits of a negative shift count,
-    -- indicating a right shift.
-    function right_mask(shift: unsigned(5 downto 0)) return std_ulogic_vector is
-        variable mask_result: std_ulogic_vector(63 downto 0);
-    begin
-        mask_result := (others => '0');
-	if is_X(shift) then
-	    mask_result := (others => 'X');
-	    return mask_result;
-	end if;
-        for i in 0 to 63 loop
-            if i >= shift then
-                mask_result(63 - i) := '1';
-            end if;
-        end loop;
-        return mask_result;
-    end;
-
     -- Split a DP floating-point number into components and work out its class.
     -- If is_int = 1, the input is considered an integer
     function decode_dp(fpr: std_ulogic_vector(63 downto 0); is_fp: std_ulogic;
@@ -1051,6 +1031,7 @@ begin
         variable asign       : std_ulogic;
         variable bneg        : std_ulogic;
         variable ci          : std_ulogic;
+        variable rormr       : std_ulogic_vector(63 downto 0);
     begin
         v := r;
         v.complete := '0';
@@ -3258,22 +3239,26 @@ begin
         -- Data path.
         -- This has A and B input multiplexers, an adder, a shifter,
         -- count-leading-zeroes logic, and a result mux.
+
+        -- If shifting right, test if bits of R will be shifted out of significance
         if r.longmask = '1' then
-            mshift := r.shift + to_signed(-29, EXP_BITS);
+            mshift := to_signed(28, EXP_BITS);
         else
-            mshift := r.shift;
+            mshift := to_signed(-1, EXP_BITS);
         end if;
-	if is_X(mshift) then
-	    mask := (others => 'X');
-        elsif mshift < to_signed(-64, EXP_BITS) then
-            mask := (others => '1');
-        elsif mshift >= to_signed(0, EXP_BITS) then
-            mask := (others => '0');
-        else
-            mask := right_mask(unsigned(mshift(5 downto 0)));
-        end if;
-        if (or (mask and r.r)) = '1' and set_x = '1' then
-            v.x := '1';
+        mshift := mshift - r.shift;
+        if set_x = '1' and not is_X(mshift) and mshift >= to_signed(0, EXP_BITS) then
+            -- Instead of computing (R & right_mask(63-mshift)) != 0,
+            -- we compute (R | -R), which has the form 111...10...0
+            -- where the rightmost 1 is in the same position as the
+            -- rightmost 1 in R.  Then if bit (mshift) of that value
+            -- is 1, there must be a 1 in the rightmost (mshift + 1)
+            -- bits of R.
+            rormr := r.r or std_ulogic_vector(- signed(r.r));
+            if mshift >= to_signed(64, EXP_BITS) then
+                mshift := to_signed(63, EXP_BITS);
+            end if;
+            v.x := v.x or r.r(to_integer(unsigned(mshift(5 downto 0))));
         end if;
         asign := '0';
         case opsel_a is
