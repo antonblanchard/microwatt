@@ -273,6 +273,9 @@ architecture behaviour of soc is
 
     signal core_run_out       : std_ulogic_vector(NCPUS-1 downto 0);
 
+    type msg_percpu_array is array(cpu_index_t) of std_ulogic_vector(NCPUS-1 downto 0);
+    signal msgs               : msg_percpu_array;
+
     function wishbone_widen_data(wb : wb_io_master_out) return wishbone_master_out is
         variable wwb : wishbone_master_out;
     begin
@@ -355,10 +358,14 @@ begin
 
     -- Processor cores
     processors: for i in 0 to NCPUS-1 generate
+        signal msgin : std_ulogic;
+
+    begin
         core: entity work.core
 	generic map(
 	    SIM => SIM,
             CPU_INDEX => i,
+            NCPUS => NCPUS,
             HAS_FPU => HAS_FPU,
             HAS_BTC => HAS_BTC,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
@@ -389,8 +396,21 @@ begin
 	    dmi_wr => dmi_wr,
 	    dmi_ack => dmi_core_ack(i),
 	    dmi_req => dmi_core_req(i),
-	    ext_irq => core_ext_irq(i)
+	    ext_irq => core_ext_irq(i),
+            msg_out => msgs(i),
+            msg_in => msgin
 	    );
+
+        process(all)
+            variable m : std_ulogic;
+        begin
+            m := '0';
+            for j in 0 to NCPUS-1 loop
+                m := m or msgs(j)(i);
+            end loop;
+            msgin <= m;
+        end process;
+
     end generate;
 
     run_out <= or (core_run_out);

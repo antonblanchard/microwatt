@@ -16,6 +16,7 @@ entity execute1 is
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
         CPU_INDEX : natural;
+        NCPUS : positive := 1;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -47,6 +48,9 @@ entity execute1 is
         bypass2_cr_data : out cr_bypass_data_t;
 
         dbg_ctrl_out : out ctrl_t;
+
+        msg_in       : in std_ulogic;
+        msg_out      : out std_ulogic_vector(NCPUS-1 downto 0);
 
         run_out      : out std_ulogic;
 	icache_inval : out std_ulogic;
@@ -103,8 +107,10 @@ architecture behaviour of execute1 is
         write_tbl : std_ulogic;
         write_tbu : std_ulogic;
         noop_spr_read : std_ulogic;
+        send_hmsg : std_ulogic_vector(NCPUS-1 downto 0);
+        clr_hmsg : std_ulogic;
     end record;
-    constant side_effect_init : side_effect_type := (others => '0');
+    constant side_effect_init : side_effect_type := (send_hmsg => (others => '0'), others => '0');
 
     type actions_type is record
         e : Execute1ToWritebackType;
@@ -286,6 +292,9 @@ architecture behaviour of execute1 is
     signal timebase : std_ulogic_vector(63 downto 0);
     signal tb_next  : std_ulogic_vector(63 downto 0);
     signal tb_carry : std_ulogic;
+
+    -- directed hypervisor doorbell state
+    signal dhd_pending : std_ulogic;
 
     type privilege_level is (USER, SUPER);
     type op_privilege_array is array(insn_type_t) of privilege_level;
@@ -613,6 +622,18 @@ begin
 
     dbg_ctrl_out <= ctrl;
     log_rd_addr <= ex2.log_addr_spr;
+
+    -- Doorbells
+    doorbell_sync : process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' or ex2.se.clr_hmsg = '1' then
+                dhd_pending <= '0';
+            elsif msg_in = '1' then
+                dhd_pending <= '1';
+            end if;
+        end if;
+    end process;
 
     a_in <= e_in.read_data1;
     b_in <= e_in.read_data2;
@@ -1440,6 +1461,20 @@ begin
                     end if;
                 end if;
 
+            when OP_MSG =>
+                -- msgsnd, msgclr
+                if b_in(31 downto 27) = 5x"5" then
+                    if e_in.insn(6) = '0' then  -- msgsnd
+                        for cpuid in 0 to NCPUS-1 loop
+                            if unsigned(b_in(19 downto 0)) = to_unsigned(cpuid, 20) then
+                                v.se.send_hmsg(cpuid) := '1';
+                            end if;
+                        end loop;
+                    else                        -- msgclr
+                        v.se.clr_hmsg := '1';
+                    end if;
+                end if;
+
 	    when OP_MTCRF =>
             when OP_MTMSRD =>
                 v.se.write_msr := '1';
@@ -1704,8 +1739,9 @@ begin
         v.busy := '0';
         bypass_valid := actions.bypass_valid;
 
-        irq_valid := ex1.msr(MSR_EE) and (pmu_to_x.intr or dec_sign or
-                                          (ext_irq_in and not ctrl.lpcr_heic));
+        irq_valid := ex1.msr(MSR_EE) and
+                     (pmu_to_x.intr or dec_sign or dhd_pending or
+                      (ext_irq_in and not ctrl.lpcr_heic));
 
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
@@ -1747,6 +1783,11 @@ begin
                 if pmu_to_x.intr = '1' then
                     v.e.intr_vec := 16#f00#;
                     report "IRQ valid: PMU";
+                elsif dhd_pending = '1' then
+                    v.e.intr_vec := 16#e80#;
+                    v.e.hv_intr := '1';
+                    v.se.clr_hmsg := '1';
+                    report "Hypervisor doorbell";
                 elsif dec_sign = '1' then
                     v.e.intr_vec := 16#900#;
                     report "IRQ valid: DEC";
@@ -2175,7 +2216,7 @@ begin
         -- pending exceptions clear any wait state
         -- ex1.fp_exception_next is not tested because it is not possible to
         -- get into wait state with a pending FP exception.
-        irq_exc := pmu_to_x.intr or dec_sign or ext_irq_in;
+        irq_exc := pmu_to_x.intr or dec_sign or ext_irq_in or dhd_pending;
         if ex1.trace_next = '1' or irq_exc = '1' or interrupt_in.intr = '1' then
             ctrl_tmp.wait_state <= '0';
         end if;
@@ -2222,6 +2263,8 @@ begin
         run_out <= ctrl.run;
         terminate_out <= ex2.se.terminate;
         icache_inval <= ex2.se.icache_inval;
+
+        msg_out <= ex2.se.send_hmsg;
 
         exception_log <= v.e.interrupt;
     end process;
