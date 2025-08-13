@@ -4,28 +4,22 @@ use ieee.std_logic_1164.all;
 package decode_types is
     type insn_type_t is (OP_ILLEGAL, OP_NOP, OP_ADD,
 			 OP_ATTN, OP_B, OP_BC, OP_BCREG,
-			 OP_BCD, OP_BPERM, OP_BREV,
-                         OP_CMP, OP_CMPB, OP_CMPEQB, OP_CMPRB,
-			 OP_COUNTB, OP_CROP,
+			 OP_BPERM, OP_BSORT, OP_CMP,
+                         OP_COMPUTE,
+			 OP_COUNTB,
 			 OP_DARN, OP_DCBF, OP_DCBST, OP_DCBZ,
-                         OP_SPARE,
                          OP_ICBI, OP_ICBT,
                          OP_FP_CMP, OP_FP_ARITH, OP_FP_MOVE, OP_FP_MISC,
                          OP_DIV, OP_DIVE, OP_MOD,
-                         OP_EXTS, OP_EXTSWSLI,
-                         OP_ISEL, OP_ISYNC,
-                         OP_LOGIC,
+                         OP_ISYNC,
 			 OP_LOAD, OP_STORE,
-			 OP_MCRXRX, OP_MFCR, OP_MFMSR, OP_MFSPR,
+			 OP_MCRXRX, OP_MFMSR, OP_MFSPR,
+                         OP_MSG,
 			 OP_MTCRF, OP_MTMSRD, OP_MTSPR, OP_MUL_L64,
 			 OP_MUL_H64, OP_MUL_H32,
-                         OP_BSORT,
-			 OP_PRTY, OP_RFID,
-			 OP_RLC, OP_RLCL, OP_RLCR, OP_SC, OP_SETB,
-			 OP_SHL, OP_SHR,
+			 OP_RFID,
+			 OP_SC,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
-			 OP_XOR,
-                         OP_ADDG6S,
                          OP_WAIT,
                          OP_FETCH_FAILED
 			 );
@@ -94,10 +88,11 @@ package decode_types is
         INSN_mfcr,
         INSN_mfmsr,
         INSN_mfspr,
+        INSN_msgsync,
         INSN_mtcrf,
         INSN_mtmsr,
-        INSN_mtmsrd,
-        INSN_mtspr, -- 60
+        INSN_mtmsrd, -- 60
+        INSN_mtspr,
         INSN_mulli,
         INSN_neg,
         INSN_nop,
@@ -106,8 +101,8 @@ package decode_types is
         INSN_popcntb,
         INSN_popcntw,
         INSN_popcntd,
-        INSN_prtyw,
-        INSN_prtyd, -- 70
+        INSN_prtyw, -- 70
+        INSN_prtyd,
         INSN_rfid,
         INSN_rfscv,
         INSN_rldic,
@@ -116,8 +111,8 @@ package decode_types is
         INSN_rldimi,
         INSN_rlwimi,
         INSN_rlwinm,
-        INSN_rnop,
-        INSN_sc, -- 80
+        INSN_rnop, -- 80
+        INSN_sc,
         INSN_setb,
         INSN_slbia,
         INSN_sradi,
@@ -126,8 +121,8 @@ package decode_types is
         INSN_std,
         INSN_stdu,
         INSN_sthu,
-        INSN_stq,
-        INSN_stwu, -- 90
+        INSN_stq, -- 90
+        INSN_stwu,
         INSN_subfic,
         INSN_subfme,
         INSN_subfze,
@@ -136,10 +131,8 @@ package decode_types is
         INSN_tlbsync,
         INSN_twi,
         INSN_wait,
-        INSN_xori,
-        INSN_xoris, -- 100
-        -- pad to 102
-        INSN_065,
+        INSN_xori, -- 100
+        INSN_xoris,
 
         -- Non-prefixed instructions that have a MLS:D prefixed form and
         -- their corresponding prefixed instructions.
@@ -240,6 +233,8 @@ package decode_types is
         INSN_modsw,
         INSN_moduw,
         INSN_modud, -- 190
+        INSN_msgclr,
+        INSN_msgsnd,
         INSN_mulhw,
         INSN_mulhwu,
         INSN_mulhd,
@@ -247,9 +242,9 @@ package decode_types is
         INSN_mullw,
         INSN_mulld,
         INSN_nand,
-        INSN_nor,
+        INSN_nor, -- 200
         INSN_or,
-        INSN_orc, -- 200
+        INSN_orc,
         INSN_pdepd,
         INSN_pextd,
         INSN_rldcl,
@@ -257,9 +252,9 @@ package decode_types is
         INSN_rlwnm,
         INSN_slw,
         INSN_sld,
-        INSN_sraw,
+        INSN_sraw, -- 210
         INSN_srad,
-        INSN_srw, -- 210
+        INSN_srw,
         INSN_srd,
         INSN_stbcix,
         INSN_stbcx,
@@ -267,9 +262,9 @@ package decode_types is
         INSN_stbux,
         INSN_stdbrx,
         INSN_stdcix,
-        INSN_stdcx,
+        INSN_stdcx, -- 220
         INSN_stdx,
-        INSN_stdux, -- 220
+        INSN_stdux,
         INSN_sthbrx,
         INSN_sthcix,
         INSN_sthcx,
@@ -277,9 +272,9 @@ package decode_types is
         INSN_sthux,
         INSN_stqcx,
         INSN_stwbrx,
-        INSN_stwcix,
+        INSN_stwcix, -- 230
         INSN_stwcx,
-        INSN_stwx, -- 230
+        INSN_stwx,
         INSN_stwux,
         INSN_subf,
         INSN_subfc,
@@ -287,10 +282,11 @@ package decode_types is
         INSN_td,
         INSN_tlbie,
         INSN_tlbiel,
-        INSN_tw,
+        INSN_tw, -- 240
         INSN_xor,
 
-        -- pad to 240 to simplify comparison logic
+        -- pad to 248 to simplify comparison logic
+        INSN_242, INSN_243, INSN_244, INSN_245, INSN_246, INSN_247,
 
         -- The following instructions have a third input addressed by RC
         INSN_maddld,
@@ -298,9 +294,7 @@ package decode_types is
         INSN_maddhdu,
 
         -- pad to 256 to simplify comparison logic
-        INSN_243,
-        INSN_244, INSN_245, INSN_246, INSN_247,
-        INSN_248, INSN_249, INSN_250, INSN_251,
+        INSN_251,
         INSN_252, INSN_253, INSN_254, INSN_255,
 
         -- The following instructions access floating-point registers
@@ -700,6 +694,9 @@ package body decode_types is
             when INSN_moduw     => return "011111";
             when INSN_modsd     => return "011111";
             when INSN_modsw     => return "011111";
+            when INSN_msgclr    => return "011111";
+            when INSN_msgsnd    => return "011111";
+            when INSN_msgsync   => return "011111";
             when INSN_mtcrf     => return "011111";
             when INSN_mtmsr     => return "011111";
             when INSN_mtmsrd    => return "011111";

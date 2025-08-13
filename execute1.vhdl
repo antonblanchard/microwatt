@@ -16,6 +16,7 @@ entity execute1 is
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
         CPU_INDEX : natural;
+        NCPUS : positive := 1;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -47,6 +48,9 @@ entity execute1 is
         bypass2_cr_data : out cr_bypass_data_t;
 
         dbg_ctrl_out : out ctrl_t;
+
+        msg_in       : in std_ulogic;
+        msg_out      : out std_ulogic_vector(NCPUS-1 downto 0);
 
         run_out      : out std_ulogic;
 	icache_inval : out std_ulogic;
@@ -103,8 +107,10 @@ architecture behaviour of execute1 is
         write_tbl : std_ulogic;
         write_tbu : std_ulogic;
         noop_spr_read : std_ulogic;
+        send_hmsg : std_ulogic_vector(NCPUS-1 downto 0);
+        clr_hmsg : std_ulogic;
     end record;
-    constant side_effect_init : side_effect_type := (others => '0');
+    constant side_effect_init : side_effect_type := (send_hmsg => (others => '0'), others => '0');
 
     type actions_type is record
         e : Execute1ToWritebackType;
@@ -286,6 +292,9 @@ architecture behaviour of execute1 is
     signal timebase : std_ulogic_vector(63 downto 0);
     signal tb_next  : std_ulogic_vector(63 downto 0);
     signal tb_carry : std_ulogic;
+
+    -- directed hypervisor doorbell state
+    signal dhd_pending : std_ulogic;
 
     type privilege_level is (USER, SUPER);
     type op_privilege_array is array(insn_type_t) of privilege_level;
@@ -613,6 +622,18 @@ begin
 
     dbg_ctrl_out <= ctrl;
     log_rd_addr <= ex2.log_addr_spr;
+
+    -- Doorbells
+    doorbell_sync : process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' or ex2.se.clr_hmsg = '1' then
+                dhd_pending <= '0';
+            elsif msg_in = '1' then
+                dhd_pending <= '1';
+            end if;
+        end if;
+    end process;
 
     a_in <= e_in.read_data1;
     b_in <= e_in.read_data2;
@@ -1120,10 +1141,10 @@ begin
             when "010" =>
                 newcrf := ppc_cmpeqb(a_in, b_in);
             when "011" =>
+                -- CR logical instructions
                 if is_X(e_in.insn) then
                     newcrf := (others => 'X');
-                elsif e_in.insn(1) = '1' then
-                    -- CR logical instructions
+                else
                     crnum := to_integer(unsigned(bf));
                     j := (7 - crnum) * 4;
                     newcrf := cr_in(j + 3 downto j);
@@ -1142,14 +1163,18 @@ begin
                             newcrf(i) := crresult;
                         end if;
                     end loop;
+                end if;
+            when "100" =>
+                -- MCRF
+                if is_X(e_in.insn) then
+                    newcrf := (others => 'X');
                 else
-                    -- MCRF
                     bfa := insn_bfa(e_in.insn);
                     scrnum := to_integer(unsigned(bfa));
                     j := (7 - scrnum) * 4;
                     newcrf := cr_in(j + 3 downto j);
                 end if;
-            when "100" =>
+            when "101" =>
                 -- MCRXRX
                 newcrf := xerc_in.ov & xerc_in.ov32 & xerc_in.ca & xerc_in.ca32;
             when others =>
@@ -1190,6 +1215,7 @@ begin
         variable slow_op : std_ulogic;
         variable owait : std_ulogic;
         variable srr1 : std_ulogic_vector(63 downto 0);
+        variable c32, c64 : std_ulogic;
     begin
         v := actions_type_init;
         v.e.write_data := alu_result;
@@ -1247,6 +1273,26 @@ begin
             v.ciabr_trace := '1';
         end if;
 
+        if e_in.output_carry = '1' then
+            case e_in.result_sel is
+                when ADD =>
+                    c32 := carry_32;
+                    c64 := carry_64;
+                when ROT =>
+                    c32 := rotator_carry;
+                    c64 := rotator_carry;
+                when others =>
+                    c32 := '0';
+                    c64 := '0';
+            end case;
+            if e_in.input_carry /= OV then
+                set_carry(v.e, c32, c64);
+            else
+                v.e.xerc.ov := carry_64;
+                v.e.xerc.ov32 := carry_32;
+            end if;
+        end if;
+
         case_0: case e_in.insn_type is
 	    when OP_ILLEGAL =>
 		illegal := '1';
@@ -1279,17 +1325,10 @@ begin
 	    when OP_NOP | OP_DCBST | OP_ICBT =>
                 -- Do nothing
 	    when OP_ADD =>
-                if e_in.output_carry = '1' then
-                    if e_in.input_carry /= OV then
-                        set_carry(v.e, carry_32, carry_64);
-                    else
-                        v.e.xerc.ov := carry_64;
-                        v.e.xerc.ov32 := carry_32;
-                    end if;
-                end if;
                 if e_in.oe = '1' then
                     set_ov(v.e, overflow_64, overflow_32);
                 end if;
+            when OP_COMPUTE =>
             when OP_CMP =>
             when OP_TRAP =>
                 -- trap instructions (tw, twi, td, tdi)
@@ -1303,11 +1342,6 @@ begin
                         report "trap";
                     end if;
                 end if;
-            when OP_ADDG6S =>
-            when OP_CMPRB =>
-            when OP_CMPEQB =>
-            when OP_LOGIC | OP_XOR | OP_PRTY | OP_CMPB | OP_EXTS |
-                OP_BREV | OP_BCD =>
 
 	    when OP_B =>
                 v.take_branch := '1';
@@ -1386,8 +1420,6 @@ begin
             when OP_COUNTB =>
                 v.res2_sel := "01";
                 slow_op := '1';
-	    when OP_ISEL =>
-            when OP_CROP =>
             when OP_MCRXRX =>
             when OP_DARN =>
 	    when OP_MFMSR =>
@@ -1429,7 +1461,20 @@ begin
                     end if;
                 end if;
 
-	    when OP_MFCR =>
+            when OP_MSG =>
+                -- msgsnd, msgclr
+                if b_in(31 downto 27) = 5x"5" then
+                    if e_in.insn(6) = '0' then  -- msgsnd
+                        for cpuid in 0 to NCPUS-1 loop
+                            if unsigned(b_in(19 downto 0)) = to_unsigned(cpuid, 20) then
+                                v.se.send_hmsg(cpuid) := '1';
+                            end if;
+                        end loop;
+                    else                        -- msgclr
+                        v.se.clr_hmsg := '1';
+                    end if;
+                end if;
+
 	    when OP_MTCRF =>
             when OP_MTMSRD =>
                 v.se.write_msr := '1';
@@ -1503,11 +1548,6 @@ begin
                         illegal := '1';
                     end if;
 		end if;
-	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR | OP_EXTSWSLI =>
-		if e_in.output_carry = '1' then
-		    set_carry(v.e, rotator_carry, rotator_carry);
-		end if;
-            when OP_SETB =>
 
 	    when OP_ISYNC =>
 		v.e.redirect := '1';
@@ -1699,8 +1739,9 @@ begin
         v.busy := '0';
         bypass_valid := actions.bypass_valid;
 
-        irq_valid := ex1.msr(MSR_EE) and (pmu_to_x.intr or dec_sign or
-                                          (ext_irq_in and not ctrl.lpcr_heic));
+        irq_valid := ex1.msr(MSR_EE) and
+                     (pmu_to_x.intr or dec_sign or dhd_pending or
+                      (ext_irq_in and not ctrl.lpcr_heic));
 
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
@@ -1742,6 +1783,11 @@ begin
                 if pmu_to_x.intr = '1' then
                     v.e.intr_vec := 16#f00#;
                     report "IRQ valid: PMU";
+                elsif dhd_pending = '1' then
+                    v.e.intr_vec := 16#e80#;
+                    v.e.hv_intr := '1';
+                    v.se.clr_hmsg := '1';
+                    report "Hypervisor doorbell";
                 elsif dec_sign = '1' then
                     v.e.intr_vec := 16#900#;
                     report "IRQ valid: DEC";
@@ -2170,7 +2216,7 @@ begin
         -- pending exceptions clear any wait state
         -- ex1.fp_exception_next is not tested because it is not possible to
         -- get into wait state with a pending FP exception.
-        irq_exc := pmu_to_x.intr or dec_sign or ext_irq_in;
+        irq_exc := pmu_to_x.intr or dec_sign or ext_irq_in or dhd_pending;
         if ex1.trace_next = '1' or irq_exc = '1' or interrupt_in.intr = '1' then
             ctrl_tmp.wait_state <= '0';
         end if;
@@ -2217,6 +2263,8 @@ begin
         run_out <= ctrl.run;
         terminate_out <= ex2.se.terminate;
         icache_inval <= ex2.se.icache_inval;
+
+        msg_out <= ex2.se.send_hmsg;
 
         exception_log <= v.e.interrupt;
     end process;

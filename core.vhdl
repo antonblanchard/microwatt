@@ -10,6 +10,7 @@ entity core is
     generic (
         SIM : boolean := false;
         CPU_INDEX : natural := 0;
+        NCPUS : positive := 1;
 	DISABLE_FLATTEN : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
@@ -51,6 +52,9 @@ entity core is
 	dmi_ack	        : out std_ulogic;
 
 	ext_irq		: in std_ulogic;
+
+        msg_in          : in std_ulogic;
+        msg_out         : out std_ulogic_vector(NCPUS-1 downto 0);
 
         run_out          : out std_ulogic;
 	terminated_out   : out std_logic
@@ -370,6 +374,7 @@ begin
         generic map (
             SIM => SIM,
             CPU_INDEX => CPU_INDEX,
+            NCPUS => NCPUS,
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
@@ -398,6 +403,8 @@ begin
             ls_events => loadstore_events,
             dc_events => dcache_events,
             ic_events => icache_events,
+            msg_out => msg_out,
+            msg_in => msg_in,
             run_out => run_out,
             terminate_out => terminate,
             dbg_spr_req => dbg_spr_req,
