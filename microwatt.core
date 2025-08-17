@@ -185,7 +185,7 @@ targets:
       - use_litedram=false
       - no_bram=false
       - disable_flatten_core
-      - spi_flash_offset=10485760
+      - spi_flash_offset=12582912
       - log_length=2048
       - uart_is_16550=false
     generate: [git_hash]
@@ -222,7 +222,7 @@ targets:
       - use_litedram=true
       - disable_flatten_core
       - no_bram
-      - spi_flash_offset=10485760
+      - spi_flash_offset=12582912
       - log_length=2048
       - uart_is_16550=false
     generate: [litedram_genesys2, git_hash]
