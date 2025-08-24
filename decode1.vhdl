@@ -521,7 +521,7 @@ architecture behaviour of decode1 is
                 i.ronly := '1';
             when SPR_NOOP0 | SPR_NOOP1 | SPR_NOOP2 | SPR_NOOP3 =>
                 i.noop := '1';
-            when SPR_HMER | SPR_HMEER =>
+            when SPR_HMER | SPR_HMEER | SPR_HRMOR =>
                 i.sel := SPRSEL_ZERO;
             when others =>
                 i.valid := '0';

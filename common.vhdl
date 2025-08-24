@@ -84,6 +84,7 @@ package common is
     constant SPR_NOOP3  : spr_num_t := 811;
     constant SPR_HMER   : spr_num_t := 336;
     constant SPR_HMEER  : spr_num_t := 337;
+    constant SPR_HRMOR  : spr_num_t := 313;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
