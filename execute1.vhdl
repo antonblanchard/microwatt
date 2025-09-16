@@ -106,7 +106,6 @@ architecture behaviour of execute1 is
         scv_trap : std_ulogic;
         write_tbl : std_ulogic;
         write_tbu : std_ulogic;
-        noop_spr_read : std_ulogic;
         send_hmsg : std_ulogic_vector(NCPUS-1 downto 0);
         clr_hmsg : std_ulogic;
     end record;
@@ -1434,7 +1433,9 @@ begin
                         report "MFSPR to slow SPR " & integer'image(decode_spr_num(e_in.insn));
                     end if;
                     slow_op := '1';
-                    v.se.noop_spr_read := e_in.spr_select.noop;
+                    if e_in.spr_select.noop = '1' then
+                        v.e.write_enable := '0';
+                    end if;
                     if e_in.spr_select.ispmu = '0' then
                         case e_in.spr_select.sel is
                             when SPRSEL_LOGR =>
@@ -1455,8 +1456,7 @@ begin
                             " invalid";
                     end if;
                     slow_op := '1';
-                    v.se.noop_spr_read := '1';
-                    v.res2_sel := "10";
+                    v.e.write_enable := '0';
                     if ex1.msr(MSR_PR) = '1' then
                         illegal := '1';
                     end if;
@@ -2114,9 +2114,7 @@ begin
         else
             rcresult := countbits_result;
         end if;
-        if ex1.se.noop_spr_read = '1' then
-            sprres := ex1.spr_write_data;
-        elsif ex1.res2_sel(0) = '0' then
+        if ex1.res2_sel(0) = '0' then
             sprres := spr_result;
         else
             sprres := pmu_to_x.spr_val;
