@@ -47,6 +47,7 @@ void print_test(char *str)
 int main(void)
 {
 	unsigned long tmp;
+	int fail = 0;
 
 	console_init();
 
@@ -86,7 +87,34 @@ int main(void)
 	DO_ONE(SPR_PTCR);
 	DO_ONE(SPR_PVR);
 
-	puts(PASS);
+	/*
+	 * Test no-op behaviour of reserved no-op SPRs,
+	 * and of accesses to undefined SPRs in privileged mode.
+	 */
+	print_test("reserved no-op");
+	__asm__ __volatile__("mtspr 811,%0" : : "r" (7838));
+	__asm__ __volatile__("li %0,%1; mfspr %0,811" : "=r" (tmp) : "i" (2398));
+	if (tmp == 2398) {
+		puts(PASS);
+	} else {
+		puts(FAIL);
+		fail = 1;
+	}
 
-	return 0;
+	print_test("undefined SPR");
+	__asm__ __volatile__("mtspr 179,%0" : : "r" (7738));
+	__asm__ __volatile__("li %0,%1; mfspr %0,179" : "=r" (tmp) : "i" (2498));
+	if (tmp == 2498) {
+		puts(PASS);
+	} else {
+		puts(FAIL);
+		fail = 1;
+	}
+
+	if (!fail)
+		puts(PASS);
+	else
+		puts(FAIL);
+
+	return fail;
 }
