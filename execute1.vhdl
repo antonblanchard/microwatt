@@ -1456,6 +1456,7 @@ begin
                     end if;
                     slow_op := '1';
                     v.se.noop_spr_read := '1';
+                    v.res2_sel := "10";
                     if ex1.msr(MSR_PR) = '1' then
                         illegal := '1';
                     end if;
