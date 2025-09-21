@@ -283,6 +283,7 @@ begin
             execute_next_cr_tag  => execute_cr_bypass.tag,
             execute2_next_tag    => execute2_bypass.tag,
             execute2_next_cr_tag => execute2_cr_bypass.tag,
+            writeback_tag        => writeback_bypass.tag,
 
             cr_read_in           => cr_read_valid,
             cr_write_in          => cr_write_valid,
