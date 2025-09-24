@@ -8,6 +8,9 @@
 #define PASS "PASS\n"
 #define FAIL "FAIL\n"
 
+extern long read_sprn(long, long);
+extern long write_sprn(long);
+
 // i < 100
 void print_test(char *str)
 {
@@ -44,9 +47,23 @@ void print_test(char *str)
 #define __stringify_1(x...)	#x
 #define __stringify(x...)	__stringify_1(x)
 
+void print_hex(unsigned long val, int ndigits, const char *str)
+{
+	int i, x;
+
+	for (i = (ndigits - 1) * 4; i >= 0; i -= 4) {
+		x = (val >> i) & 0xf;
+		if (x >= 10)
+			putchar(x + 'a' - 10);
+		else
+			putchar(x + '0');
+	}
+	puts(str);
+}
+
 int main(void)
 {
-	unsigned long tmp;
+	unsigned long tmp, r;
 	int fail = 0;
 
 	console_init();
@@ -102,9 +119,22 @@ int main(void)
 	}
 
 	print_test("undefined SPR");
-	__asm__ __volatile__("mtspr 179,%0" : : "r" (7738));
-	__asm__ __volatile__("li %0,%1; mfspr %0,179" : "=r" (tmp) : "i" (2498));
-	if (tmp == 2498) {
+	r = write_sprn(179);
+	tmp = read_sprn(179, 2498);
+	if (r == 0 && tmp == 2498) {
+		puts(PASS);
+	} else {
+		puts(FAIL);
+		fail = 1;
+	}
+
+	print_test("read SPR 0/4/5/6");
+	if (read_sprn(0, 1234) == 0xe40 && read_sprn(2, 1234) == 1234 &&
+	    read_sprn(4, 1234) == 0xe40 && read_sprn(5, 1234) == 0xe40 &&
+	    read_sprn(6, 1234) == 0xe40 &&
+	    write_sprn(0) == 0xe40 && write_sprn(2) == 0 &&
+	    write_sprn(4) == 0xe40 && write_sprn(5) == 0xe40 &&
+	    write_sprn(6) == 0xe40) {
 		puts(PASS);
 	} else {
 		puts(FAIL);
