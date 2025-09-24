@@ -249,6 +249,7 @@ package common is
     -- LPCR bit numbers
     constant LPCR_HAIL    : integer := 63 - 37;
     constant LPCR_UPRT    : integer := 63 - 41;
+    constant LPCR_EVIRT   : integer := 63 - 42;
     constant LPCR_HR      : integer := 63 - 43;
     constant LPCR_LD      : integer := 63 - 46;
     constant LPCR_HEIC    : integer := 63 - 59;
@@ -322,6 +323,7 @@ package common is
         hdexcr_hyp: aspect_bits_t;
         hdexcr_enf: aspect_bits_t;
         lpcr_hail: std_ulogic;
+        lpcr_evirt: std_ulogic;
         lpcr_ld: std_ulogic;
         lpcr_heic: std_ulogic;
         lpcr_lpes: std_ulogic;
@@ -333,7 +335,7 @@ package common is
          dscr => (others => '0'),
          dexcr_pnh => aspect_bits_init, dexcr_pro => aspect_bits_init,
          hdexcr_hyp => aspect_bits_init, hdexcr_enf => aspect_bits_init,
-         lpcr_hail => '0', lpcr_ld => '1', lpcr_heic => '0',
+         lpcr_hail => '0', lpcr_evirt => '0', lpcr_ld => '1', lpcr_heic => '0',
          lpcr_lpes => '0', lpcr_hvice => '0',
          others => (others => '0'));
 

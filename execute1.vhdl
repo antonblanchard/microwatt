@@ -425,6 +425,7 @@ architecture behaviour of execute1 is
     begin
         ret := (others => '0');
         ret(LPCR_HAIL) := c.lpcr_hail;
+        ret(LPCR_EVIRT) := c.lpcr_evirt;
         ret(LPCR_UPRT) := '1';
         ret(LPCR_HR) := '1';
         ret(LPCR_LD) := c.lpcr_ld;
@@ -1450,14 +1451,15 @@ begin
                     end if;
                 else
                     -- mfspr from unimplemented SPRs should be a nop in
-                    -- supervisor mode and a program interrupt for user mode
+                    -- supervisor mode and a program or HEAI interrupt for user mode
+                    -- LPCR[EVIRT] = 1 makes it HEAI in privileged mode
                     if e_in.valid = '1' and not is_X(e_in.insn) then
                         report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
                             " invalid";
                     end if;
                     slow_op := '1';
                     v.e.write_enable := '0';
-                    if ex1.msr(MSR_PR) = '1' then
+                    if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' then
                         illegal := '1';
                     end if;
                 end if;
@@ -1544,8 +1546,9 @@ begin
                 end if;
 		if e_in.spr_select.valid = '0' and e_in.spr_is_ram = '0' then
                     -- mtspr to unimplemented SPRs should be a nop in
-                    -- supervisor mode and a program interrupt for user mode
-                    if ex1.msr(MSR_PR) = '1' then
+                    -- supervisor mode and a program interrupt or HEAI for user mode
+                    -- LPCR[EVIRT] = 1 makes it HEAI in privileged mode
+                    if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' then
                         illegal := '1';
                     end if;
 		end if;
@@ -2185,6 +2188,7 @@ begin
             end if;
             if ex1.se.write_lpcr = '1' then
                 ctrl_tmp.lpcr_hail <= ex1.spr_write_data(LPCR_HAIL);
+                ctrl_tmp.lpcr_evirt <= ex1.spr_write_data(LPCR_EVIRT);
                 ctrl_tmp.lpcr_ld <= ex1.spr_write_data(LPCR_LD);
                 ctrl_tmp.lpcr_heic <= ex1.spr_write_data(LPCR_HEIC);
                 ctrl_tmp.lpcr_lpes <= ex1.spr_write_data(LPCR_LPES);
