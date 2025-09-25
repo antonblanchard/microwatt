@@ -1216,6 +1216,7 @@ begin
         variable owait : std_ulogic;
         variable srr1 : std_ulogic_vector(63 downto 0);
         variable c32, c64 : std_ulogic;
+        variable sprnum : spr_num_t;
     begin
         v := actions_type_init;
         v.e.write_data := alu_result;
@@ -1424,14 +1425,15 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
+                sprnum := decode_spr_num(e_in.insn);
 		if e_in.spr_is_ram = '1' then
                     if e_in.valid = '1' and not is_X(e_in.insn) then
-                        report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
+                        report "MFSPR to SPR " & integer'image(sprnum) &
                             "=" & to_hstring(alu_result);
                     end if;
 		elsif e_in.spr_select.valid = '1' and e_in.spr_select.wonly = '0' then
                     if e_in.valid = '1' and not is_X(e_in.insn) then
-                        report "MFSPR to slow SPR " & integer'image(decode_spr_num(e_in.insn));
+                        report "MFSPR to slow SPR " & integer'image(sprnum);
                     end if;
                     slow_op := '1';
                     if e_in.spr_select.noop = '1' then
@@ -1454,12 +1456,12 @@ begin
                     -- supervisor mode and a program or HEAI interrupt for user mode
                     -- LPCR[EVIRT] = 1 makes it HEAI in privileged mode
                     if e_in.valid = '1' and not is_X(e_in.insn) then
-                        report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
-                            " invalid";
+                        report "MFSPR to SPR " & integer'image(sprnum) & " invalid";
                     end if;
                     slow_op := '1';
                     v.e.write_enable := '0';
-                    if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' then
+                    if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' or
+                        sprnum = 0 or sprnum = 4 or sprnum = 5 or sprnum = 6 then
                         illegal := '1';
                     end if;
                 end if;
@@ -1505,8 +1507,9 @@ begin
                     end if;
                 end if;
 	    when OP_MTSPR =>
+                sprnum := decode_spr_num(e_in.insn);
                 if e_in.valid = '1' and not is_X(e_in.insn) then
-                    report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
+                    report "MTSPR to SPR " & integer'image(sprnum) &
                         "=" & to_hstring(c_in);
                 end if;
                 v.se.write_pmuspr := e_in.spr_select.ispmu;
@@ -1548,7 +1551,8 @@ begin
                     -- mtspr to unimplemented SPRs should be a nop in
                     -- supervisor mode and a program interrupt or HEAI for user mode
                     -- LPCR[EVIRT] = 1 makes it HEAI in privileged mode
-                    if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' then
+                    if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' or
+                        sprnum = 0 or sprnum = 4 or sprnum = 5 or sprnum = 6 then
                         illegal := '1';
                     end if;
 		end if;
