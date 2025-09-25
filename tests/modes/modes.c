@@ -7,6 +7,8 @@
 #define MSR_LE	0x1
 #define MSR_DR	0x10
 #define MSR_IR	0x20
+#define MSR_PR	0x4000
+#define MSR_EE	0x8000
 #define MSR_SF	0x8000000000000000ul
 
 extern unsigned long callit(unsigned long arg1, unsigned long arg2,
@@ -27,6 +29,7 @@ static inline void do_tlbie(unsigned long rb, unsigned long rs)
 
 #define DSISR	18
 #define DAR	19
+#define DEC	22
 #define SRR0	26
 #define SRR1	27
 #define PID	48
@@ -35,6 +38,7 @@ static inline void do_tlbie(unsigned long rb, unsigned long rs)
 #define SPRG3	275
 #define HSRR0	314
 #define HSRR1	315
+#define HEIR	339
 #define PTCR	464
 
 static inline unsigned long mfspr(int sprnum)
@@ -464,6 +468,39 @@ int mode_test_8(void)
 	return 0;
 }
 
+int test_9_mf(void)
+{
+	mfspr(2);
+	return 0;
+}
+
+int test_9_mt(unsigned long arg)
+{
+	mtspr(2, arg);
+	return 0;
+}
+
+int mode_test_9(void)
+{
+	unsigned long ret, msr;
+
+	/*
+	 * Test that mfspr/mtspr to unimplemented SPRs in user mode
+	 * causes an HEAI and sets HEIR.
+	 */
+	msr = MSR_SF | MSR_LE | MSR_PR | MSR_EE | MSR_IR | MSR_DR;
+	mtspr(DEC, 0x7fffffff);
+	ret = callit(0, 0, (unsigned long) test_9_mf, msr);
+	if (ret != 0xe40 ||
+	    (mfspr(HEIR) & 0xfc1fffff) != ((31ul << 26) | (2 << 16) | (339 << 1)))
+		return 1;
+	ret = callit(0, 0, (unsigned long) test_9_mt, msr);
+	if (ret != 0xe40 ||
+	    (mfspr(HEIR) & 0xfc1fffff) != ((31ul << 26) | (2 << 16) | (467 << 1)))
+		return 2;
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -510,6 +547,7 @@ int main(void)
 	do_test(6, mode_test_6);
 	do_test(7, mode_test_7);
 	do_test(8, mode_test_8);
+	do_test(9, mode_test_9);
 
 	return fail;
 }
