@@ -420,9 +420,11 @@ package common is
 
     type bypass_data_t is record
         tag  : instr_tag_t;
+        reg  : gspr_index_t;
         data : std_ulogic_vector(63 downto 0);
     end record;
-    constant bypass_data_init : bypass_data_t := (tag => instr_tag_init, data => (others => '0'));
+    constant bypass_data_init : bypass_data_t :=
+        (tag => instr_tag_init, reg => (others => '0'), data => (others => '0'));
 
     type cr_bypass_data_t is record
         tag  : instr_tag_t;

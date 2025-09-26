@@ -1938,8 +1938,9 @@ begin
             v.fp_exception_next := '0';
         end if;
 
-        bypass_data.tag.valid <= e_in.write_reg_enable and bypass_valid;
-        bypass_data.tag.tag <= e_in.instr_tag.tag;
+        bypass_data.tag.valid <= v.e.write_enable and bypass_valid;
+        bypass_data.tag.tag <= v.e.instr_tag.tag;
+        bypass_data.reg <= v.e.write_reg;
         bypass_data.data <= alu_result;
 
         bypass_cr_data.tag.valid <= e_in.output_cr and bypass_valid;
@@ -2250,6 +2251,7 @@ begin
 
         bypass2_data.tag.valid <= ex1.e.write_enable and bypass_valid;
         bypass2_data.tag.tag <= ex1.e.instr_tag.tag;
+        bypass2_data.reg <= ex1.e.write_reg;
         bypass2_data.data <= ex_result;
 
         bypass2_cr_data.tag.valid <= (ex1.e.write_cr_enable or (ex1.e.rc and ex1.e.write_enable))

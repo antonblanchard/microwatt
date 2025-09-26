@@ -203,6 +203,7 @@ begin
         -- Register write data bypass to decode2
         wb_bypass.tag.tag <= complete_out.tag;
         wb_bypass.tag.valid <= complete_out.valid and w_out.write_enable;
+        wb_bypass.reg <= w_out.write_reg;
         wb_bypass.data <= w_out.write_data;
 
     end process;
