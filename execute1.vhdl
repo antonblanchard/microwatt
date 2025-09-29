@@ -1225,7 +1225,7 @@ begin
         v.e.rc := e_in.rc;
         v.e.write_cr_data := write_cr_data;
         v.e.write_cr_mask := write_cr_mask;
-        v.e.write_cr_enable := e_in.output_cr;
+        v.e.write_cr_enable := e_in.output_cr or e_in.rc;
         v.e.write_xerc_enable := e_in.output_xer;
         v.e.xerc := xerc_in;
         v.new_msr := ex1.msr;
@@ -2058,16 +2058,22 @@ begin
 	-- Next insn adder used in a couple of places
 	next_nia <= std_ulogic_vector(unsigned(ex1.e.last_nia) + 4);
 
-	v := ex2;
-        if stage2_stall = '0' then
-            v.e := ex1.e;
-            v.se := ex1.se;
-            v.ext_interrupt := ex1.ext_interrupt;
-            v.taken_branch_event := ex1.taken_branch_event;
-            v.br_mispredict := ex1.br_mispredict;
-            if ex1.advance_nia = '1' then
-                v.e.last_nia := next_nia;
-            end if;
+	v.log_addr_spr := ex2.log_addr_spr;
+
+        v.e := ex1.e;
+        v.se := ex1.se;
+        v.ext_interrupt := ex1.ext_interrupt and not stage2_stall;
+        v.taken_branch_event := ex1.taken_branch_event and not stage2_stall;
+        v.br_mispredict := ex1.br_mispredict and not stage2_stall;
+        if stage2_stall = '1' then
+            v.e.last_nia := ex2.e.last_nia;
+        elsif ex1.advance_nia = '1' then
+            v.e.last_nia := next_nia;
+        end if;
+        if stage2_stall = '1' then
+            v.e.valid := '0';
+            v.e.interrupt := '0';
+            v.se := side_effect_init;
         end if;
 
         if ex1.se.mult_32s = '1' and ex1.oe = '1' then
@@ -2153,14 +2159,11 @@ begin
             cr_mask(7) := '1';
         end if;
 
-	if stage2_stall = '0' then
-            v.e.write_data := ex_result;
-            v.e.write_cr_data := cr_res;
-            v.e.write_cr_mask := cr_mask;
-            if ex1.e.rc = '1' and ex1.e.write_enable = '1' and v.e.valid = '1' then
-                v.e.write_cr_enable := '1';
-            end if;
+        v.e.write_data := ex_result;
+        v.e.write_cr_data := cr_res;
+        v.e.write_cr_mask := cr_mask;
 
+	if stage2_stall = '0' then
             if ex1.se.write_msr = '1' then
                 ctrl_tmp.msr <= ex1.msr;
             end if;
@@ -2250,10 +2253,11 @@ begin
             end if;
         end if;
 
-        bypass_valid := ex1.e.valid;
-        if stage2_stall = '1' and ex1.res2_sel(1) = '1' then
-            bypass_valid := '0';
-        end if;
+        -- Don't bypass the result from mfspr to slow SPRs or PMU SPRs,
+        -- because we don't want to send the value while stalled because it
+        -- might change, and we don't want bypass_valid to depend on
+        -- stage2_stall for timing reasons.
+        bypass_valid := ex1.e.valid and not ex1.res2_sel(1);
 
         bypass2_data.tag.valid <= ex1.e.write_enable and bypass_valid;
         bypass2_data.tag.tag <= ex1.e.instr_tag.tag;
