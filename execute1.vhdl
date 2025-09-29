@@ -1747,6 +1747,8 @@ begin
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
             v.prev_prefixed := e_in.prefixed;
+            v.se.set_heir := actions.se.set_heir;
+            v.se.write_ic := actions.se.write_ic;
         end if;
 
         -- Determine if there is any interrupt to be taken
