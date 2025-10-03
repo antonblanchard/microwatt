@@ -1795,6 +1795,49 @@ int fpu_test_26(void)
 	return trapit(0, test26);
 }
 
+/* Check for enabled invalid exception suppressing write of result */
+int test27(long arg)
+{
+	unsigned long operands[4];
+	unsigned long result;
+
+	operands[0] = 0xabcd1234ef895670;
+	operands[1] = 0xbff0000000000000;
+	operands[2] = 0xef895670abcd1234;
+	operands[3] = 0;
+	set_fpscr(FPS_VE);
+	asm("lfd 3,0(%0); isync; lfd 4,8(%0); lfd 3,16(%0); fsqrt 3,4; stfd 3,0(%1)"
+	    : : "b" (&operands), "b" (&result) : "memory");
+	if (result != 0xef895670abcd1234) {
+		if (result == 0x7ffc000000000000)
+			return 1;
+		if (result == 0xabcd1234ef895670)
+			return 2;
+		print_hex(result, 16, " ");
+		return 3;
+	}
+
+	set_fpscr(FPS_ZE);
+	asm("lfd 3,0(%0); isync; lfd 4,8(%0); lfd 5,24(%0); lfd 3,16(%0); fdiv 3,4,5; stfd 3,0(%1)"
+	    : : "b" (&operands), "b" (&result) : "memory");
+	if (result != 0xef895670abcd1234) {
+		if (result == 0x7ffc000000000000)
+			return 4;
+		if (result == 0xabcd1234ef895670)
+			return 5;
+		print_hex(result, 16, " ");
+		return 6;
+	}
+
+	return 0;
+}
+
+int fpu_test_27(void)
+{
+	enable_fp();
+	return trapit(0, test27);
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -1846,6 +1889,7 @@ int main(void)
 	do_test(24, fpu_test_24);
 	do_test(25, fpu_test_25);
 	do_test(26, fpu_test_26);
+	do_test(27, fpu_test_27);
 
 	return fail;
 }

@@ -44,3 +44,91 @@ boot_entry:
 	bctrl
 	attn // terminate on exit
 	b .
+
+	.globl	read_sprn
+read_sprn:
+	nop
+	nop
+	mr	%r0,%r3
+	mr	%r3,%r4
+	cmpdi	%r0,0
+	beq	0f
+	cmpdi	%r0,1
+	beq	1f
+	cmpdi	%r0,4
+	beq	4f
+	cmpdi	%r0,5
+	beq	5f
+	cmpdi	%r0,6
+	beq	6f
+	mfspr	%r3,179
+	blr
+0:	mfspr	%r3,0
+	blr
+1:	mfspr	%r3,1
+	blr
+4:	mfspr	%r3,4
+	blr
+5:	mfspr	%r3,5
+	blr
+6:	mfspr	%r3,6
+	blr
+
+	.globl	write_sprn
+write_sprn:
+	nop
+	nop
+	mr	%r0,%r3
+	li	%r3,0
+	cmpdi	%r0,0
+	beq	0f
+	cmpdi	%r0,1
+	beq	1f
+	cmpdi	%r0,4
+	beq	4f
+	cmpdi	%r0,5
+	beq	5f
+	cmpdi	%r0,6
+	beq	6f
+	mtspr	179,%r3
+	blr
+0:	mtspr	0,%r3
+	blr
+1:	mtspr	1,%r3
+	blr
+4:	mtspr	4,%r3
+	blr
+5:	mtspr	5,%r3
+	blr
+6:	mtspr	6,%r3
+	blr
+
+#define EXCEPTION(nr)		\
+	.= nr			;\
+	li	%r3,nr		;\
+	blr
+
+	EXCEPTION(0x300)
+	EXCEPTION(0x380)
+	EXCEPTION(0x400)
+	EXCEPTION(0x480)
+	EXCEPTION(0x500)
+	EXCEPTION(0x600)
+	EXCEPTION(0x700)
+	EXCEPTION(0x800)
+	EXCEPTION(0x900)
+	EXCEPTION(0x980)
+	EXCEPTION(0xa00)
+	EXCEPTION(0xb00)
+	EXCEPTION(0xc00)
+	EXCEPTION(0xd00)
+	EXCEPTION(0xe00)
+	EXCEPTION(0xe20)
+	EXCEPTION(0xe40)
+	EXCEPTION(0xe60)
+	EXCEPTION(0xe80)
+	EXCEPTION(0xf00)
+	EXCEPTION(0xf20)
+	EXCEPTION(0xf40)
+	EXCEPTION(0xf60)
+	EXCEPTION(0xf80)

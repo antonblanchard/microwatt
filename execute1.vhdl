@@ -106,7 +106,6 @@ architecture behaviour of execute1 is
         scv_trap : std_ulogic;
         write_tbl : std_ulogic;
         write_tbu : std_ulogic;
-        noop_spr_read : std_ulogic;
         send_hmsg : std_ulogic_vector(NCPUS-1 downto 0);
         clr_hmsg : std_ulogic;
     end record;
@@ -426,6 +425,7 @@ architecture behaviour of execute1 is
     begin
         ret := (others => '0');
         ret(LPCR_HAIL) := c.lpcr_hail;
+        ret(LPCR_EVIRT) := c.lpcr_evirt;
         ret(LPCR_UPRT) := '1';
         ret(LPCR_HR) := '1';
         ret(LPCR_LD) := c.lpcr_ld;
@@ -1216,6 +1216,7 @@ begin
         variable owait : std_ulogic;
         variable srr1 : std_ulogic_vector(63 downto 0);
         variable c32, c64 : std_ulogic;
+        variable sprnum : spr_num_t;
     begin
         v := actions_type_init;
         v.e.write_data := alu_result;
@@ -1224,7 +1225,7 @@ begin
         v.e.rc := e_in.rc;
         v.e.write_cr_data := write_cr_data;
         v.e.write_cr_mask := write_cr_mask;
-        v.e.write_cr_enable := e_in.output_cr;
+        v.e.write_cr_enable := e_in.output_cr or e_in.rc;
         v.e.write_xerc_enable := e_in.output_xer;
         v.e.xerc := xerc_in;
         v.new_msr := ex1.msr;
@@ -1424,17 +1425,20 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
+                sprnum := decode_spr_num(e_in.insn);
 		if e_in.spr_is_ram = '1' then
                     if e_in.valid = '1' and not is_X(e_in.insn) then
-                        report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
+                        report "MFSPR to SPR " & integer'image(sprnum) &
                             "=" & to_hstring(alu_result);
                     end if;
 		elsif e_in.spr_select.valid = '1' and e_in.spr_select.wonly = '0' then
                     if e_in.valid = '1' and not is_X(e_in.insn) then
-                        report "MFSPR to slow SPR " & integer'image(decode_spr_num(e_in.insn));
+                        report "MFSPR to slow SPR " & integer'image(sprnum);
                     end if;
                     slow_op := '1';
-                    v.se.noop_spr_read := e_in.spr_select.noop;
+                    if e_in.spr_select.noop = '1' then
+                        v.e.write_enable := '0';
+                    end if;
                     if e_in.spr_select.ispmu = '0' then
                         case e_in.spr_select.sel is
                             when SPRSEL_LOGR =>
@@ -1449,14 +1453,15 @@ begin
                     end if;
                 else
                     -- mfspr from unimplemented SPRs should be a nop in
-                    -- supervisor mode and a program interrupt for user mode
+                    -- supervisor mode and a program or HEAI interrupt for user mode
+                    -- LPCR[EVIRT] = 1 makes it HEAI in privileged mode
                     if e_in.valid = '1' and not is_X(e_in.insn) then
-                        report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
-                            " invalid";
+                        report "MFSPR to SPR " & integer'image(sprnum) & " invalid";
                     end if;
                     slow_op := '1';
-                    v.se.noop_spr_read := '1';
-                    if ex1.msr(MSR_PR) = '1' then
+                    v.e.write_enable := '0';
+                    if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' or
+                        sprnum = 0 or sprnum = 4 or sprnum = 5 or sprnum = 6 then
                         illegal := '1';
                     end if;
                 end if;
@@ -1502,8 +1507,9 @@ begin
                     end if;
                 end if;
 	    when OP_MTSPR =>
+                sprnum := decode_spr_num(e_in.insn);
                 if e_in.valid = '1' and not is_X(e_in.insn) then
-                    report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
+                    report "MTSPR to SPR " & integer'image(sprnum) &
                         "=" & to_hstring(c_in);
                 end if;
                 v.se.write_pmuspr := e_in.spr_select.ispmu;
@@ -1543,8 +1549,10 @@ begin
                 end if;
 		if e_in.spr_select.valid = '0' and e_in.spr_is_ram = '0' then
                     -- mtspr to unimplemented SPRs should be a nop in
-                    -- supervisor mode and a program interrupt for user mode
-                    if ex1.msr(MSR_PR) = '1' then
+                    -- supervisor mode and a program interrupt or HEAI for user mode
+                    -- LPCR[EVIRT] = 1 makes it HEAI in privileged mode
+                    if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' or
+                        sprnum = 0 or sprnum = 4 or sprnum = 5 or sprnum = 6 then
                         illegal := '1';
                     end if;
 		end if;
@@ -1746,6 +1754,8 @@ begin
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
             v.prev_prefixed := e_in.prefixed;
+            v.se.set_heir := actions.se.set_heir;
+            v.se.write_ic := actions.se.write_ic;
         end if;
 
         -- Determine if there is any interrupt to be taken
@@ -1935,8 +1945,9 @@ begin
             v.fp_exception_next := '0';
         end if;
 
-        bypass_data.tag.valid <= e_in.write_reg_enable and bypass_valid;
-        bypass_data.tag.tag <= e_in.instr_tag.tag;
+        bypass_data.tag.valid <= v.e.write_enable and bypass_valid;
+        bypass_data.tag.tag <= v.e.instr_tag.tag;
+        bypass_data.reg <= v.e.write_reg;
         bypass_data.data <= alu_result;
 
         bypass_cr_data.tag.valid <= e_in.output_cr and bypass_valid;
@@ -2047,16 +2058,22 @@ begin
 	-- Next insn adder used in a couple of places
 	next_nia <= std_ulogic_vector(unsigned(ex1.e.last_nia) + 4);
 
-	v := ex2;
-        if stage2_stall = '0' then
-            v.e := ex1.e;
-            v.se := ex1.se;
-            v.ext_interrupt := ex1.ext_interrupt;
-            v.taken_branch_event := ex1.taken_branch_event;
-            v.br_mispredict := ex1.br_mispredict;
-            if ex1.advance_nia = '1' then
-                v.e.last_nia := next_nia;
-            end if;
+	v.log_addr_spr := ex2.log_addr_spr;
+
+        v.e := ex1.e;
+        v.se := ex1.se;
+        v.ext_interrupt := ex1.ext_interrupt and not stage2_stall;
+        v.taken_branch_event := ex1.taken_branch_event and not stage2_stall;
+        v.br_mispredict := ex1.br_mispredict and not stage2_stall;
+        if stage2_stall = '1' then
+            v.e.last_nia := ex2.e.last_nia;
+        elsif ex1.advance_nia = '1' then
+            v.e.last_nia := next_nia;
+        end if;
+        if stage2_stall = '1' then
+            v.e.valid := '0';
+            v.e.interrupt := '0';
+            v.se := side_effect_init;
         end if;
 
         if ex1.se.mult_32s = '1' and ex1.oe = '1' then
@@ -2110,9 +2127,7 @@ begin
         else
             rcresult := countbits_result;
         end if;
-        if ex1.se.noop_spr_read = '1' then
-            sprres := ex1.spr_write_data;
-        elsif ex1.res2_sel(0) = '0' then
+        if ex1.res2_sel(0) = '0' then
             sprres := spr_result;
         else
             sprres := pmu_to_x.spr_val;
@@ -2144,14 +2159,11 @@ begin
             cr_mask(7) := '1';
         end if;
 
-	if stage2_stall = '0' then
-            v.e.write_data := ex_result;
-            v.e.write_cr_data := cr_res;
-            v.e.write_cr_mask := cr_mask;
-            if ex1.e.rc = '1' and ex1.e.write_enable = '1' and v.e.valid = '1' then
-                v.e.write_cr_enable := '1';
-            end if;
+        v.e.write_data := ex_result;
+        v.e.write_cr_data := cr_res;
+        v.e.write_cr_mask := cr_mask;
 
+	if stage2_stall = '0' then
             if ex1.se.write_msr = '1' then
                 ctrl_tmp.msr <= ex1.msr;
             end if;
@@ -2183,6 +2195,7 @@ begin
             end if;
             if ex1.se.write_lpcr = '1' then
                 ctrl_tmp.lpcr_hail <= ex1.spr_write_data(LPCR_HAIL);
+                ctrl_tmp.lpcr_evirt <= ex1.spr_write_data(LPCR_EVIRT);
                 ctrl_tmp.lpcr_ld <= ex1.spr_write_data(LPCR_LD);
                 ctrl_tmp.lpcr_heic <= ex1.spr_write_data(LPCR_HEIC);
                 ctrl_tmp.lpcr_lpes <= ex1.spr_write_data(LPCR_LPES);
@@ -2240,13 +2253,15 @@ begin
             end if;
         end if;
 
-        bypass_valid := ex1.e.valid;
-        if stage2_stall = '1' and ex1.res2_sel(1) = '1' then
-            bypass_valid := '0';
-        end if;
+        -- Don't bypass the result from mfspr to slow SPRs or PMU SPRs,
+        -- because we don't want to send the value while stalled because it
+        -- might change, and we don't want bypass_valid to depend on
+        -- stage2_stall for timing reasons.
+        bypass_valid := ex1.e.valid and not ex1.res2_sel(1);
 
         bypass2_data.tag.valid <= ex1.e.write_enable and bypass_valid;
         bypass2_data.tag.tag <= ex1.e.instr_tag.tag;
+        bypass2_data.reg <= ex1.e.write_reg;
         bypass2_data.data <= ex_result;
 
         bypass2_cr_data.tag.valid <= (ex1.e.write_cr_enable or (ex1.e.rc and ex1.e.write_enable))

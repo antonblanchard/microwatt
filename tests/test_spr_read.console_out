@@ -22,4 +22,7 @@ Test SPR_HSPRG1:PASS
 Test SPR_PID:PASS
 Test SPR_PTCR:PASS
 Test SPR_PVR:PASS
+Test reserved no-op:PASS
+Test undefined SPR:PASS
+Test read SPR 0/4/5/6:PASS
 PASS
