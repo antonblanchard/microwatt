@@ -1749,7 +1749,7 @@ begin
 
         irq_valid := ex1.msr(MSR_EE) and
                      (pmu_to_x.intr or dec_sign or dhd_pending or
-                      (ext_irq_in and not ctrl.lpcr_heic));
+                      (ext_irq_in and (not ctrl.lpcr_heic or ex1.msr(MSR_PR))));
 
         if valid_in = '1' then
             v.prev_op := e_in.insn_type;
