@@ -1354,12 +1354,6 @@ begin
         rsgn_op := RSGN_NOP;
         rcls_op <= RCLS_NOP;
 
-        if r.cycle_1_ar = '1' then
-            v.fpscr(FPSCR_FR) := '0';
-            v.fpscr(FPSCR_FI) := '0';
-            v.result_class := FINITE;
-        end if;
-
         case r.state is
             when IDLE =>
                 v.invalid := '0';
@@ -3077,6 +3071,9 @@ begin
         -- Handle exceptions and special cases for arithmetic operations
         if r.cycle_1_ar = '1' then
             v.fpscr := r.fpscr or scinfo.new_fpscr;
+            v.fpscr(FPSCR_FR) := '0';
+            v.fpscr(FPSCR_FI) := '0';
+            v.result_class := FINITE;
             invalid := scinfo.invalid;
             zero_divide := scinfo.zero_divide;
             qnan_result := scinfo.qnan_result;
