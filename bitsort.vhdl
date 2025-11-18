@@ -108,7 +108,9 @@ begin
     end process;
 
     -- bit permutation
-    bperm_res(7) <= rb_bp(to_integer(unsigned(not rs_sr(5 downto 0)))) when not is_X(rs_sr)
+    bperm_res(7) <= (rb_bp(to_integer(unsigned(not rs_sr(5 downto 0))))
+                     and not (rs_sr(6) or rs_sr(7)))
+                    when not is_X(rs_sr)
                     else 'X';
 
     bperm_r: process(clk)
