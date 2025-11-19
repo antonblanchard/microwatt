@@ -3255,7 +3255,7 @@ begin
             if mshift >= to_signed(64, EXP_BITS) then
                 mshift := to_signed(63, EXP_BITS);
             end if;
-            v.x := v.x or r.r(to_integer(unsigned(mshift(5 downto 0))));
+            v.x := v.x or rormr(to_integer(unsigned(mshift(5 downto 0))));
         end if;
         asign := '0';
         case opsel_a is
