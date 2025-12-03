@@ -1077,7 +1077,6 @@ begin
             v.writing_fpr := '0';
             v.writing_cr := '0';
             v.writing_xer := '0';
-            v.comm_fpscr := r.fpscr;
             v.illegal := '0';
         end if;
 
@@ -3726,6 +3725,10 @@ begin
             ((v.fpscr(FPSCR_OX downto FPSCR_VXVC) & v.fpscr(FPSCR_VXSOFT downto FPSCR_VXCVI)) and
              not r.old_exc) /= 13x"0" then
             v.fpscr(FPSCR_FX) := '1';
+        end if;
+
+        if r.complete = '1' or r.do_intr = '1' then
+            v.comm_fpscr := v.fpscr;
         end if;
 
         if v.instr_done = '1' then
