@@ -713,19 +713,24 @@ architecture behaviour of fpu is
     end;
 
     -- Determine result flags to write into the FPSCR
-    function result_flags(sign: std_ulogic; class: fp_number_class; unitbit: std_ulogic)
+    function result_flags(sign: std_ulogic; class: fp_number_class; int_result: std_ulogic;
+                          unitbit: std_ulogic)
         return std_ulogic_vector is
     begin
-        case class is
-            when ZERO =>
-                return sign & "0010";
-            when FINITE =>
-                return (not unitbit) & sign & (not sign) & "00";
-            when INFINITY =>
-                return '0' & sign & (not sign) & "01";
-            when NAN =>
-                return "10001";
-        end case;
+        if int_result = '1' then
+            return "00000";
+        else
+            case class is
+                when ZERO =>
+                    return sign & "0010";
+                when FINITE =>
+                    return (not unitbit) & sign & (not sign) & "00";
+                when INFINITY =>
+                    return '0' & sign & (not sign) & "01";
+                when NAN =>
+                    return "10001";
+            end case;
+        end if;
     end;
 
 begin
@@ -3651,7 +3656,7 @@ begin
         end if;
 
         if r.update_fprf = '1' then
-            v.fpscr(FPSCR_C downto FPSCR_FU) := result_flags(r.res_sign, r.result_class,
+            v.fpscr(FPSCR_C downto FPSCR_FU) := result_flags(r.res_sign, r.result_class, r.int_result,
                                                              r.r(UNIT_BIT) and not r.denorm);
         end if;
 
