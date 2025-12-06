@@ -3239,7 +3239,7 @@ begin
 
         -- If shifting right, test if bits of R will be shifted out of significance
         if r.longmask = '1' then
-            mshift := to_signed(28, EXP_BITS);
+            mshift := to_signed(SP_RBIT - 1, EXP_BITS);
         else
             mshift := to_signed(-1, EXP_BITS);
         end if;
