@@ -1323,7 +1323,7 @@ begin
         opsel_s <= S_ZERO;
         misc_sel <= "000";
         opsel_sel <= AIN_ZERO;
-        fpscr_mask := (others => '1');
+        fpscr_mask := x"FFFFF7FF";      -- ignore bit 11 (52 BE), it's reserved
         cr_op := CROP_NONE;
         update_fx := '0';
         arith_done := '0';
@@ -1428,7 +1428,7 @@ begin
                         fpscr_mask(k + 3 downto k) := "0000";
                     end if;
                 end loop;
-                v.fpscr := r.fpscr and (fpscr_mask or x"6007F8FF");
+                v.fpscr := r.fpscr and (fpscr_mask or x"6007F0FF");
                 v.instr_done := '1';
 
             when DO_FTDIV =>

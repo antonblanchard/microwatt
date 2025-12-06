@@ -274,6 +274,7 @@ void set_fpscr(unsigned long fpscr)
 unsigned long fpscr_eval(unsigned long val)
 {
 	val &= ~0x60000000;	/* clear FEX and VX */
+	val &= ~0x00000800;	/* clear reserved bit 52 (BE) */
 	if (val & 0x1f80700)	/* test all VX* bits */
 		val |= 0x20000000;
 	if ((val >> 25) & (val >> 3) & 0x1f)
