@@ -1606,9 +1606,9 @@ begin
                 rs_con2 <= RSCON2_MINEXP;
                 rs_neg2 <= '1';
                 set_x := '1';   -- uses r.r and r.shift
-                if r.b.exponent < to_signed(-126, EXP_BITS) then
+                if r.result_exp < to_signed(-126, EXP_BITS) then
                     v.state := ROUND_UFLOW;
-                elsif r.b.exponent > to_signed(127, EXP_BITS) then
+                elsif r.result_exp > to_signed(127, EXP_BITS) then
                     v.state := ROUND_OFLOW;
                 else
                     v.state := ROUNDING;
@@ -3094,7 +3094,6 @@ begin
             qnan_result := scinfo.qnan_result;
             if scinfo.immed_result = '1' then
                 -- state machine is in the DO_SPECIAL or DO_FSQRT state here
-                arith_done := '1';
                 set_r := '1';
                 opsel_r <= RES_MISC;
                 opsel_sel <= scinfo.result_sel;
@@ -3104,8 +3103,15 @@ begin
                     else
                         misc_sel <= "110";
                     end if;
+                    arith_done := '1';
                 else
                     misc_sel <= "111";
+                    if r.single_prec = '1' and scinfo.result_class = FINITE and r.int_result = '0' then
+                        -- we have to do the equivalent of frsp on the result
+                        v.state := DO_FRSP_2;
+                    else
+                        arith_done := '1';
+                    end if;
                 end if;
                 rsgn_op := scinfo.rsgn_op;
                 v.result_class := scinfo.result_class;
