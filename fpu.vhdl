@@ -1625,6 +1625,7 @@ begin
                 re_set_result <= '1';
                 rs_sel1 <= RSH1_B;
                 rs_neg2 <= '1';
+                v.single_prec := not r.insn(9);
 
                 if r.b.exponent >= to_signed(64, EXP_BITS) or
                     (r.insn(9) = '0' and r.b.exponent >= to_signed(32, EXP_BITS)) then
@@ -3686,7 +3687,8 @@ begin
                 if r.fp_rc = '1' then
                     v.cr_result := v.fpscr(FPSCR_FX downto FPSCR_OX);
                 end if;
-                v.sp_result := r.single_prec;
+                -- set sp_result for fctiw*
+                v.sp_result := r.single_prec and not r.integer_op;
                 v.res_int := r.int_result or r.integer_op;
                 v.illegal := illegal;
                 v.nsnan_result := r.quieten_nan;
@@ -3720,6 +3722,9 @@ begin
         -- This mustn't depend on any fields of r that are modified in IDLE state.
         if r.res_int = '1' then
             fp_result <= r.r;
+            if r.sp_result = '1' then
+                fp_result(63 downto 32) <= r.r(31 downto 0);
+            end if;
         else
             fp_result <= pack_dp(r.res_sign, r.result_class, r.result_exp, r.r,
                                  r.sp_result, r.nsnan_result);
