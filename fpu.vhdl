@@ -911,6 +911,7 @@ begin
                 -- result is +/- B
                 e.result_sel := AIN_B;
                 e.result_class := r.b.class;
+                -- r.result_sign is already correct
             else
                 e.result_class := ZERO;
             end if;
@@ -937,6 +938,7 @@ begin
             elsif r.is_addition = '1' then
                 -- fadd, result is A
                 e.result_sel := AIN_A;
+                e.rsgn_op := RSGN_SEL;
             else
                 -- other things, result is zero
                 e.result_class := ZERO;
