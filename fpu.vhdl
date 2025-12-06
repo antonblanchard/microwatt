@@ -1150,10 +1150,18 @@ begin
                     opcbits := e_in.insn(10) & e_in.insn(8) & e_in.insn(4) & e_in.insn(2) & e_in.insn(1);
                     exec_state := misc_decode(to_integer(unsigned(opcbits)));
                     case opcbits is
-                        when "10010" | "11010" | "10011" =>
-                            -- fmrg*, mffs
+                        when "10010" | "11010" =>
+                            -- fmrg*
                             v.int_result := '1';
                             v.result_sign := '0';
+                        when "10011" =>
+                            -- mffs*
+                            v.int_result := '1';
+                            v.result_sign := '0';
+                            if e_in.insn(20 downto 16) /= "00000" then
+                                -- mffs* variants other than mffs have bit 0 reserved
+                                v.rc := '0';
+                            end if;
                         when "10110" =>        -- fcfid
                             v.result_sign := e_in.frb(63);
                         when others =>
