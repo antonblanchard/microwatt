@@ -1712,7 +1712,8 @@ begin
                 misc_sel <= "111";
                 set_r := '1';
                 re_set_result <= '1';
-                arith_done := '1';
+                v.writing_fpr := '1';
+                v.instr_done := '1';
 
             when DO_FSQRT =>
                 opsel_a <= AIN_B;
