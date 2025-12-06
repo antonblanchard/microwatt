@@ -187,6 +187,7 @@ architecture behaviour of fpu is
         cycle_1_ar   : std_ulogic;
         regsel       : std_ulogic_vector(2 downto 0);
         is_nan_inf   : std_ulogic;
+        zero_fri     : std_ulogic;
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -1093,6 +1094,7 @@ begin
             v.quieten_nan := '1';
             v.int_result := '0';
             v.is_arith := '0';
+            v.zero_fri := '0';
             case e_in.op is
                 when OP_FP_ARITH =>
                     fpin_a := e_in.valid_a;
@@ -1138,7 +1140,10 @@ begin
                         when "01110" | "01111" =>       -- fcti*
                             v.int_result := '1';
                             v.result_sign := e_in.frb(63);
-                        when others =>                  -- fri* and frsp
+                        when "01000" =>                 -- fri*
+                            v.zero_fri := '1';
+                            v.result_sign := e_in.frb(63);
+                        when others =>                  -- frsp
                             v.result_sign := e_in.frb(63);
                     end case;
                 when OP_FP_CMP =>
@@ -2469,7 +2474,11 @@ begin
                 opsel_mask <= '1';
                 set_r := '1';
                 round := fp_rounding(r.r, r.x, r.single_prec, r.round_mode, r.result_sign);
-                v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
+                if r.zero_fri = '0' then
+                    v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
+                else
+                    v.fpscr(FPSCR_FR downto FPSCR_FI) := "00";  -- for fri* instructions
+                end if;
                 if round(1) = '1' then
                     -- increment the LSB for the precision
                     v.state := ROUND_INC;
@@ -2481,7 +2490,7 @@ begin
                 else
                     arith_done := '1';
                 end if;
-                if round(0) = '1' then
+                if round(0) = '1' and r.zero_fri = '0' then
                     v.fpscr(FPSCR_XX) := '1';
                     if r.tiny = '1' then
                         v.fpscr(FPSCR_UX) := '1';
