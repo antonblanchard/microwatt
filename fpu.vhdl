@@ -1866,25 +1866,14 @@ begin
                     -- result is opposite sign to expected
                     rsgn_op := RSGN_INV;
                     set_r := '1';
-                    v.state := FINISH;
                 elsif r.r(UNIT_BIT + 1) = '1' then
                     -- sum overflowed, shift right
                     opsel_r <= RES_SHIFT;
                     set_r := '1';
                     re_set_result <= '1';
                     set_x := '1';
-                    if exp_huge = '1' then
-                        v.state := ROUND_OFLOW;
-                    else
-                        v.state := ROUNDING;
-                    end if;
-                elsif r.r(UNIT_BIT) = '1' then
-                    set_x := '1';
-                    v.state := ROUNDING;
-                else
-                    rs_norm <= '1';
-                    v.state := NORMALIZE;
                 end if;
+                v.state := FINISH;
 
             when CMP_1 =>
                 opsel_a <= AIN_A;
