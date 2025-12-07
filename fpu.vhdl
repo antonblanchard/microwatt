@@ -144,7 +144,7 @@ architecture behaviour of fpu is
         int_result   : std_ulogic;
         cr_result    : std_ulogic_vector(3 downto 0);
         cr_mask      : std_ulogic_vector(7 downto 0);
-        old_exc      : std_ulogic_vector(4 downto 0);
+        old_exc      : std_ulogic_vector(12 downto 0);
         update_fprf  : std_ulogic;
         quieten_nan  : std_ulogic;
         nsnan_result : std_ulogic;
@@ -1388,7 +1388,7 @@ begin
                     end if;
                 end if;
                 v.x := '0';
-                v.old_exc := r.fpscr(FPSCR_VX downto FPSCR_XX);
+                v.old_exc := r.fpscr(FPSCR_OX downto FPSCR_VXVC) & r.fpscr(FPSCR_VXSOFT downto FPSCR_VXCVI);
                 set_s := '1';
                 v.regsel := AIN_ZERO;
 
@@ -3681,7 +3681,8 @@ begin
         v.fpscr(FPSCR_FEX) := or (v.fpscr(FPSCR_VX downto FPSCR_XX) and
                                   v.fpscr(FPSCR_VE downto FPSCR_XE));
         if update_fx = '1' and
-            (v.fpscr(FPSCR_VX downto FPSCR_XX) and not r.old_exc) /= "00000" then
+            ((v.fpscr(FPSCR_OX downto FPSCR_VXVC) & v.fpscr(FPSCR_VXSOFT downto FPSCR_VXCVI)) and
+             not r.old_exc) /= 13x"0" then
             v.fpscr(FPSCR_FX) := '1';
         end if;
 
