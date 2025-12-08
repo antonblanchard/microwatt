@@ -3189,7 +3189,7 @@ begin
                 v.writing_fpr := '1';
                 v.update_fprf := '1';
             end if;
-            if r.is_subtract = '1' and v.result_class = ZERO then
+            if r.is_subtract = '1' and v.result_class = ZERO and v.fpscr(FPSCR_FI) = '0' then
                 rsign := r.round_mode(0) and r.round_mode(1);
             end if;
             if r.negate = '1' and v.result_class /= NAN then
