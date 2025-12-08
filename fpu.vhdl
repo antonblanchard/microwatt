@@ -98,6 +98,7 @@ architecture behaviour of fpu is
         zero_divide   : std_ulogic;
         new_fpscr     : std_ulogic_vector(31 downto 0);
         immed_result  : std_ulogic;      -- result is an input, zero, infinity or NaN
+        need_finish   : std_ulogic;      -- result needs further processing
         qnan_result   : std_ulogic;
         result_sel    : std_ulogic_vector(2 downto 0);
         result_class  : fp_number_class;
@@ -833,6 +834,7 @@ begin
         e.zero_divide := '0';
         e.new_fpscr := (others => '0');
         e.immed_result := '0';
+        e.need_finish := '0';
         e.qnan_result := '0';
         e.result_sel := AIN_ZERO;
         e.result_class := FINITE;
@@ -912,6 +914,10 @@ begin
                 e.result_sel := AIN_B;
                 e.result_class := r.b.class;
                 -- r.result_sign is already correct
+                if r.b.class = FINITE and r.int_result = '0' and
+                    (r.single_prec = '1' or (r.fpscr(FPSCR_UE) = '1' and r.b.denorm = '1')) then
+                    e.need_finish := '1';
+                end if;
             else
                 e.result_class := ZERO;
             end if;
@@ -926,6 +932,10 @@ begin
             e.immed_result := '1';
             e.result_sel := AIN_B;
             e.result_class := r.b.class;
+            if r.b.class = FINITE and r.int_result = '0' and
+                (r.single_prec = '1' or (r.fpscr(FPSCR_UE) = '1' and r.b.denorm = '1')) then
+                e.need_finish := '1';
+            end if;
 
         elsif r.use_b = '1' and r.b.class = ZERO and r.is_multiply = '0' then
             -- B is zero, other operands are finite
@@ -939,6 +949,10 @@ begin
                 -- fadd, result is A
                 e.result_sel := AIN_A;
                 e.rsgn_op := RSGN_SEL;
+                if r.a.class = FINITE and r.int_result = '0' and
+                    (r.single_prec = '1' or (r.fpscr(FPSCR_UE) = '1' and r.a.denorm = '1')) then
+                    e.need_finish := '1';
+                end if;
             else
                 -- other things, result is zero
                 e.result_class := ZERO;
@@ -3108,9 +3122,9 @@ begin
                     arith_done := '1';
                 else
                     misc_sel <= "111";
-                    if r.single_prec = '1' and scinfo.result_class = FINITE and r.int_result = '0' then
-                        -- we have to do the equivalent of frsp on the result
-                        v.state := DO_FRSP_2;
+                    if scinfo.need_finish = '1' then
+                        -- we have to do rounding or underflow exception processing on the result
+                        v.state := FINISH;
                     else
                         arith_done := '1';
                     end if;
