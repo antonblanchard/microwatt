@@ -1655,6 +1655,8 @@ begin
                 rcls_op <= RCLS_SEL;
                 re_con2 <= RECON2_UNIT;
                 re_set_result <= '1';
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
                 if r.b.class = ZERO then
                     arith_done := '1';
                 else
