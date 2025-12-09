@@ -1185,6 +1185,7 @@ begin
                             end if;
                         when "10110" =>        -- fcfid
                             v.result_sign := e_in.frb(63);
+                            v.longmask := e_in.single;
                         when others =>
                             v.result_sign := '0';
                     end case;
