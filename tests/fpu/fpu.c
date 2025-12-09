@@ -351,15 +351,15 @@ int test4(long arg)
 		fpscr = fpscr_eval((fpscr & 0x0fffffff) | 0x70000000);
 		if (get_fpscr() != fpscr)
 			return 16 * i + 27;
-		asm("mtfsb0 21");
+		asm("mtfsb0 21");	/* VXSOFT */
 		fpscr = fpscr_eval(fpscr & ~(1 << (31-21)));
 		if (get_fpscr() != fpscr)
 			return 16 * i + 28;
 		asm("mtfsb1 21");
-		fpscr = fpscr_eval(fpscr | (1 << (31-21)));
+		fpscr = fpscr_eval(fpscr | (1 << (31-21)) | (1ul << 31));
 		if (get_fpscr() != fpscr)
 			return 16 * i + 29;
-		asm("mtfsb0 24");
+		asm("mtfsb0 24");	/* OE */
 		fpscr = fpscr_eval(fpscr & ~(1 << (31-24)));
 		if (get_fpscr() != fpscr)
 			return 16 * i + 30;

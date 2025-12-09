@@ -1438,7 +1438,7 @@ begin
                 for i in 0 to 7 loop
                     if i = j then
                         k := (7 - i) * 4;
-                        v.cr_result := r.fpscr(k + 3 downto k);
+                        v.cr_result := r.fpscr(k + 3 downto k) and fpscr_mask(k + 3 downto k);
                         fpscr_mask(k + 3 downto k) := "0000";
                     end if;
                 end loop;
@@ -1505,6 +1505,7 @@ begin
                         v.fpscr(31 - i) := r.insn(6);
                     end if;
                 end loop;
+                update_fx := '1';
                 v.instr_done := '1';
 
             when DO_MTFSFI =>
