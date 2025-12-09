@@ -72,7 +72,7 @@ architecture behaviour of fpu is
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
-                     ROUND_UFLOW, ROUND_OFLOW,
+                     ROUND_UFLOW, NORM_UFLOW, ROUND_OFLOW,
                      ROUNDING, ROUND_INC, ROUNDING_2, ROUNDING_3,
                      DENORM,
                      RENORM_A, RENORM_B, RENORM_C,
@@ -2459,11 +2459,21 @@ begin
                     re_set_result <= '1';
                     if r.r(UNIT_BIT) = '0' then
                         rs_norm <= '1';
-                        v.state := NORMALIZE;
+                        v.state := NORM_UFLOW;
                     else
                         v.state := ROUNDING;
                     end if;
                 end if;
+
+            when NORM_UFLOW =>
+                -- normalize for UE=1 underflow case
+                -- r.shift = clz(r.r) - 7
+                opsel_r <= RES_SHIFT;
+                set_r := '1';
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
+                set_x := '1';
+                v.state := ROUNDING;
 
             when ROUND_OFLOW =>
                 rcls_op <= RCLS_TINF;
@@ -2560,8 +2570,8 @@ begin
                 rcls_op <= RCLS_TZERO;
                 -- If the result is zero, that's handled below.
                 -- Renormalize result after rounding
-                re_set_result <= '1';
                 v.denorm := exp_tiny;
+                re_set_result <= '1';
                 if new_exp < to_signed(-1022, EXP_BITS) then
                     v.state := DENORM;
                 else
