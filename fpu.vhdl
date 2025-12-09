@@ -1303,6 +1303,9 @@ begin
         end if;
 
         -- Compare P with zero and with B
+        -- This has a 2-bit shift in it (p(59..4) compared to b(57..2))
+        -- because it's used in the FP division code to determine whether
+        -- to increment the quotient at bit 2 (DP_RBIT).
         px_nz := or (r.p(UNIT_BIT + 1 downto 4));
         pcmpb_eq := '0';
         if r.p(59 downto 4) = r.b.mantissa(UNIT_BIT + 1 downto DP_RBIT) then
@@ -1314,6 +1317,9 @@ begin
         elsif unsigned(r.p(59 downto 4)) < unsigned(r.b.mantissa(UNIT_BIT + 1 downto DP_RBIT)) then
             pcmpb_lt := '1';
         end if;
+        -- Compare P with zero and with C
+        -- This is used in the square root and integer division code
+        -- to decide whether to increment the result by 1
         pcmpc_eq := '0';
         if r.p = r.c.mantissa then
             pcmpc_eq := '1';
@@ -2271,29 +2277,29 @@ begin
 
             when SQRT_11 =>
                 -- compute P = A - R * R (remainder)
-                -- also put 2 * R + 1 into B for comparison with P
+                -- also put 2 * R + 1 into C for comparison with P
                 msel_1 <= MUL1_R;
                 msel_2 <= MUL2_R;
                 msel_add <= MULADD_A;
                 msel_inv <= '1';
                 f_to_multiply.valid <= r.first;
                 shiftin := '1';
-                set_b := r.first;
+                set_c := r.first;
                 if multiply_to_f.valid = '1' then
                     v.state := SQRT_12;
                 end if;
 
             when SQRT_12 =>
-                -- test if remainder is 0 or >= B = 2*R + 1
+                -- test if remainder is 0 or >= C = 2*R + 1
                 set_r := '0';
                 opsel_c <= CIN_INC;
-                if pcmpb_lt = '1' then
+                if pcmpc_lt = '1' then
                     -- square root is correct, set X if remainder non-zero
                     v.x := r.p(UNIT_BIT + 2) or px_nz;
                 else
                     -- square root needs to be incremented by 1
                     set_r := '1';
-                    v.x := not pcmpb_eq;
+                    v.x := not pcmpc_eq;
                 end if;
                 v.state := FINISH;
 
