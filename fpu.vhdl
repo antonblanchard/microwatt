@@ -1824,7 +1824,7 @@ begin
                 if r.c.denorm = '1' then
                     -- must be either fmul or fmadd/sub
                     v.state := RENORM_C;
-                elsif r.b.denorm = '1' and r.is_addition = '0' then
+                elsif r.b.denorm = '1' and (r.is_addition = '0' or r.is_multiply = '1') then
                     v.state := RENORM_B;
                 elsif r.is_multiply = '1' and r.b.class = ZERO then
                     v.state := DO_FMUL;
