@@ -3129,6 +3129,7 @@ begin
             if scinfo.immed_result = '1' then
                 -- state machine is in the DO_SPECIAL or DO_FSQRT state here
                 set_r := '1';
+                v.is_multiply := '0';           -- P is not valid
                 opsel_r <= RES_MISC;
                 opsel_sel <= scinfo.result_sel;
                 if scinfo.qnan_result = '1' then
