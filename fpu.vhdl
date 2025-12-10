@@ -1344,7 +1344,7 @@ begin
         opsel_s <= S_ZERO;
         misc_sel <= "000";
         opsel_sel <= AIN_ZERO;
-        fpscr_mask := x"FFFFF7FF";      -- ignore bit 11 (52 BE), it's reserved
+        fpscr_mask := x"FFFFFFFF";
         cr_op := CROP_NONE;
         update_fx := '0';
         arith_done := '0';
@@ -1445,7 +1445,6 @@ begin
                 for i in 0 to 7 loop
                     if i = j then
                         k := (7 - i) * 4;
-                        v.cr_result := r.fpscr(k + 3 downto k) and fpscr_mask(k + 3 downto k);
                         fpscr_mask(k + 3 downto k) := "0000";
                     end if;
                 end loop;
@@ -3771,6 +3770,9 @@ begin
             fp_result <= pack_dp(r.res_sign, r.result_class, r.result_exp, r.r,
                                  r.sp_result, r.nsnan_result);
         end if;
+
+        -- Make sure the reserved bit 11 (52) of FPSCR can never be set
+        v.fpscr(11) := '0';
 
         rin <= v;
     end process;
