@@ -2377,26 +2377,22 @@ begin
                 else
                     msb := r.r(63);
                 end if;
-                opsel_r <= RES_MISC;
-                misc_sel <= "110";
                 if (r.insn(8) = '0' and msb /= r.result_sign) or
                     (r.insn(8) = '1' and msb /= '1') then
-                    set_r := '1';
-                    v.fpscr(FPSCR_VXCVI) := '1';
-                    invalid := '1';
+                    v.state := INT_OFLOW;
                 else
-                    set_r := '0';
                     if r.fpscr(FPSCR_FI) = '1' then
                         v.fpscr(FPSCR_XX) := '1';
                     end if;
+                    arith_done := '1';
                 end if;
-                arith_done := '1';
 
             when INT_OFLOW =>
                 opsel_r <= RES_MISC;
                 misc_sel <= "110";
                 set_r := '1';
                 v.fpscr(FPSCR_VXCVI) := '1';
+                v.fpscr(FPSCR_FR downto FPSCR_FI) := "00";
                 invalid := '1';
                 arith_done := '1';
 
