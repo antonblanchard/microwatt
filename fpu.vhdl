@@ -159,6 +159,7 @@ architecture behaviour of fpu is
         is_multiply  : std_ulogic;
         is_inverse   : std_ulogic;
         is_sqrt      : std_ulogic;
+        do_renorm_b  : std_ulogic;
         first        : std_ulogic;
         count        : unsigned(1 downto 0);
         doing_ftdiv  : std_ulogic_vector(1 downto 0);
@@ -1098,6 +1099,7 @@ begin
             v.is_addition := '0';
             v.is_subtract := '0';
             v.is_inverse := '0';
+            v.do_renorm_b := '0';
             fpin_a := '0';
             fpin_b := '0';
             fpin_c := '0';
@@ -1150,17 +1152,20 @@ begin
                         when "10010" =>         -- fdiv
                             v.is_inverse := '1';
                             v.result_sign := e_in.fra(63) xor e_in.frb(63);
+                            v.do_renorm_b := '1';
                         when "11000" | "11010" =>       -- fre and frsqrte
                             v.is_inverse := '1';
                             v.result_sign := e_in.frb(63);
+                            v.do_renorm_b := '1';
                         when "01110" | "01111" =>       -- fcti*
                             v.int_result := '1';
                             v.result_sign := e_in.frb(63);
                         when "01000" =>                 -- fri*
                             v.zero_fri := '1';
                             v.result_sign := e_in.frb(63);
-                        when others =>                  -- frsp
+                        when others =>                  -- frsp and fsqrt
                             v.result_sign := e_in.frb(63);
+                            v.do_renorm_b := '1';
                     end case;
                 when OP_FP_CMP =>
                     fpin_a := e_in.valid_a;
@@ -1426,7 +1431,7 @@ begin
                     v.state := RENORM_A;
                 elsif r.c.denorm = '1' then
                     v.state := RENORM_C;
-                elsif r.b.denorm = '1' and (r.is_inverse = '1' or r.is_sqrt = '1') then
+                elsif r.b.denorm = '1' and r.do_renorm_b = '1' then
                     v.state := RENORM_B;
                 elsif r.is_multiply = '1' and r.b.class = ZERO then
                     v.state := DO_FMUL;
@@ -1830,7 +1835,7 @@ begin
                 if r.c.denorm = '1' then
                     -- must be either fmul or fmadd/sub
                     v.state := RENORM_C;
-                elsif r.b.denorm = '1' and (r.is_addition = '0' or r.is_multiply = '1') then
+                elsif r.b.denorm = '1' and r.do_renorm_b = '1' then
                     v.state := RENORM_B;
                 elsif r.is_multiply = '1' and r.b.class = ZERO then
                     v.state := DO_FMUL;
