@@ -1149,6 +1149,7 @@ begin
                             v.is_subtract := not (e_in.fra(63) xor e_in.frb(63) xor
                                                   e_in.frc(63) xor e_in.insn(1));
                             v.negate := e_in.insn(2);
+                            v.do_renorm_b := '1';
                         when "10010" =>         -- fdiv
                             v.is_inverse := '1';
                             v.result_sign := e_in.fra(63) xor e_in.frb(63);
