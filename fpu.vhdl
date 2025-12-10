@@ -1970,6 +1970,7 @@ begin
                 -- r.shift = addend exp - product exp + 64, r.r = r.b.mantissa
                 set_s := '1';
                 opsel_s <= S_SHIFT;
+                set_x := '1';
                 -- set shift to r.shift - 64
                 rs_sel1 <= RSH1_S;
                 rs_con2 <= RSCON2_64;
