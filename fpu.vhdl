@@ -1865,6 +1865,7 @@ begin
                 re_set_result <= '1';
                 v.x := s_nz;
                 set_x := '1';
+                set_s := '1';
                 v.longmask := r.single_prec;
                 if r.add_bsmall = '1' then
                     v.state := ADD_2;
