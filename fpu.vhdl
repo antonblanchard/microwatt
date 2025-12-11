@@ -1003,6 +1003,7 @@ begin
         variable exp_huge    : std_ulogic;
         variable clz         : std_ulogic_vector(5 downto 0);
         variable set_x       : std_ulogic;
+        variable set_xs      : std_ulogic;
         variable mshift      : signed(EXP_BITS-1 downto 0);
         variable need_check  : std_ulogic;
         variable msb         : std_ulogic;
@@ -1056,6 +1057,7 @@ begin
         variable bneg        : std_ulogic;
         variable ci          : std_ulogic;
         variable rormr       : std_ulogic_vector(63 downto 0);
+        variable sorms       : std_ulogic_vector(55 downto 0);
     begin
         v := r;
         v.complete := '0';
@@ -1358,6 +1360,7 @@ begin
         invalid := '0';
         zero_divide := '0';
         set_x := '0';
+        set_xs := '0';
         qnan_result := '0';
         set_a := '0';
         set_a_exp := '0';
@@ -1931,6 +1934,8 @@ begin
                 f_to_multiply.valid <= r.first;
                 opsel_r <= RES_MULT;
                 set_r := '1';
+                opsel_s <= S_MULT;
+                set_s := '1';
                 if multiply_to_f.valid = '1' then
                     v.state := FINISH;
                 end if;
@@ -1971,6 +1976,7 @@ begin
             when FMADD_2 =>
                 -- Product is potentially bigger here
                 -- r.shift = addend exp - product exp + 64, r.r = r.b.mantissa
+                -- R contains B, S contains 0
                 set_s := '1';
                 opsel_s <= S_SHIFT;
                 set_x := '1';
@@ -2408,9 +2414,6 @@ begin
 
             when FINISH =>
                 -- r.shift = 0
-                if r.is_multiply = '1' and px_nz = '1' then
-                    v.x := '1';
-                end if;
                 -- set shift to new_exp - min_exp (N.B. rs_norm overrides this)
                 rs_sel1 <= RSH1_NE;
                 rs_con2 <= RSCON2_MINEXP;
@@ -2420,6 +2423,7 @@ begin
                     v.state := NORMALIZE;
                 else
                     set_x := '1';
+                    set_xs := r.is_multiply;
                     if exp_tiny = '1' then
                         v.state := ROUND_UFLOW;
                     elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
@@ -2441,6 +2445,7 @@ begin
                 rs_con2 <= RSCON2_MINEXP;
                 rs_neg2 <= '1';
                 set_x := '1';
+                set_xs := r.is_multiply;
                 if exp_tiny = '1' then
                     v.state := ROUND_UFLOW;
                 elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
@@ -2485,6 +2490,7 @@ begin
                 re_sel2 <= REXP2_NE;
                 re_set_result <= '1';
                 set_x := '1';
+                set_xs := r.is_multiply;
                 v.state := ROUNDING;
 
             when ROUND_OFLOW_DIS =>
@@ -3308,6 +3314,16 @@ begin
                 mshift := to_signed(63, EXP_BITS);
             end if;
             v.x := v.x or rormr(to_integer(unsigned(mshift(5 downto 0))));
+        end if;
+        -- Test if there are non-zero bits in S which won't get shifted into R
+        if set_xs = '1' and not is_X(r.shift) and r.shift < to_signed(56, EXP_BITS) then
+            if r.shift > to_signed(0, EXP_BITS) then
+                mshift := to_signed(55, EXP_BITS) - r.shift;
+            else
+                mshift := to_signed(55, EXP_BITS);
+            end if;
+            sorms := r.s or std_ulogic_vector(- signed(r.s));
+            v.x := v.x or sorms(to_integer(unsigned(mshift(5 downto 0))));
         end if;
         asign := '0';
         case opsel_a is
