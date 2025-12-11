@@ -72,7 +72,7 @@ architecture behaviour of fpu is
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
-                     ROUND_UFLOW, NORM_UFLOW, ROUND_OFLOW,
+                     ROUND_UFLOW, NORM_UFLOW, ROUND_OFLOW_DIS, ROUND_OFLOW_EN,
                      ROUNDING, ROUND_INC, ROUNDING_2, ROUNDING_3,
                      DENORM,
                      RENORM_A, RENORM_B, RENORM_C,
@@ -315,6 +315,7 @@ architecture behaviour of fpu is
     constant RSCON2_63      : std_ulogic_vector(3 downto 0) := "0111";
     constant RSCON2_64      : std_ulogic_vector(3 downto 0) := "1000";
     constant RSCON2_MINEXP  : std_ulogic_vector(3 downto 0) := "1001";
+    constant RSCON2_DPMINX  : std_ulogic_vector(3 downto 0) := "1010";
 
     signal rs_sel1       : std_ulogic_vector(1 downto 0);
     signal rs_sel2       : std_ulogic;
@@ -1633,10 +1634,10 @@ begin
                 rs_con2 <= RSCON2_MINEXP;
                 rs_neg2 <= '1';
                 set_x := '1';   -- uses r.r and r.shift
-                if r.result_exp < to_signed(-126, EXP_BITS) then
+                if exp_tiny = '1' then
                     v.state := ROUND_UFLOW;
-                elsif r.result_exp > to_signed(127, EXP_BITS) then
-                    v.state := ROUND_OFLOW;
+                elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
+                    v.state := ROUND_OFLOW_DIS;
                 else
                     v.state := ROUNDING;
                 end if;
@@ -2406,6 +2407,7 @@ begin
                 v.state := ROUNDING;
 
             when FINISH =>
+                -- r.shift = 0
                 if r.is_multiply = '1' and px_nz = '1' then
                     v.x := '1';
                 end if;
@@ -2420,8 +2422,8 @@ begin
                     set_x := '1';
                     if exp_tiny = '1' then
                         v.state := ROUND_UFLOW;
-                    elsif exp_huge = '1' then
-                        v.state := ROUND_OFLOW;
+                    elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
+                        v.state := ROUND_OFLOW_DIS;
                     else
                         v.state := ROUNDING;
                     end if;
@@ -2441,8 +2443,8 @@ begin
                 set_x := '1';
                 if exp_tiny = '1' then
                     v.state := ROUND_UFLOW;
-                elsif exp_huge = '1' then
-                    v.state := ROUND_OFLOW;
+                elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
+                    v.state := ROUND_OFLOW_DIS;
                 else
                     v.state := ROUNDING;
                 end if;
@@ -2485,30 +2487,20 @@ begin
                 set_x := '1';
                 v.state := ROUNDING;
 
-            when ROUND_OFLOW =>
+            when ROUND_OFLOW_DIS =>
+                -- disabled overflow exception
+                -- result depends on rounding mode
                 rcls_op <= RCLS_TINF;
                 v.fpscr(FPSCR_OX) := '1';
                 opsel_r <= RES_MISC;
                 misc_sel <= "010";
-                set_r := '0';
-                if r.fpscr(FPSCR_OE) = '0' then
-                    -- disabled overflow exception
-                    -- result depends on rounding mode
-                    set_r := '1';
-                    v.fpscr(FPSCR_XX) := '1';
-                    v.fpscr(FPSCR_FI) := '1';
-                    -- construct largest representable number
-                    re_con2 <= RECON2_MAX;
-                    re_set_result <= '1';
-                    arith_done := '1';
-                else
-                    -- enabled overflow exception
-                    re_sel1 <= REXP1_R;
-                    re_con2 <= RECON2_BIAS;
-                    re_neg2 <= '1';
-                    re_set_result <= '1';
-                    v.state := ROUNDING;
-                end if;
+                set_r := '1';
+                v.fpscr(FPSCR_XX) := '1';
+                v.fpscr(FPSCR_FI) := '1';
+                -- construct largest representable number
+                re_con2 <= RECON2_MAX;
+                re_set_result <= '1';
+                arith_done := '1';
 
             when ROUNDING =>
                 opsel_mask <= '1';
@@ -2527,6 +2519,8 @@ begin
                     -- denormalized result that needs to be renormalized
                     rs_norm <= '1';
                     v.state := ROUNDING_3;
+                elsif r.result_exp > max_exp then
+                    v.state := ROUND_OFLOW_EN;
                 else
                     arith_done := '1';
                 end if;
@@ -2540,49 +2534,40 @@ begin
             when ROUND_INC =>
                 set_r := '1';
                 opsel_a <= AIN_RND;
-                -- set shift to -1
-                rs_con2 <= RSCON2_1;
-                rs_neg2 <= '1';
                 v.state := ROUNDING_2;
 
             when ROUNDING_2 =>
                 -- Check for overflow during rounding
-                -- r.shift = -1
-                v.x := '0';
-                re_sel2 <= REXP2_NE;
-                opsel_r <= RES_SHIFT;
-                set_r := '0';
-                if r.r(UNIT_BIT + 1) = '1' then
-                    set_r := '1';
-                    re_set_result <= '1';
-                    if exp_huge = '1' then
-                        v.state := ROUND_OFLOW;
-                    else
-                        arith_done := '1';
-                    end if;
-                elsif r.r(UNIT_BIT) = '0' then
+                -- r.shift = 0
+                if r.r(UNIT_BIT + 1) = '1' or r.r(UNIT_BIT) = '0' then
                     -- Do CLZ so we can renormalize the result
                     rs_norm <= '1';
                     v.state := ROUNDING_3;
+                elsif exp_huge = '1' then
+                    v.state := ROUND_OFLOW_EN;
                 else
                     arith_done := '1';
                 end if;
 
             when ROUNDING_3 =>
-                -- r.shift = clz(r.r) - 9
+                -- r.shift = clz(r.r) - 7
                 opsel_r <= RES_SHIFT;
                 set_r := '1';
                 re_sel2 <= REXP2_NE;
-                -- set shift to new_exp - min_exp (== -1022)
+                -- set shift to new_exp - DP min_exp (== -1022)
                 rs_sel1 <= RSH1_NE;
-                rs_con2 <= RSCON2_MINEXP;
+                rs_con2 <= RSCON2_DPMINX;
                 rs_neg2 <= '1';
                 rcls_op <= RCLS_TZERO;
                 -- If the result is zero, that's handled below.
                 -- Renormalize result after rounding
                 v.denorm := exp_tiny;
                 re_set_result <= '1';
-                if new_exp < to_signed(-1022, EXP_BITS) then
+                if exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
+                    v.state := ROUND_OFLOW_DIS;
+                elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '1' then
+                    v.state := ROUND_OFLOW_EN;
+                elsif new_exp < to_signed(-1022, EXP_BITS) then
                     v.state := DENORM;
                 else
                     arith_done := '1';
@@ -2593,6 +2578,16 @@ begin
                 opsel_r <= RES_SHIFT;
                 set_r := '1';
                 re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
+                arith_done := '1';
+
+            when ROUND_OFLOW_EN =>
+                -- enabled overflow exception
+                -- rounding and normalization has been done
+                v.fpscr(FPSCR_OX) := '1';
+                re_sel1 <= REXP1_R;
+                re_con2 <= RECON2_BIAS;
+                re_neg2 <= '1';
                 re_set_result <= '1';
                 arith_done := '1';
 
@@ -3201,14 +3196,12 @@ begin
                     arith_done := '1';
                 end if;
             when RCLS_TINF =>
-                if r.fpscr(FPSCR_OE) = '0' then
-                    if r.round_mode(1 downto 0) = "00" or
-                        (r.round_mode(1) = '1' and r.round_mode(0) = r.result_sign) then
-                        v.result_class := INFINITY;
-                        v.fpscr(FPSCR_FR) := '1';
-                    else
-                        v.fpscr(FPSCR_FR) := '0';
-                    end if;
+                if r.round_mode(1 downto 0) = "00" or
+                    (r.round_mode(1) = '1' and r.round_mode(0) = r.result_sign) then
+                    v.result_class := INFINITY;
+                    v.fpscr(FPSCR_FR) := '1';
+                else
+                    v.fpscr(FPSCR_FR) := '0';
                 end if;
             when others =>
         end case;
@@ -3593,6 +3586,8 @@ begin
                         rsh_in2 := to_signed(64, EXP_BITS);
                     when RSCON2_MINEXP =>
                         rsh_in2 := min_exp;
+                    when RSCON2_DPMINX =>
+                        rsh_in2 := to_signed(-1022, EXP_BITS);
                     when others =>
                         rsh_in2 := to_signed(0, EXP_BITS);
                 end case;
