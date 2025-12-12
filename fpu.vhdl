@@ -1102,6 +1102,7 @@ begin
             v.is_addition := '0';
             v.is_subtract := '0';
             v.is_inverse := '0';
+            v.add_bsmall := '0';
             v.do_renorm_b := '0';
             fpin_a := '0';
             fpin_b := '0';
@@ -1140,6 +1141,8 @@ begin
                             v.result_sign := e_in.fra(63);
                             if unsigned(e_in.fra(62 downto 52)) <= unsigned(e_in.frb(62 downto 52)) then
                                 v.result_sign := e_in.frb(63) xnor e_in.insn(1);
+                            else
+                                v.add_bsmall := '1';
                             end if;
                             v.is_subtract := not (e_in.fra(63) xor e_in.frb(63) xor e_in.insn(1));
                         when "11001" =>         -- fmul
@@ -1255,7 +1258,6 @@ begin
             end case;
             v.tiny := '0';
             v.denorm := '0';
-            v.add_bsmall := '0';
             v.int_ovf := '0';
             v.div_close := '0';
 
@@ -1705,15 +1707,13 @@ begin
                 rs_sel1 <= RSH1_B;
                 rs_neg1 <= '1';
                 rs_sel2 <= RSH2_A;
-                v.add_bsmall := '0';
-                if r.a.exponent = r.b.exponent then
+                if r.add_bsmall = '1' then
+                    v.state := ADD_1;
+                elsif r.a.exponent = r.b.exponent then
                     v.state := ADD_2B;
-                elsif r.a.exponent < r.b.exponent then
+                elsif v.add_bsmall = '0' then
                     v.longmask := '0';
                     v.state := ADD_SHIFT;
-                else
-                    v.add_bsmall := '1';
-                    v.state := ADD_1;
                 end if;
 
             when DO_FMUL =>
@@ -1856,6 +1856,7 @@ begin
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 -- set shift to b.exp - a.exp
+                -- (N.B., shift can be 0 if B is denorm and A's exp is -1022)
                 rs_sel1 <= RSH1_B;
                 rs_sel2 <= RSH2_A;
                 rs_neg2 <= '1';
