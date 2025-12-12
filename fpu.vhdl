@@ -1931,7 +1931,6 @@ begin
                 v.instr_done := '1';
 
             when MULT_1 =>
-                f_to_multiply.valid <= r.first;
                 opsel_r <= RES_MULT;
                 set_r := '1';
                 opsel_s <= S_MULT;
@@ -2022,25 +2021,18 @@ begin
                 v.state := FMADD_6;
 
             when FMADD_6 =>
-                -- r.shift = UNIT_BIT (or 0, but only if r is now nonzero)
+                -- r.shift = UNIT_BIT
                 set_r := '0';
                 opsel_r <= RES_SHIFT;
                 re_sel2 <= REXP2_NE;
-                rs_norm <= '1';
-                rcls_op <= RCLS_TZERO;
                 if (r.r(UNIT_BIT + 2) or r_hi_nz or r_lo_nz or (or (r.r(DP_LSB - 1 downto 0)))) = '0' then
-                    -- S = 0 case is handled by RCLS_TZERO logic, otherwise...
-                    -- R is all zeroes but there are non-zero bits in S
+                    -- R is all zeroes but there may be non-zero bits in S
                     -- so shift them into R and set S to 0
                     set_r := '1';
                     re_set_result <= '1';
                     set_s := '1';
-                    v.state := FINISH;
-                elsif r.r(UNIT_BIT + 2 downto UNIT_BIT) = "001" then
-                    v.state := FINISH;
-                else
-                    v.state := NORMALIZE;
                 end if;
+                v.state := FINISH;
 
             when DIV_2 =>
                 -- compute Y = inverse_table[B] (when count=0); P = 2 - B * Y
@@ -3197,7 +3189,7 @@ begin
                     when others =>
                 end case;
             when RCLS_TZERO =>
-                if or (r.r(UNIT_BIT + 2 downto 0)) = '0' and s_nz = '0' then
+                if or (r.r(UNIT_BIT + 2 downto 0)) = '0' then
                     v.result_class := ZERO;
                     arith_done := '1';
                 end if;
