@@ -1786,14 +1786,16 @@ begin
                 re_set_result <= '1';
                 -- put b.exp into shift
                 rs_sel1 <= RSH1_B;
-                if (r.a.exponent + r.c.exponent + 1) < r.b.exponent then
-                    -- addend is bigger, do multiply first
+                if (r.a.exponent + r.c.exponent + 2) < r.b.exponent then
+                    -- addend is definitely bigger, do multiply first
                     -- if subtracting, sign is opposite to initial estimate
                     f_to_multiply.valid <= '1';
                     v.first := '1';
                     v.state := FMADD_0;
                 else
-                    -- product is bigger, shift B first
+                    -- product may be bigger, or the answer might be
+                    -- close to 0; shift B first so the multiplier does
+                    -- the add/subtract operation.
                     v.state := FMADD_1;
                 end if;
 
@@ -1961,8 +1963,8 @@ begin
                 end if;
 
             when FMADD_1 =>
-                -- shift is b.exp, so new_exp is a.exp + c.exp - b.exp
-                -- product is bigger here
+                -- shift is b.exp, so new_exp is a.exp + c.exp - b.exp (>= -2)
+                -- product may bigger here
                 -- shift B right and use it as the addend to the multiplier
                 -- for subtract, multiplier does B - A * C
                 re_sel2 <= REXP2_B;
@@ -3342,6 +3344,8 @@ begin
         ci := '0';
         case opsel_c is
             when CIN_SUBEXT =>
+                -- Used with opsel_b = BIN_ADDSUBR, which will invert it if
+                -- r.subtract = 1, hence we use r.x here, rather than not r.x.
                 ci := r.is_subtract and r.x;
             when CIN_ABSEXT =>
                 ci := r.r(63) and (s_nz or r.x);
