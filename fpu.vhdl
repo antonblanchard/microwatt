@@ -51,7 +51,7 @@ architecture behaviour of fpu is
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
                      DO_FMR, DO_FMRG, DO_FCMP, DO_FTDIV, DO_FTSQRT,
                      DO_FCFID, DO_FCTI,
-                     DO_FRSP, DO_FRSP_2, DO_FRI,
+                     DO_FRSP, DO_FRI,
                      DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT, DO_FMADD,
                      DO_FRE,
                      DO_FSEL,
@@ -72,9 +72,9 @@ architecture behaviour of fpu is
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
-                     ROUND_UFLOW, NORM_UFLOW, ROUND_OFLOW_DIS, ROUND_OFLOW_EN,
+                     ROUND_UFLOW_DIS, ROUND_UFLOW_EN,
+                     ROUND_OFLOW_DIS, ROUND_OFLOW_EN,
                      ROUNDING, ROUND_INC, ROUNDING_2, ROUNDING_3,
-                     DENORM,
                      RENORM_A, RENORM_B, RENORM_C,
                      RENORM_1, RENORM_2,
                      IDIV_NORMB, IDIV_NORMB2, IDIV_NORMB3,
@@ -776,6 +776,9 @@ begin
                 end if;
             else
                 assert not (r.state /= IDLE and e_in.valid = '1') severity failure;
+                assert not (rin.state = FINISH and rin.r = 64x"0" and rin.x = '1');
+                assert not (rin.state = ROUNDING and rin.r(UNIT_BIT) = '0' and
+                            not (rin.tiny = '1' or rin.zero_fri = '1'));
                 r <= rin;
             end if;
         end if;
@@ -1630,22 +1633,7 @@ begin
                 set_r := '1';
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
-                v.state := DO_FRSP_2;
-
-            when DO_FRSP_2 =>
-                -- r.shift = 0
-                -- set shift to exponent - -126 (for ROUND_UFLOW state)
-                rs_sel1 <= RSH1_B;
-                rs_con2 <= RSCON2_MINEXP;
-                rs_neg2 <= '1';
-                set_x := '1';   -- uses r.r and r.shift
-                if exp_tiny = '1' then
-                    v.state := ROUND_UFLOW;
-                elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
-                    v.state := ROUND_OFLOW_DIS;
-                else
-                    v.state := ROUNDING;
-                end if;
+                v.state := FINISH;
 
             when DO_FCTI =>
                 -- instr bit 9: 1=dword 0=word
@@ -2414,17 +2402,20 @@ begin
             when FINISH =>
                 -- r.shift = 0
                 -- set shift to new_exp - min_exp (N.B. rs_norm overrides this)
+                -- assert that if r.r = 0 then r.x = 0 also
                 rs_sel1 <= RSH1_NE;
                 rs_con2 <= RSCON2_MINEXP;
                 rs_neg2 <= '1';
+                rcls_op <= RCLS_TZERO;
                 if r.r(63 downto UNIT_BIT) /= std_ulogic_vector(to_unsigned(1, 64 - UNIT_BIT)) then
                     rs_norm <= '1';
                     v.state := NORMALIZE;
                 else
                     set_x := '1';
                     set_xs := r.is_multiply;
-                    if exp_tiny = '1' then
-                        v.state := ROUND_UFLOW;
+                    v.tiny := exp_tiny;
+                    if exp_tiny = '1' and r.fpscr(FPSCR_UE) = '0' then
+                        v.state := ROUND_UFLOW_DIS;
                     elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
                         v.state := ROUND_OFLOW_DIS;
                     else
@@ -2445,51 +2436,25 @@ begin
                 rs_neg2 <= '1';
                 set_x := '1';
                 set_xs := r.is_multiply;
-                if exp_tiny = '1' then
-                    v.state := ROUND_UFLOW;
+                v.tiny := exp_tiny;
+                if exp_tiny = '1' and r.fpscr(FPSCR_UE) = '0' then
+                    v.state := ROUND_UFLOW_DIS;
                 elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
                     v.state := ROUND_OFLOW_DIS;
                 else
                     v.state := ROUNDING;
                 end if;
 
-            when ROUND_UFLOW =>
+            when ROUND_UFLOW_DIS =>
                 -- r.shift = - amount by which exponent underflows
-                v.tiny := '1';
+                -- disabled underflow exception case
+                -- have to denormalize before rounding
                 opsel_r <= RES_SHIFT;
                 set_r := '0';
-                if r.fpscr(FPSCR_UE) = '0' then
-                    -- disabled underflow exception case
-                    -- have to denormalize before rounding
-                    set_r := '1';
-                    re_sel2 <= REXP2_NE;
-                    re_set_result <= '1';
-                    set_x := '1';
-                    v.state := ROUNDING;
-                else
-                    -- enabled underflow exception case
-                    -- if denormalized, have to normalize before rounding
-                    v.fpscr(FPSCR_UX) := '1';
-                    re_sel1 <= REXP1_R;
-                    re_con2 <= RECON2_BIAS;
-                    re_set_result <= '1';
-                    if r.r(UNIT_BIT) = '0' then
-                        rs_norm <= '1';
-                        v.state := NORM_UFLOW;
-                    else
-                        v.state := ROUNDING;
-                    end if;
-                end if;
-
-            when NORM_UFLOW =>
-                -- normalize for UE=1 underflow case
-                -- r.shift = clz(r.r) - 7
-                opsel_r <= RES_SHIFT;
                 set_r := '1';
                 re_sel2 <= REXP2_NE;
                 re_set_result <= '1';
                 set_x := '1';
-                set_xs := r.is_multiply;
                 v.state := ROUNDING;
 
             when ROUND_OFLOW_DIS =>
@@ -2508,6 +2473,8 @@ begin
                 arith_done := '1';
 
             when ROUNDING =>
+                -- r.r can be zero or denorm here for fri* instructions,
+                -- and for disabled underflow exception cases.
                 opsel_mask <= '1';
                 set_r := '1';
                 round := fp_rounding(r.r, r.x, r.single_prec, r.round_mode, r.result_sign);
@@ -2520,10 +2487,22 @@ begin
                     -- increment the LSB for the precision
                     v.state := ROUND_INC;
                 elsif r.r(UNIT_BIT) = '0' then
-                    -- result after masking could be zero, or could be a
-                    -- denormalized result that needs to be renormalized
-                    rs_norm <= '1';
+                    -- Result after masking could be zero, or could be a
+                    -- denormalized result that needs to be renormalized,
+                    -- but only for fri* instructions and for disabled
+                    -- underflow exception cases.
+                    -- For fri* instructions, result_exp is 52.
+                    -- For disabled underflow exception cases for DP operations,
+                    -- result_exp is -1022 and there is no point renormalizing
+                    -- since it will just get denormalized again, but we do need
+                    -- to check for a zero result in a subsequent cycle
+                    -- after R is masked.
+                    if r.result_exp > to_signed(-1022, EXP_BITS) then
+                        rs_norm <= '1';
+                    end if;
                     v.state := ROUNDING_3;
+                elsif r.tiny = '1' and r.fpscr(FPSCR_UE) = '1' then
+                    v.state := ROUND_UFLOW_EN;
                 elsif r.result_exp > max_exp then
                     v.state := ROUND_OFLOW_EN;
                 else
@@ -2531,9 +2510,9 @@ begin
                 end if;
                 if round(0) = '1' and r.zero_fri = '0' then
                     v.fpscr(FPSCR_XX) := '1';
-                    if r.tiny = '1' then
-                        v.fpscr(FPSCR_UX) := '1';
-                    end if;
+                end if;
+                if round(0) = '1' and r.tiny = '1' then
+                    v.fpscr(FPSCR_UX) := '1';
                 end if;
 
             when ROUND_INC =>
@@ -2544,18 +2523,30 @@ begin
             when ROUNDING_2 =>
                 -- Check for overflow during rounding
                 -- r.shift = 0
-                if r.r(UNIT_BIT + 1) = '1' or r.r(UNIT_BIT) = '0' then
+                if r.r(UNIT_BIT + 1) = '1' then
                     -- Do CLZ so we can renormalize the result
                     rs_norm <= '1';
                     v.state := ROUNDING_3;
+                elsif r.r(UNIT_BIT) = '0' then
+                    -- R is non-zero (we just incremented it)
+                    -- If result_exp is -1022 here, don't normalize since
+                    -- we would then need to denormalize again.
+                    if r.result_exp > to_signed(-1022, EXP_BITS) then
+                        rs_norm <= '1';
+                    end if;
+                    v.state := ROUNDING_3;
                 elsif exp_huge = '1' then
                     v.state := ROUND_OFLOW_EN;
+                elsif r.tiny = '1' and r.fpscr(FPSCR_UE) = '1' then
+                    v.state := ROUND_UFLOW_EN;
                 else
                     arith_done := '1';
                 end if;
 
             when ROUNDING_3 =>
-                -- r.shift = clz(r.r) - 7
+                -- r.shift = clz(r.r) - 7 (or 0, or -7, if r.r is 0)
+                -- Note clz may be done on the value before being masked
+                -- to the result precision.
                 opsel_r <= RES_SHIFT;
                 set_r := '1';
                 re_sel2 <= REXP2_NE;
@@ -2572,19 +2563,11 @@ begin
                     v.state := ROUND_OFLOW_DIS;
                 elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '1' then
                     v.state := ROUND_OFLOW_EN;
-                elsif new_exp < to_signed(-1022, EXP_BITS) then
-                    v.state := DENORM;
+                elsif r.tiny = '1' and r.fpscr(FPSCR_UE) = '1' then
+                    v.state := ROUND_UFLOW_EN;
                 else
                     arith_done := '1';
                 end if;
-
-            when DENORM =>
-                -- r.shift = result_exp - -1022
-                opsel_r <= RES_SHIFT;
-                set_r := '1';
-                re_sel2 <= REXP2_NE;
-                re_set_result <= '1';
-                arith_done := '1';
 
             when ROUND_OFLOW_EN =>
                 -- enabled overflow exception
@@ -2593,6 +2576,15 @@ begin
                 re_sel1 <= REXP1_R;
                 re_con2 <= RECON2_BIAS;
                 re_neg2 <= '1';
+                re_set_result <= '1';
+                arith_done := '1';
+
+            when ROUND_UFLOW_EN =>
+                -- enabled underflow exception
+                -- rounding and normalization has been done
+                v.fpscr(FPSCR_UX) := '1';
+                re_sel1 <= REXP1_R;
+                re_con2 <= RECON2_BIAS;
                 re_set_result <= '1';
                 arith_done := '1';
 
@@ -3196,7 +3188,7 @@ begin
                     when others =>
                 end case;
             when RCLS_TZERO =>
-                if or (r.r(UNIT_BIT + 2 downto 0)) = '0' then
+                if or (r.r) = '0' then
                     v.result_class := ZERO;
                     arith_done := '1';
                 end if;
