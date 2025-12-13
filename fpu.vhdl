@@ -2356,10 +2356,13 @@ begin
                 -- Check for possible overflows
                 case r.insn(9 downto 8) is
                     when "00" =>        -- fctiw[z]
+                        -- check bit 32 in case of rounding overflow
                         need_check := r.r(31) or (r.r(30) and not r.result_sign);
                     when "01" =>        -- fctiwu[z]
-                        need_check := r.r(31);
+                        -- check bit 32 in case of rounding overflow
+                        need_check := r.r(31) or r.r(31);
                     when "10" =>        -- fctid[z]
+                        -- can't get rounding overflow for 64-bit conversion
                         need_check := r.r(63) or (r.r(62) and not r.result_sign);
                     when others =>      -- fctidu[z]
                         need_check := r.r(63);
@@ -2380,7 +2383,8 @@ begin
                     msb := r.r(63);
                 end if;
                 if (r.insn(8) = '0' and msb /= r.result_sign) or
-                    (r.insn(8) = '1' and msb /= '1') then
+                    (r.insn(8) = '1' and msb /= '1') or
+                    (r.insn(9) = '0' and r.r(32) /= r.result_sign) then
                     v.state := INT_OFLOW;
                 else
                     if r.fpscr(FPSCR_FI) = '1' then
