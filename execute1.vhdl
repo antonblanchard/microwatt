@@ -1624,7 +1624,7 @@ begin
             -- misaligned prefixed instructions, which has higher priority than
             -- other facility unavailable interrupts.
             v.exception := '1';
-            v.ic := x"b";
+            v.ic := std_ulogic_vector(to_unsigned(FSCR_PREFIX, 4));
             v.e.intr_vec := 16#f60#;
             v.se.write_ic := '1';
 
@@ -1666,7 +1666,7 @@ begin
             ctrl.fscr_scv = '0' then
             -- Facility unavailable for scv instruction
             v.exception := '1';
-            v.ic := x"c";
+            v.ic := std_ulogic_vector(to_unsigned(FSCR_SCV, 4));
             v.e.intr_vec := 16#f60#;
             v.se.write_ic := '1';
 
@@ -1674,7 +1674,7 @@ begin
             ctrl.fscr_tar = '0' then
             -- Facility unavailable for TAR access
             v.exception := '1';
-            v.ic := x"8";
+            v.ic := std_ulogic_vector(to_unsigned(FSCR_TAR, 4));
             v.e.intr_vec := 16#f60#;
             v.se.write_ic := '1';
 
@@ -1682,7 +1682,7 @@ begin
             ctrl.fscr_dscr = '0' then
             -- Facility unavailable for DSCR access
             v.exception := '1';
-            v.ic := x"2";
+            v.ic := std_ulogic_vector(to_unsigned(FSCR_DSCR, 4));
             v.e.intr_vec := 16#f60#;
             v.se.write_ic := '1';
 
