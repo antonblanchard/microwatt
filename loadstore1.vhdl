@@ -951,6 +951,13 @@ begin
                 if r1.req.read_spr = '1' then
                     v.addr0 := sprval;
                 end if;
+                -- tlbie has req.dc_req set in order to send the TLB probe to
+                -- the dcache, but since there is no acknowledgement to wait for,
+                -- clear req.dc_req so that loadstore1_3 completes when the MMU
+                -- is finished.
+                if r1.req.mmu_op = '1' then
+                    v.req.dc_req := '0';
+                end if;
 
                 -- Work out load formatter controls for next cycle
                 for i in 0 to 7 loop
