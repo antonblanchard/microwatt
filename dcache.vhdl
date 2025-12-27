@@ -1121,9 +1121,9 @@ begin
             if r0.req.sync = '1' then
                 req_op_sync <= '1';
             elsif r0.req.touch = '1' then
-                if access_ok = '1' and is_hit = '0' and nc = '0' then
+                if access_ok = '1' and (is_hit or hit_reload) = '0' and nc = '0' then
                     req_op_load_miss <= '1';
-                elsif access_ok = '1' and is_hit = '1' and nc = '0' then
+                elsif access_ok = '1' and (is_hit or hit_reload) = '1' and nc = '0' then
                     -- Make this OP_LOAD_HIT so the PLRU gets updated
                     req_op_load_hit <= '1';
                 else
@@ -1632,13 +1632,6 @@ begin
                             r1.reloading <= '1';
                             r1.write_tag <= '1';
                             ev.load_miss <= '1';
-
-                            -- If this is a touch, complete the instruction
-                            if req.touch = '1' then
-                                r1.full <= '0';
-                                r1.slow_valid <= '1';
-                                r1.ls_valid <= '1';
-                            end if;
                         else
                             r1.state <= NC_LOAD_WAIT_ACK;
                         end if;
@@ -1709,6 +1702,13 @@ begin
 			-- Calculate the next row address
 			r1.wb.adr <= next_row_wb_addr(r1.wb.adr);
 		    end if;
+
+                    -- If this is a touch, complete the instruction
+                    if r1.full = '1' and r1.req.touch = '1' then
+                        r1.full <= '0';
+                        r1.slow_valid <= '1';
+                        r1.ls_valid <= '1';
+                    end if;
 
 		    -- Incoming acks processing
 		    if wishbone_in.ack = '1' then
