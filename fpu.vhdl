@@ -51,7 +51,7 @@ architecture behaviour of fpu is
                      DO_MCRFS, DO_MTFSB, DO_MTFSFI, DO_MFFS, DO_MTFSF,
                      DO_FMR, DO_FMRG, DO_FCMP, DO_FTDIV, DO_FTSQRT,
                      DO_FCFID, DO_FCTI,
-                     DO_FRSP, DO_FRSP_2, DO_FRI,
+                     DO_FRSP, DO_FRI,
                      DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT, DO_FMADD,
                      DO_FRE,
                      DO_FSEL,
@@ -72,9 +72,9 @@ architecture behaviour of fpu is
                      INT_SHIFT, INT_ROUND, INT_ISHIFT,
                      INT_FINAL, INT_CHECK, INT_OFLOW,
                      FINISH, NORMALIZE,
-                     ROUND_UFLOW, ROUND_OFLOW,
+                     ROUND_UFLOW_DIS, ROUND_UFLOW_EN,
+                     ROUND_OFLOW_DIS, ROUND_OFLOW_EN,
                      ROUNDING, ROUND_INC, ROUNDING_2, ROUNDING_3,
-                     DENORM,
                      RENORM_A, RENORM_B, RENORM_C,
                      RENORM_1, RENORM_2,
                      IDIV_NORMB, IDIV_NORMB2, IDIV_NORMB3,
@@ -98,6 +98,7 @@ architecture behaviour of fpu is
         zero_divide   : std_ulogic;
         new_fpscr     : std_ulogic_vector(31 downto 0);
         immed_result  : std_ulogic;      -- result is an input, zero, infinity or NaN
+        need_finish   : std_ulogic;      -- result needs further processing
         qnan_result   : std_ulogic;
         result_sel    : std_ulogic_vector(2 downto 0);
         result_class  : fp_number_class;
@@ -144,7 +145,7 @@ architecture behaviour of fpu is
         int_result   : std_ulogic;
         cr_result    : std_ulogic_vector(3 downto 0);
         cr_mask      : std_ulogic_vector(7 downto 0);
-        old_exc      : std_ulogic_vector(4 downto 0);
+        old_exc      : std_ulogic_vector(12 downto 0);
         update_fprf  : std_ulogic;
         quieten_nan  : std_ulogic;
         nsnan_result : std_ulogic;
@@ -158,6 +159,7 @@ architecture behaviour of fpu is
         is_multiply  : std_ulogic;
         is_inverse   : std_ulogic;
         is_sqrt      : std_ulogic;
+        do_renorm_b  : std_ulogic;
         first        : std_ulogic;
         count        : unsigned(1 downto 0);
         doing_ftdiv  : std_ulogic_vector(1 downto 0);
@@ -187,6 +189,7 @@ architecture behaviour of fpu is
         cycle_1_ar   : std_ulogic;
         regsel       : std_ulogic_vector(2 downto 0);
         is_nan_inf   : std_ulogic;
+        zero_fri     : std_ulogic;
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -312,6 +315,7 @@ architecture behaviour of fpu is
     constant RSCON2_63      : std_ulogic_vector(3 downto 0) := "0111";
     constant RSCON2_64      : std_ulogic_vector(3 downto 0) := "1000";
     constant RSCON2_MINEXP  : std_ulogic_vector(3 downto 0) := "1001";
+    constant RSCON2_DPMINX  : std_ulogic_vector(3 downto 0) := "1010";
 
     signal rs_sel1       : std_ulogic_vector(1 downto 0);
     signal rs_sel2       : std_ulogic;
@@ -713,19 +717,24 @@ architecture behaviour of fpu is
     end;
 
     -- Determine result flags to write into the FPSCR
-    function result_flags(sign: std_ulogic; class: fp_number_class; unitbit: std_ulogic)
+    function result_flags(sign: std_ulogic; class: fp_number_class; int_result: std_ulogic;
+                          unitbit: std_ulogic)
         return std_ulogic_vector is
     begin
-        case class is
-            when ZERO =>
-                return sign & "0010";
-            when FINITE =>
-                return (not unitbit) & sign & (not sign) & "00";
-            when INFINITY =>
-                return '0' & sign & (not sign) & "01";
-            when NAN =>
-                return "10001";
-        end case;
+        if int_result = '1' then
+            return "00000";
+        else
+            case class is
+                when ZERO =>
+                    return sign & "0010";
+                when FINITE =>
+                    return (not unitbit) & sign & (not sign) & "00";
+                when INFINITY =>
+                    return '0' & sign & (not sign) & "01";
+                when NAN =>
+                    return "10001";
+            end case;
+        end if;
     end;
 
 begin
@@ -767,6 +776,9 @@ begin
                 end if;
             else
                 assert not (r.state /= IDLE and e_in.valid = '1') severity failure;
+                assert not (rin.state = FINISH and rin.r = 64x"0" and rin.x = '1');
+                assert not (rin.state = ROUNDING and rin.r(UNIT_BIT) = '0' and
+                            not (rin.tiny = '1' or rin.zero_fri = '1'));
                 r <= rin;
             end if;
         end if;
@@ -827,6 +839,7 @@ begin
         e.zero_divide := '0';
         e.new_fpscr := (others => '0');
         e.immed_result := '0';
+        e.need_finish := '0';
         e.qnan_result := '0';
         e.result_sel := AIN_ZERO;
         e.result_class := FINITE;
@@ -905,6 +918,11 @@ begin
                 -- result is +/- B
                 e.result_sel := AIN_B;
                 e.result_class := r.b.class;
+                -- r.result_sign is already correct
+                if r.b.class = FINITE and r.int_result = '0' and
+                    (r.single_prec = '1' or (r.fpscr(FPSCR_UE) = '1' and r.b.denorm = '1')) then
+                    e.need_finish := '1';
+                end if;
             else
                 e.result_class := ZERO;
             end if;
@@ -919,6 +937,10 @@ begin
             e.immed_result := '1';
             e.result_sel := AIN_B;
             e.result_class := r.b.class;
+            if r.b.class = FINITE and r.int_result = '0' and
+                (r.single_prec = '1' or (r.fpscr(FPSCR_UE) = '1' and r.b.denorm = '1')) then
+                e.need_finish := '1';
+            end if;
 
         elsif r.use_b = '1' and r.b.class = ZERO and r.is_multiply = '0' then
             -- B is zero, other operands are finite
@@ -931,6 +953,11 @@ begin
             elsif r.is_addition = '1' then
                 -- fadd, result is A
                 e.result_sel := AIN_A;
+                e.rsgn_op := RSGN_SEL;
+                if r.a.class = FINITE and r.int_result = '0' and
+                    (r.single_prec = '1' or (r.fpscr(FPSCR_UE) = '1' and r.a.denorm = '1')) then
+                    e.need_finish := '1';
+                end if;
             else
                 -- other things, result is zero
                 e.result_class := ZERO;
@@ -979,6 +1006,7 @@ begin
         variable exp_huge    : std_ulogic;
         variable clz         : std_ulogic_vector(5 downto 0);
         variable set_x       : std_ulogic;
+        variable set_xs      : std_ulogic;
         variable mshift      : signed(EXP_BITS-1 downto 0);
         variable need_check  : std_ulogic;
         variable msb         : std_ulogic;
@@ -1032,6 +1060,7 @@ begin
         variable bneg        : std_ulogic;
         variable ci          : std_ulogic;
         variable rormr       : std_ulogic_vector(63 downto 0);
+        variable sorms       : std_ulogic_vector(55 downto 0);
     begin
         v := r;
         v.complete := '0';
@@ -1048,7 +1077,6 @@ begin
             v.writing_fpr := '0';
             v.writing_cr := '0';
             v.writing_xer := '0';
-            v.comm_fpscr := r.fpscr;
             v.illegal := '0';
         end if;
 
@@ -1076,6 +1104,8 @@ begin
             v.is_addition := '0';
             v.is_subtract := '0';
             v.is_inverse := '0';
+            v.add_bsmall := '0';
+            v.do_renorm_b := '0';
             fpin_a := '0';
             fpin_b := '0';
             fpin_c := '0';
@@ -1088,6 +1118,7 @@ begin
             v.quieten_nan := '1';
             v.int_result := '0';
             v.is_arith := '0';
+            v.zero_fri := '0';
             case e_in.op is
                 when OP_FP_ARITH =>
                     fpin_a := e_in.valid_a;
@@ -1112,6 +1143,8 @@ begin
                             v.result_sign := e_in.fra(63);
                             if unsigned(e_in.fra(62 downto 52)) <= unsigned(e_in.frb(62 downto 52)) then
                                 v.result_sign := e_in.frb(63) xnor e_in.insn(1);
+                            else
+                                v.add_bsmall := '1';
                             end if;
                             v.is_subtract := not (e_in.fra(63) xor e_in.frb(63) xor e_in.insn(1));
                         when "11001" =>         -- fmul
@@ -1124,17 +1157,24 @@ begin
                             v.is_subtract := not (e_in.fra(63) xor e_in.frb(63) xor
                                                   e_in.frc(63) xor e_in.insn(1));
                             v.negate := e_in.insn(2);
+                            v.do_renorm_b := '1';
                         when "10010" =>         -- fdiv
                             v.is_inverse := '1';
                             v.result_sign := e_in.fra(63) xor e_in.frb(63);
+                            v.do_renorm_b := '1';
                         when "11000" | "11010" =>       -- fre and frsqrte
                             v.is_inverse := '1';
                             v.result_sign := e_in.frb(63);
+                            v.do_renorm_b := '1';
                         when "01110" | "01111" =>       -- fcti*
                             v.int_result := '1';
                             v.result_sign := e_in.frb(63);
-                        when others =>                  -- fri* and frsp
+                        when "01000" =>                 -- fri*
+                            v.zero_fri := '1';
                             v.result_sign := e_in.frb(63);
+                        when others =>                  -- frsp and fsqrt
+                            v.result_sign := e_in.frb(63);
+                            v.do_renorm_b := '1';
                     end case;
                 when OP_FP_CMP =>
                     fpin_a := e_in.valid_a;
@@ -1145,12 +1185,21 @@ begin
                     opcbits := e_in.insn(10) & e_in.insn(8) & e_in.insn(4) & e_in.insn(2) & e_in.insn(1);
                     exec_state := misc_decode(to_integer(unsigned(opcbits)));
                     case opcbits is
-                        when "10010" | "11010" | "10011" =>
-                            -- fmrg*, mffs
+                        when "10010" | "11010" =>
+                            -- fmrg*
                             v.int_result := '1';
                             v.result_sign := '0';
+                        when "10011" =>
+                            -- mffs*
+                            v.int_result := '1';
+                            v.result_sign := '0';
+                            if e_in.insn(20 downto 16) /= "00000" then
+                                -- mffs* variants other than mffs have bit 0 reserved
+                                v.rc := '0';
+                            end if;
                         when "10110" =>        -- fcfid
                             v.result_sign := e_in.frb(63);
+                            v.longmask := e_in.single;
                         when others =>
                             v.result_sign := '0';
                     end case;
@@ -1211,7 +1260,6 @@ begin
             end case;
             v.tiny := '0';
             v.denorm := '0';
-            v.add_bsmall := '0';
             v.int_ovf := '0';
             v.div_close := '0';
 
@@ -1268,6 +1316,9 @@ begin
         end if;
 
         -- Compare P with zero and with B
+        -- This has a 2-bit shift in it (p(59..4) compared to b(57..2))
+        -- because it's used in the FP division code to determine whether
+        -- to increment the quotient at bit 2 (DP_RBIT).
         px_nz := or (r.p(UNIT_BIT + 1 downto 4));
         pcmpb_eq := '0';
         if r.p(59 downto 4) = r.b.mantissa(UNIT_BIT + 1 downto DP_RBIT) then
@@ -1279,6 +1330,9 @@ begin
         elsif unsigned(r.p(59 downto 4)) < unsigned(r.b.mantissa(UNIT_BIT + 1 downto DP_RBIT)) then
             pcmpb_lt := '1';
         end if;
+        -- Compare P with zero and with C
+        -- This is used in the square root and integer division code
+        -- to decide whether to increment the result by 1
         pcmpc_eq := '0';
         if r.p = r.c.mantissa then
             pcmpc_eq := '1';
@@ -1303,13 +1357,14 @@ begin
         opsel_s <= S_ZERO;
         misc_sel <= "000";
         opsel_sel <= AIN_ZERO;
-        fpscr_mask := (others => '1');
+        fpscr_mask := x"FFFFFFFF";
         cr_op := CROP_NONE;
         update_fx := '0';
         arith_done := '0';
         invalid := '0';
         zero_divide := '0';
         set_x := '0';
+        set_xs := '0';
         qnan_result := '0';
         set_a := '0';
         set_a_exp := '0';
@@ -1354,12 +1409,6 @@ begin
         rsgn_op := RSGN_NOP;
         rcls_op <= RCLS_NOP;
 
-        if r.cycle_1_ar = '1' then
-            v.fpscr(FPSCR_FR) := '0';
-            v.fpscr(FPSCR_FI) := '0';
-            v.result_class := FINITE;
-        end if;
-
         case r.state is
             when IDLE =>
                 v.invalid := '0';
@@ -1374,7 +1423,7 @@ begin
                     end if;
                 end if;
                 v.x := '0';
-                v.old_exc := r.fpscr(FPSCR_VX downto FPSCR_XX);
+                v.old_exc := r.fpscr(FPSCR_OX downto FPSCR_VXVC) & r.fpscr(FPSCR_VXSOFT downto FPSCR_VXCVI);
                 set_s := '1';
                 v.regsel := AIN_ZERO;
 
@@ -1391,7 +1440,7 @@ begin
                     v.state := RENORM_A;
                 elsif r.c.denorm = '1' then
                     v.state := RENORM_C;
-                elsif r.b.denorm = '1' and (r.is_inverse = '1' or r.is_sqrt = '1') then
+                elsif r.b.denorm = '1' and r.do_renorm_b = '1' then
                     v.state := RENORM_B;
                 elsif r.is_multiply = '1' and r.b.class = ZERO then
                     v.state := DO_FMUL;
@@ -1410,11 +1459,10 @@ begin
                 for i in 0 to 7 loop
                     if i = j then
                         k := (7 - i) * 4;
-                        v.cr_result := r.fpscr(k + 3 downto k);
                         fpscr_mask(k + 3 downto k) := "0000";
                     end if;
                 end loop;
-                v.fpscr := r.fpscr and (fpscr_mask or x"6007F8FF");
+                v.fpscr := r.fpscr and (fpscr_mask or x"6007F0FF");
                 v.instr_done := '1';
 
             when DO_FTDIV =>
@@ -1477,6 +1525,7 @@ begin
                         v.fpscr(31 - i) := r.insn(6);
                     end if;
                 end loop;
+                update_fx := '1';
                 v.instr_done := '1';
 
             when DO_MTFSFI =>
@@ -1583,22 +1632,7 @@ begin
                 set_r := '1';
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
-                v.state := DO_FRSP_2;
-
-            when DO_FRSP_2 =>
-                -- r.shift = 0
-                -- set shift to exponent - -126 (for ROUND_UFLOW state)
-                rs_sel1 <= RSH1_B;
-                rs_con2 <= RSCON2_MINEXP;
-                rs_neg2 <= '1';
-                set_x := '1';   -- uses r.r and r.shift
-                if r.b.exponent < to_signed(-126, EXP_BITS) then
-                    v.state := ROUND_UFLOW;
-                elsif r.b.exponent > to_signed(127, EXP_BITS) then
-                    v.state := ROUND_OFLOW;
-                else
-                    v.state := ROUNDING;
-                end if;
+                v.state := FINISH;
 
             when DO_FCTI =>
                 -- instr bit 9: 1=dword 0=word
@@ -1611,6 +1645,7 @@ begin
                 re_set_result <= '1';
                 rs_sel1 <= RSH1_B;
                 rs_neg2 <= '1';
+                v.single_prec := not r.insn(9);
 
                 if r.b.exponent >= to_signed(64, EXP_BITS) or
                     (r.insn(9) = '0' and r.b.exponent >= to_signed(32, EXP_BITS)) then
@@ -1640,6 +1675,8 @@ begin
                 rcls_op <= RCLS_SEL;
                 re_con2 <= RECON2_UNIT;
                 re_set_result <= '1';
+                v.fpscr(FPSCR_FR) := '0';
+                v.fpscr(FPSCR_FI) := '0';
                 if r.b.class = ZERO then
                     arith_done := '1';
                 else
@@ -1657,15 +1694,13 @@ begin
                 rs_sel1 <= RSH1_B;
                 rs_neg1 <= '1';
                 rs_sel2 <= RSH2_A;
-                v.add_bsmall := '0';
-                if r.a.exponent = r.b.exponent then
+                if r.add_bsmall = '1' then
+                    v.state := ADD_1;
+                elsif r.a.exponent = r.b.exponent then
                     v.state := ADD_2B;
-                elsif r.a.exponent < r.b.exponent then
+                elsif v.add_bsmall = '0' then
                     v.longmask := '0';
                     v.state := ADD_SHIFT;
-                else
-                    v.add_bsmall := '1';
-                    v.state := ADD_1;
                 end if;
 
             when DO_FMUL =>
@@ -1705,7 +1740,8 @@ begin
                 misc_sel <= "111";
                 set_r := '1';
                 re_set_result <= '1';
-                arith_done := '1';
+                v.writing_fpr := '1';
+                v.instr_done := '1';
 
             when DO_FSQRT =>
                 opsel_a <= AIN_B;
@@ -1737,14 +1773,16 @@ begin
                 re_set_result <= '1';
                 -- put b.exp into shift
                 rs_sel1 <= RSH1_B;
-                if (r.a.exponent + r.c.exponent + 1) < r.b.exponent then
-                    -- addend is bigger, do multiply first
+                if (r.a.exponent + r.c.exponent + 2) < r.b.exponent then
+                    -- addend is definitely bigger, do multiply first
                     -- if subtracting, sign is opposite to initial estimate
                     f_to_multiply.valid <= '1';
                     v.first := '1';
                     v.state := FMADD_0;
                 else
-                    -- product is bigger, shift B first
+                    -- product may be bigger, or the answer might be
+                    -- close to 0; shift B first so the multiplier does
+                    -- the add/subtract operation.
                     v.state := FMADD_1;
                 end if;
 
@@ -1791,7 +1829,7 @@ begin
                 if r.c.denorm = '1' then
                     -- must be either fmul or fmadd/sub
                     v.state := RENORM_C;
-                elsif r.b.denorm = '1' and r.is_addition = '0' then
+                elsif r.b.denorm = '1' and r.do_renorm_b = '1' then
                     v.state := RENORM_B;
                 elsif r.is_multiply = '1' and r.b.class = ZERO then
                     v.state := DO_FMUL;
@@ -1807,6 +1845,7 @@ begin
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 -- set shift to b.exp - a.exp
+                -- (N.B., shift can be 0 if B is denorm and A's exp is -1022)
                 rs_sel1 <= RSH1_B;
                 rs_sel2 <= RSH2_A;
                 rs_neg2 <= '1';
@@ -1821,6 +1860,7 @@ begin
                 re_set_result <= '1';
                 v.x := s_nz;
                 set_x := '1';
+                set_s := '1';
                 v.longmask := r.single_prec;
                 if r.add_bsmall = '1' then
                     v.state := ADD_2;
@@ -1859,25 +1899,14 @@ begin
                     -- result is opposite sign to expected
                     rsgn_op := RSGN_INV;
                     set_r := '1';
-                    v.state := FINISH;
                 elsif r.r(UNIT_BIT + 1) = '1' then
                     -- sum overflowed, shift right
                     opsel_r <= RES_SHIFT;
                     set_r := '1';
                     re_set_result <= '1';
                     set_x := '1';
-                    if exp_huge = '1' then
-                        v.state := ROUND_OFLOW;
-                    else
-                        v.state := ROUNDING;
-                    end if;
-                elsif r.r(UNIT_BIT) = '1' then
-                    set_x := '1';
-                    v.state := ROUNDING;
-                else
-                    rs_norm <= '1';
-                    v.state := NORMALIZE;
                 end if;
+                v.state := FINISH;
 
             when CMP_1 =>
                 opsel_a <= AIN_A;
@@ -1892,9 +1921,10 @@ begin
                 v.instr_done := '1';
 
             when MULT_1 =>
-                f_to_multiply.valid <= r.first;
                 opsel_r <= RES_MULT;
                 set_r := '1';
+                opsel_s <= S_MULT;
+                set_s := '1';
                 if multiply_to_f.valid = '1' then
                     v.state := FINISH;
                 end if;
@@ -1920,8 +1950,8 @@ begin
                 end if;
 
             when FMADD_1 =>
-                -- shift is b.exp, so new_exp is a.exp + c.exp - b.exp
-                -- product is bigger here
+                -- shift is b.exp, so new_exp is a.exp + c.exp - b.exp (>= -2)
+                -- product may bigger here
                 -- shift B right and use it as the addend to the multiplier
                 -- for subtract, multiplier does B - A * C
                 re_sel2 <= REXP2_B;
@@ -1935,8 +1965,10 @@ begin
             when FMADD_2 =>
                 -- Product is potentially bigger here
                 -- r.shift = addend exp - product exp + 64, r.r = r.b.mantissa
+                -- R contains B, S contains 0
                 set_s := '1';
                 opsel_s <= S_SHIFT;
+                set_x := '1';
                 -- set shift to r.shift - 64
                 rs_sel1 <= RSH1_S;
                 rs_con2 <= RSCON2_64;
@@ -1979,25 +2011,18 @@ begin
                 v.state := FMADD_6;
 
             when FMADD_6 =>
-                -- r.shift = UNIT_BIT (or 0, but only if r is now nonzero)
+                -- r.shift = UNIT_BIT
                 set_r := '0';
                 opsel_r <= RES_SHIFT;
                 re_sel2 <= REXP2_NE;
-                rs_norm <= '1';
-                rcls_op <= RCLS_TZERO;
                 if (r.r(UNIT_BIT + 2) or r_hi_nz or r_lo_nz or (or (r.r(DP_LSB - 1 downto 0)))) = '0' then
-                    -- S = 0 case is handled by RCLS_TZERO logic, otherwise...
-                    -- R is all zeroes but there are non-zero bits in S
+                    -- R is all zeroes but there may be non-zero bits in S
                     -- so shift them into R and set S to 0
                     set_r := '1';
                     re_set_result <= '1';
                     set_s := '1';
-                    v.state := FINISH;
-                elsif r.r(UNIT_BIT + 2 downto UNIT_BIT) = "001" then
-                    v.state := FINISH;
-                else
-                    v.state := NORMALIZE;
                 end if;
+                v.state := FINISH;
 
             when DIV_2 =>
                 -- compute Y = inverse_table[B] (when count=0); P = 2 - B * Y
@@ -2248,29 +2273,29 @@ begin
 
             when SQRT_11 =>
                 -- compute P = A - R * R (remainder)
-                -- also put 2 * R + 1 into B for comparison with P
+                -- also put 2 * R + 1 into C for comparison with P
                 msel_1 <= MUL1_R;
                 msel_2 <= MUL2_R;
                 msel_add <= MULADD_A;
                 msel_inv <= '1';
                 f_to_multiply.valid <= r.first;
                 shiftin := '1';
-                set_b := r.first;
+                set_c := r.first;
                 if multiply_to_f.valid = '1' then
                     v.state := SQRT_12;
                 end if;
 
             when SQRT_12 =>
-                -- test if remainder is 0 or >= B = 2*R + 1
+                -- test if remainder is 0 or >= C = 2*R + 1
                 set_r := '0';
                 opsel_c <= CIN_INC;
-                if pcmpb_lt = '1' then
+                if pcmpc_lt = '1' then
                     -- square root is correct, set X if remainder non-zero
                     v.x := r.p(UNIT_BIT + 2) or px_nz;
                 else
                     -- square root needs to be incremented by 1
                     set_r := '1';
-                    v.x := not pcmpb_eq;
+                    v.x := not pcmpc_eq;
                 end if;
                 v.state := FINISH;
 
@@ -2318,10 +2343,13 @@ begin
                 -- Check for possible overflows
                 case r.insn(9 downto 8) is
                     when "00" =>        -- fctiw[z]
+                        -- check bit 32 in case of rounding overflow
                         need_check := r.r(31) or (r.r(30) and not r.result_sign);
                     when "01" =>        -- fctiwu[z]
-                        need_check := r.r(31);
+                        -- check bit 32 in case of rounding overflow
+                        need_check := r.r(31) or r.r(31);
                     when "10" =>        -- fctid[z]
+                        -- can't get rounding overflow for 64-bit conversion
                         need_check := r.r(63) or (r.r(62) and not r.result_sign);
                     when others =>      -- fctidu[z]
                         need_check := r.r(63);
@@ -2341,26 +2369,23 @@ begin
                 else
                     msb := r.r(63);
                 end if;
-                opsel_r <= RES_MISC;
-                misc_sel <= "110";
                 if (r.insn(8) = '0' and msb /= r.result_sign) or
-                    (r.insn(8) = '1' and msb /= '1') then
-                    set_r := '1';
-                    v.fpscr(FPSCR_VXCVI) := '1';
-                    invalid := '1';
+                    (r.insn(8) = '1' and msb /= '1') or
+                    (r.insn(9) = '0' and r.r(32) /= r.result_sign) then
+                    v.state := INT_OFLOW;
                 else
-                    set_r := '0';
                     if r.fpscr(FPSCR_FI) = '1' then
                         v.fpscr(FPSCR_XX) := '1';
                     end if;
+                    arith_done := '1';
                 end if;
-                arith_done := '1';
 
             when INT_OFLOW =>
                 opsel_r <= RES_MISC;
                 misc_sel <= "110";
                 set_r := '1';
                 v.fpscr(FPSCR_VXCVI) := '1';
+                v.fpscr(FPSCR_FR downto FPSCR_FI) := "00";
                 invalid := '1';
                 arith_done := '1';
 
@@ -2374,22 +2399,24 @@ begin
                 v.state := ROUNDING;
 
             when FINISH =>
-                if r.is_multiply = '1' and px_nz = '1' then
-                    v.x := '1';
-                end if;
+                -- r.shift = 0
                 -- set shift to new_exp - min_exp (N.B. rs_norm overrides this)
+                -- assert that if r.r = 0 then r.x = 0 also
                 rs_sel1 <= RSH1_NE;
                 rs_con2 <= RSCON2_MINEXP;
                 rs_neg2 <= '1';
+                rcls_op <= RCLS_TZERO;
                 if r.r(63 downto UNIT_BIT) /= std_ulogic_vector(to_unsigned(1, 64 - UNIT_BIT)) then
                     rs_norm <= '1';
                     v.state := NORMALIZE;
                 else
                     set_x := '1';
-                    if exp_tiny = '1' then
-                        v.state := ROUND_UFLOW;
-                    elsif exp_huge = '1' then
-                        v.state := ROUND_OFLOW;
+                    set_xs := r.is_multiply;
+                    v.tiny := exp_tiny;
+                    if exp_tiny = '1' and r.fpscr(FPSCR_UE) = '0' then
+                        v.state := ROUND_UFLOW_DIS;
+                    elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
+                        v.state := ROUND_OFLOW_DIS;
                     else
                         v.state := ROUNDING;
                     end if;
@@ -2407,146 +2434,156 @@ begin
                 rs_con2 <= RSCON2_MINEXP;
                 rs_neg2 <= '1';
                 set_x := '1';
-                if exp_tiny = '1' then
-                    v.state := ROUND_UFLOW;
-                elsif exp_huge = '1' then
-                    v.state := ROUND_OFLOW;
+                set_xs := r.is_multiply;
+                v.tiny := exp_tiny;
+                if exp_tiny = '1' and r.fpscr(FPSCR_UE) = '0' then
+                    v.state := ROUND_UFLOW_DIS;
+                elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
+                    v.state := ROUND_OFLOW_DIS;
                 else
                     v.state := ROUNDING;
                 end if;
 
-            when ROUND_UFLOW =>
+            when ROUND_UFLOW_DIS =>
                 -- r.shift = - amount by which exponent underflows
-                v.tiny := '1';
+                -- disabled underflow exception case
+                -- have to denormalize before rounding
                 opsel_r <= RES_SHIFT;
                 set_r := '0';
-                if r.fpscr(FPSCR_UE) = '0' then
-                    -- disabled underflow exception case
-                    -- have to denormalize before rounding
-                    set_r := '1';
-                    re_sel2 <= REXP2_NE;
-                    re_set_result <= '1';
-                    set_x := '1';
-                    v.state := ROUNDING;
-                else
-                    -- enabled underflow exception case
-                    -- if denormalized, have to normalize before rounding
-                    v.fpscr(FPSCR_UX) := '1';
-                    re_sel1 <= REXP1_R;
-                    re_con2 <= RECON2_BIAS;
-                    re_set_result <= '1';
-                    if r.r(UNIT_BIT) = '0' then
-                        rs_norm <= '1';
-                        v.state := NORMALIZE;
-                    else
-                        v.state := ROUNDING;
-                    end if;
-                end if;
+                set_r := '1';
+                re_sel2 <= REXP2_NE;
+                re_set_result <= '1';
+                set_x := '1';
+                v.state := ROUNDING;
 
-            when ROUND_OFLOW =>
+            when ROUND_OFLOW_DIS =>
+                -- disabled overflow exception
+                -- result depends on rounding mode
                 rcls_op <= RCLS_TINF;
                 v.fpscr(FPSCR_OX) := '1';
                 opsel_r <= RES_MISC;
                 misc_sel <= "010";
-                set_r := '0';
-                if r.fpscr(FPSCR_OE) = '0' then
-                    -- disabled overflow exception
-                    -- result depends on rounding mode
-                    set_r := '1';
-                    v.fpscr(FPSCR_XX) := '1';
-                    v.fpscr(FPSCR_FI) := '1';
-                    -- construct largest representable number
-                    re_con2 <= RECON2_MAX;
-                    re_set_result <= '1';
-                    arith_done := '1';
-                else
-                    -- enabled overflow exception
-                    re_sel1 <= REXP1_R;
-                    re_con2 <= RECON2_BIAS;
-                    re_neg2 <= '1';
-                    re_set_result <= '1';
-                    v.state := ROUNDING;
-                end if;
+                set_r := '1';
+                v.fpscr(FPSCR_XX) := '1';
+                v.fpscr(FPSCR_FI) := '1';
+                -- construct largest representable number
+                re_con2 <= RECON2_MAX;
+                re_set_result <= '1';
+                arith_done := '1';
 
             when ROUNDING =>
+                -- r.r can be zero or denorm here for fri* instructions,
+                -- and for disabled underflow exception cases.
                 opsel_mask <= '1';
                 set_r := '1';
                 round := fp_rounding(r.r, r.x, r.single_prec, r.round_mode, r.result_sign);
-                v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
+                if r.zero_fri = '0' then
+                    v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
+                else
+                    v.fpscr(FPSCR_FR downto FPSCR_FI) := "00";  -- for fri* instructions
+                end if;
                 if round(1) = '1' then
                     -- increment the LSB for the precision
                     v.state := ROUND_INC;
                 elsif r.r(UNIT_BIT) = '0' then
-                    -- result after masking could be zero, or could be a
-                    -- denormalized result that needs to be renormalized
-                    rs_norm <= '1';
+                    -- Result after masking could be zero, or could be a
+                    -- denormalized result that needs to be renormalized,
+                    -- but only for fri* instructions and for disabled
+                    -- underflow exception cases.
+                    -- For fri* instructions, result_exp is 52.
+                    -- For disabled underflow exception cases for DP operations,
+                    -- result_exp is -1022 and there is no point renormalizing
+                    -- since it will just get denormalized again, but we do need
+                    -- to check for a zero result in a subsequent cycle
+                    -- after R is masked.
+                    if r.result_exp > to_signed(-1022, EXP_BITS) then
+                        rs_norm <= '1';
+                    end if;
                     v.state := ROUNDING_3;
+                elsif r.tiny = '1' and r.fpscr(FPSCR_UE) = '1' then
+                    v.state := ROUND_UFLOW_EN;
+                elsif r.result_exp > max_exp then
+                    v.state := ROUND_OFLOW_EN;
                 else
                     arith_done := '1';
                 end if;
-                if round(0) = '1' then
+                if round(0) = '1' and r.zero_fri = '0' then
                     v.fpscr(FPSCR_XX) := '1';
-                    if r.tiny = '1' then
-                        v.fpscr(FPSCR_UX) := '1';
-                    end if;
+                end if;
+                if round(0) = '1' and r.tiny = '1' then
+                    v.fpscr(FPSCR_UX) := '1';
                 end if;
 
             when ROUND_INC =>
                 set_r := '1';
                 opsel_a <= AIN_RND;
-                -- set shift to -1
-                rs_con2 <= RSCON2_1;
-                rs_neg2 <= '1';
                 v.state := ROUNDING_2;
 
             when ROUNDING_2 =>
                 -- Check for overflow during rounding
-                -- r.shift = -1
-                v.x := '0';
-                re_sel2 <= REXP2_NE;
-                opsel_r <= RES_SHIFT;
-                set_r := '0';
+                -- r.shift = 0
                 if r.r(UNIT_BIT + 1) = '1' then
-                    set_r := '1';
-                    re_set_result <= '1';
-                    if exp_huge = '1' then
-                        v.state := ROUND_OFLOW;
-                    else
-                        arith_done := '1';
-                    end if;
-                elsif r.r(UNIT_BIT) = '0' then
                     -- Do CLZ so we can renormalize the result
                     rs_norm <= '1';
                     v.state := ROUNDING_3;
+                elsif r.r(UNIT_BIT) = '0' then
+                    -- R is non-zero (we just incremented it)
+                    -- If result_exp is -1022 here, don't normalize since
+                    -- we would then need to denormalize again.
+                    if r.result_exp > to_signed(-1022, EXP_BITS) then
+                        rs_norm <= '1';
+                    end if;
+                    v.state := ROUNDING_3;
+                elsif exp_huge = '1' then
+                    v.state := ROUND_OFLOW_EN;
+                elsif r.tiny = '1' and r.fpscr(FPSCR_UE) = '1' then
+                    v.state := ROUND_UFLOW_EN;
                 else
                     arith_done := '1';
                 end if;
 
             when ROUNDING_3 =>
-                -- r.shift = clz(r.r) - 9
+                -- r.shift = clz(r.r) - 7 (or 0, or -7, if r.r is 0)
+                -- Note clz may be done on the value before being masked
+                -- to the result precision.
                 opsel_r <= RES_SHIFT;
                 set_r := '1';
                 re_sel2 <= REXP2_NE;
-                -- set shift to new_exp - min_exp (== -1022)
+                -- set shift to new_exp - DP min_exp (== -1022)
                 rs_sel1 <= RSH1_NE;
-                rs_con2 <= RSCON2_MINEXP;
+                rs_con2 <= RSCON2_DPMINX;
                 rs_neg2 <= '1';
                 rcls_op <= RCLS_TZERO;
                 -- If the result is zero, that's handled below.
                 -- Renormalize result after rounding
-                re_set_result <= '1';
                 v.denorm := exp_tiny;
-                if new_exp < to_signed(-1022, EXP_BITS) then
-                    v.state := DENORM;
+                re_set_result <= '1';
+                if exp_huge = '1' and r.fpscr(FPSCR_OE) = '0' then
+                    v.state := ROUND_OFLOW_DIS;
+                elsif exp_huge = '1' and r.fpscr(FPSCR_OE) = '1' then
+                    v.state := ROUND_OFLOW_EN;
+                elsif r.tiny = '1' and r.fpscr(FPSCR_UE) = '1' then
+                    v.state := ROUND_UFLOW_EN;
                 else
                     arith_done := '1';
                 end if;
 
-            when DENORM =>
-                -- r.shift = result_exp - -1022
-                opsel_r <= RES_SHIFT;
-                set_r := '1';
-                re_sel2 <= REXP2_NE;
+            when ROUND_OFLOW_EN =>
+                -- enabled overflow exception
+                -- rounding and normalization has been done
+                v.fpscr(FPSCR_OX) := '1';
+                re_sel1 <= REXP1_R;
+                re_con2 <= RECON2_BIAS;
+                re_neg2 <= '1';
+                re_set_result <= '1';
+                arith_done := '1';
+
+            when ROUND_UFLOW_EN =>
+                -- enabled underflow exception
+                -- rounding and normalization has been done
+                v.fpscr(FPSCR_UX) := '1';
+                re_sel1 <= REXP1_R;
+                re_con2 <= RECON2_BIAS;
                 re_set_result <= '1';
                 arith_done := '1';
 
@@ -3077,13 +3114,16 @@ begin
         -- Handle exceptions and special cases for arithmetic operations
         if r.cycle_1_ar = '1' then
             v.fpscr := r.fpscr or scinfo.new_fpscr;
+            v.fpscr(FPSCR_FR) := '0';
+            v.fpscr(FPSCR_FI) := '0';
+            v.result_class := FINITE;
             invalid := scinfo.invalid;
             zero_divide := scinfo.zero_divide;
             qnan_result := scinfo.qnan_result;
             if scinfo.immed_result = '1' then
                 -- state machine is in the DO_SPECIAL or DO_FSQRT state here
-                arith_done := '1';
                 set_r := '1';
+                v.is_multiply := '0';           -- P is not valid
                 opsel_r <= RES_MISC;
                 opsel_sel <= scinfo.result_sel;
                 if scinfo.qnan_result = '1' then
@@ -3092,8 +3132,15 @@ begin
                     else
                         misc_sel <= "110";
                     end if;
+                    arith_done := '1';
                 else
                     misc_sel <= "111";
+                    if scinfo.need_finish = '1' then
+                        -- we have to do rounding or underflow exception processing on the result
+                        v.state := FINISH;
+                    else
+                        arith_done := '1';
+                    end if;
                 end if;
                 rsgn_op := scinfo.rsgn_op;
                 v.result_class := scinfo.result_class;
@@ -3140,19 +3187,17 @@ begin
                     when others =>
                 end case;
             when RCLS_TZERO =>
-                if or (r.r(UNIT_BIT + 2 downto 0)) = '0' and s_nz = '0' then
+                if or (r.r) = '0' then
                     v.result_class := ZERO;
                     arith_done := '1';
                 end if;
             when RCLS_TINF =>
-                if r.fpscr(FPSCR_OE) = '0' then
-                    if r.round_mode(1 downto 0) = "00" or
-                        (r.round_mode(1) = '1' and r.round_mode(0) = r.result_sign) then
-                        v.result_class := INFINITY;
-                        v.fpscr(FPSCR_FR) := '1';
-                    else
-                        v.fpscr(FPSCR_FR) := '0';
-                    end if;
+                if r.round_mode(1 downto 0) = "00" or
+                    (r.round_mode(1) = '1' and r.round_mode(0) = r.result_sign) then
+                    v.result_class := INFINITY;
+                    v.fpscr(FPSCR_FR) := '1';
+                else
+                    v.fpscr(FPSCR_FR) := '0';
                 end if;
             when others =>
         end case;
@@ -3171,7 +3216,7 @@ begin
                 v.writing_fpr := '1';
                 v.update_fprf := '1';
             end if;
-            if r.is_subtract = '1' and v.result_class = ZERO then
+            if r.is_subtract = '1' and v.result_class = ZERO and v.fpscr(FPSCR_FI) = '0' then
                 rsign := r.round_mode(0) and r.round_mode(1);
             end if;
             if r.negate = '1' and v.result_class /= NAN then
@@ -3242,7 +3287,7 @@ begin
 
         -- If shifting right, test if bits of R will be shifted out of significance
         if r.longmask = '1' then
-            mshift := to_signed(28, EXP_BITS);
+            mshift := to_signed(SP_RBIT - 1, EXP_BITS);
         else
             mshift := to_signed(-1, EXP_BITS);
         end if;
@@ -3258,7 +3303,17 @@ begin
             if mshift >= to_signed(64, EXP_BITS) then
                 mshift := to_signed(63, EXP_BITS);
             end if;
-            v.x := v.x or r.r(to_integer(unsigned(mshift(5 downto 0))));
+            v.x := v.x or rormr(to_integer(unsigned(mshift(5 downto 0))));
+        end if;
+        -- Test if there are non-zero bits in S which won't get shifted into R
+        if set_xs = '1' and not is_X(r.shift) and r.shift < to_signed(56, EXP_BITS) then
+            if r.shift > to_signed(0, EXP_BITS) then
+                mshift := to_signed(55, EXP_BITS) - r.shift;
+            else
+                mshift := to_signed(55, EXP_BITS);
+            end if;
+            sorms := r.s or std_ulogic_vector(- signed(r.s));
+            v.x := v.x or sorms(to_integer(unsigned(mshift(5 downto 0))));
         end if;
         asign := '0';
         case opsel_a is
@@ -3284,6 +3339,8 @@ begin
         ci := '0';
         case opsel_c is
             when CIN_SUBEXT =>
+                -- Used with opsel_b = BIN_ADDSUBR, which will invert it if
+                -- r.subtract = 1, hence we use r.x here, rather than not r.x.
                 ci := r.is_subtract and r.x;
             when CIN_ABSEXT =>
                 ci := r.r(63) and (s_nz or r.x);
@@ -3537,6 +3594,8 @@ begin
                         rsh_in2 := to_signed(64, EXP_BITS);
                     when RSCON2_MINEXP =>
                         rsh_in2 := min_exp;
+                    when RSCON2_DPMINX =>
+                        rsh_in2 := to_signed(-1022, EXP_BITS);
                     when others =>
                         rsh_in2 := to_signed(0, EXP_BITS);
                 end case;
@@ -3654,7 +3713,7 @@ begin
         end if;
 
         if r.update_fprf = '1' then
-            v.fpscr(FPSCR_C downto FPSCR_FU) := result_flags(r.res_sign, r.result_class,
+            v.fpscr(FPSCR_C downto FPSCR_FU) := result_flags(r.res_sign, r.result_class, r.int_result,
                                                              r.r(UNIT_BIT) and not r.denorm);
         end if;
 
@@ -3663,8 +3722,13 @@ begin
         v.fpscr(FPSCR_FEX) := or (v.fpscr(FPSCR_VX downto FPSCR_XX) and
                                   v.fpscr(FPSCR_VE downto FPSCR_XE));
         if update_fx = '1' and
-            (v.fpscr(FPSCR_VX downto FPSCR_XX) and not r.old_exc) /= "00000" then
+            ((v.fpscr(FPSCR_OX downto FPSCR_VXVC) & v.fpscr(FPSCR_VXSOFT downto FPSCR_VXCVI)) and
+             not r.old_exc) /= 13x"0" then
             v.fpscr(FPSCR_FX) := '1';
+        end if;
+
+        if r.complete = '1' or r.do_intr = '1' then
+            v.comm_fpscr := v.fpscr;
         end if;
 
         if v.instr_done = '1' then
@@ -3675,7 +3739,8 @@ begin
                 if r.fp_rc = '1' then
                     v.cr_result := v.fpscr(FPSCR_FX downto FPSCR_OX);
                 end if;
-                v.sp_result := r.single_prec;
+                -- set sp_result for fctiw*
+                v.sp_result := r.single_prec and not r.integer_op;
                 v.res_int := r.int_result or r.integer_op;
                 v.illegal := illegal;
                 v.nsnan_result := r.quieten_nan;
@@ -3709,10 +3774,16 @@ begin
         -- This mustn't depend on any fields of r that are modified in IDLE state.
         if r.res_int = '1' then
             fp_result <= r.r;
+            if r.sp_result = '1' then
+                fp_result(63 downto 32) <= r.r(31 downto 0);
+            end if;
         else
             fp_result <= pack_dp(r.res_sign, r.result_class, r.result_exp, r.r,
                                  r.sp_result, r.nsnan_result);
         end if;
+
+        -- Make sure the reserved bit 11 (52) of FPSCR can never be set
+        v.fpscr(11) := '0';
 
         rin <= v;
     end process;
