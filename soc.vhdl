@@ -50,6 +50,7 @@ use work.wishbone_types.all;
 --   2  : UART1
 --   3  : SD card
 --   4  : GPIO
+--   5  : SD card 2
 
 -- Resets:
 -- The soc can be reset externally by its parent top- entity (via rst port),
@@ -93,6 +94,7 @@ entity soc is
         DCACHE_TLB_SET_SIZE : natural := 64;
         DCACHE_TLB_NUM_WAYS : natural := 2;
         HAS_SD_CARD        : boolean := false;
+        HAS_SD_CARD2       : boolean := false;
         HAS_GPIO           : boolean := false;
         NGPIO              : natural := 32
 	);
@@ -122,6 +124,7 @@ entity soc is
         -- External interrupts
         ext_irq_eth          : in std_ulogic := '0';
         ext_irq_sdcard       : in std_ulogic := '0';
+        ext_irq_sdcard2      : in std_ulogic := '0';
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
@@ -822,6 +825,7 @@ begin
 	    SPI_FLASH_OFFSET => SPI_FLASH_OFFSET,
             HAS_LITEETH => HAS_LITEETH,
             HAS_SD_CARD => HAS_SD_CARD,
+            HAS_SD_CARD2 => HAS_SD_CARD2,
             UART0_IS_16550 => UART0_IS_16550,
             HAS_UART1 => HAS_UART1
 	)
@@ -1031,6 +1035,7 @@ begin
         int_level_in(2) <= uart1_irq;
         int_level_in(3) <= ext_irq_sdcard;
         int_level_in(4) <= gpio_intr;
+        int_level_in(5) <= ext_irq_sdcard2;
     end process;
 
     -- BRAM Memory slave

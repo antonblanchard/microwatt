@@ -122,6 +122,12 @@ entity toplevel is
         sdcard_clk    : out   std_ulogic;
         sdcard_cd     : in    std_ulogic;
 
+        -- Second SD card
+        sdcard2_data  : inout std_ulogic_vector(3 downto 0);
+        sdcard2_cmd   : inout std_ulogic;
+        sdcard2_clk   : out   std_ulogic;
+        sdcard2_cd    : in    std_ulogic;
+
         -- DRAM wires
         ddram_a       : out std_ulogic_vector(13 downto 0);
         ddram_ba      : out std_ulogic_vector(2 downto 0);
@@ -179,11 +185,17 @@ architecture behaviour of toplevel is
 
     -- LiteSDCard connection
     signal ext_irq_sdcard      : std_ulogic := '0';
+    signal ext_irq_sdcard2     : std_ulogic := '0';
     signal wb_sdcard_out       : wb_io_slave_out := wb_io_slave_out_init;
+    signal wb_sdcard2_out      : wb_io_slave_out := wb_io_slave_out_init;
     signal wb_sddma_out        : wb_io_master_out := wb_io_master_out_init;
     signal wb_sddma_in         : wb_io_slave_out;
     signal wb_sddma_nr         : wb_io_master_out;
+    signal wb_sddma1_nr        : wb_io_master_out;
+    signal wb_sddma2_nr        : wb_io_master_out;
     signal wb_sddma_ir         : wb_io_slave_out;
+    signal wb_sddma1_ack       : std_ulogic;
+    signal wb_sddma2_ack       : std_ulogic;
     -- for conversion from non-pipelined wishbone to pipelined
     signal wb_sddma_stb_sent   : std_ulogic;
 
@@ -261,6 +273,7 @@ begin
             UART0_IS_16550     => UART_IS_16550,
             HAS_UART1          => HAS_UART1,
             HAS_SD_CARD        => USE_LITESDCARD,
+            HAS_SD_CARD2       => USE_LITESDCARD,
             HAS_GPIO           => HAS_GPIO,
             NGPIO              => NGPIO
             )
@@ -295,6 +308,7 @@ begin
             -- External interrupts
             ext_irq_eth       => ext_irq_eth,
             ext_irq_sdcard    => ext_irq_sdcard,
+            ext_irq_sdcard2   => ext_irq_sdcard2,
 
             -- DRAM wishbone
             wb_dram_in           => wb_dram_in,
@@ -623,7 +637,7 @@ begin
         ext_irq_eth    <= '0';
     end generate;
 
-    -- SD card pmod
+    -- SD card pmod, two interfaces
     has_sdcard : if USE_LITESDCARD generate
         component litesdcard_core port (
             clk           : in    std_ulogic;
@@ -662,7 +676,10 @@ begin
         end component;
 
         signal wb_sdcard_cyc : std_ulogic;
+        signal wb_sdcard2_cyc : std_ulogic;
         signal wb_sdcard_adr : std_ulogic_vector(29 downto 0);
+        signal dma_msel : std_ulogic;
+        signal other_cyc : std_ulogic;
 
     begin
         litesdcard : litesdcard_core
@@ -680,14 +697,14 @@ begin
                 wb_ctrl_cti   => "000",
                 wb_ctrl_bte   => "00",
                 wb_ctrl_err   => open,
-                wb_dma_adr    => wb_sddma_nr.adr,
-                wb_dma_dat_w  => wb_sddma_nr.dat,
+                wb_dma_adr    => wb_sddma1_nr.adr,
+                wb_dma_dat_w  => wb_sddma1_nr.dat,
                 wb_dma_dat_r  => wb_sddma_ir.dat,
-                wb_dma_sel    => wb_sddma_nr.sel,
-                wb_dma_cyc    => wb_sddma_nr.cyc,
-                wb_dma_stb    => wb_sddma_nr.stb,
-                wb_dma_ack    => wb_sddma_ir.ack,
-                wb_dma_we     => wb_sddma_nr.we,
+                wb_dma_sel    => wb_sddma1_nr.sel,
+                wb_dma_cyc    => wb_sddma1_nr.cyc,
+                wb_dma_stb    => wb_sddma1_nr.stb,
+                wb_dma_ack    => wb_sddma1_ack,
+                wb_dma_we     => wb_sddma1_nr.we,
                 wb_dma_cti    => open,
                 wb_dma_bte    => open,
                 wb_dma_err    => '0',
@@ -698,13 +715,55 @@ begin
                 irq           => ext_irq_sdcard
                 );
 
-        -- Gate cyc with chip select from SoC
-        wb_sdcard_cyc <= wb_ext_io_in.cyc and wb_ext_is_sdcard;
+        litesdcard2 : litesdcard_core
+            port map (
+                clk           => system_clk,
+                rst           => periph_rst,
+                wb_ctrl_adr   => wb_sdcard_adr,
+                wb_ctrl_dat_w => wb_ext_io_in.dat,
+                wb_ctrl_dat_r => wb_sdcard2_out.dat,
+                wb_ctrl_sel   => wb_ext_io_in.sel,
+                wb_ctrl_cyc   => wb_sdcard2_cyc,
+                wb_ctrl_stb   => wb_ext_io_in.stb,
+                wb_ctrl_ack   => wb_sdcard2_out.ack,
+                wb_ctrl_we    => wb_ext_io_in.we,
+                wb_ctrl_cti   => "000",
+                wb_ctrl_bte   => "00",
+                wb_ctrl_err   => open,
+                wb_dma_adr    => wb_sddma2_nr.adr,
+                wb_dma_dat_w  => wb_sddma2_nr.dat,
+                wb_dma_dat_r  => wb_sddma_ir.dat,
+                wb_dma_sel    => wb_sddma2_nr.sel,
+                wb_dma_cyc    => wb_sddma2_nr.cyc,
+                wb_dma_stb    => wb_sddma2_nr.stb,
+                wb_dma_ack    => wb_sddma2_ack,
+                wb_dma_we     => wb_sddma2_nr.we,
+                wb_dma_cti    => open,
+                wb_dma_bte    => open,
+                wb_dma_err    => '0',
+                sdcard_data   => sdcard2_data,
+                sdcard_cmd    => sdcard2_cmd,
+                sdcard_clk    => sdcard2_clk,
+                sdcard_cd     => sdcard2_cd,
+                irq           => ext_irq_sdcard2
+                );
 
-        wb_sdcard_adr <= x"0000" & wb_ext_io_in.adr(13 downto 0);
+        -- Gate cyc with chip selects from SoC
+        -- Select first or second interface based on real address bit 15
+        wb_sdcard_cyc  <= wb_ext_io_in.cyc and wb_ext_is_sdcard and not wb_ext_io_in.adr(13);
+        wb_sdcard2_cyc <= wb_ext_io_in.cyc and wb_ext_is_sdcard and wb_ext_io_in.adr(13);
+
+        wb_sdcard_adr <= 17x"0" & wb_ext_io_in.adr(12 downto 0);
 
         wb_sdcard_out.stall <= not wb_sdcard_out.ack;
+        wb_sdcard2_out.stall <= not wb_sdcard2_out.ack;
 
+        -- Simple arbiter to multiplex the two DMA wishbones
+        wb_sddma_nr <= wb_sddma1_nr when dma_msel = '0' else wb_sddma2_nr;
+        wb_sddma1_ack <= wb_sddma_ir.ack and not dma_msel;
+        wb_sddma2_ack <= wb_sddma_ir.ack and dma_msel;
+        other_cyc <= wb_sddma2_nr.cyc when dma_msel = '0' else wb_sddma1_nr.cyc;
+       
         -- Convert non-pipelined DMA wishbone to pipelined by suppressing
         -- non-acknowledged strobes
         process(system_clk)
@@ -721,6 +780,13 @@ begin
                     wb_sddma_stb_sent <= wb_sddma_nr.stb;
                 end if;
                 wb_sddma_ir <= wb_sddma_in;
+
+                -- Decide which wishbone to use next cycle
+                if periph_rst = '1' then
+                    dma_msel <= '0';
+                elsif wb_sddma_nr.cyc = '0' and other_cyc = '1' then
+                    dma_msel <= not dma_msel;
+                end if;
             end if;
         end process;
 
@@ -728,7 +794,8 @@ begin
 
     -- Mux WB response on the IO bus
     wb_ext_io_out <= wb_eth_out when wb_ext_is_eth = '1' else
-                     wb_sdcard_out when wb_ext_is_sdcard = '1' else
+                     wb_sdcard_out when wb_ext_is_sdcard = '1' and wb_ext_io_in.adr(13) = '0' else
+                     wb_sdcard2_out when wb_ext_is_sdcard = '1' and wb_ext_io_in.adr(13) = '1' else
                      wb_dram_ctrl_out;
 
     leds_pwm : process(system_clk)

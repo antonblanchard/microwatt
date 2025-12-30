@@ -133,6 +133,22 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdpa
 #set_property -dict { PACKAGE_PIN T13 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_9 }];
 #set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_10 }];
 
+# connection to second Digilent PmodSD on JC
+set_property -dict { PACKAGE_PIN U12 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard2_data[3] }];
+set_property -dict { PACKAGE_PIN V12 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard2_cmd }];
+set_property -dict { PACKAGE_PIN V10 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard2_data[0] }];
+set_property -dict { PACKAGE_PIN V11 IOSTANDARD LVCMOS33 SLEW FAST } [get_ports { sdcard2_clk }];
+set_property -dict { PACKAGE_PIN U14 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard2_data[1] }];
+set_property -dict { PACKAGE_PIN V14 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard2_data[2] }];
+set_property -dict { PACKAGE_PIN T13 IOSTANDARD LVCMOS33 } [get_ports { sdcard2_cd }];
+#set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { sdcard2_wp }];
+
+# Put registers into IOBs to improve timing
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard2/sdpads_data_i_reg*}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard2/xilinxsdrtristateimpl*_o_reg}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard2/sdcard_clk_reg}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard2/sdpads_cmd_i_reg}]
+
 ################################################################################
 # PMOD header JD (standard, 200 ohm protection resisters)
 ################################################################################
