@@ -1442,8 +1442,8 @@ begin
                     if e_in.spr_select.ispmu = '0' then
                         case e_in.spr_select.sel is
                             when SPRSEL_LOGR =>
-                                if e_in.insn(16) = '0' then
-                                    v.se.inc_loga := '1';
+                                if e_in.insn(16) = '1' then
+                                    v.se.inc_loga := '1';       -- reading LOG_DATA
                                 end if;
                             when others =>
                         end case;
@@ -1525,6 +1525,7 @@ begin
                         when SPRSEL_DEC =>
                             v.se.write_dec := '1';
                         when SPRSEL_LOGR =>
+                            -- must be writing LOG_ADDR; LOG_DATA is readonly
                             v.se.write_loga := '1';
                         when SPRSEL_CFAR =>
                             v.se.write_cfar := '1';
