@@ -1734,6 +1734,7 @@ begin
             v.prefixed := e_in.prefixed;
             v.insn := e_in.insn;
             v.prefix := e_in.prefix;
+            v.advance_nia := '0';
         end if;
 
         lv := Execute1ToLoadstore1Init;
