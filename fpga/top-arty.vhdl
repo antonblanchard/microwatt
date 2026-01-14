@@ -156,6 +156,8 @@ architecture behaviour of toplevel is
     -- Status
     signal run_out : std_ulogic;
     signal run_outs : std_ulogic_vector(CPUS-1 downto 0);
+    signal init_done : std_ulogic;
+    signal init_err  : std_ulogic;
 
     -- Reset signals:
     signal soc_rst : std_ulogic;
@@ -204,9 +206,9 @@ architecture behaviour of toplevel is
     signal wb_sddma_stb_sent   : std_ulogic;
 
     -- Status LED
-    signal led_b_pwm : std_ulogic_vector(3 downto 0);
-    signal led_r_pwm : std_ulogic_vector(3 downto 0);
-    signal led_g_pwm : std_ulogic_vector(3 downto 0);
+    signal led_b_pwm : std_ulogic_vector(3 downto 0) := (others => '0');
+    signal led_r_pwm : std_ulogic_vector(3 downto 0) := (others => '0');
+    signal led_g_pwm : std_ulogic_vector(3 downto 0) := (others => '0');
 
     -- Dumb PWM for the LEDs, those RGB LEDs are too bright otherwise
     signal pwm_counter  : std_ulogic_vector(8 downto 0);
@@ -401,9 +403,8 @@ begin
                 pll_locked_out => system_clk_locked
                 );
 
-        led_b_pwm <= "1111";
-        led_r_pwm <= "1111";
-        led_g_pwm <= "0000";
+        init_done <= '1';
+        init_err  <= '0';
 
         -- Vivado barfs on those differential signals if left
         -- unconnected. So instanciate a diff. buffer and feed
@@ -501,9 +502,8 @@ begin
                 ddram_reset_n   => ddram_reset_n
                 );
 
-        led_b_pwm(0) <= not dram_init_done;
-        led_r_pwm(0) <= dram_init_error;
-        led_g_pwm(0) <= dram_init_done and not dram_init_error;
+        init_done <= dram_init_done;
+        init_err  <= dram_init_error;
 
     end generate;
 
@@ -802,6 +802,21 @@ begin
                      wb_sdcard2_out when wb_ext_is_sdcard = '1' and wb_ext_io_in.adr(13) = '1' else
                      wb_dram_ctrl_out;
 
+    status_led_colour : process(all)
+        variable rgb : std_ulogic_vector(2 downto 0);
+    begin
+        if soc_rst = '1' then
+            rgb := "000";
+        elsif system_clk_locked = '0' then
+            rgb := "110";
+        else
+            rgb := init_err & (init_done and not init_err) & (not init_done);
+        end if;
+        led_r_pwm(0) <= rgb(2);
+        led_g_pwm(0) <= rgb(1);
+        led_b_pwm(0) <= rgb(0);
+    end process;
+
     leds_pwm : process(system_clk)
     begin
         if rising_edge(system_clk) then
@@ -818,8 +833,8 @@ begin
         end if;
     end process;
 
-    led4 <= system_clk_locked;
-    led5 <= not soc_rst;
+    led4 <= '0';
+    led5 <= '0';
     led6 <= run_outs(1) when CPUS > 1 else '0';
     led7 <= run_outs(0);
 
