@@ -26,7 +26,8 @@ entity toplevel is
         USE_LITEETH        : boolean := true;
         USE_LITESDCARD     : boolean := true;
         ICACHE_NUM_LINES   : natural := 64;
-        NGPIO              : natural := 0
+        HAS_GPIO           : boolean := true;
+        NGPIO              : natural := 32
         );
     port(
         ext_clk   : in  std_ulogic;
@@ -211,6 +212,11 @@ architecture behaviour of toplevel is
     signal spi_sdat_oe : std_ulogic_vector(3 downto 0);
     signal spi_sdat_i  : std_ulogic_vector(3 downto 0);
 
+    -- GPIO
+    signal gpio_in     : std_ulogic_vector(NGPIO - 1 downto 0) := (others => '0');
+    signal gpio_out    : std_ulogic_vector(NGPIO - 1 downto 0);
+    signal gpio_dir    : std_ulogic_vector(NGPIO - 1 downto 0);
+
     -- Fixup various memory sizes based on generics
     function get_bram_size return natural is
     begin
@@ -267,6 +273,7 @@ begin
             HAS_LITEETH        => USE_LITEETH,
             HAS_SD_CARD        => USE_LITESDCARD,
             ICACHE_NUM_LINES   => ICACHE_NUM_LINES,
+            HAS_GPIO           => HAS_GPIO,
             NGPIO              => NGPIO
             )
         port map (
@@ -284,6 +291,11 @@ begin
             spi_flash_sdat_o  => spi_sdat_o,
             spi_flash_sdat_oe => spi_sdat_oe,
             spi_flash_sdat_i  => spi_sdat_i,
+
+            -- GPIO signals
+            gpio_in           => gpio_in,
+            gpio_out          => gpio_out,
+            gpio_dir          => gpio_dir,
 
             -- External interrupts
             ext_irq_eth       => ext_irq_eth,
@@ -638,6 +650,12 @@ begin
     wb_ext_io_out <= wb_eth_out when wb_ext_is_eth = '1' else
                      wb_sdcard_out when wb_ext_is_sdcard = '1' else
                      wb_dram_ctrl_out;
+
+    -- connection to RTC chip via I2C on PMOD 3
+    gpio_in(22) <= pmod3_5;     -- i2c data
+    gpio_in(23) <= pmod3_6;     -- i2c clock
+    pmod3_5 <= gpio_out(22) when gpio_dir(22) = '1' else 'Z';
+    pmod3_6 <= gpio_out(23) when gpio_dir(23) = '1' else 'Z';
 
     led5_r_n <= '1';
     led5_g_n <= '1';
