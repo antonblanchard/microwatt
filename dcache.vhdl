@@ -1704,7 +1704,7 @@ begin
 		    end if;
 
                     -- If this is a touch, complete the instruction
-                    if r1.full = '1' and r1.req.touch = '1' then
+                    if r1.full = '1' and r1.req.touch = '1' and r1.req.hit_reload = '1' then
                         r1.full <= '0';
                         r1.slow_valid <= '1';
                         r1.ls_valid <= '1';
@@ -1730,7 +1730,7 @@ begin
                             get_row_of_line(r1.store_row) = get_row_of_line(get_row(req.real_addr)) then
                             r1.full <= '0';
                             r1.slow_valid <= '1';
-                            if r1.mmu_req = '0' then
+                            if req.mmu_req = '0' then
                                 r1.ls_valid <= '1';
                             else
                                 r1.mmu_done <= '1';
@@ -1891,7 +1891,7 @@ begin
                             r1.wb.stb & r1.wb.cyc &
                             d_out.error &
                             d_out.valid &
-                            req_op_load_miss & req_op_store & req_op_bad &
+                            req_op_load_miss & req_op_store & req_hit_reload &
                             stall_out &
                             std_ulogic_vector(resize(tlb_hit_way, 3)) &
                             valid_ra &
