@@ -150,24 +150,24 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdpa
 # Arduino/chipKIT shield connector
 ################################################################################
 
-set_property -dict { PACKAGE_PIN V15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io0 }];
-set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io1 }];
-set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io2 }];
-set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io3 }];
-set_property -dict { PACKAGE_PIN R12 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io4 }];
-set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io5 }];
-set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io6 }];
-set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io7 }];
-set_property -dict { PACKAGE_PIN N15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io8 }];
+#set_property -dict { PACKAGE_PIN V15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io0 }];
+#set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io1 }];
+#set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io2 }];
+#set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io3 }];
+#set_property -dict { PACKAGE_PIN R12 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io4 }];
+#set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io5 }];
+#set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io6 }];
+#set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io7 }];
+#set_property -dict { PACKAGE_PIN N15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io8 }];
 set_property -dict { PACKAGE_PIN M16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io9 }];
-set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io10 }];
-set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io11 }];
-set_property -dict { PACKAGE_PIN R17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io12 }];
-set_property -dict { PACKAGE_PIN P17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io13 }];
-set_property -dict { PACKAGE_PIN U11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io26 }];
-set_property -dict { PACKAGE_PIN V16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io27 }];
-set_property -dict { PACKAGE_PIN M13 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io28 }];
-set_property -dict { PACKAGE_PIN R10 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io29 }];
+#set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io10 }];
+#set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io11 }];
+#set_property -dict { PACKAGE_PIN R17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io12 }];
+#set_property -dict { PACKAGE_PIN P17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io13 }];
+#set_property -dict { PACKAGE_PIN U11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io26 }];
+#set_property -dict { PACKAGE_PIN V16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io27 }];
+#set_property -dict { PACKAGE_PIN M13 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io28 }];
+#set_property -dict { PACKAGE_PIN R10 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io29 }];
 set_property -dict { PACKAGE_PIN R11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io30 }];
 set_property -dict { PACKAGE_PIN R13 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io31 }];
 set_property -dict { PACKAGE_PIN R15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io32 }];
