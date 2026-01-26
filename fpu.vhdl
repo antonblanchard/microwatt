@@ -2015,7 +2015,7 @@ begin
                 set_r := '0';
                 opsel_r <= RES_SHIFT;
                 re_sel2 <= REXP2_NE;
-                if (r.r(UNIT_BIT + 2) or r_hi_nz or r_lo_nz or (or (r.r(DP_LSB - 1 downto 0)))) = '0' then
+                if (or (r.r(UNIT_BIT + 3 downto 0))) = '0' then
                     -- R is all zeroes but there may be non-zero bits in S
                     -- so shift them into R and set S to 0
                     set_r := '1';
