@@ -960,7 +960,7 @@ begin
             CEALUMODE => valid_1,
             CEB1 => '0',
             CEB2 => valid_1,
-            CEC => valid_1,
+            CEC => '0',
             CECARRYIN => '0',
             CECTRL => '0',
             CED => '0',
