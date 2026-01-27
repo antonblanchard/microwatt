@@ -217,6 +217,7 @@ architecture behaviour of toplevel is
     signal led_b_pwm : std_ulogic_vector(3 downto 0) := (others => '0');
     signal led_r_pwm : std_ulogic_vector(3 downto 0) := (others => '0');
     signal led_g_pwm : std_ulogic_vector(3 downto 0) := (others => '0');
+    signal disk_activity : std_ulogic := '0';
 
     -- Dumb PWM for the LEDs, those RGB LEDs are too bright otherwise
     signal pwm_counter  : std_ulogic_vector(8 downto 0);
@@ -692,6 +693,8 @@ begin
         signal wb_sdcard_adr : std_ulogic_vector(29 downto 0);
         signal dma_msel : std_ulogic;
         signal other_cyc : std_ulogic;
+        signal sdc0_activity : std_ulogic := '0';
+        signal sdc1_activity : std_ulogic := '0';
 
     begin
         litesdcard : litesdcard_core
@@ -802,6 +805,27 @@ begin
             end if;
         end process;
 
+        -- Capture writes to the interrupt enable registers, and record
+        -- the state of the command-done interrupt enable bit to use
+        -- as an activity indicator.
+        process(system_clk)
+        begin
+            if rising_edge(system_clk) then
+                if periph_rst = '1' then
+                    sdc0_activity <= '0';
+                    sdc1_activity <= '0';
+                elsif wb_sdcard_adr(11 downto 0) = x"602"
+                    and wb_ext_io_in.stb = '1' and wb_ext_io_in.we = '1' then
+                    if wb_sdcard_cyc = '1' then
+                        sdc0_activity <= wb_ext_io_in.dat(3);
+                    end if;
+                    if wb_sdcard2_cyc = '1' then
+                        sdc1_activity <= wb_ext_io_in.dat(3);
+                    end if;
+                end if;
+            end if;
+        end process;
+        disk_activity <= sdc0_activity or sdc1_activity;
     end generate;
 
     -- Mux WB response on the IO bus
@@ -842,7 +866,7 @@ begin
     end process;
 
     led4 <= '0';
-    led5 <= '0';
+    led5 <= disk_activity;
     led6 <= run_outs(1) when CPUS > 1 else '0';
     led7 <= run_outs(0);
 
