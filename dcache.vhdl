@@ -1703,8 +1703,10 @@ begin
 			r1.wb.adr <= next_row_wb_addr(r1.wb.adr);
 		    end if;
 
-                    -- If this is a touch, complete the instruction
-                    if r1.full = '1' and r1.req.touch = '1' and r1.req.hit_reload = '1' then
+                    -- If this is a touch, complete the instruction, but not
+                    -- until the new tag for this cache line has been written.
+                    if r1.full = '1' and r1.req.touch = '1' and r1.req.hit_reload = '1' and
+                        r1.write_tag = '0' then
                         r1.full <= '0';
                         r1.slow_valid <= '1';
                         r1.ls_valid <= '1';
