@@ -34,6 +34,7 @@ use work.wishbone_types.all;
 -- 0xc8020000: LiteEth CSRs (*)
 -- 0xc8030000: LiteEth MMIO (*)
 -- 0xc8040000: LiteSDCard CSRs
+-- 0xc8050000: LCD touchscreen interface
 
 -- (*) LiteEth must be a single aligned 32KB block as the CSRs and MMIOs
 --     are actually decoded as a single wishbone which LiteEth will
@@ -50,6 +51,7 @@ use work.wishbone_types.all;
 --   2  : UART1
 --   3  : SD card
 --   4  : GPIO
+--   5  : SD card 2
 
 -- Resets:
 -- The soc can be reset externally by its parent top- entity (via rst port),
@@ -93,6 +95,8 @@ entity soc is
         DCACHE_TLB_SET_SIZE : natural := 64;
         DCACHE_TLB_NUM_WAYS : natural := 2;
         HAS_SD_CARD        : boolean := false;
+        HAS_SD_CARD2       : boolean := false;
+        HAS_LCD            : boolean := false;
         HAS_GPIO           : boolean := false;
         NGPIO              : natural := 32
 	);
@@ -114,6 +118,7 @@ entity soc is
 	wb_ext_is_dram_init  : out std_ulogic;
 	wb_ext_is_eth        : out std_ulogic;
 	wb_ext_is_sdcard     : out std_ulogic;
+        wb_ext_is_lcd        : out std_ulogic;
 
         -- external DMA wishbone with 32-bit data/address
         wishbone_dma_in      : out wb_io_slave_out := wb_io_slave_out_init;
@@ -122,6 +127,7 @@ entity soc is
         -- External interrupts
         ext_irq_eth          : in std_ulogic := '0';
         ext_irq_sdcard       : in std_ulogic := '0';
+        ext_irq_sdcard2      : in std_ulogic := '0';
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
@@ -683,6 +689,7 @@ begin
                 wb_ext_is_dram_csr <= '0';
                 wb_ext_is_eth      <= '0';
                 wb_ext_is_sdcard   <= '0';
+                wb_ext_is_lcd      <= '0';
             end if;
             if do_cyc = '1' then
                 -- Decode I/O address
@@ -712,6 +719,10 @@ begin
                         slave_io := SLAVE_IO_EXTERNAL;
                         io_cycle_external <= '1';
                         wb_ext_is_sdcard <= '1';
+                    elsif std_match(match, x"--05-") and HAS_LCD then
+                        slave_io := SLAVE_IO_EXTERNAL;
+                        io_cycle_external <= '1';
+                        wb_ext_is_lcd <= '1';
                     else
                         io_cycle_none <= '1';
                     end if;
@@ -822,6 +833,7 @@ begin
 	    SPI_FLASH_OFFSET => SPI_FLASH_OFFSET,
             HAS_LITEETH => HAS_LITEETH,
             HAS_SD_CARD => HAS_SD_CARD,
+            HAS_SD_CARD2 => HAS_SD_CARD2,
             UART0_IS_16550 => UART0_IS_16550,
             HAS_UART1 => HAS_UART1
 	)
@@ -1031,6 +1043,7 @@ begin
         int_level_in(2) <= uart1_irq;
         int_level_in(3) <= ext_irq_sdcard;
         int_level_in(4) <= gpio_intr;
+        int_level_in(5) <= ext_irq_sdcard2;
     end process;
 
     -- BRAM Memory slave

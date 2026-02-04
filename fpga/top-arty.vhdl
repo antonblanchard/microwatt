@@ -30,6 +30,7 @@ entity toplevel is
         HAS_UART1          : boolean  := true;
         USE_LITESDCARD     : boolean := false;
         HAS_GPIO           : boolean := true;
+        USE_LCD            : boolean := true;
         NGPIO              : natural := 32
         );
     port(
@@ -68,38 +69,46 @@ entity toplevel is
         sw3         : in std_ulogic;
 
         -- GPIO
-        shield_io0       : inout std_ulogic;
-        shield_io1       : inout std_ulogic;
-        shield_io2       : inout std_ulogic;
-        shield_io3       : inout std_ulogic;
-        shield_io4       : inout std_ulogic;
-        shield_io5       : inout std_ulogic;
-        shield_io6       : inout std_ulogic;
-        shield_io7       : inout std_ulogic;
-        shield_io8       : inout std_ulogic;
+        --shield_io0       : inout std_ulogic;
+        --shield_io1       : inout std_ulogic;
+        --shield_io2       : inout std_ulogic;
+        --shield_io3       : inout std_ulogic;
+        --shield_io4       : inout std_ulogic;
+        --shield_io5       : inout std_ulogic;
+        --shield_io6       : inout std_ulogic;
+        --shield_io7       : inout std_ulogic;
+        --shield_io8       : inout std_ulogic;
         shield_io9       : inout std_ulogic;
-        shield_io10      : inout std_ulogic;
-        shield_io11      : inout std_ulogic;
-        shield_io12      : inout std_ulogic;
-        shield_io13      : inout std_ulogic;
-        shield_io26      : inout std_ulogic;
-        shield_io27      : inout std_ulogic;
-        shield_io28      : inout std_ulogic;
-        shield_io29      : inout std_ulogic;
+        --shield_io10      : inout std_ulogic;
+        --shield_io11      : inout std_ulogic;
+        --shield_io12      : inout std_ulogic;
+        --shield_io13      : inout std_ulogic;
+        --shield_io26      : inout std_ulogic;
+        --shield_io27      : inout std_ulogic;
+        --shield_io28      : inout std_ulogic;
+        --shield_io29      : inout std_ulogic;
         shield_io30      : inout std_ulogic;
         shield_io31      : inout std_ulogic;
         shield_io32      : inout std_ulogic;
         shield_io33      : inout std_ulogic;
-        shield_io34      : inout std_ulogic;
-        shield_io35      : inout std_ulogic;
-        shield_io36      : inout std_ulogic;
-        shield_io37      : inout std_ulogic;
-        shield_io38      : inout std_ulogic;
-        shield_io39      : inout std_ulogic;
-        shield_io40      : inout std_ulogic;
-        shield_io41      : inout std_ulogic;
-        shield_io43      : inout std_ulogic;
-        shield_io44      : inout std_ulogic;
+        --shield_io34      : inout std_ulogic;
+        --shield_io35      : inout std_ulogic;
+        --shield_io36      : inout std_ulogic;
+        --shield_io37      : inout std_ulogic;
+        --shield_io38      : inout std_ulogic;
+        --shield_io39      : inout std_ulogic;
+        --shield_io40      : inout std_ulogic;
+        --shield_io41      : inout std_ulogic;
+        --shield_io43      : inout std_ulogic;
+        --shield_io44      : inout std_ulogic;
+        pmod_jb_1        : inout std_ulogic;
+        pmod_jb_2        : inout std_ulogic;
+        pmod_jb_3        : inout std_ulogic;
+        pmod_jb_4        : inout std_ulogic;
+        pmod_jb_7        : inout std_ulogic;
+        pmod_jb_8        : inout std_ulogic;
+        pmod_jb_9        : inout std_ulogic;
+        pmod_jb_10       : inout std_ulogic;
 
         -- Ethernet
         eth_ref_clk      : out std_ulogic;
@@ -116,11 +125,45 @@ entity toplevel is
         eth_col          : in std_ulogic;
         eth_crs          : in std_ulogic;
 
-        -- SD card
-        sdcard_data   : inout std_ulogic_vector(3 downto 0);
-        sdcard_cmd    : inout std_ulogic;
-        sdcard_clk    : out   std_ulogic;
-        sdcard_cd     : in    std_ulogic;
+        -- SD card pmod on JA
+        ja_sdcard_data   : inout std_ulogic_vector(3 downto 0);
+        ja_sdcard_cmd    : inout std_ulogic;
+        ja_sdcard_clk    : out   std_ulogic;
+        ja_sdcard_cd     : in    std_ulogic;
+
+        -- SD card slot on touchscreen/LCD board
+        ts_sdcard_data   : inout std_ulogic_vector(3 downto 0);
+        ts_sdcard_cmd    : inout std_ulogic;
+        ts_sdcard_clk    : out   std_ulogic;
+        ts_sdcard_cd     : in    std_ulogic;
+
+        -- Second SD card
+        sdcard2_data  : inout std_ulogic_vector(3 downto 0);
+        sdcard2_cmd   : inout std_ulogic;
+        sdcard2_clk   : out   std_ulogic;
+        sdcard2_cd    : in    std_ulogic;
+
+        -- I2C RTC chip
+        i2c_rtc_d : inout std_ulogic;
+        i2c_rtc_c : inout std_ulogic;
+
+        -- LCD display interface
+        lcd_d   : inout std_ulogic_vector(7 downto 0);
+        lcd_rs  : out   std_ulogic;
+        lcd_cs  : out   std_ulogic;
+        lcd_rd  : out   std_ulogic;
+        lcd_wr  : out   std_ulogic;
+        lcd_rst : out   std_ulogic;
+
+        -- Differential analog inputs from touchscreen
+        a2_p : in std_ulogic;
+        a2_n : in std_ulogic;
+        a3_p : in std_ulogic;
+        a3_n : in std_ulogic;
+        a4_p : in std_ulogic;
+        a4_n : in std_ulogic;
+        a5_p : in std_ulogic;
+        a5_n : in std_ulogic;
 
         -- DRAM wires
         ddram_a       : out std_ulogic_vector(13 downto 0);
@@ -146,6 +189,8 @@ architecture behaviour of toplevel is
     -- Status
     signal run_out : std_ulogic;
     signal run_outs : std_ulogic_vector(CPUS-1 downto 0);
+    signal init_done : std_ulogic;
+    signal init_err  : std_ulogic;
 
     -- Reset signals:
     signal soc_rst : std_ulogic;
@@ -165,6 +210,7 @@ architecture behaviour of toplevel is
     signal wb_ext_is_dram_init : std_ulogic;
     signal wb_ext_is_eth       : std_ulogic;
     signal wb_ext_is_sdcard    : std_ulogic;
+    signal wb_ext_is_lcd       : std_ulogic;
 
     -- DRAM main data wishbone connection
     signal wb_dram_in          : wishbone_master_out;
@@ -179,18 +225,28 @@ architecture behaviour of toplevel is
 
     -- LiteSDCard connection
     signal ext_irq_sdcard      : std_ulogic := '0';
+    signal ext_irq_sdcard2     : std_ulogic := '0';
     signal wb_sdcard_out       : wb_io_slave_out := wb_io_slave_out_init;
+    signal wb_sdcard2_out      : wb_io_slave_out := wb_io_slave_out_init;
     signal wb_sddma_out        : wb_io_master_out := wb_io_master_out_init;
     signal wb_sddma_in         : wb_io_slave_out;
     signal wb_sddma_nr         : wb_io_master_out;
+    signal wb_sddma1_nr        : wb_io_master_out;
+    signal wb_sddma2_nr        : wb_io_master_out;
     signal wb_sddma_ir         : wb_io_slave_out;
+    signal wb_sddma1_ack       : std_ulogic;
+    signal wb_sddma2_ack       : std_ulogic;
     -- for conversion from non-pipelined wishbone to pipelined
     signal wb_sddma_stb_sent   : std_ulogic;
 
+    -- LCD touchscreen connection
+    signal wb_lcd_out          : wb_io_slave_out := wb_io_slave_out_init;
+
     -- Status LED
-    signal led_b_pwm : std_ulogic_vector(3 downto 0);
-    signal led_r_pwm : std_ulogic_vector(3 downto 0);
-    signal led_g_pwm : std_ulogic_vector(3 downto 0);
+    signal led_b_pwm : std_ulogic_vector(3 downto 0) := (others => '0');
+    signal led_r_pwm : std_ulogic_vector(3 downto 0) := (others => '0');
+    signal led_g_pwm : std_ulogic_vector(3 downto 0) := (others => '0');
+    signal disk_activity : std_ulogic := '0';
 
     -- Dumb PWM for the LEDs, those RGB LEDs are too bright otherwise
     signal pwm_counter  : std_ulogic_vector(8 downto 0);
@@ -261,6 +317,8 @@ begin
             UART0_IS_16550     => UART_IS_16550,
             HAS_UART1          => HAS_UART1,
             HAS_SD_CARD        => USE_LITESDCARD,
+            HAS_SD_CARD2       => USE_LITESDCARD,
+            HAS_LCD            => USE_LCD,
             HAS_GPIO           => HAS_GPIO,
             NGPIO              => NGPIO
             )
@@ -295,6 +353,7 @@ begin
             -- External interrupts
             ext_irq_eth       => ext_irq_eth,
             ext_irq_sdcard    => ext_irq_sdcard,
+            ext_irq_sdcard2   => ext_irq_sdcard2,
 
             -- DRAM wishbone
             wb_dram_in           => wb_dram_in,
@@ -307,6 +366,7 @@ begin
             wb_ext_is_dram_init  => wb_ext_is_dram_init,
             wb_ext_is_eth        => wb_ext_is_eth,
             wb_ext_is_sdcard     => wb_ext_is_sdcard,
+            wb_ext_is_lcd        => wb_ext_is_lcd,
 
             -- DMA wishbone
             wishbone_dma_in      => wb_sddma_in,
@@ -383,9 +443,8 @@ begin
                 pll_locked_out => system_clk_locked
                 );
 
-        led_b_pwm <= "1111";
-        led_r_pwm <= "1111";
-        led_g_pwm <= "0000";
+        init_done <= '1';
+        init_err  <= '0';
 
         -- Vivado barfs on those differential signals if left
         -- unconnected. So instanciate a diff. buffer and feed
@@ -483,9 +542,8 @@ begin
                 ddram_reset_n   => ddram_reset_n
                 );
 
-        led_b_pwm(0) <= not dram_init_done;
-        led_r_pwm(0) <= dram_init_error;
-        led_g_pwm(0) <= dram_init_done and not dram_init_error;
+        init_done <= dram_init_done;
+        init_err  <= dram_init_error;
 
     end generate;
 
@@ -623,7 +681,7 @@ begin
         ext_irq_eth    <= '0';
     end generate;
 
-    -- SD card pmod
+    -- SD card pmod, two interfaces
     has_sdcard : if USE_LITESDCARD generate
         component litesdcard_core port (
             clk           : in    std_ulogic;
@@ -662,49 +720,133 @@ begin
         end component;
 
         signal wb_sdcard_cyc : std_ulogic;
+        signal wb_sdcard2_cyc : std_ulogic;
         signal wb_sdcard_adr : std_ulogic_vector(29 downto 0);
+        signal dma_msel : std_ulogic;
+        signal other_cyc : std_ulogic;
+        signal sdc0_activity : std_ulogic := '0';
+        signal sdc1_activity : std_ulogic := '0';
 
     begin
-        litesdcard : litesdcard_core
+        sdcard_ja: if not USE_LCD generate
+            litesdcard : litesdcard_core
+                port map (
+                    clk           => system_clk,
+                    rst           => periph_rst,
+                    wb_ctrl_adr   => wb_sdcard_adr,
+                    wb_ctrl_dat_w => wb_ext_io_in.dat,
+                    wb_ctrl_dat_r => wb_sdcard_out.dat,
+                    wb_ctrl_sel   => wb_ext_io_in.sel,
+                    wb_ctrl_cyc   => wb_sdcard_cyc,
+                    wb_ctrl_stb   => wb_ext_io_in.stb,
+                    wb_ctrl_ack   => wb_sdcard_out.ack,
+                    wb_ctrl_we    => wb_ext_io_in.we,
+                    wb_ctrl_cti   => "000",
+                    wb_ctrl_bte   => "00",
+                    wb_ctrl_err   => open,
+                    wb_dma_adr    => wb_sddma1_nr.adr,
+                    wb_dma_dat_w  => wb_sddma1_nr.dat,
+                    wb_dma_dat_r  => wb_sddma_ir.dat,
+                    wb_dma_sel    => wb_sddma1_nr.sel,
+                    wb_dma_cyc    => wb_sddma1_nr.cyc,
+                    wb_dma_stb    => wb_sddma1_nr.stb,
+                    wb_dma_ack    => wb_sddma1_ack,
+                    wb_dma_we     => wb_sddma1_nr.we,
+                    wb_dma_cti    => open,
+                    wb_dma_bte    => open,
+                    wb_dma_err    => '0',
+                    sdcard_data   => ja_sdcard_data,
+                    sdcard_cmd    => ja_sdcard_cmd,
+                    sdcard_clk    => ja_sdcard_clk,
+                    sdcard_cd     => ja_sdcard_cd,
+                    irq           => ext_irq_sdcard
+                    );
+        end generate;
+
+        sdcard_ts: if USE_LCD generate
+            litesdcard : litesdcard_core
+                port map (
+                    clk           => system_clk,
+                    rst           => periph_rst,
+                    wb_ctrl_adr   => wb_sdcard_adr,
+                    wb_ctrl_dat_w => wb_ext_io_in.dat,
+                    wb_ctrl_dat_r => wb_sdcard_out.dat,
+                    wb_ctrl_sel   => wb_ext_io_in.sel,
+                    wb_ctrl_cyc   => wb_sdcard_cyc,
+                    wb_ctrl_stb   => wb_ext_io_in.stb,
+                    wb_ctrl_ack   => wb_sdcard_out.ack,
+                    wb_ctrl_we    => wb_ext_io_in.we,
+                    wb_ctrl_cti   => "000",
+                    wb_ctrl_bte   => "00",
+                    wb_ctrl_err   => open,
+                    wb_dma_adr    => wb_sddma1_nr.adr,
+                    wb_dma_dat_w  => wb_sddma1_nr.dat,
+                    wb_dma_dat_r  => wb_sddma_ir.dat,
+                    wb_dma_sel    => wb_sddma1_nr.sel,
+                    wb_dma_cyc    => wb_sddma1_nr.cyc,
+                    wb_dma_stb    => wb_sddma1_nr.stb,
+                    wb_dma_ack    => wb_sddma1_ack,
+                    wb_dma_we     => wb_sddma1_nr.we,
+                    wb_dma_cti    => open,
+                    wb_dma_bte    => open,
+                    wb_dma_err    => '0',
+                    sdcard_data   => ts_sdcard_data,
+                    sdcard_cmd    => ts_sdcard_cmd,
+                    sdcard_clk    => ts_sdcard_clk,
+                    sdcard_cd     => ts_sdcard_cd,
+                    irq           => ext_irq_sdcard
+                    );
+        end generate;
+
+        litesdcard2 : litesdcard_core
             port map (
                 clk           => system_clk,
                 rst           => periph_rst,
                 wb_ctrl_adr   => wb_sdcard_adr,
                 wb_ctrl_dat_w => wb_ext_io_in.dat,
-                wb_ctrl_dat_r => wb_sdcard_out.dat,
+                wb_ctrl_dat_r => wb_sdcard2_out.dat,
                 wb_ctrl_sel   => wb_ext_io_in.sel,
-                wb_ctrl_cyc   => wb_sdcard_cyc,
+                wb_ctrl_cyc   => wb_sdcard2_cyc,
                 wb_ctrl_stb   => wb_ext_io_in.stb,
-                wb_ctrl_ack   => wb_sdcard_out.ack,
+                wb_ctrl_ack   => wb_sdcard2_out.ack,
                 wb_ctrl_we    => wb_ext_io_in.we,
                 wb_ctrl_cti   => "000",
                 wb_ctrl_bte   => "00",
                 wb_ctrl_err   => open,
-                wb_dma_adr    => wb_sddma_nr.adr,
-                wb_dma_dat_w  => wb_sddma_nr.dat,
+                wb_dma_adr    => wb_sddma2_nr.adr,
+                wb_dma_dat_w  => wb_sddma2_nr.dat,
                 wb_dma_dat_r  => wb_sddma_ir.dat,
-                wb_dma_sel    => wb_sddma_nr.sel,
-                wb_dma_cyc    => wb_sddma_nr.cyc,
-                wb_dma_stb    => wb_sddma_nr.stb,
-                wb_dma_ack    => wb_sddma_ir.ack,
-                wb_dma_we     => wb_sddma_nr.we,
+                wb_dma_sel    => wb_sddma2_nr.sel,
+                wb_dma_cyc    => wb_sddma2_nr.cyc,
+                wb_dma_stb    => wb_sddma2_nr.stb,
+                wb_dma_ack    => wb_sddma2_ack,
+                wb_dma_we     => wb_sddma2_nr.we,
                 wb_dma_cti    => open,
                 wb_dma_bte    => open,
                 wb_dma_err    => '0',
-                sdcard_data   => sdcard_data,
-                sdcard_cmd    => sdcard_cmd,
-                sdcard_clk    => sdcard_clk,
-                sdcard_cd     => sdcard_cd,
-                irq           => ext_irq_sdcard
+                sdcard_data   => sdcard2_data,
+                sdcard_cmd    => sdcard2_cmd,
+                sdcard_clk    => sdcard2_clk,
+                sdcard_cd     => sdcard2_cd,
+                irq           => ext_irq_sdcard2
                 );
 
-        -- Gate cyc with chip select from SoC
-        wb_sdcard_cyc <= wb_ext_io_in.cyc and wb_ext_is_sdcard;
+        -- Gate cyc with chip selects from SoC
+        -- Select first or second interface based on real address bit 15
+        wb_sdcard_cyc  <= wb_ext_io_in.cyc and wb_ext_is_sdcard and not wb_ext_io_in.adr(13);
+        wb_sdcard2_cyc <= wb_ext_io_in.cyc and wb_ext_is_sdcard and wb_ext_io_in.adr(13);
 
-        wb_sdcard_adr <= x"0000" & wb_ext_io_in.adr(13 downto 0);
+        wb_sdcard_adr <= 17x"0" & wb_ext_io_in.adr(12 downto 0);
 
         wb_sdcard_out.stall <= not wb_sdcard_out.ack;
+        wb_sdcard2_out.stall <= not wb_sdcard2_out.ack;
 
+        -- Simple arbiter to multiplex the two DMA wishbones
+        wb_sddma_nr <= wb_sddma1_nr when dma_msel = '0' else wb_sddma2_nr;
+        wb_sddma1_ack <= wb_sddma_ir.ack and not dma_msel;
+        wb_sddma2_ack <= wb_sddma_ir.ack and dma_msel;
+        other_cyc <= wb_sddma2_nr.cyc when dma_msel = '0' else wb_sddma1_nr.cyc;
+       
         -- Convert non-pipelined DMA wishbone to pipelined by suppressing
         -- non-acknowledged strobes
         process(system_clk)
@@ -721,15 +863,112 @@ begin
                     wb_sddma_stb_sent <= wb_sddma_nr.stb;
                 end if;
                 wb_sddma_ir <= wb_sddma_in;
+
+                -- Decide which wishbone to use next cycle
+                if periph_rst = '1' then
+                    dma_msel <= '0';
+                elsif wb_sddma_nr.cyc = '0' and other_cyc = '1' then
+                    dma_msel <= not dma_msel;
+                end if;
             end if;
         end process;
 
+        -- Capture writes to the interrupt enable registers, and record
+        -- the state of the command-done interrupt enable bit to use
+        -- as an activity indicator.
+        process(system_clk)
+        begin
+            if rising_edge(system_clk) then
+                if periph_rst = '1' then
+                    sdc0_activity <= '0';
+                    sdc1_activity <= '0';
+                elsif wb_sdcard_adr(11 downto 0) = x"602"
+                    and wb_ext_io_in.stb = '1' and wb_ext_io_in.we = '1' then
+                    if wb_sdcard_cyc = '1' then
+                        sdc0_activity <= wb_ext_io_in.dat(3);
+                    end if;
+                    if wb_sdcard2_cyc = '1' then
+                        sdc1_activity <= wb_ext_io_in.dat(3);
+                    end if;
+                end if;
+            end if;
+        end process;
+        disk_activity <= sdc0_activity or sdc1_activity;
+    end generate;
+
+    -- LCD touchscreen on arduino-compatible pins
+    has_lcd : if USE_LCD generate
+        signal lcd_dout : std_ulogic_vector(7 downto 0);
+        signal lcd_doe  : std_ulogic;
+        signal lcd_doe0 : std_ulogic;
+        signal lcd_doe1 : std_ulogic;
+        signal lcd_rso  : std_ulogic;
+        signal lcd_rsoe : std_ulogic;
+        signal lcd_cso  : std_ulogic;
+        signal lcd_csoe : std_ulogic;
+        signal tp       : std_ulogic;
+    begin
+        lcd0 : entity work.lcd_touchscreen
+            port map (
+                clk    => system_clk,
+                rst    => soc_rst,
+                wb_in  => wb_ext_io_in,
+                wb_out => wb_lcd_out,
+                wb_sel => wb_ext_is_lcd,
+                tp     => tp,
+
+                lcd_din  => lcd_d,
+                lcd_dout => lcd_dout,
+                lcd_doe  => lcd_doe,
+                lcd_doe0 => lcd_doe0,
+                lcd_doe1 => lcd_doe1,
+                lcd_rd   => lcd_rd,
+                lcd_wr   => lcd_wr,
+                lcd_rs   => lcd_rso,
+                lcd_rsoe => lcd_rsoe,
+                lcd_cs   => lcd_cso,
+                lcd_csoe => lcd_csoe,
+                lcd_rst  => lcd_rst,
+
+                a2_p => a2_p,
+                a2_n => a2_n,
+                a3_p => a3_p,
+                a3_n => a3_n,
+                a4_p => a4_p,
+                a4_n => a4_n,
+                a5_p => a5_p,
+                a5_n => a5_n
+                );
+        -- lcd_d(0), lcd_d(1), lcd_rs, lcd_cs are used for the touchscreen
+        -- interface and hence have individual output enables.
+        lcd_d(0) <= lcd_dout(0) when lcd_doe0 = '1' else 'Z';
+        lcd_d(1) <= lcd_dout(1) when lcd_doe1 = '1' else 'Z';
+        lcd_d(7 downto 2) <= lcd_dout(7 downto 2) when lcd_doe = '1' else (others => 'Z');
+        lcd_rs <= lcd_rso when lcd_rsoe = '1' else 'Z';
+        lcd_cs <= lcd_cso when lcd_csoe = '1' else 'Z';
     end generate;
 
     -- Mux WB response on the IO bus
     wb_ext_io_out <= wb_eth_out when wb_ext_is_eth = '1' else
-                     wb_sdcard_out when wb_ext_is_sdcard = '1' else
+                     wb_sdcard_out when wb_ext_is_sdcard = '1' and wb_ext_io_in.adr(13) = '0' else
+                     wb_sdcard2_out when wb_ext_is_sdcard = '1' and wb_ext_io_in.adr(13) = '1' else
+                     wb_lcd_out when wb_ext_is_lcd = '1' else
                      wb_dram_ctrl_out;
+
+    status_led_colour : process(all)
+        variable rgb : std_ulogic_vector(2 downto 0);
+    begin
+        if soc_rst = '1' then
+            rgb := "000";
+        elsif system_clk_locked = '0' then
+            rgb := "110";
+        else
+            rgb := init_err & (init_done and not init_err) & (not init_done);
+        end if;
+        led_r_pwm(0) <= rgb(2);
+        led_g_pwm(0) <= rgb(1);
+        led_b_pwm(0) <= rgb(0);
+    end process;
 
     leds_pwm : process(system_clk)
     begin
@@ -747,8 +986,8 @@ begin
         end if;
     end process;
 
-    led4 <= system_clk_locked;
-    led5 <= not soc_rst;
+    led4 <= '0';
+    led5 <= disk_activity;
     led6 <= run_outs(1) when CPUS > 1 else '0';
     led7 <= run_outs(0);
 
@@ -762,82 +1001,58 @@ begin
     gpio_in(16) <= sw2;
     gpio_in(17) <= sw3;
 
-    gpio_in(0) <= shield_io10;
-    gpio_in(1) <= shield_io11;
-    gpio_in(2) <= shield_io12;
-    gpio_in(3) <= shield_io13;
-    gpio_in(4) <= shield_io26;
-    gpio_in(5) <= shield_io27;
-    gpio_in(6) <= shield_io28;
-    gpio_in(7) <= shield_io29;
-    gpio_in(8) <= shield_io8;
+    gpio_in(0) <= '0';
+    gpio_in(1) <= '0';
+    gpio_in(2) <= '0';
+    gpio_in(3) <= '0';
+    gpio_in(4) <= '0';
+    gpio_in(5) <= '0';
+    gpio_in(6) <= '0';
+    gpio_in(7) <= '0';
+    gpio_in(8) <= '0';
+
     gpio_in(9) <= shield_io9;
-    --gpio_in(10) <= shield_io10;
-    --gpio_in(11) <= shield_io11;
-    --gpio_in(12) <= shield_io12;
-    --gpio_in(13) <= shield_io13;
-    --gpio_in(14) <= shield_io26;
-    --gpio_in(15) <= shield_io27;
-    --gpio_in(16) <= shield_io28;
-    --gpio_in(17) <= shield_io29;
     gpio_in(18) <= shield_io30;
     gpio_in(19) <= shield_io31;
     gpio_in(20) <= shield_io32;
     gpio_in(21) <= shield_io33;
-    gpio_in(22) <= shield_io34;
-    gpio_in(23) <= shield_io35;
-    gpio_in(24) <= shield_io36;
-    gpio_in(25) <= shield_io37;
-    gpio_in(26) <= shield_io38;
-    gpio_in(27) <= shield_io39;
-    gpio_in(28) <= shield_io40;
-    gpio_in(29) <= shield_io41;
-    gpio_in(30) <= shield_io43;
-    gpio_in(31) <= shield_io44;
+    gpio_in(22) <= i2c_rtc_d;
+    gpio_in(23) <= i2c_rtc_c;
+    gpio_in(24) <= pmod_jb_1;
+    gpio_in(25) <= pmod_jb_2;
+    gpio_in(26) <= pmod_jb_3;
+    gpio_in(27) <= pmod_jb_4;
+    gpio_in(28) <= pmod_jb_7;
+    gpio_in(29) <= pmod_jb_8;
+    gpio_in(30) <= pmod_jb_9;
+    gpio_in(31) <= pmod_jb_10;
 
-    led_b_pwm(1) <= gpio_out(0) when gpio_dir(0) = '1' else 'Z';
-    led_g_pwm(1) <= gpio_out(1) when gpio_dir(1) = '1' else 'Z';
-    led_r_pwm(1) <= gpio_out(2) when gpio_dir(2) = '1' else 'Z';
+    led_b_pwm(1) <= gpio_out(0) and gpio_dir(0);
+    led_g_pwm(1) <= gpio_out(1) and gpio_dir(1);
+    led_r_pwm(1) <= gpio_out(2) and gpio_dir(2);
 
-    led_b_pwm(2) <= gpio_out(3) when gpio_dir(3) = '1' else 'Z';
-    led_g_pwm(2) <= gpio_out(4) when gpio_dir(4) = '1' else 'Z';
-    led_r_pwm(2) <= gpio_out(5) when gpio_dir(5) = '1' else 'Z';
+    led_b_pwm(2) <= gpio_out(3) and gpio_dir(3);
+    led_g_pwm(2) <= gpio_out(4) and gpio_dir(4);
+    led_r_pwm(2) <= gpio_out(5) and gpio_dir(5);
 
-    led_b_pwm(3) <= gpio_out(6) when gpio_dir(6) = '1' else 'Z';
-    led_g_pwm(3) <= gpio_out(7) when gpio_dir(7) = '1' else 'Z';
-    led_r_pwm(3) <= gpio_out(8) when gpio_dir(8) = '1' else 'Z';
+    led_b_pwm(3) <= gpio_out(6) and gpio_dir(6);
+    led_g_pwm(3) <= gpio_out(7) and gpio_dir(7);
+    led_r_pwm(3) <= gpio_out(8) and gpio_dir(8);
 
-    --shield_io0 <= gpio_out(0) when gpio_dir(0) = '1' else 'Z';
-    --shield_io1 <= gpio_out(1) when gpio_dir(1) = '1' else 'Z';
-    --shield_io2 <= gpio_out(2) when gpio_dir(2) = '1' else 'Z';
-    --shield_io3 <= gpio_out(3) when gpio_dir(3) = '1' else 'Z';
-    --shield_io4 <= gpio_out(4) when gpio_dir(4) = '1' else 'Z';
-    --shield_io5 <= gpio_out(5) when gpio_dir(5) = '1' else 'Z';
-    --shield_io6 <= gpio_out(6) when gpio_dir(6) = '1' else 'Z';
-    --shield_io7 <= gpio_out(7) when gpio_dir(7) = '1' else 'Z';
-    --shield_io8 <= gpio_out(8) when gpio_dir(8) = '1' else 'Z';
     shield_io9 <= gpio_out(9) when gpio_dir(9) = '1' else 'Z';
-    shield_io10 <= gpio_out(10) when gpio_dir(10) = '1' else 'Z';
-    shield_io11 <= gpio_out(11) when gpio_dir(11) = '1' else 'Z';
-    shield_io12 <= gpio_out(12) when gpio_dir(12) = '1' else 'Z';
-    shield_io13 <= gpio_out(13) when gpio_dir(13) = '1' else 'Z';
-    shield_io26 <= gpio_out(14) when gpio_dir(14) = '1' else 'Z';
-    shield_io27 <= gpio_out(15) when gpio_dir(15) = '1' else 'Z';
-    shield_io28 <= gpio_out(16) when gpio_dir(16) = '1' else 'Z';
-    shield_io29 <= gpio_out(17) when gpio_dir(17) = '1' else 'Z';
     shield_io30 <= gpio_out(18) when gpio_dir(18) = '1' else 'Z';
     shield_io31 <= gpio_out(19) when gpio_dir(19) = '1' else 'Z';
     shield_io32 <= gpio_out(20) when gpio_dir(20) = '1' else 'Z';
     shield_io33 <= gpio_out(21) when gpio_dir(21) = '1' else 'Z';
-    shield_io34 <= gpio_out(22) when gpio_dir(22) = '1' else 'Z';
-    shield_io35 <= gpio_out(23) when gpio_dir(23) = '1' else 'Z';
-    shield_io36 <= gpio_out(24) when gpio_dir(24) = '1' else 'Z';
-    shield_io37 <= gpio_out(25) when gpio_dir(25) = '1' else 'Z';
-    shield_io38 <= gpio_out(26) when gpio_dir(26) = '1' else 'Z';
-    shield_io39 <= gpio_out(27) when gpio_dir(27) = '1' else 'Z';
-    shield_io40 <= gpio_out(28) when gpio_dir(28) = '1' else 'Z';
-    shield_io41 <= gpio_out(29) when gpio_dir(29) = '1' else 'Z';
-    shield_io43 <= gpio_out(30) when gpio_dir(30) = '1' else 'Z';
-    shield_io44 <= gpio_out(31) when gpio_dir(31) = '1' else 'Z';
+    i2c_rtc_d <= gpio_out(22) when gpio_dir(22) = '1' else 'Z';
+    i2c_rtc_c <= gpio_out(23) when gpio_dir(23) = '1' else 'Z';
+    pmod_jb_1   <= gpio_out(24) when gpio_dir(24) = '1' else 'Z';
+    pmod_jb_2   <= gpio_out(25) when gpio_dir(25) = '1' else 'Z';
+    pmod_jb_3   <= gpio_out(26) when gpio_dir(26) = '1' else 'Z';
+    pmod_jb_4   <= gpio_out(27) when gpio_dir(27) = '1' else 'Z';
+    pmod_jb_7   <= gpio_out(28) when gpio_dir(28) = '1' else 'Z';
+    pmod_jb_8   <= gpio_out(29) when gpio_dir(29) = '1' else 'Z';
+    pmod_jb_9   <= gpio_out(30) when gpio_dir(30) = '1' else 'Z';
+    pmod_jb_10  <= gpio_out(31) when gpio_dir(31) = '1' else 'Z';
 
 end architecture behaviour;

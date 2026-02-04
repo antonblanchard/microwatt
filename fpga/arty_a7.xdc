@@ -82,14 +82,14 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*/spi_rxtx/input_
 #set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { pmod_ja_10 }];
 
 # connection to Digilent PmodSD on JA
-set_property -dict { PACKAGE_PIN G13 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[3] }];
-set_property -dict { PACKAGE_PIN B11 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_cmd }];
-set_property -dict { PACKAGE_PIN A11 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[0] }];
-set_property -dict { PACKAGE_PIN D12 IOSTANDARD LVCMOS33 SLEW FAST } [get_ports { sdcard_clk }];
-set_property -dict { PACKAGE_PIN D13 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[1] }];
-set_property -dict { PACKAGE_PIN B18 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[2] }];
-set_property -dict { PACKAGE_PIN A18 IOSTANDARD LVCMOS33 } [get_ports { sdcard_cd }];
-#set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { sdcard_wp }];
+set_property -dict { PACKAGE_PIN G13 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ja_sdcard_data[3] }];
+set_property -dict { PACKAGE_PIN B11 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ja_sdcard_cmd }];
+set_property -dict { PACKAGE_PIN A11 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ja_sdcard_data[0] }];
+set_property -dict { PACKAGE_PIN D12 IOSTANDARD LVCMOS33 SLEW FAST } [get_ports { ja_sdcard_clk }];
+set_property -dict { PACKAGE_PIN D13 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ja_sdcard_data[1] }];
+set_property -dict { PACKAGE_PIN B18 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ja_sdcard_data[2] }];
+set_property -dict { PACKAGE_PIN A18 IOSTANDARD LVCMOS33 } [get_ports { ja_sdcard_cd }];
+#set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { ja_sdcard_wp }];
 
 # Put registers into IOBs to improve timing
 set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdpads_data_i_reg*}]
@@ -101,14 +101,14 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdpa
 # PMOD header JB (high-speed, no protection resisters)
 ################################################################################
 
-#set_property -dict { PACKAGE_PIN E15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_1 }];
-#set_property -dict { PACKAGE_PIN E16 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_2 }];
-#set_property -dict { PACKAGE_PIN D15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_3 }];
-#set_property -dict { PACKAGE_PIN C15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_4 }];
-#set_property -dict { PACKAGE_PIN J17 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_7 }];
-#set_property -dict { PACKAGE_PIN J18 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_8 }];
-#set_property -dict { PACKAGE_PIN K15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_9 }];
-#set_property -dict { PACKAGE_PIN J15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_10 }];
+set_property -dict { PACKAGE_PIN E15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_1 }];
+set_property -dict { PACKAGE_PIN E16 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_2 }];
+set_property -dict { PACKAGE_PIN D15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_3 }];
+set_property -dict { PACKAGE_PIN C15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_4 }];
+set_property -dict { PACKAGE_PIN J17 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_7 }];
+set_property -dict { PACKAGE_PIN J18 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_8 }];
+set_property -dict { PACKAGE_PIN K15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_9 }];
+set_property -dict { PACKAGE_PIN J15 IOSTANDARD LVCMOS33 } [get_ports { pmod_jb_10 }];
 
 # connection to Digilent PmodSD on JB
 #set_property -dict { PACKAGE_PIN E15 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard_data[3] }];
@@ -133,6 +133,22 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdpa
 #set_property -dict { PACKAGE_PIN T13 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_9 }];
 #set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { pmod_jc_10 }];
 
+# connection to second Digilent PmodSD on JC
+set_property -dict { PACKAGE_PIN U12 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard2_data[3] }];
+set_property -dict { PACKAGE_PIN V12 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard2_cmd }];
+set_property -dict { PACKAGE_PIN V10 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard2_data[0] }];
+set_property -dict { PACKAGE_PIN V11 IOSTANDARD LVCMOS33 SLEW FAST } [get_ports { sdcard2_clk }];
+set_property -dict { PACKAGE_PIN U14 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard2_data[1] }];
+set_property -dict { PACKAGE_PIN V14 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { sdcard2_data[2] }];
+set_property -dict { PACKAGE_PIN T13 IOSTANDARD LVCMOS33 } [get_ports { sdcard2_cd }];
+#set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports { sdcard2_wp }];
+
+# Put registers into IOBs to improve timing
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard2/sdpads_data_i_reg*}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard2/xilinxsdrtristateimpl*_o_reg}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard2/sdcard_clk_reg}]
+set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard2/sdpads_cmd_i_reg}]
+
 ################################################################################
 # PMOD header JD (standard, 200 ohm protection resisters)
 ################################################################################
@@ -146,43 +162,91 @@ set_property IOB true [get_cells -hierarchical -filter {NAME =~*.litesdcard/sdpa
 #set_property -dict { PACKAGE_PIN H2 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_9 }];
 #set_property -dict { PACKAGE_PIN G2 IOSTANDARD LVCMOS33 } [get_ports { pmod_jd_10 }];
 
+# connection to i2c RTC chip (Dallas DS3231) on JD
+set_property -dict { PACKAGE_PIN D2 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { i2c_rtc_d }];
+set_property -dict { PACKAGE_PIN H2 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { i2c_rtc_c }];
+
+################################################################################
+# TFT LCD shield (arduino-compatible)
+# hacked to swap the LCD_RST and LCD_D0 lines, and put LCD_D1 on A5
+################################################################################
+
+set_property -dict { PACKAGE_PIN N15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { lcd_rst }];
+#set_property -dict { PACKAGE_PIN M16 IOSTANDARD LVCMOS33 } [get_ports { lcd_tp }];
+set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[2] }];
+set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[3] }];
+set_property -dict { PACKAGE_PIN R12 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[4] }];
+set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[5] }];
+set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[6] }];
+set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 } [get_ports { lcd_d[7] }];
+set_property -dict { PACKAGE_PIN F5  IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { lcd_rd }]; # A0
+set_property -dict { PACKAGE_PIN D8  IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { lcd_wr }]; # A1
+set_property -dict { PACKAGE_PIN C7  IOSTANDARD LVCMOS33 } [get_ports { lcd_rs }]; # A2
+set_property -dict { PACKAGE_PIN E7  IOSTANDARD LVCMOS33 } [get_ports { lcd_cs }]; # A3
+set_property -dict { PACKAGE_PIN D7  IOSTANDARD LVCMOS33 } [get_ports { lcd_d[0] }]; # A4
+set_property -dict { PACKAGE_PIN D5  IOSTANDARD LVCMOS33 } [get_ports { lcd_d[1] }]; # A5
+
+################################################################################
+# Analog inputs (connected to touchscreen)
+################################################################################
+set_property -dict { PACKAGE_PIN C4 IOSTANDARD LVCMOS33 } [get_ports { a2_p }];
+set_property -dict { PACKAGE_PIN B4 IOSTANDARD LVCMOS33 } [get_ports { a2_n }];
+set_property -dict { PACKAGE_PIN B1 IOSTANDARD LVCMOS33 } [get_ports { a3_p }];
+set_property -dict { PACKAGE_PIN A1 IOSTANDARD LVCMOS33 } [get_ports { a3_n }];
+set_property -dict { PACKAGE_PIN B3 IOSTANDARD LVCMOS33 } [get_ports { a4_p }];
+set_property -dict { PACKAGE_PIN B2 IOSTANDARD LVCMOS33 } [get_ports { a4_n }];
+set_property -dict { PACKAGE_PIN D14 IOSTANDARD LVCMOS33 } [get_ports { a5_p }];
+set_property -dict { PACKAGE_PIN C14 IOSTANDARD LVCMOS33 } [get_ports { a5_n }];
+
+################################################################################
+# connection to micro SD card socket on touchscreen board
+################################################################################
+set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ts_sdcard_data[3] }];
+set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ts_sdcard_cmd }];
+set_property -dict { PACKAGE_PIN R17 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ts_sdcard_data[0] }];
+set_property -dict { PACKAGE_PIN P17 IOSTANDARD LVCMOS33 SLEW FAST } [get_ports { ts_sdcard_clk }];
+set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ts_sdcard_data[1] }];
+set_property -dict { PACKAGE_PIN V15 IOSTANDARD LVCMOS33 SLEW FAST PULLUP TRUE } [get_ports { ts_sdcard_data[2] }];
+set_property -dict { PACKAGE_PIN M17 IOSTANDARD LVCMOS33 PULLUP TRUE } [get_ports { ts_sdcard_cd }];
+#set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports { ts_sdcard_wp }];
+
 ################################################################################
 # Arduino/chipKIT shield connector
 ################################################################################
 
-set_property -dict { PACKAGE_PIN V15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io0 }];
-set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io1 }];
-set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io2 }];
-set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io3 }];
-set_property -dict { PACKAGE_PIN R12 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io4 }];
-set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io5 }];
-set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io6 }];
-set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io7 }];
-set_property -dict { PACKAGE_PIN N15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io8 }];
+#set_property -dict { PACKAGE_PIN V15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io0 }];
+#set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io1 }];
+#set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io2 }];
+#set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io3 }];
+#set_property -dict { PACKAGE_PIN R12 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io4 }];
+#set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io5 }];
+#set_property -dict { PACKAGE_PIN T15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io6 }];
+#set_property -dict { PACKAGE_PIN T16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io7 }];
+#set_property -dict { PACKAGE_PIN N15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io8 }];
 set_property -dict { PACKAGE_PIN M16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io9 }];
-set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io10 }];
-set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io11 }];
-set_property -dict { PACKAGE_PIN R17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io12 }];
-set_property -dict { PACKAGE_PIN P17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io13 }];
-set_property -dict { PACKAGE_PIN U11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io26 }];
-set_property -dict { PACKAGE_PIN V16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io27 }];
-set_property -dict { PACKAGE_PIN M13 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io28 }];
-set_property -dict { PACKAGE_PIN R10 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io29 }];
+#set_property -dict { PACKAGE_PIN V17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io10 }];
+#set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io11 }];
+#set_property -dict { PACKAGE_PIN R17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io12 }];
+#set_property -dict { PACKAGE_PIN P17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io13 }];
+#set_property -dict { PACKAGE_PIN U11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io26 }];
+#set_property -dict { PACKAGE_PIN V16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io27 }];
+#set_property -dict { PACKAGE_PIN M13 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io28 }];
+#set_property -dict { PACKAGE_PIN R10 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io29 }];
 set_property -dict { PACKAGE_PIN R11 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io30 }];
 set_property -dict { PACKAGE_PIN R13 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io31 }];
 set_property -dict { PACKAGE_PIN R15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io32 }];
 set_property -dict { PACKAGE_PIN P15 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io33 }];
-set_property -dict { PACKAGE_PIN R16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io34 }];
-set_property -dict { PACKAGE_PIN N16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io35 }];
-set_property -dict { PACKAGE_PIN N14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io36 }];
-set_property -dict { PACKAGE_PIN U17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io37 }];
-set_property -dict { PACKAGE_PIN T18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io38 }];
-set_property -dict { PACKAGE_PIN R18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io39 }];
-set_property -dict { PACKAGE_PIN P18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io40 }];
-set_property -dict { PACKAGE_PIN N17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io41 }];
+#set_property -dict { PACKAGE_PIN R16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io34 }];
+#set_property -dict { PACKAGE_PIN N16 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io35 }];
+#set_property -dict { PACKAGE_PIN N14 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io36 }];
+#set_property -dict { PACKAGE_PIN U17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io37 }];
+#set_property -dict { PACKAGE_PIN T18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io38 }];
+#set_property -dict { PACKAGE_PIN R18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io39 }];
+#set_property -dict { PACKAGE_PIN P18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io40 }];
+#set_property -dict { PACKAGE_PIN N17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io41 }];
 #set_property -dict { PACKAGE_PIN M17 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io42 }]; # A
-set_property -dict { PACKAGE_PIN L18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io43 }]; # SCL
-set_property -dict { PACKAGE_PIN M18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io44 }]; # SDA
+#set_property -dict { PACKAGE_PIN L18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io43 }]; # SCL
+#set_property -dict { PACKAGE_PIN M18 IOSTANDARD LVCMOS33 PULLDOWN TRUE } [get_ports { shield_io44 }]; # SDA
 #set_property -dict { PACKAGE_PIN C2  IOSTANDARD LVCMOS33 } [get_ports { shield_rst }];
 
 #set_property -dict { PACKAGE_PIN C1  IOSTANDARD LVCMOS33 } [get_ports { spi_hdr_ss }];
