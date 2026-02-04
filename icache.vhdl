@@ -595,6 +595,7 @@ begin
                 r.hit_valid <= '0';
                 r.stalled_hit <= '0';
                 r.stalled_way <= to_unsigned(0, WAY_BITS);
+                r.fetch_failed <= '0';
             elsif stall_in = '1' then
                 if r.state = CLR_TAG then
                     r.stalled_hit <= '0';

@@ -192,7 +192,7 @@ int mmu_test_1(void)
 	long val;
 
 	/* this should fail */
-	if (test_read(ptr, &val, 0xdeadbeefd00d))
+	if (!test_read(ptr, &val, 0xdeadbeefd00d))
 		return 1;
 	/* dest reg of load should be unchanged */
 	if (val != 0xdeadbeefd00d)
@@ -215,7 +215,7 @@ int mmu_test_2(void)
 	/* initialize the memory content */
 	mem[33] = 0xbadc0ffee;
 	/* this should succeed and be a cache miss */
-	if (!test_read(&ptr[33], &val, 0xdeadbeefd00d))
+	if (test_read(&ptr[33], &val, 0xdeadbeefd00d))
 		return 1;
 	/* dest reg of load should have the value written */
 	if (val != 0xbadc0ffee)
@@ -223,13 +223,13 @@ int mmu_test_2(void)
 	/* load a second TLB entry in the same set as the first */
 	map(ptr2, mem, DFLT_PERM);
 	/* this should succeed and be a cache hit */
-	if (!test_read(&ptr2[33], &val, 0xdeadbeefd00d))
+	if (test_read(&ptr2[33], &val, 0xdeadbeefd00d))
 		return 3;
 	/* dest reg of load should have the value written */
 	if (val != 0xbadc0ffee)
 		return 4;
 	/* check that the first entry still works */
-	if (!test_read(&ptr[33], &val, 0xdeadbeefd00d))
+	if (test_read(&ptr[33], &val, 0xdeadbeefd00d))
 		return 5;
 	if (val != 0xbadc0ffee)
 		return 6;
@@ -247,7 +247,7 @@ int mmu_test_3(void)
 	/* initialize the memory content */
 	mem[45] = 0xfee1800d4ea;
 	/* this should succeed and be a cache miss */
-	if (!test_read(&ptr[45], &val, 0xdeadbeefd0d0))
+	if (test_read(&ptr[45], &val, 0xdeadbeefd0d0))
 		return 1;
 	/* dest reg of load should have the value written */
 	if (val != 0xfee1800d4ea)
@@ -255,7 +255,7 @@ int mmu_test_3(void)
 	/* remove the PTE */
 	unmap(ptr);
 	/* this should fail */
-	if (test_read(&ptr[45], &val, 0xdeadbeefd0d0))
+	if (!test_read(&ptr[45], &val, 0xdeadbeefd0d0))
 		return 3;
 	/* dest reg of load should be unchanged */
 	if (val != 0xdeadbeefd0d0)
@@ -278,7 +278,7 @@ int mmu_test_4(void)
 	/* initialize the memory content */
 	mem[27] = 0xf00f00f00f00;
 	/* this should succeed and be a cache miss */
-	if (!test_write(&ptr[27], 0xe44badc0ffee))
+	if (test_write(&ptr[27], 0xe44badc0ffee))
 		return 1;
 	/* memory should now have the value written */
 	if (mem[27] != 0xe44badc0ffee)
@@ -286,14 +286,14 @@ int mmu_test_4(void)
 	/* load a second TLB entry in the same set as the first */
 	map(ptr2, mem, DFLT_PERM);
 	/* this should succeed and be a cache hit */
-	if (!test_write(&ptr2[27], 0x6e11ae))
+	if (test_write(&ptr2[27], 0x6e11ae))
 		return 3;
 	/* memory should have the value written */
 	if (mem[27] != 0x6e11ae)
 		return 4;
 	/* check that the first entry still exists */
 	/* (assumes TLB is 2-way associative or more) */
-	if (!test_read(&ptr[27], &val, 0xdeadbeefd00d))
+	if (test_read(&ptr[27], &val, 0xdeadbeefd00d))
 		return 5;
 	if (val != 0x6e11ae)
 		return 6;
@@ -309,7 +309,7 @@ int mmu_test_5(void)
 	/* create PTE */
 	map(ptr, mem, DFLT_PERM);
 	/* this should fail */
-	if (test_read(ptr, &val, 0xdeadbeef0dd0))
+	if (!test_read(ptr, &val, 0xdeadbeef0dd0))
 		return 1;
 	/* dest reg of load should be unchanged */
 	if (val != 0xdeadbeef0dd0)
@@ -330,7 +330,7 @@ int mmu_test_6(void)
 	/* initialize memory */
 	*mem = 0x123456789abcdef0;
 	/* this should fail */
-	if (test_write(ptr, 0xdeadbeef0dd0))
+	if (!test_write(ptr, 0xdeadbeef0dd0))
 		return 1;
 	/* DAR and DSISR should be set correctly */
 	if (mfspr(DAR) != ((long)ptr & ~0xfff) + 0x1000 || mfspr(DSISR) != 0x42000000)
@@ -348,7 +348,7 @@ int mmu_test_7(void)
 	/* create PTE without R or C */
 	map(ptr, mem, PERM_RD | PERM_WR);
 	/* this should fail */
-	if (test_read(ptr, &val, 0xdeadd00dbeef))
+	if (!test_read(ptr, &val, 0xdeadd00dbeef))
 		return 1;
 	/* dest reg of load should be unchanged */
 	if (val != 0xdeadd00dbeef)
@@ -357,7 +357,7 @@ int mmu_test_7(void)
 	if (mfspr(DAR) != (long) ptr || mfspr(DSISR) != 0x00040000)
 		return 3;
 	/* this should fail */
-	if (test_write(ptr, 0xdeadbeef0dd0))
+	if (!test_write(ptr, 0xdeadbeef0dd0))
 		return 4;
 	/* DAR and DSISR should be set correctly */
 	if (mfspr(DAR) != (long)ptr || mfspr(DSISR) != 0x02040000)
@@ -378,10 +378,10 @@ int mmu_test_8(void)
 	/* create PTE with R but not C */
 	map(ptr, mem, REF | PERM_RD | PERM_WR);
 	/* this should succeed */
-	if (!test_read(ptr, &val, 0xdeadd00dbeef))
+	if (test_read(ptr, &val, 0xdeadd00dbeef))
 		return 1;
 	/* this should fail */
-	if (test_write(ptr, 0xdeadbeef0dd1))
+	if (!test_write(ptr, 0xdeadbeef0dd1))
 		return 2;
 	/* DAR and DSISR should be set correctly */
 	if (mfspr(DAR) != (long)ptr || mfspr(DSISR) != 0x02040000)
@@ -402,7 +402,7 @@ int mmu_test_9(void)
 	/* create PTE without read or write permission */
 	map(ptr, mem, REF);
 	/* this should fail */
-	if (test_read(ptr, &val, 0xdeadd00dbeef))
+	if (!test_read(ptr, &val, 0xdeadd00dbeef))
 		return 1;
 	/* dest reg of load should be unchanged */
 	if (val != 0xdeadd00dbeef)
@@ -411,7 +411,7 @@ int mmu_test_9(void)
 	if (mfspr(DAR) != (long) ptr || mfspr(DSISR) != 0x08000000)
 		return 3;
 	/* this should fail */
-	if (test_write(ptr, 0xdeadbeef0dd1))
+	if (!test_write(ptr, 0xdeadbeef0dd1))
 		return 4;
 	/* DAR and DSISR should be set correctly */
 	if (mfspr(DAR) != (long)ptr || mfspr(DSISR) != 0x0a000000)
@@ -432,10 +432,10 @@ int mmu_test_10(void)
 	/* create PTE with read but not write permission */
 	map(ptr, mem, REF | PERM_RD);
 	/* this should succeed */
-	if (!test_read(ptr, &val, 0xdeadd00dbeef))
+	if (test_read(ptr, &val, 0xdeadd00dbeef))
 		return 1;
 	/* this should fail */
-	if (test_write(ptr, 0xdeadbeef0dd1))
+	if (!test_write(ptr, 0xdeadbeef0dd1))
 		return 2;
 	/* DAR and DSISR should be set correctly */
 	if (mfspr(DAR) != (long)ptr || mfspr(DSISR) != 0x0a000000)
@@ -451,7 +451,7 @@ int mmu_test_11(void)
 	unsigned long ptr = 0x523000;
 
 	/* this should fail */
-	if (test_exec(0, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (!test_exec(0, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
 	if (mfspr(SRR0) != (long) ptr ||
@@ -469,12 +469,12 @@ int mmu_test_12(void)
 	/* create PTE */
 	map((void *)ptr, (void *)mem, PERM_EX | REF);
 	/* this should succeed and be a cache miss */
-	if (!test_exec(0, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (test_exec(0, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 1;
 	/* create a second PTE */
 	map((void *)ptr2, (void *)mem, PERM_EX | REF);
 	/* this should succeed and be a cache hit */
-	if (!test_exec(0, ptr2, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (test_exec(0, ptr2, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 2;
 	return 0;
 }
@@ -488,14 +488,14 @@ int mmu_test_13(void)
 	/* create a PTE */
 	map((void *)ptr, (void *)mem, PERM_EX | REF);
 	/* this should succeed */
-	if (!test_exec(1, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (test_exec(1, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 1;
 	/* invalidate the PTE */
 	unmap((void *)ptr);
 	/* install a second PTE */
 	map((void *)ptr2, (void *)mem, PERM_EX | REF);
 	/* this should fail */
-	if (test_exec(1, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (!test_exec(1, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 2;
 	/* SRR0 and SRR1 should be set correctly */
 	if (mfspr(SRR0) != (long) ptr ||
@@ -514,7 +514,7 @@ int mmu_test_14(void)
 	/* create a PTE */
 	map((void *)ptr, (void *)mem, PERM_EX | REF);
 	/* this should fail due to second page not being mapped */
-	if (test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (!test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
 	if (mfspr(SRR0) != ptr2 ||
@@ -523,7 +523,7 @@ int mmu_test_14(void)
 	/* create a PTE for the second page */
 	map((void *)ptr2, (void *)mem2, PERM_EX | REF);
 	/* this should succeed */
-	if (!test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 3;
 	return 0;
 }
@@ -536,7 +536,7 @@ int mmu_test_15(void)
 	/* create a PTE without execute permission */
 	map((void *)ptr, (void *)mem, DFLT_PERM);
 	/* this should fail */
-	if (test_exec(0, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (!test_exec(0, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
 	if (mfspr(SRR0) != ptr ||
@@ -557,7 +557,7 @@ int mmu_test_16(void)
 	/* create a PTE for the second page without execute permission */
 	map((void *)ptr2, (void *)mem2, PERM_RD | REF);
 	/* this should fail due to second page being no-execute */
-	if (test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (!test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
 	if (mfspr(SRR0) != ptr2 ||
@@ -566,7 +566,7 @@ int mmu_test_16(void)
 	/* create a PTE for the second page with execute permission */
 	map((void *)ptr2, (void *)mem2, PERM_RD | PERM_EX | REF);
 	/* this should succeed */
-	if (!test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 3;
 	return 0;
 }
@@ -579,7 +579,7 @@ int mmu_test_17(void)
 	/* create a PTE without the ref bit set */
 	map((void *)ptr, (void *)mem, PERM_EX);
 	/* this should fail */
-	if (test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (!test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
 	if (mfspr(SRR0) != (long) ptr ||
@@ -589,7 +589,7 @@ int mmu_test_17(void)
 	unmap((void *)ptr);
 	map((void *)ptr, (void *)mem, 0);
 	/* this should fail */
-	if (test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
+	if (!test_exec(2, ptr, MSR_SF | MSR_HV | MSR_IR | MSR_LE))
 		return 1;
 	/* SRR0 and SRR1 should be set correctly */
 	/* RC update fail bit should not be set */
@@ -608,12 +608,12 @@ int mmu_test_18(void)
 	/* create PTE */
 	map(ptr, mem, DFLT_PERM);
 	/* this should succeed and be a cache miss */
-	if (!test_dcbz(&ptr[129]))
+	if (test_dcbz(&ptr[129]))
 		return 1;
 	/* create a second PTE */
 	map(ptr2, mem, DFLT_PERM);
 	/* this should succeed and be a cache hit */
-	if (!test_dcbz(&ptr2[130]))
+	if (test_dcbz(&ptr2[130]))
 		return 2;
 	return 0;
 }
@@ -627,7 +627,7 @@ int mmu_test_19(void)
 	/* create PTE with read but not write permission */
 	map(ptr, mem, REF | PERM_RD);
 	/* this should fail and create a TLB entry */
-	if (test_write(ptr, 0xdeadbeef0dd1))
+	if (!test_write(ptr, 0xdeadbeef0dd1))
 		return 1;
 	/* DAR and DSISR should be set correctly */
 	if (mfspr(DAR) != (long)ptr || mfspr(DSISR) != 0x0a000000)
@@ -635,8 +635,23 @@ int mmu_test_19(void)
 	/* Update the PTE to have write permission */
 	map(ptr, mem, REF | CHG | PERM_RD | PERM_WR);
 	/* this should succeed */
-	if (!test_write(ptr, 0xdeadbeef0dd1))
+	if (test_write(ptr, 0xdeadbeef0dd1))
 		return 3;
+	return 0;
+}
+
+int mmu_test_20(void)
+{
+	unsigned long mem = 0x2000;
+	unsigned long ptr = 0x324000;
+	unsigned long ret;
+
+	/* create a PTE with execute permission */
+	map((void *)ptr, (void *)mem, PERM_EX | PERM_PRIV | REF);
+	ret = test_exec(0x124000, ptr + 0xfe8, MSR_SF | MSR_HV | MSR_IR | MSR_DR | MSR_LE);
+	/* Should see a 300 from the load, not a 400 from the page crossing */
+	if (ret != 0x300)
+		return ret + 1;
 	return 0;
 }
 
@@ -656,7 +671,10 @@ void do_test(int num, int (*test)(void))
 	} else {
 		fail = 1;
 		print_string("FAIL ");
-		putchar(ret + '0');
+		if (ret < 10)
+			putchar(ret + '0');
+		else
+			print_hex(ret);
 		if (num <= 10 || num == 19) {
 			print_string(" DAR=");
 			print_hex(mfspr(DAR));
@@ -696,6 +714,7 @@ int main(void)
 	do_test(17, mmu_test_17);
 	do_test(18, mmu_test_18);
 	do_test(19, mmu_test_19);
+	do_test(20, mmu_test_20);
 
 	return fail;
 }

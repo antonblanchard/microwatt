@@ -23,6 +23,7 @@
 	ori     r,r, (e)@l;
 
 	.section ".head","ax"
+	.machine "power10"
 
 	/*
 	 * Microwatt currently enters in LE mode at 0x0, so we don't need to
@@ -45,82 +46,97 @@ _start:
 2:	LOAD_IMM64(%r1,__stack_top)
 	li	%r0,0
 	stdu	%r0,-16(%r1)
+	pla	%r9,3f-.
+	mtsprg1	%r9
 	LOAD_IMM64(%r12, main)
 	mtctr	%r12
 	bctrl
-	attn // terminate on exit
+3:	attn // terminate on exit
 	b .
 
 	/* Read a location with translation on */
 	.globl	test_read
 test_read:
+	mfsprg1	%r10
+	pla	%r9,1f-.
+	mtsprg1	%r9
 	mfmsr	%r9
 	ori	%r8,%r9,0x10	/* set MSR_DR */
 	mtmsrd	%r8,0
 	mr	%r6,%r3
 	li	%r3,0
 	ld	%r5,0(%r6)
-	li	%r3,1
-	/* land here if DSI occurred */
 	mtmsrd	%r9,0
+1:	/* land here if DSI occurred */
 	std	%r5,0(%r4)
+	mtsprg1	%r10
 	blr
 
 	/* Write a location with translation on */
 	.globl	test_write
 test_write:
+	mfsprg1	%r10
+	pla	%r9,1f-.
+	mtsprg1	%r9
 	mfmsr	%r9
 	ori	%r8,%r9,0x10	/* set MSR_DR */
 	mtmsrd	%r8,0
 	mr	%r6,%r3
 	li	%r3,0
 	std	%r4,0(%r6)
-	li	%r3,1
-	/* land here if DSI occurred */
 	mtmsrd	%r9,0
+1:	/* land here if DSI occurred */
+	mtsprg1	%r10
 	blr
 
 	/* Do a dcbz with translation on */
 	.globl	test_dcbz
 test_dcbz:
+	mfsprg1	%r10
+	pla	%r9,1f-.
+	mtsprg1	%r9
 	mfmsr	%r9
 	ori	%r8,%r9,0x10	/* set MSR_DR */
 	mtmsrd	%r8,0
 	mr	%r6,%r3
 	li	%r3,0
 	dcbz	0,%r6
-	li	%r3,1
-	/* land here if DSI occurred */
 	mtmsrd	%r9,0
+1:	/* land here if DSI occurred */
+	mtsprg1	%r10
 	blr
 
 	.globl	test_exec
 test_exec:
+	mfsprg1	%r10
+	pla	%r9,1f-.
+	mtsprg1	%r9
 	mtsrr0	%r4
 	mtsrr1	%r5
 	rfid
+1:	/* land here if an interrupt occurred */
+	mtsprg1	%r10
+	blr
 
 #define EXCEPTION(nr)		\
 	.= nr			;\
 	attn
 
-	/* DSI vector - skip the failing instruction + the next one */
+	/* DSI vector - set r3 to 0x300, jump to addr in SPRG1 */
 	. = 0x300
-	mtsprg0	%r10
-	mfsrr0	%r10
-	addi	%r10,%r10,8
-	mtsrr0	%r10
-	rfid
+	li	%r3,0x300
+	mfsprg1	%r9
+	mtctr	%r9
+	bctr
 
 	EXCEPTION(0x380)
 
-	/*
-	 * ISI vector - jump to LR to return from the test,
-	 * with r3 cleared
-	 */
+	/* ISI vector - set r3 to 0x400, jump to addr in SPRG1 */
 	. = 0x400
-	li	%r3,0
-	blr
+	li	%r3,0x400
+	mfsprg1	%r9
+	mtctr	%r9
+	bctr
 
 	/* More exception stubs */
 	EXCEPTION(0x480)
@@ -138,7 +154,9 @@ test_exec:
 	 * may have been set.
 	 */
 	. = 0xc00
-	blr
+	mfsprg1	%r9
+	mtctr	%r9
+	bctr
 
 	EXCEPTION(0xd00)
 	EXCEPTION(0xe00)
@@ -162,12 +180,13 @@ test_exec:
 test_start:
 	nop
 	nop
-	cmpdi	%r3,1
+	mr	%r6,%r3
+	li	%r3,0
+	cmpdi	%r6,1
 	beq	test_1
-	cmpdi	%r3,2
+	cmpdi	%r6,2
 	beq	test_2
 test_return:
-	li	%r3,1
 	sc
 
 	. = 0x1ff8
@@ -177,3 +196,14 @@ test_1:	b	test_return
 	/* test flowing from one page to the next */
 test_2:	nop
 	b	test_return
+
+	. = 0x2fe8
+	/* test generating an interrupt just before an instruction page fault */
+	.globl	test_2_faults
+test_2_faults:
+	nop
+	nop
+	mr	%r6,%r3
+	li	%r3,0
+	lwz	%r7,0(%r6)
+	ld	%r7,0(%r7)
