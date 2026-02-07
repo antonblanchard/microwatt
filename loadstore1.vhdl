@@ -99,7 +99,7 @@ architecture behave of loadstore1 is
         virt_mode    : std_ulogic;
         priv_mode    : std_ulogic;
         load_sp      : std_ulogic;
-        sprsel       : std_ulogic_vector(3 downto 0);
+        sprsel       : std_ulogic_vector(2 downto 0);
         ric          : std_ulogic_vector(1 downto 0);
         is_slbia     : std_ulogic;
         align_intr   : std_ulogic;
@@ -116,7 +116,7 @@ architecture behave of loadstore1 is
                                           write_reg => 6x"00", length => x"0",
                                           elt_length => x"0", brev_mask => "000",
                                           xerc => xerc_init,
-                                          sprsel => "0000", ric => "00",
+                                          sprsel => "000", ric => "00",
                                           hash_addr => 64x"0",
                                           others => '0');
 
@@ -140,7 +140,7 @@ architecture behave of loadstore1 is
         one_cycle  : std_ulogic;
         wr_sel     : std_ulogic_vector(1 downto 0);
         addr0      : std_ulogic_vector(63 downto 0);
-        sprsel     : std_ulogic_vector(3 downto 0);
+        sprsel     : std_ulogic_vector(2 downto 0);
         dbg_spr    : std_ulogic_vector(63 downto 0);
         dbg_spr_ack: std_ulogic;
     end record;
@@ -351,7 +351,7 @@ begin
                 r1.req.instr_fault <= '0';
                 r1.req.load <= '0';
                 r1.req.priv_mode <= '0';
-                r1.req.sprsel <= "0000";
+                r1.req.sprsel <= "000";
                 r1.req.ric <= "00";
                 r1.req.xerc <= xerc_init;
                 r1.dawr_ll <= (others => '0');
@@ -365,7 +365,7 @@ begin
                 r2.req.instr_fault <= '0';
                 r2.req.load <= '0';
                 r2.req.priv_mode <= '0';
-                r2.req.sprsel <= "0000";
+                r2.req.sprsel <= "000";
                 r2.req.ric <= "00";
                 r2.req.xerc <= xerc_init;
 
@@ -592,13 +592,13 @@ begin
         v.ric := l_in.insn(19 downto 18);
         if sprn(8 downto 7) = "01" then
             -- debug registers DAWR[X][01]
-            v.sprsel := "01" & sprn(3) & sprn(0);
+            v.sprsel := "1" & sprn(3) & sprn(0);
         elsif sprn(1) = '1' then
             -- DSISR and DAR
-            v.sprsel := "001" & sprn(0);
+            v.sprsel := "01" & sprn(0);
         else
             -- PID and PTCR
-            v.sprsel := "100" & sprn(8);
+            v.sprsel := "00" & sprn(8);
         end if;
 
         disp := l_in.addr2;
@@ -861,7 +861,7 @@ begin
         variable byte_offset : unsigned(2 downto 0);
         variable interrupt : std_ulogic;
         variable dbg_spr_rd : std_ulogic;
-        variable sprsel : std_ulogic_vector(3 downto 0);
+        variable sprsel : std_ulogic_vector(2 downto 0);
         variable sprval : std_ulogic_vector(63 downto 0);
         variable dawr_match : std_ulogic;
     begin
@@ -896,28 +896,24 @@ begin
         if dbg_spr_rd = '0' then
             sprsel := r1.req.sprsel;
         else
-            sprsel := "00" & dbg_spr_addr;
+            sprsel := "0" & dbg_spr_addr;
         end if;
-        if sprsel(3) = '1' then
-            sprval := m_in.sprval;  -- MMU regs
-        else
-            case sprsel(2 downto 0) is
-                when "100" =>
-                    sprval := r3.dawr(0) & "000";
-                when "101" =>
-                    sprval := r3.dawr(1) & "000";
-                when "110" =>
-                    sprval := 48x"0" & r3.dawrx(0);
-                when "111" =>
-                    sprval := 48x"0" & r3.dawrx(1);
-                when "010" =>
-                    sprval := x"00000000" & r3.dsisr;
-                when "011" =>
-                    sprval := r3.dar;
-                when others =>
-                    sprval := (others => '0');
-            end case;
-        end if;
+        case sprsel is
+            when "100" =>
+                sprval := r3.dawr(0) & "000";
+            when "101" =>
+                sprval := r3.dawr(1) & "000";
+            when "110" =>
+                sprval := 48x"0" & r3.dawrx(0);
+            when "111" =>
+                sprval := 48x"0" & r3.dawrx(1);
+            when "010" =>
+                sprval := x"00000000" & r3.dsisr;
+            when "011" =>
+                sprval := r3.dar;
+            when others =>
+                sprval := m_in.sprval;  -- MMU regs
+        end case;
         if dbg_spr_req = '0' then
             v.dbg_spr_ack := '0';
         elsif dbg_spr_rd = '1' and r2.dbg_spr_ack = '0' then
@@ -1143,21 +1139,21 @@ begin
                 write_enable := '1';
             end if;
             if r2.req.write_spr = '1' then
-                if r2.req.sprsel(3 downto 2) = "01" then
+                if r2.req.sprsel(2) = '1' then
                     v.dawr_upd := '1';
                 end if;
                 case r2.req.sprsel is
-                    when "0100" =>
+                    when "100" =>
                         v.dawr(0) := r2.req.store_data(63 downto 3);
-                    when "0101" =>
+                    when "101" =>
                         v.dawr(1) := r2.req.store_data(63 downto 3);
-                    when "0110" =>
+                    when "110" =>
                         v.dawrx(0) := r2.req.store_data(15 downto 0);
-                    when "0111" =>
+                    when "111" =>
                         v.dawrx(1) := r2.req.store_data(15 downto 0);
-                    when "0010" =>
+                    when "010" =>
                         v.dsisr := r2.req.store_data(31 downto 0);
-                    when "0011" =>
+                    when "011" =>
                         v.dar := r2.req.store_data;
                     when others =>
                 end case;
@@ -1327,11 +1323,15 @@ begin
         m_out.tlbie <= r2.req.tlbie;
         m_out.ric <= r2.req.ric;
         m_out.mtspr <= mmu_mtspr;
-        m_out.sprnf <= r1.req.sprsel(0);
         m_out.sprnt <= r2.req.sprsel(0);
         m_out.addr <= r2.req.addr;
         m_out.slbia <= r2.req.is_slbia;
         m_out.rs <= r2.req.store_data;
+        if r1.req.valid = '1' and r1.req.read_spr = '1' then
+            m_out.sprnf <= r1.req.sprsel(0);
+        else
+            m_out.sprnf <= dbg_spr_addr(0);
+        end if;
 
         -- Update outputs to writeback
         l_out.valid <= complete;
