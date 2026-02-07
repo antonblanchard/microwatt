@@ -126,6 +126,11 @@ filesets:
       - fpga/cmod_a7-35.xdc : {file_type : xdc}
       - fpga/clk_gen_mcmm.vhd : {file_type : vhdlSource-2008}
       - fpga/top-generic.vhdl : {file_type : vhdlSource-2008}
+  
+  xilinx-vcu-118:
+    files:
+      - fpga/xilinx-vcu-118.xdc : {file_type : xdc}
+      - fpga/top-xilinx-vcu-118.vhdl : {file_type : vhdlSource-2008}
 
   litedram:
       depend : [":microwatt:litedram"]
@@ -443,6 +448,27 @@ targets:
     generate: [git_hash]
     tools:
       vivado: {part : xc7a35tcpg236-1}
+    toplevel : toplevel
+
+  xilinx-vcu-118-no-dram:
+    default_tool: vivado
+    filesets: [core, xilinx-vcu-118, soc, fpga, uart16550, xilinx_specific, debug_xilinx]
+    parameters:
+      - memory_size
+      - ram_init_file=firmware.hex
+      - clk_input=125000000
+      - clk_frequency=125000000
+      - disable_flatten_core
+      - log_length=2048
+      - uart_is_16550
+      - has_uart1
+      - has_fpu
+      - has_btc
+      - use_litedram=false
+
+    generate: [git_hash]
+    tools:
+      vivado: {part : xcvu9p-flga2104-2-i}
     toplevel : toplevel
 
   synth:
