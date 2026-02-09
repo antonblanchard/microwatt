@@ -27,6 +27,7 @@ use work.wishbone_types.all;
 -- 0xc0007000: GPIO controller
 -- 0xc8nnnnnn: External IO bus
 -- 0xf0000000: Flash "ROM" mapping
+-- 0xC0008000: CORDIC accelerator
 -- 0xff000000: DRAM init code (if any) or flash ROM (**)
 
 -- External IO bus:
@@ -34,7 +35,6 @@ use work.wishbone_types.all;
 -- 0xc8020000: LiteEth CSRs (*)
 -- 0xc8030000: LiteEth MMIO (*)
 -- 0xc8040000: LiteSDCard CSRs
--- 0xc8050000: LCD touchscreen interface
 
 -- (*) LiteEth must be a single aligned 32KB block as the CSRs and MMIOs
 --     are actually decoded as a single wishbone which LiteEth will
@@ -51,7 +51,6 @@ use work.wishbone_types.all;
 --   2  : UART1
 --   3  : SD card
 --   4  : GPIO
---   5  : SD card 2
 
 -- Resets:
 -- The soc can be reset externally by its parent top- entity (via rst port),
@@ -69,7 +68,6 @@ entity soc is
 	RAM_INIT_FILE      : string;
 	CLK_FREQ           : positive;
 	SIM                : boolean;
-        NCPUS              : positive := 1;
         HAS_FPU            : boolean := true;
         HAS_BTC            : boolean := true;
 	DISABLE_FLATTEN_CORE : boolean := false;
@@ -95,17 +93,12 @@ entity soc is
         DCACHE_TLB_SET_SIZE : natural := 64;
         DCACHE_TLB_NUM_WAYS : natural := 2;
         HAS_SD_CARD        : boolean := false;
-        HAS_SD_CARD2       : boolean := false;
-        HAS_LCD            : boolean := false;
         HAS_GPIO           : boolean := false;
         NGPIO              : natural := 32
 	);
     port(
 	rst          : in  std_ulogic;
 	system_clk   : in  std_ulogic;
-
-        run_out      : out std_ulogic;
-        run_outs     : out std_ulogic_vector(NCPUS-1 downto 0);
 
 	-- "Large" (64-bit) DRAM wishbone
 	wb_dram_in       : out wishbone_master_out;
@@ -118,7 +111,6 @@ entity soc is
 	wb_ext_is_dram_init  : out std_ulogic;
 	wb_ext_is_eth        : out std_ulogic;
 	wb_ext_is_sdcard     : out std_ulogic;
-        wb_ext_is_lcd        : out std_ulogic;
 
         -- external DMA wishbone with 32-bit data/address
         wishbone_dma_in      : out wb_io_slave_out := wb_io_slave_out_init;
@@ -127,7 +119,6 @@ entity soc is
         -- External interrupts
         ext_irq_eth          : in std_ulogic := '0';
         ext_irq_sdcard       : in std_ulogic := '0';
-        ext_irq_sdcard2      : in std_ulogic := '0';
 
 	-- UART0 signals:
 	uart0_txd    : out std_ulogic;
@@ -156,18 +147,20 @@ end entity soc;
 
 architecture behaviour of soc is
 
-    subtype cpu_index_t is natural range 0 to NCPUS-1;
-    type dword_percpu_array is array(cpu_index_t) of std_ulogic_vector(63 downto 0);
-
     -- internal reset
     signal soc_reset : std_ulogic;
 
     -- Wishbone master signals:
-    signal wishbone_debug_in   : wishbone_slave_out;
-    signal wishbone_debug_out  : wishbone_master_out;
+    signal wishbone_dcore_in  : wishbone_slave_out;
+    signal wishbone_dcore_out : wishbone_master_out;
+    signal wishbone_icore_in  : wishbone_slave_out;
+    signal wishbone_icore_out : wishbone_master_out;
+    signal wishbone_debug_in  : wishbone_slave_out;
+    signal wishbone_debug_out : wishbone_master_out;
 
-    -- Arbiter array
-    constant NUM_WB_MASTERS : positive := NCPUS * 2 + 2;
+    -- Arbiter array (ghdl doesnt' support assigning the array
+    -- elements in the entity instantiation)
+    constant NUM_WB_MASTERS : positive := 4;
     signal wb_masters_out : wishbone_master_out_vector(0 to NUM_WB_MASTERS-1);
     signal wb_masters_in  : wishbone_slave_out_vector(0 to NUM_WB_MASTERS-1);
 
@@ -186,11 +179,10 @@ architecture behaviour of soc is
 
     -- Syscon signals
     signal dram_at_0     : std_ulogic;
-    signal do_core_reset : std_ulogic_vector(NCPUS-1 downto 0);
+    signal do_core_reset    : std_ulogic;
     signal alt_reset     : std_ulogic;
     signal wb_syscon_in  : wb_io_master_out;
     signal wb_syscon_out : wb_io_slave_out;
-    signal tb_ctrl       : timebase_ctrl;
 
     -- UART0 signals:
     signal wb_uart0_in   : wb_io_master_out;
@@ -217,7 +209,16 @@ architecture behaviour of soc is
     signal wb_xics_ics_out  : wb_io_slave_out;
     signal int_level_in     : std_ulogic_vector(15 downto 0);
     signal ics_to_icp       : ics_to_icp_t;
-    signal core_ext_irq     : std_ulogic_vector(NCPUS-1 downto 0) := (others => '0');
+    signal core_ext_irq     : std_ulogic;
+    
+    -- CORDIC signals:
+    signal wb_cordic_in  : wb_io_master_out;
+    signal wb_cordic_out : wb_io_slave_out;
+    signal cordic_x_s, cordic_y_s : std_ulogic_vector(31 downto 0);
+    signal cordic_start_s        : std_ulogic;
+    signal cordic_done_s         : std_ulogic;
+    signal cordic_result_s       : std_ulogic_vector(31 downto 0);
+
 
     -- GPIO signals:
     signal wb_gpio_in    : wb_io_master_out;
@@ -240,12 +241,12 @@ architecture behaviour of soc is
     signal dmi_wb_dout  : std_ulogic_vector(63 downto 0);
     signal dmi_wb_req   : std_ulogic;
     signal dmi_wb_ack   : std_ulogic;
-    signal dmi_core_dout  : dword_percpu_array;
-    signal dmi_core_req   : std_ulogic_vector(NCPUS-1 downto 0);
-    signal dmi_core_ack   : std_ulogic_vector(NCPUS-1 downto 0);
+    signal dmi_core_dout  : std_ulogic_vector(63 downto 0);
+    signal dmi_core_req   : std_ulogic;
+    signal dmi_core_ack   : std_ulogic;
 
     -- Delayed/latched resets and alt_reset
-    signal rst_core    : std_ulogic_vector(NCPUS-1 downto 0);
+    signal rst_core    : std_ulogic;
     signal rst_uart    : std_ulogic;
     signal rst_xics    : std_ulogic;
     signal rst_spi     : std_ulogic;
@@ -264,6 +265,7 @@ architecture behaviour of soc is
                            SLAVE_IO_UART1,
                            SLAVE_IO_SPI_FLASH,
                            SLAVE_IO_GPIO,
+                           SLAVE_IO_CORDIC,
                            SLAVE_IO_EXTERNAL);
     signal current_io_decode : slave_io_type;
 
@@ -275,12 +277,8 @@ architecture behaviour of soc is
     signal io_cycle_ics       : std_ulogic;
     signal io_cycle_spi_flash : std_ulogic;
     signal io_cycle_gpio      : std_ulogic;
+    signal io_cycle_cordic    : std_ulogic;
     signal io_cycle_external  : std_ulogic;
-
-    signal core_run_out       : std_ulogic_vector(NCPUS-1 downto 0);
-
-    type msg_percpu_array is array(cpu_index_t) of std_ulogic_vector(NCPUS-1 downto 0);
-    signal msgs               : msg_percpu_array;
 
     function wishbone_widen_data(wb : wb_io_master_out) return wishbone_master_out is
         variable wwb : wishbone_master_out;
@@ -342,14 +340,11 @@ begin
 
     -- either external reset, or from syscon
     soc_reset <= rst or sw_soc_reset;
-    tb_ctrl.reset <= soc_reset;
 
     resets: process(system_clk)
     begin
         if rising_edge(system_clk) then
-            for i in 0 to NCPUS-1 loop
-                rst_core(i) <= soc_reset or do_core_reset(i);
-            end loop;
+            rst_core    <= soc_reset or do_core_reset;
             rst_uart    <= soc_reset;
             rst_spi     <= soc_reset;
             rst_xics    <= soc_reset;
@@ -362,16 +357,10 @@ begin
         end if;
     end process;
 
-    -- Processor cores
-    processors: for i in 0 to NCPUS-1 generate
-        signal msgin : std_ulogic;
-
-    begin
-        core: entity work.core
+    -- Processor core
+    processor: entity work.core
 	generic map(
 	    SIM => SIM,
-            CPU_INDEX => i,
-            NCPUS => NCPUS,
             HAS_FPU => HAS_FPU,
             HAS_BTC => HAS_BTC,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
@@ -387,46 +376,31 @@ begin
 	    )
 	port map(
 	    clk => system_clk,
-	    rst => rst_core(i),
+	    rst => rst_core,
 	    alt_reset => alt_reset_d,
-            run_out => core_run_out(i),
-            tb_ctrl => tb_ctrl,
-	    wishbone_insn_in => wb_masters_in(i + NCPUS),
-	    wishbone_insn_out => wb_masters_out(i + NCPUS),
-	    wishbone_data_in => wb_masters_in(i),
-	    wishbone_data_out => wb_masters_out(i),
+	    wishbone_insn_in => wishbone_icore_in,
+	    wishbone_insn_out => wishbone_icore_out,
+	    wishbone_data_in => wishbone_dcore_in,
+	    wishbone_data_out => wishbone_dcore_out,
             wb_snoop_in => wb_snoop,
 	    dmi_addr => dmi_addr(3 downto 0),
-	    dmi_dout => dmi_core_dout(i),
+	    dmi_dout => dmi_core_dout,
 	    dmi_din => dmi_dout,
 	    dmi_wr => dmi_wr,
-	    dmi_ack => dmi_core_ack(i),
-	    dmi_req => dmi_core_req(i),
-	    ext_irq => core_ext_irq(i),
-            msg_out => msgs(i),
-            msg_in => msgin
+	    dmi_ack => dmi_core_ack,
+	    dmi_req => dmi_core_req,
+	    ext_irq => core_ext_irq
 	    );
 
-        process(all)
-            variable m : std_ulogic;
-        begin
-            m := '0';
-            for j in 0 to NCPUS-1 loop
-                m := m or msgs(j)(i);
-            end loop;
-            msgin <= m;
-        end process;
-
-    end generate;
-
-    run_out <= or (core_run_out);
-    run_outs <= core_run_out and not do_core_reset;
-
     -- Wishbone bus master arbiter & mux
-    wb_masters_out(2*NCPUS)     <= wishbone_widen_data(wishbone_dma_out);
-    wb_masters_out(2*NCPUS + 1) <= wishbone_debug_out;
-    wishbone_dma_in   <= wishbone_narrow_data(wb_masters_in(2*NCPUS), wishbone_dma_out.adr);
-    wishbone_debug_in <= wb_masters_in(2*NCPUS + 1);
+    wb_masters_out <= (0 => wishbone_dcore_out,
+		       1 => wishbone_icore_out,
+                       2 => wishbone_widen_data(wishbone_dma_out),
+		       3 => wishbone_debug_out);
+    wishbone_dcore_in <= wb_masters_in(0);
+    wishbone_icore_in <= wb_masters_in(1);
+    wishbone_dma_in   <= wishbone_narrow_data(wb_masters_in(2), wishbone_dma_out.adr);
+    wishbone_debug_in <= wb_masters_in(3);
     wishbone_arbiter_0: entity work.wishbone_arbiter
 	generic map(
 	    NUM_MASTERS => NUM_WB_MASTERS
@@ -457,7 +431,6 @@ begin
     -- From CPU to BRAM, DRAM, IO, selected on top 3 bits and dram_at_0
     -- 0000  - BRAM
     -- 0001  - DRAM
-    -- 001x  - DRAM
     -- 01xx  - DRAM
     -- 10xx  - BRAM
     -- 11xx  - IO
@@ -476,8 +449,6 @@ begin
 	    slave_top := SLAVE_TOP_BRAM;
 	elsif std_match(top_decode, "0001") then
 	    slave_top := SLAVE_TOP_DRAM;
-        elsif std_match(top_decode, "001-") then
-            slave_top := SLAVE_TOP_DRAM;
 	elsif std_match(top_decode, "01--") then
 	    slave_top := SLAVE_TOP_DRAM;
 	elsif std_match(top_decode, "10--") then
@@ -689,7 +660,6 @@ begin
                 wb_ext_is_dram_csr <= '0';
                 wb_ext_is_eth      <= '0';
                 wb_ext_is_sdcard   <= '0';
-                wb_ext_is_lcd      <= '0';
             end if;
             if do_cyc = '1' then
                 -- Decode I/O address
@@ -719,10 +689,6 @@ begin
                         slave_io := SLAVE_IO_EXTERNAL;
                         io_cycle_external <= '1';
                         wb_ext_is_sdcard <= '1';
-                    elsif std_match(match, x"--05-") and HAS_LCD then
-                        slave_io := SLAVE_IO_EXTERNAL;
-                        io_cycle_external <= '1';
-                        wb_ext_is_lcd <= '1';
                     else
                         io_cycle_none <= '1';
                     end if;
@@ -748,6 +714,9 @@ begin
                 elsif std_match(match, x"C0007") then
                     slave_io := SLAVE_IO_GPIO;
                     io_cycle_gpio <= '1';
+                elsif std_match(match, x"C0008") then
+    		    slave_io := SLAVE_IO_CORDIC;
+    		    io_cycle_cordic <= '1';
                 else
                     io_cycle_none <= '1';
                 end if;
@@ -774,6 +743,10 @@ begin
 
         wb_gpio_in <= wb_sio_out;
         wb_gpio_in.cyc <= io_cycle_gpio;
+        
+        wb_cordic_in <= wb_sio_out;
+	wb_cordic_in.cyc <= io_cycle_cordic;
+
 
 	 -- Only give xics 8 bits of wb addr (for now...)
 	wb_xics_icp_in <= wb_sio_out;
@@ -808,6 +781,9 @@ begin
 	    wb_sio_in <= wb_spiflash_out;
         when SLAVE_IO_GPIO =>
             wb_sio_in <= wb_gpio_out;
+        when SLAVE_IO_CORDIC =>
+    	wb_sio_in <= wb_cordic_out;
+
 	end case;
 
         -- Default response, ack & return all 1's
@@ -822,7 +798,6 @@ begin
     -- Syscon slave
     syscon0: entity work.syscon
 	generic map(
-            NCPUS => NCPUS,
 	    HAS_UART => true,
 	    HAS_DRAM => HAS_DRAM,
 	    BRAM_SIZE => MEMORY_SIZE,
@@ -833,7 +808,6 @@ begin
 	    SPI_FLASH_OFFSET => SPI_FLASH_OFFSET,
             HAS_LITEETH => HAS_LITEETH,
             HAS_SD_CARD => HAS_SD_CARD,
-            HAS_SD_CARD2 => HAS_SD_CARD2,
             UART0_IS_16550 => UART0_IS_16550,
             HAS_UART1 => HAS_UART1
 	)
@@ -845,9 +819,7 @@ begin
 	    dram_at_0 => dram_at_0,
 	    core_reset => do_core_reset,
 	    soc_reset => sw_soc_reset,
-	    alt_reset => alt_reset,
-            tb_rdp => tb_ctrl.rd_prot,
-            tb_frz => tb_ctrl.freeze
+	    alt_reset => alt_reset
 	    );
 
     --
@@ -990,9 +962,6 @@ begin
     end generate;
 
     xics_icp: entity work.xics_icp
-        generic map(
-            NCPUS => NCPUS
-            )
 	port map(
 	    clk => system_clk,
 	    rst => rst_xics,
@@ -1004,7 +973,6 @@ begin
 
     xics_ics: entity work.xics_ics
 	generic map(
-            NCPUS     => NCPUS,
 	    SRC_NUM   => 16,
 	    PRIO_BITS => 3
 	    )
@@ -1016,6 +984,28 @@ begin
 	    int_level_in => int_level_in,
             icp_out => ics_to_icp
 	    );
+	    
+    wb_cordic_out.stall <= not wb_cordic_out.ack;
+    cordic0: entity work.cordic_wb
+	port map (
+    	    clk        => system_clk,
+            rst        => rst_gpio,      -- reuse reset (OK)
+
+	    wb_adr_i   => wb_cordic_in.adr,
+	    wb_dat_i   => wb_cordic_in.dat,
+	    wb_dat_o   => wb_cordic_out.dat,
+	    wb_we_i    => wb_cordic_in.we,
+	    wb_stb_i   => wb_cordic_in.stb,
+	    wb_cyc_i   => wb_cordic_in.cyc,
+	    wb_ack_o   => wb_cordic_out.ack,
+
+	    cordic_x      => cordic_x_s,
+	    cordic_y      => cordic_y_s,
+	    cordic_start  => cordic_start_s,
+	    cordic_done   => cordic_done_s,
+	    cordic_result => cordic_result_s
+	    );
+
 
     gpio0_gen: if HAS_GPIO generate
         gpio : entity work.gpio
@@ -1043,7 +1033,6 @@ begin
         int_level_in(2) <= uart1_irq;
         int_level_in(3) <= ext_irq_sdcard;
         int_level_in(4) <= gpio_intr;
-        int_level_in(5) <= ext_irq_sdcard2;
     end process;
 
     -- BRAM Memory slave
@@ -1085,15 +1074,15 @@ begin
 	    );
 
     -- DMI interconnect
-    dmi_intercon: process(all)
+    dmi_intercon: process(dmi_addr, dmi_req,
+			  dmi_wb_ack, dmi_wb_dout,
+			  dmi_core_ack, dmi_core_dout)
 
 	-- DMI address map (each address is a full 64-bit register)
 	--
 	-- Offset:   Size:    Slave:
 	--  0         4       Wishbone
-	-- 10        16       Core 0
-        -- 20        16       Core 1
-        -- ... and so on for NCPUS cores
+	-- 10        16       Core
 
 	type slave_type is (SLAVE_WB,
 			    SLAVE_CORE,
@@ -1104,29 +1093,25 @@ begin
 	slave := SLAVE_NONE;
 	if std_match(dmi_addr, "000000--") then
 	    slave := SLAVE_WB;
-        elsif not is_X(dmi_addr) and to_integer(unsigned(dmi_addr(7 downto 4))) <= NCPUS then
+	elsif std_match(dmi_addr, "0001----") then
 	    slave := SLAVE_CORE;
 	end if;
 
 	-- DMI muxing
 	dmi_wb_req <= '0';
-        dmi_core_req <= (others => '0');
-        dmi_din <= (others => '1');
-        dmi_ack <= dmi_req;
+	dmi_core_req <= '0';
 	case slave is
 	when SLAVE_WB =>
 	    dmi_wb_req <= dmi_req;
 	    dmi_ack <= dmi_wb_ack;
 	    dmi_din <= dmi_wb_dout;
 	when SLAVE_CORE =>
-            for i in 0 to NCPUS-1 loop
-                if not is_X(dmi_addr) and to_integer(unsigned(dmi_addr(7 downto 4))) = i + 1 then
-                    dmi_core_req(i) <= dmi_req;
-                    dmi_ack <= dmi_core_ack(i);
-                    dmi_din <= dmi_core_dout(i);
-                end if;
-            end loop;
+	    dmi_core_req <= dmi_req;
+	    dmi_ack <= dmi_core_ack;
+	    dmi_din <= dmi_core_dout;
 	when others =>
+	    dmi_ack <= dmi_req;
+	    dmi_din <= (others => '1');
 	end case;
 
 	-- SIM magic exit
