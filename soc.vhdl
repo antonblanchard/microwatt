@@ -211,6 +211,8 @@ architecture behaviour of soc is
     signal ics_to_icp       : ics_to_icp_t;
     signal core_ext_irq     : std_ulogic;
     
+    signal core_reset_vec : std_ulogic_vector(0 downto 0);
+    signal core_irq_vec   : std_ulogic_vector(0 downto 0);
     -- CORDIC signals:
     signal wb_cordic_in  : wb_io_master_out;
     signal wb_cordic_out : wb_io_slave_out;
@@ -356,6 +358,9 @@ begin
             alt_reset_d <= alt_reset;
         end if;
     end process;
+    
+    do_core_reset <= core_reset_vec(0);
+    core_ext_irq  <= core_irq_vec(0);
 
     -- Processor core
     processor: entity work.core
@@ -378,6 +383,8 @@ begin
 	    clk => system_clk,
 	    rst => rst_core,
 	    alt_reset => alt_reset_d,
+	    tb_ctrl => (others => '0'),
+	    msg_in  => '0',
 	    wishbone_insn_in => wishbone_icore_in,
 	    wishbone_insn_out => wishbone_icore_out,
 	    wishbone_data_in => wishbone_dcore_in,
@@ -800,6 +807,7 @@ begin
 	generic map(
 	    HAS_UART => true,
 	    HAS_DRAM => HAS_DRAM,
+	    HAS_SD_CARD2 => false,
 	    BRAM_SIZE => MEMORY_SIZE,
 	    DRAM_SIZE => DRAM_SIZE,
 	    DRAM_INIT_SIZE => DRAM_INIT_SIZE,
@@ -817,7 +825,7 @@ begin
 	    wishbone_in => wb_syscon_in,
 	    wishbone_out => wb_syscon_out,
 	    dram_at_0 => dram_at_0,
-	    core_reset => do_core_reset,
+	    core_reset => core_reset_vec,
 	    soc_reset => sw_soc_reset,
 	    alt_reset => alt_reset
 	    );
@@ -968,7 +976,7 @@ begin
 	    wb_in => wb_xics_icp_in,
 	    wb_out => wb_xics_icp_out,
             ics_in => ics_to_icp,
-	    core_irq_out => core_ext_irq
+	    core_irq_out => core_irq_vec
 	    );
 
     xics_ics: entity work.xics_ics
