@@ -17,7 +17,7 @@ extern int test_exec(int testno, unsigned long pc, unsigned long msr);
 
 static inline void do_tlbie(unsigned long rb, unsigned long rs)
 {
-	__asm__ volatile("tlbie %0,%1" : : "r" (rb), "r" (rs) : "memory");
+	__asm__ volatile(".machine \"power10\"; tlbie %0,%1,0,1,1" : : "r" (rb), "r" (rs) : "memory");
 }
 
 #define DSISR	18
@@ -174,7 +174,7 @@ void unmap(void *ea)
 		return;
 	ptep = read_pgd(i);
 	ptep[j] = 0;
-	do_tlbie(((unsigned long)ea & ~0xfff), 0);
+	do_tlbie(((unsigned long)ea & ~0xfff), 1ul << 32);
 }
 
 void unmap_all(void)
