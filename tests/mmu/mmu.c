@@ -659,6 +659,36 @@ int mmu_test_20(void)
 	return 0;
 }
 
+int mmu_test_21(void)
+{
+	long *mem = (long *) 0x9000;
+	long *mem2 = (long *) 0xa000;
+	long *ptr = (long *) 0x14a000;
+	long val;
+
+	/* create PTE */
+	map(ptr, mem, DFLT_PERM);
+	/* initialize the memory content */
+	mem[45] = 0xfee1800d4ea;
+	mem2[45] = 0xabad78323c14;
+	/* this should succeed and be a cache miss */
+	if (test_read(&ptr[45], &val, 0xdeadbeefd0d0))
+		return 1;
+	/* dest reg of load should have the value from 0x9000 */
+	if (val != 0xfee1800d4ea)
+		return 2;
+	/* change the mapping to point to 0xa000 (without tlbie) */
+	map(ptr, mem2, DFLT_PERM);
+	/* flush the whole PID */
+	do_tlbie(0x400ul, 1ul << 32);
+	/* this should succeed and return the value from 0xa000 */
+	if (test_read(&ptr[45], &val, 0xdeadbeefd0d0))
+		return 3;
+	if (val != 0xabad78323c14)
+		return 4;
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -719,6 +749,7 @@ int main(void)
 	do_test(18, mmu_test_18);
 	do_test(19, mmu_test_19);
 	do_test(20, mmu_test_20);
+	do_test(21, mmu_test_21);
 
 	return fail;
 }
