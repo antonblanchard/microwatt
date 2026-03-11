@@ -115,6 +115,7 @@ void zero_memory(void *ptr, unsigned long nbytes)
  * 8kB PGD level pointing to 4kB PTE pages.
  */
 unsigned long *pgdir = (unsigned long *) 0x10000;
+unsigned long *pmdir = (unsigned long *) 0x11000;
 unsigned long *proc_tbl = (unsigned long *) 0x12000;
 unsigned long *part_tbl = (unsigned long *) 0x13000;
 unsigned long free_ptr = 0x14000;
@@ -129,17 +130,20 @@ void init_mmu(void)
 	zero_memory(proc_tbl, 512 * sizeof(unsigned long));
 	mtspr(PTCR, (unsigned long)part_tbl);
 	mtspr(PID, 1);
-	zero_memory(pgdir, 1024 * sizeof(unsigned long));
-	/* RTS = 0 (2GB address space), RPDS = 10 (1024-entry top level) */
-	store_pte(&proc_tbl[2 * 1], (unsigned long) pgdir | 10);
+	zero_memory(pgdir, 512 * sizeof(unsigned long));
+	store_pte(&pgdir[0], 0x8000000000000000ul | (unsigned long) pmdir | 9);
+	zero_memory(pmdir, 512 * sizeof(unsigned long));
+	/* RTS = 8 (512GB address space), RPDS = 9 (512-entry top level) */
+	/* we only use the first 1GB of the space */
+	store_pte(&proc_tbl[2 * 1], (unsigned long) pgdir | 0xa000000000000009ul);
 	do_tlbie(0xc00, 0);	/* invalidate all TLB entries */
 }
 
-static unsigned long *read_pgd(unsigned long i)
+static unsigned long *read_pmd(unsigned long i)
 {
 	unsigned long ret;
 
-	__asm__ volatile("ldbrx %0,%1,%2" : "=r" (ret) : "b" (pgdir),
+	__asm__ volatile("ldbrx %0,%1,%2" : "=r" (ret) : "b" (pmdir),
 			 "r" (i * sizeof(unsigned long)));
 	return (unsigned long *) (ret & 0x00ffffffffffff00);
 }
@@ -150,14 +154,14 @@ void map(void *ea, void *pa, unsigned long perm_attr)
 	unsigned long i, j;
 	unsigned long *ptep;
 
-	i = (epn >> 9) & 0x3ff;
+	i = (epn >> 9) & 0x1ff;
 	j = epn & 0x1ff;
-	if (pgdir[i] == 0) {
+	if (pmdir[i] == 0) {
 		zero_memory((void *)free_ptr, 512 * sizeof(unsigned long));
-		store_pte(&pgdir[i], 0x8000000000000000 | free_ptr | 9);
+		store_pte(&pmdir[i], 0x8000000000000000 | free_ptr | 9);
 		free_ptr += 512 * sizeof(unsigned long);
 	}
-	ptep = read_pgd(i);
+	ptep = read_pmd(i);
 	store_pte(&ptep[j], 0xc000000000000000 | ((unsigned long)pa & 0x00fffffffffff000) | perm_attr);
 	eas_mapped[neas_mapped++] = ea;
 }
@@ -168,11 +172,11 @@ void unmap(void *ea)
 	unsigned long i, j;
 	unsigned long *ptep;
 
-	i = (epn >> 9) & 0x3ff;
+	i = (epn >> 9) & 0x1ff;
 	j = epn & 0x1ff;
-	if (pgdir[i] == 0)
+	if (pmdir[i] == 0)
 		return;
-	ptep = read_pgd(i);
+	ptep = read_pmd(i);
 	ptep[j] = 0;
 	do_tlbie(((unsigned long)ea & ~0xfff), 1ul << 32);
 }
