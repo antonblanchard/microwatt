@@ -20,7 +20,9 @@ entity mmu is
         d_out : out MmuToDcacheType;
         d_in  : in DcacheToMmuType;
 
-        i_out : out MmuToITLBType
+        i_out : out MmuToITLBType;
+
+        ev    : out MMUEventType
         );
 end mmu;
 
@@ -135,10 +137,12 @@ architecture behave of mmu is
         miss        : std_ulogic;
         hit_way     : std_ulogic_vector(1 downto 0);
         repl_way    : std_ulogic_vector(1 downto 0);
+        eviction    : std_ulogic;
         update_plru : std_ulogic;
         tlbie_done  : std_ulogic;
         inval_all   : std_ulogic;
         wr_hash     : std_ulogic_vector(TLB_HASH_BITS - 1 downto 0);
+        searching   : std_ulogic;
     end record;
     constant mmu_tlb_reg_init : mmu_tlb_reg_t := (
         state   => IDLE, addr => 40x"0", pid => 12x"0",
@@ -229,6 +233,10 @@ architecture behave of mmu is
         repl_way_2M  : std_ulogic_vector(1 downto 0);
         repl_way_1G  : std_ulogic_vector(1 downto 0);
         repl_way_HT  : std_ulogic_vector(1 downto 0);
+        eviction_2M  : std_ulogic;
+        eviction_1G  : std_ulogic;
+        eviction_HT  : std_ulogic;
+        eviction     : std_ulogic;
         wr_leaf      : std_ulogic;
         wr_level     : std_ulogic_vector(1 downto 0);
         update_plru  : std_ulogic;
@@ -238,6 +246,7 @@ architecture behave of mmu is
         inval_pid    : std_ulogic;
         rd_hash      : std_ulogic_vector(PWC_HASH_BITS - 1 downto 0);
         reg_hash     : std_ulogic_vector(PWC_HASH_BITS - 1 downto 0);
+        searching    : std_ulogic;
     end record;
 
     constant mmu_pwc_reg_init : mmu_pwc_reg_t := (
@@ -410,6 +419,10 @@ begin
         is_hit := '0';
         idx := "000";
         tv.update_plru := '0';
+        ev.tlbsearch <= '0';
+        ev.tlbmiss <= '0';
+        ev.tlbhit <= '0';
+        ev.tlb_evictions <= '0';
         case tr.state is
             when IDLE =>
                 tv.addr := l_in.addr(51 downto 12);
@@ -462,10 +475,12 @@ begin
                 idx := "001";
                 tlb_doread <= '1';
                 tlb_rdren <= '1';
+                ev.tlbsearch <= '1';
                 if tr.bad_ea = '0' then
                     tv.state := SEARCH2;
                 else
                     tv.miss := '1';
+                    ev.tlbmiss <= '1';
                     tv.tlbie_done := tr.is_tlbie;
                     tv.state := IDLE;
                 end if;
@@ -484,13 +499,16 @@ begin
                 -- work out which way to replace in case of a miss
                 if valids = "1111" then
                     tv.repl_way := tlb_plru_victim;
+                    tv.eviction := '1';
                 else
                     tv.repl_way := find_first_one(not valids);
+                    tv.eviction := '0';
                 end if;
                 -- next read word 2 of group
                 idx := "010";
                 if tv.may_hit = "0000" then
                     tv.miss := '1';
+                    ev.tlbmiss <= '1';
                     if tr.is_tlbie = '0' then
                         tv.state := WAITW;
                     else
@@ -527,6 +545,7 @@ begin
                     tlb_doread <= '1';
                 elsif tv.may_hit = "0000" then
                     tv.miss := '1';
+                    ev.tlbmiss <= '1';
                     tv.state := WAITW;
                 else
                     tlb_rdren <= '1';
@@ -548,6 +567,7 @@ begin
                     tv.state := IDLE;
                 elsif tv.may_hit = "0000" then
                     tv.miss := '1';
+                    ev.tlbmiss <= '1';
                     tv.state := WAITW;
                 else
                     tv.hit_way := '1' & not tv.may_hit(2);
@@ -559,6 +579,7 @@ begin
                 tv.repl_way := tr.hit_way;
                 tlb_rdren <= '1';
                 tv.hit := '1';
+                ev.tlbhit <= '1';
                 tv.update_plru := '1';
                 tv.state := WAITW;
             when WAITW =>
@@ -582,6 +603,7 @@ begin
                 end if;
                 idx := '0' & tr.repl_way(1) & not tr.repl_way(1);
                 tv.state := WRPTE2;
+                ev.tlb_evictions <= tr.eviction;
             when WRPTE2 =>
                 tlb_wrdata <= r.pde;
                 tlb_wren <= "1111";
@@ -615,9 +637,15 @@ begin
                     tv.state := IDLE;
                 end if;
         end case;
+        tv.searching := '0';
+        if tv.state = SEARCH1 or tv.state = SEARCH2 or tv.state = SEARCH3 or
+            tv.state = SEARCH4 or tv.state = RDPTE then
+            tv.searching := '1';
+        end if;
         tlb_rdaddr <= tv.hash_4k & idx;
         tlb_wraddr <= tr.wr_hash & idx;
         trin <= tv;
+        ev.tlbsrch_cycles <= tr.searching;
     end process;
 
     -- Synchronous reads and writes to PWC array
@@ -689,6 +717,7 @@ begin
         variable idx : std_ulogic_vector(2 downto 0);
         variable wdat : std_ulogic_vector(15 downto 0);
         variable rway : std_ulogic_vector(1 downto 0);
+        variable evict : std_ulogic;
         variable wr_hash : std_ulogic_vector(5 downto 0);
     begin
         pv := pr;
@@ -700,6 +729,8 @@ begin
         idx := "000";
         wr_hash := (others => '0');
         pv.update_plru := '0';
+        ev.pwcsearch <= '0';
+        ev.pwc_evictions <= '0';
         case pr.state is
             when IDLE =>
                 pv.state := IDLE;
@@ -723,6 +754,10 @@ begin
                 pv.missed_2M := '0';
                 pv.missed_1G := '0';
                 pv.missed_512G := '0';
+                pv.eviction := '0';
+                pv.eviction_2M := '0';
+                pv.eviction_1G := '0';
+                pv.eviction_HT := '0';
                 if l_in.valid = '1' then
                     pv.hit := '0';
                     pv.miss := '0';
@@ -756,6 +791,7 @@ begin
                             if ap = "001" then                  -- 2MB page
                                 pwc_doread <= '1';
                                 pv.state := INVAL_2M;
+                                pv.searching := '1';
                             else
                                 -- 4k, 64k, 1G or unrecognized
                                 pv.tlbie_done := '1';
@@ -766,6 +802,7 @@ begin
                         pwc_doread <= '1';
                         pv.state := SEARCH1;
                         pv.next_state := SEARCH_2M_0;
+                        pv.searching := '1';
                     end if;
                 end if;
 
@@ -774,10 +811,12 @@ begin
                 pv.rd_hash := pr.hash_1G;
                 pwc_doread <= '1';
                 pwc_rdren <= '1';
+                ev.pwcsearch <= '1';
                 if pr.bad_ea = '0' then
                     pv.state := SEARCH_2M_0;
                 else
                     pv.miss := '1';
+                    pv.searching := '0';
                     pv.state := IDLE;
                 end if;
 
@@ -793,8 +832,10 @@ begin
                         pv.may_hit_2M(i) := '1';
                     end if;
                 end loop;
+                pv.eviction_2M := '0';
                 if valids = "1111" then
                     pv.repl_way_2M := pwc_plru_victim;
+                    pv.eviction_2M := '1';
                 else
                     pv.repl_way_2M := find_first_one(not valids);
                 end if;
@@ -874,8 +915,10 @@ begin
                         pv.may_hit_1G(i) := '1';
                     end if;
                 end loop;
+                pv.eviction_1G := '0';
                 if valids = "1111" then
                     pv.repl_way_1G := pwc_plru_victim;
+                    pv.eviction_1G := '1';
                 else
                     pv.repl_way_1G := find_first_one(not valids);
                 end if;
@@ -922,6 +965,7 @@ begin
                         pwc_rdren <= '1';
                     else
                         pv.miss := '1';
+                        pv.searching := '0';
                         pv.state := WAITW;
                     end if;
                 end if;
@@ -938,8 +982,10 @@ begin
                         pv.may_hit_512G(i) := '1';
                     end if;
                 end loop;
+                pv.eviction_HT := '0';
                 if valids = "1111" then
                     pv.repl_way_HT := pwc_plru_victim;
+                    pv.eviction_HT := '1';
                 else
                     pv.repl_way_HT := find_first_one(not valids);
                 end if;
@@ -954,6 +1000,7 @@ begin
                 end if;
                 if pv.missed_512G = '1' and pr.missed_1G = '1' then
                     pv.miss := '1';
+                    pv.searching := '0';
                     pv.state := WAITW;
                 else
                     pv.state := pr.next_state;
@@ -976,12 +1023,14 @@ begin
                     pwc_doread <= '1';
                 else
                     pv.miss := '1';
+                    pv.searching := '0';
                     pv.state := WAITW;
                 end if;
 
             when RDPDE =>
                 pwc_rdren <= '1';
                 pv.hit := '1';
+                pv.searching := '0';
                 pv.update_plru := '1';
                 pv.state := WAITW;
             when WAITW =>
@@ -989,21 +1038,26 @@ begin
                 pv.wr_leaf := r.pde(62);
                 pv.wr_level := r.pwc_level;
                 rway := "00";
+                evict := '0';
                 if r.rereadpte = '1' then
                     -- rewriting a 2M PTE with changed permissions
                     rway := pr.sel_way;
+                    evict := '0';
                     wr_hash := pr.hash_2M;
                 else
                     -- choose way according to which group is to be written
                     case r.pwc_level is
                         when "00" =>        -- 2M
                             rway := pr.repl_way_2M;
+                            evict := pr.eviction_2M;
                             wr_hash := pr.hash_2M;
                         when "01" =>
                             rway := pr.repl_way_1G;
+                            evict := pr.eviction_2M;
                             wr_hash := pr.hash_1G;
                         when others =>
                             rway := pr.repl_way_HT;
+                            evict := pr.eviction_2M;
                             wr_hash := pr.hash_512G;
                     end case;
                 end if;
@@ -1013,6 +1067,7 @@ begin
                     idx := '1' & rway;
                     pv.rd_hash := wr_hash;
                     pv.sel_way := rway;
+                    pv.eviction := evict;
                     pv.update_plru := '1';
                     if r.pwc_level = "00" then
                         pv.state := WRPTE1_2M;
@@ -1046,6 +1101,7 @@ begin
                 -- write one 16b section of word 0
                 wr_hash := pr.rd_hash;
                 pwc_wren(to_integer(unsigned(pr.sel_way))) <= '1';
+                ev.pwc_evictions <= pr.eviction;
                 if pr.wr_leaf = '1' then
                     pv.state := IDLE;
                 else
@@ -1120,6 +1176,7 @@ begin
                 wr_hash := pr.hash_2M;
                 pwc_wren <= pv.may_hit_2M;
                 pv.tlbie_done := '1';
+                pv.searching := '0';
                 pv.state := IDLE;
 
         end case;
@@ -1132,6 +1189,7 @@ begin
         pwc_rdaddr <= pv.rd_hash & idx;
         pwc_wraddr <= wr_hash & idx;
         prin <= pv;
+        ev.pwcsrch_cycles <= pr.searching;
     end process;
 
     -- Multiplex internal SPR values back to loadstore1, selected
@@ -1270,6 +1328,7 @@ begin
         variable rc_ok : std_ulogic;
         variable addr : std_ulogic_vector(63 downto 0);
         variable data : std_ulogic_vector(63 downto 0);
+        variable walking : std_ulogic;
         variable tlbdone, pwcdone : std_ulogic;
     begin
         v := r;
@@ -1288,6 +1347,12 @@ begin
         v.inval_all := '0';
         ptbl_rd := '0';
         prtbl_rd := '0';
+        ev.pagewalk <= '0';
+        ev.pwcmiss <= '0';
+        ev.pwchit_2M <= '0';
+        ev.pwchit_1G <= '0';
+        ev.pwchit_512G <= '0';
+        ev.tlbhit_2M <= '0';
 
         -- Radix tree data structures in memory are big-endian,
         -- so we need to byte-swap them
@@ -1391,6 +1456,7 @@ begin
                 end if;
             elsif pr.hit = '1' and pr.hit_size = "00" and pwc_rdreg(62) = '1' and r.rereadpte = '0' then
                 v.pde := pwc_rdreg;
+                ev.tlbhit_2M <= '1';
                 if check_perm_c(pwc_rdreg, r.priv, r.iside, r.store, pwc_rdreg(7)) = '1' then
                     -- Large-page (2M) PTE from PWC is in pwc_rdreg
                     v.shift := to_unsigned(9, 6);
@@ -1406,8 +1472,18 @@ begin
                 v.shift := unsigned(six);
                 v.mask_size := to_unsigned(9, 5);
                 v.pgbase := pwc_rdreg(55 downto 8) & x"00";
+                ev.pagewalk <= '1';
+                if pr.hit_size = "00" then
+                    ev.pwchit_2M <= '1';
+                elsif pr.hit_size = "01" then
+                    ev.pwchit_1G <= '1';
+                else
+                    ev.pwchit_512G <= '1';
+                end if;
                 v.state := RADIX_LOOKUP;
             elsif tlbdone = '1' and pwcdone = '1' then
+                ev.pagewalk <= '1';
+                ev.pwcmiss <= '1';
                 if pt_valid = '0' then
                     -- need to fetch process table entry
                     -- set v.shift so we can use finalmask for generating
@@ -1584,6 +1660,13 @@ begin
             addr := pgtable_addr;
             tlb_data := (others => '0');
         end if;
+
+        walking := '0';
+        if r.state = RADIX_LOOKUP or r.state = RADIX_READ_WAIT then
+            walking := '1';
+        end if;
+        ev.pgwalk_cycles <= walking;
+        ev.pgwalk_miss <= d_in.done and d_in.miss;
 
         l_out.done <= r.done;
         l_out.err <= r.err;

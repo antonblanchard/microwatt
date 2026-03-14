@@ -650,7 +650,8 @@ begin
     begin
         if rising_edge(clk) then
             ev.icache_miss <= '0';
-            ev.itlb_miss_resolved <= '0';
+            ev.icache_miss_cycles <= req_is_miss;
+            ev.icache_hit <= req_is_hit and not stall_in;
             r.recv_valid <= '0';
 	    -- On reset, clear all valid bits to force misses
             if rst = '1' then

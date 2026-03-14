@@ -48,6 +48,8 @@ unsigned int core;
 #define DBG_LOG_DATA		(0x17 + (core << 4))
 #define DBG_LOG_TRIGGER		(0x18 + (core << 4))
 #define DBG_LOG_MTRIGGER	(0x19 + (core << 4))
+#define DBG_LOG_CNT_ADDR	(0x1c + (core << 4))
+#define DBG_LOG_CNT_DATA	(0x1d + (core << 4))
 
 static bool debug;
 
@@ -792,6 +794,59 @@ static void mtrig_set(uint64_t addr)
 	check(dmi_write(DBG_LOG_MTRIGGER, (addr & ~(uint64_t)2) | 1), "writing LOG_MTRIGGER");
 }
 
+static const char *cnt_names[] = {
+	"TLB searches",
+	"TLB search cycles",
+	"TLB misses",
+	"TLB hits 4k",
+	"TLB hits 2M",
+	"page walks",
+	"page walk cycles",
+	"PWC searches",
+	"PWC search cycles",
+	"PWC misses",
+	"PWC hits 2M",
+	"PWC hits 1G",
+	"PWC hits 512G",
+	"PWC evictions",
+	"TLB evictions",
+	"MMU dcache misses",
+
+	"instrs completed",
+	"non-wait cycles",
+	"icache hits",
+	"icache misses",
+	"icache miss cycles",
+	"ierat hits",
+	"ierat misses",
+	"ierat miss cycles",
+	"itlb hits",
+	"itlb misses",
+	"dcache load hits",
+	"dcache load misses",
+	"dcache load cycles",
+	"dtlb hits",
+	"dtlb misses",
+};
+
+static void cnt_read(uint64_t reg, uint64_t count)
+{
+	uint64_t data;
+
+	reg &= 0x3f;
+	if (reg + count > 64)
+		count = 64 - reg;
+	for (; count != 0; --count, ++reg) {
+		check(dmi_write(DBG_LOG_CNT_ADDR, reg), "setting counter index");
+		check(dmi_read(DBG_LOG_CNT_DATA, &data), "reading counter data");
+		if (reg < sizeof(cnt_names) / sizeof(cnt_names[0]))
+			printf("%20s", cnt_names[reg]);
+		else
+			printf("%" PRId64, reg);
+		printf(": %14" PRId64 "\n", data);
+	}
+}
+
 static void usage(const char *cmd)
 {
 	fprintf(stderr, "Usage: %s -b <jtag|ecp5|sim> [-c core#] <command> <args>\n", cmd);
@@ -827,6 +882,10 @@ static void usage(const char *cmd)
 	fprintf(stderr, "  mtrig 			show logging stop trigger status\n");
 	fprintf(stderr, "  mtrig off 			clear logging stop trigger address\n");
 	fprintf(stderr, "  mtrig <addr>			set logging stop trigger address\n");
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, " Core counter display:\n");
+	fprintf(stderr, "  cnt <counter-num> [# counters]\n");
 
 	fprintf(stderr, "\n");
 	fprintf(stderr, " JTAG:\n");
@@ -1015,6 +1074,15 @@ int main(int argc, char *argv[])
 				addr = strtoul(argv[i], NULL, 16);
 				mtrig_set(addr);
 			}
+		} else if (strcmp(argv[i], "cnt") == 0) {
+			uint64_t c, n = 1;
+
+			if (i + 1 >= argc)
+				usage(argv[0]);
+			c = strtoul(argv[++i], NULL, 10);
+			if (i+1 < argc && isdigit(argv[i+1][0]))
+				n = strtoul(argv[++i], NULL, 10);
+			cnt_read(c, n);
 		} else {
 			fprintf(stderr, "Unknown command %s\n", argv[i]);
 			usage(argv[0]);

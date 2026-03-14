@@ -15,6 +15,7 @@ entity toplevel is
         HAS_BTC       : boolean  := false;
         ICACHE_NUM_LINES : natural := 64;
         LOG_LENGTH    : natural := 512;
+        HAS_DMI_COUNTERS : boolean := false;
 	DISABLE_FLATTEN_CORE : boolean := false;
         UART_IS_16550 : boolean  := true
 	);
@@ -76,6 +77,7 @@ begin
             HAS_BTC       => HAS_BTC,
 	    ICACHE_NUM_LINES => ICACHE_NUM_LINES,
             LOG_LENGTH    => LOG_LENGTH,
+            HAS_DMI_COUNTERS => HAS_DMI_COUNTERS,
 	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
             UART0_IS_16550     => UART_IS_16550
 	    )

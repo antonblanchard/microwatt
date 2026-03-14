@@ -1188,6 +1188,7 @@ begin
         m_out.done <= r1.mmu_done;
         m_out.err <= r1.mmu_error;
         m_out.data <= r1.data_out;
+        m_out.miss <= r1.slow_valid;
 
 	-- We have a valid load or store hit or we just completed a slow
 	-- op such as a load miss, a NC load or a store
@@ -1413,10 +1414,12 @@ begin
         variable acks      : unsigned(2 downto 0);
     begin
         if rising_edge(clk) then
+            ev.load_hit <= req_is_hit;
             ev.dcache_refill <= '0';
             ev.load_miss <= '0';
             ev.store_miss <= '0';
             ev.dtlb_miss <= tlb_miss;
+            ev.dtlb_hit <= tlb_hit and r0.req.virt_mode;
             r1.choose_victim <= '0';
 
 	    -- On reset, clear all valid bits to force misses
@@ -1440,6 +1443,7 @@ begin
                 r1.prev_hit_ways <= (others => '0');
                 reservation.valid <= '0';
                 reservation.addr <= (others => '0');
+                ev.load_miss_cycles <= '0';
 
 		-- Not useful normally but helps avoiding tons of sim warnings
 		r1.wb.adr <= (others => '0');
@@ -1632,6 +1636,7 @@ begin
                             r1.reloading <= '1';
                             r1.write_tag <= '1';
                             ev.load_miss <= '1';
+                            ev.load_miss_cycles <= '1';
                         else
                             r1.state <= NC_LOAD_WAIT_ACK;
                         end if;
@@ -1710,6 +1715,7 @@ begin
                         r1.full <= '0';
                         r1.slow_valid <= '1';
                         r1.ls_valid <= '1';
+                        ev.load_miss_cycles <= '0';
                     end if;
 
 		    -- Incoming acks processing
@@ -1737,6 +1743,7 @@ begin
                             else
                                 r1.mmu_done <= '1';
                             end if;
+                            ev.load_miss_cycles <= '0';
                             -- NB: for lqarx, set the reservation on the first dword
                             if r1.req.reserve = '1' and r1.req.first_dw = '1' then
                                 reservation.valid <= '1';
