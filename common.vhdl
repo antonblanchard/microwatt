@@ -12,7 +12,6 @@ package common is
 
     -- MSR bit numbers
     constant MSR_SF  : integer := (63 - 0);     -- Sixty-Four bit mode
-    constant MSR_HV  : integer := (63 - 3);     -- Hypervisor mode (always 1)
     constant MSR_EE  : integer := (63 - 48);    -- External interrupt Enable
     constant MSR_PR  : integer := (63 - 49);    -- PRoblem state
     constant MSR_FP  : integer := (63 - 50);    -- Floating Point available
@@ -39,8 +38,6 @@ package common is
     constant SPR_DAR    : spr_num_t := 19;
     constant SPR_TB     : spr_num_t := 268;
     constant SPR_TBU    : spr_num_t := 269;
-    constant SPR_TBLW   : spr_num_t := 284;
-    constant SPR_TBUW   : spr_num_t := 285;
     constant SPR_DEC    : spr_num_t := 22;
     constant SPR_SRR0   : spr_num_t := 26;
     constant SPR_SRR1   : spr_num_t := 27;
@@ -56,35 +53,7 @@ package common is
     constant SPR_HSPRG1 : spr_num_t := 305;
     constant SPR_PID    : spr_num_t := 48;
     constant SPR_PTCR   : spr_num_t := 464;
-    constant SPR_LPCR   : spr_num_t := 318;
     constant SPR_PVR	: spr_num_t := 287;
-    constant SPR_FSCR   : spr_num_t := 153;
-    constant SPR_HFSCR  : spr_num_t := 190;
-    constant SPR_HEIR   : spr_num_t := 339;
-    constant SPR_CTRL   : spr_num_t := 136;
-    constant SPR_CTRLW  : spr_num_t := 152;
-    constant SPR_UDSCR  : spr_num_t := 3;
-    constant SPR_DSCR   : spr_num_t := 17;
-    constant SPR_VRSAVE : spr_num_t := 256;
-    constant SPR_PIR    : spr_num_t := 1023;
-    constant SPR_CIABR  : spr_num_t := 187;
-    constant SPR_DAWR0  : spr_num_t := 180;
-    constant SPR_DAWR1  : spr_num_t := 181;
-    constant SPR_DAWRX0 : spr_num_t := 188;
-    constant SPR_DAWRX1 : spr_num_t := 189;
-    constant SPR_HASHKEYR  : spr_num_t := 468;
-    constant SPR_HASHPKEYR : spr_num_t := 469;
-    constant SPR_DEXCR  : spr_num_t := 828;
-    constant SPR_DEXCRU : spr_num_t := 812;
-    constant SPR_HDEXCR : spr_num_t := 471;
-    constant SPR_HDEXCU : spr_num_t := 455;
-    constant SPR_NOOP0  : spr_num_t := 808;
-    constant SPR_NOOP1  : spr_num_t := 809;
-    constant SPR_NOOP2  : spr_num_t := 810;
-    constant SPR_NOOP3  : spr_num_t := 811;
-    constant SPR_HMER   : spr_num_t := 336;
-    constant SPR_HMEER  : spr_num_t := 337;
-    constant SPR_HRMOR  : spr_num_t := 313;
 
     -- PMU registers
     constant SPR_UPMC1  : spr_num_t := 771;
@@ -100,9 +69,6 @@ package common is
     constant SPR_USIER  : spr_num_t := 768;
     constant SPR_USIAR  : spr_num_t := 780;
     constant SPR_USDAR  : spr_num_t := 781;
-    constant SPR_USIER2 : spr_num_t := 736;
-    constant SPR_USIER3 : spr_num_t := 737;
-    constant SPR_UMMCR3 : spr_num_t := 738;
     constant SPR_PMC1   : spr_num_t := 787;
     constant SPR_PMC2   : spr_num_t := 788;
     constant SPR_PMC3   : spr_num_t := 789;
@@ -116,9 +82,10 @@ package common is
     constant SPR_SIER   : spr_num_t := 784;
     constant SPR_SIAR   : spr_num_t := 796;
     constant SPR_SDAR   : spr_num_t := 797;
-    constant SPR_SIER2  : spr_num_t := 752;
-    constant SPR_SIER3  : spr_num_t := 753;
-    constant SPR_MMCR3  : spr_num_t := 754;
+
+    -- MMU sandbox SPR range for trace/instrumentation (704-735)
+    constant SPR_MMUSPR_FIRST : spr_num_t := 704;
+    constant SPR_MMUSPR_LAST  : spr_num_t := 735;
 
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
@@ -161,7 +128,6 @@ package common is
     constant RAMSPR_HSPRG0 : ramspr_index := to_unsigned(4,3);
     constant RAMSPR_LR     : ramspr_index := to_unsigned(5,3);         -- must equal RAMSPR_CTR
     constant RAMSPR_TAR    : ramspr_index := to_unsigned(6,3);
-    constant RAMSPR_VRSAVE : ramspr_index := to_unsigned(7,3);
     -- Odd half:
     constant RAMSPR_SRR1   : ramspr_index := to_unsigned(0,3);
     constant RAMSPR_HSRR1  : ramspr_index := to_unsigned(1,3);
@@ -169,50 +135,31 @@ package common is
     constant RAMSPR_SPRG3  : ramspr_index := to_unsigned(3,3);
     constant RAMSPR_HSPRG1 : ramspr_index := to_unsigned(4,3);
     constant RAMSPR_CTR    : ramspr_index := to_unsigned(5,3);         -- must equal RAMSPR_LR
-    constant RAMSPR_HASHKY : ramspr_index := to_unsigned(6,3);
-    constant RAMSPR_HASHPK : ramspr_index := to_unsigned(7,3);
 
     type ram_spr_info is record
         index : ramspr_index;
         isodd : std_ulogic;
-        is32b : std_ulogic;
         valid : std_ulogic;
     end record;
     constant ram_spr_info_init: ram_spr_info := (index => to_unsigned(0,3), others => '0');
 
-    subtype spr_selector is std_ulogic_vector(3 downto 0);
+    subtype spr_selector is std_ulogic_vector(2 downto 0);
     type spr_id is record
         sel   : spr_selector;
         valid : std_ulogic;
         ispmu : std_ulogic;
-        ronly : std_ulogic;
-        wonly : std_ulogic;
-        noop  : std_ulogic;
+        ismmu : std_ulogic;
     end record;
-    constant spr_id_init : spr_id := (sel => "0000", others => '0');
+    constant spr_id_init : spr_id := (sel => "000", others => '0');
 
-    constant SPRSEL_ZERO  : spr_selector := 4x"0";
-    constant SPRSEL_TB    : spr_selector := 4x"1";
-    constant SPRSEL_TBU   : spr_selector := 4x"2";
-    constant SPRSEL_DEC   : spr_selector := 4x"3";
-    constant SPRSEL_PVR   : spr_selector := 4x"4";
-    constant SPRSEL_LOGR  : spr_selector := 4x"5";
-    constant SPRSEL_CFAR  : spr_selector := 4x"6";
-    constant SPRSEL_FSCR  : spr_selector := 4x"7";
-    constant SPRSEL_LPCR  : spr_selector := 4x"8";
-    constant SPRSEL_HEIR  : spr_selector := 4x"9";
-    constant SPRSEL_CTRL  : spr_selector := 4x"a";
-    constant SPRSEL_DSCR  : spr_selector := 4x"b";
-    constant SPRSEL_PIR   : spr_selector := 4x"c";
-    constant SPRSEL_CIABR : spr_selector := 4x"d";
-    constant SPRSEL_DEXCR : spr_selector := 4x"e";
-    constant SPRSEL_XER   : spr_selector := 4x"f";
-
-    -- FSCR bit numbers
-    constant FSCR_PREFIX   : integer := 63 - 50;
-    constant FSCR_SCV      : integer := 63 - 51;
-    constant FSCR_TAR      : integer := 63 - 55;
-    constant FSCR_DSCR     : integer := 63 - 61;
+    constant SPRSEL_TB   : spr_selector := 3x"0";
+    constant SPRSEL_TBU  : spr_selector := 3x"1";
+    constant SPRSEL_DEC  : spr_selector := 3x"2";
+    constant SPRSEL_PVR  : spr_selector := 3x"3";
+    constant SPRSEL_LOGA : spr_selector := 3x"4";
+    constant SPRSEL_LOGD : spr_selector := 3x"5";
+    constant SPRSEL_CFAR : spr_selector := 3x"6";
+    constant SPRSEL_XER  : spr_selector := 3x"7";
 
     -- FPSCR bit numbers
     constant FPSCR_FX     : integer := 63 - 32;
@@ -246,16 +193,6 @@ package common is
     constant FPSCR_NI     : integer := 63 - 61;
     constant FPSCR_RN     : integer := 63 - 63;
 
-    -- LPCR bit numbers
-    constant LPCR_HAIL    : integer := 63 - 37;
-    constant LPCR_UPRT    : integer := 63 - 41;
-    constant LPCR_EVIRT   : integer := 63 - 42;
-    constant LPCR_HR      : integer := 63 - 43;
-    constant LPCR_LD      : integer := 63 - 46;
-    constant LPCR_HEIC    : integer := 63 - 59;
-    constant LPCR_LPES    : integer := 63 - 60;
-    constant LPCR_HVICE   : integer := 63 - 62;
-
     -- Real addresses
     -- REAL_ADDR_BITS is the number of real address bits that we store
     constant REAL_ADDR_BITS : positive := 56;
@@ -282,68 +219,24 @@ package common is
 
     -- For now, fixed 16 sources, make this either a parametric
     -- package of some sort or an unconstrainted array.
-    -- We don't know NCPUS or SRC_NUM here, so make this
-    -- large enough for 4 cpus and 16 interrupt sources for now.
     type ics_to_icp_t is record
         -- Level interrupts only, ICS just keeps prsenting the
         -- highest priority interrupt. Once handling edge, something
         -- smarter involving handshake & reject support will be needed
-        src : std_ulogic_vector(15 downto 0);   -- 4 bits each for 4 cpus
-        pri : std_ulogic_vector(31 downto 0);   -- 8 bits each for 4 cpus
+        src : std_ulogic_vector(3 downto 0);
+        pri : std_ulogic_vector(7 downto 0);
     end record;
-
-    -- Bits in each half of DEXCR and HDEXCR
-    subtype aspect_bits_t is std_ulogic_vector(4 downto 0);
-    constant aspect_bits_init : aspect_bits_t := (others => '1');
-    -- Bit numbers in aspect_bits_t
-    constant DEXCR_SBHE   : integer := 4;       -- speculative branch hint enable
-    constant DEXCR_IBRTPD : integer := 3;       -- indirect branch recurrent target prediction disable
-    constant DEXCR_SRAPD  : integer := 2;       -- subroutine return address prediction disable
-    constant DEXCR_NPHIE  : integer := 1;       -- non-privileged hash instruction enable
-    constant DEXCR_PHIE   : integer := 0;       -- privileged hash instruction enable
 
     -- This needs to die...
     type ctrl_t is record
-        wait_state: std_ulogic;
-        run: std_ulogic;
+	tb: std_ulogic_vector(63 downto 0);
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
         cfar: std_ulogic_vector(63 downto 0);
         xer_low: std_ulogic_vector(17 downto 0);
-        fscr_ic: std_ulogic_vector(3 downto 0);
-        fscr_pref: std_ulogic;
-        fscr_scv: std_ulogic;
-        fscr_tar: std_ulogic;
-        fscr_dscr: std_ulogic;
-        heir: std_ulogic_vector(63 downto 0);
-        dscr: std_ulogic_vector(24 downto 0);
-        ciabr: std_ulogic_vector(63 downto 0);
-        dexcr_pnh: aspect_bits_t;
-        dexcr_pro: aspect_bits_t;
-        hdexcr_hyp: aspect_bits_t;
-        hdexcr_enf: aspect_bits_t;
-        lpcr_hail: std_ulogic;
-        lpcr_evirt: std_ulogic;
-        lpcr_ld: std_ulogic;
-        lpcr_heic: std_ulogic;
-        lpcr_lpes: std_ulogic;
-        lpcr_hvice: std_ulogic;
     end record;
     constant ctrl_t_init : ctrl_t :=
-        (wait_state => '0', run => '1', xer_low => 18x"0",
-         fscr_ic => x"0", fscr_pref => '1', fscr_scv => '1', fscr_tar => '1', fscr_dscr => '1',
-         dscr => (others => '0'),
-         dexcr_pnh => aspect_bits_init, dexcr_pro => aspect_bits_init,
-         hdexcr_hyp => aspect_bits_init, hdexcr_enf => aspect_bits_init,
-         lpcr_hail => '0', lpcr_evirt => '0', lpcr_ld => '1', lpcr_heic => '0',
-         lpcr_lpes => '0', lpcr_hvice => '0',
-         others => (others => '0'));
-
-    type timebase_ctrl is record
-        reset   : std_ulogic;
-        rd_prot : std_ulogic;           -- read-protect => userspace can't read TB
-        freeze  : std_ulogic;
-    end record;
+        (xer_low => 18x"0", others => (others => '0'));
 
     type Fetch1ToIcacheType is record
 	req: std_ulogic;
@@ -382,7 +275,6 @@ package common is
     type Decode1ToDecode2Type is record
 	valid: std_ulogic;
 	stop_mark : std_ulogic;
-        second : std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
         prefixed: std_ulogic;
         prefix: std_ulogic_vector(25 downto 0);
@@ -399,7 +291,7 @@ package common is
         reg_c : gspr_index_t;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
-        (valid => '0', stop_mark => '0', second => '0', nia => (others => '0'),
+        (valid => '0', stop_mark => '0', nia => (others => '0'),
          prefixed => '0', prefix => (others => '0'), insn => (others => '0'),
          illegal_suffix => '0', misaligned_prefix => '0',
          decode => decode_rom_init, br_pred => '0', big_endian => '0',
@@ -422,11 +314,9 @@ package common is
 
     type bypass_data_t is record
         tag  : instr_tag_t;
-        reg  : gspr_index_t;
         data : std_ulogic_vector(63 downto 0);
     end record;
-    constant bypass_data_init : bypass_data_t :=
-        (tag => instr_tag_init, reg => (others => '0'), data => (others => '0'));
+    constant bypass_data_init : bypass_data_t := (tag => instr_tag_init, data => (others => '0'));
 
     type cr_bypass_data_t is record
         tag  : instr_tag_t;
@@ -474,8 +364,8 @@ package common is
 	update : std_ulogic;				-- is this an update instruction?
         reserve : std_ulogic;                           -- set for larx/stcx
         br_pred : std_ulogic;
-        result_sel : result_sel_t;                      -- select source of result
-        sub_select : subresult_sel_t;                   -- sub-result selection
+        result_sel : std_ulogic_vector(2 downto 0);     -- select source of result
+        sub_select : std_ulogic_vector(2 downto 0);     -- sub-result selection
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
         spr_select : spr_id;
@@ -486,22 +376,11 @@ package common is
         ramspr_wraddr      : ramspr_index;
         ramspr_write_even  : std_ulogic;
         ramspr_write_odd   : std_ulogic;
-        ramspr_32bit       : std_ulogic;
         dbg_spr_access : std_ulogic;
         dec_ctr : std_ulogic;
-        privileged : std_ulogic;
         prefixed : std_ulogic;
-        prefix : std_ulogic_vector(25 downto 0);
         illegal_suffix : std_ulogic;
         misaligned_prefix : std_ulogic;
-        illegal_form : std_ulogic;
-        uses_tar : std_ulogic;
-        uses_dscr : std_ulogic;
-        right_shift : std_ulogic;
-        rot_clear_left : std_ulogic;
-        rot_clear_right : std_ulogic;
-        rot_sign_ext : std_ulogic;
-        do_popcnt : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => ALU, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
@@ -514,18 +393,14 @@ package common is
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          reg_valid1 => '0', reg_valid2 => '0', reg_valid3 => '0',
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
-         result_sel => ADD, sub_select => "000",
+         result_sel => "000", sub_select => "000",
          repeat => '0', second => '0', spr_select => spr_id_init,
          spr_is_ram => '0',
          ramspr_even_rdaddr => (others => '0'), ramspr_odd_rdaddr => (others => '0'), ramspr_rd_odd => '0',
          ramspr_wraddr => (others => '0'), ramspr_write_even => '0', ramspr_write_odd => '0',
-         ramspr_32bit => '0',
          dbg_spr_access => '0',
          dec_ctr => '0',
-         privileged => '0', prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
-         misaligned_prefix => '0', illegal_form => '0', uses_tar => '0', uses_dscr => '0',
-         right_shift => '0', rot_clear_left => '0', rot_clear_right => '0', rot_sign_ext => '0',
-         do_popcnt => '0',
+         prefixed => '0', illegal_suffix => '0', misaligned_prefix => '0',
          others => (others => '0'));
 
     type MultiplyInputType is record
@@ -598,7 +473,6 @@ package common is
         nia     : std_ulogic_vector(63 downto 0);
         addr    : std_ulogic_vector(63 downto 0);
         addr_v  : std_ulogic;
-        trace   : std_ulogic;
         occur   : PMUEventType;
     end record;
 
@@ -606,6 +480,22 @@ package common is
         spr_val : std_ulogic_vector(63 downto 0);
         intr    : std_ulogic;
     end record;
+
+    -- MMU sandbox SPR interface (execute1 <-> MMU)
+    type Execute1ToMmuSprType is record
+        valid : std_ulogic;
+        write : std_ulogic;
+        sprn  : std_ulogic_vector(4 downto 0);   -- offset 0-31 within 704-735
+        wdata : std_ulogic_vector(63 downto 0);
+    end record;
+    constant Execute1ToMmuSprInit : Execute1ToMmuSprType :=
+        (valid => '0', write => '0', sprn => (others => '0'), wdata => (others => '0'));
+
+    type MmuToExecute1SprType is record
+        rdata : std_ulogic_vector(63 downto 0);
+    end record;
+    constant MmuToExecute1SprInit : MmuToExecute1SprType :=
+        (rdata => (others => '0'));
 
     type Decode2ToRegisterFileType is record
 	read1_enable : std_ulogic;
@@ -642,7 +532,6 @@ package common is
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
-        hash : std_ulogic;
 	xerc : xer_common_t;
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.
@@ -655,12 +544,10 @@ package common is
         second : std_ulogic;
         e2stall : std_ulogic;
         msr : std_ulogic_vector(63 downto 0);
-        hashkey : std_ulogic_vector(63 downto 0);
-        hash_enable : std_ulogic;
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
         (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
-         sign_extend => '0', update => '0', hash => '0', xerc => xerc_init,
+         sign_extend => '0', update => '0', xerc => xerc_init,
          reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
          insn => (others => '0'),
          instr_tag => instr_tag_init,
@@ -669,13 +556,11 @@ package common is
          length => (others => '0'),
          mode_32bit => '0', is_32bit => '0', prefixed => '0',
          repeat => '0', second => '0', e2stall => '0',
-         msr => (others => '0'), hashkey => (others => '0'), hash_enable => '0');
+         msr => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
         l2stall : std_ulogic;
-        ea_for_pmu : std_ulogic_vector(63 downto 0);
-        ea_valid : std_ulogic;
     end record;
 
     type Loadstore1ToDcacheType is record
@@ -683,25 +568,14 @@ package common is
         hold : std_ulogic;
 	load : std_ulogic;				-- is this a load
         dcbz : std_ulogic;
-        flush : std_ulogic;
-        touch : std_ulogic;
-        sync : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
-        atomic_qw : std_ulogic;                         -- part of a quadword atomic op
-        atomic_first : std_ulogic;
-        atomic_last : std_ulogic;
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
-        tlb_probe : std_ulogic;
 	addr : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);          -- valid the cycle after .valid = 1
         byte_sel : std_ulogic_vector(7 downto 0);
-        dawr_match : std_ulogic;                        -- valid the cycle after .valid = 1
     end record;
-    constant Loadstore1ToDcacheInit : Loadstore1ToDcacheType :=
-        (addr => (others => '0'), data => (others => '0'), byte_sel => x"00",
-         others => '0');
 
     type DcacheToLoadstore1Type is record
 	valid : std_ulogic;
@@ -709,7 +583,6 @@ package common is
         store_done : std_ulogic;
         error : std_ulogic;
         cache_paradox : std_ulogic;
-        reserve_nc : std_ulogic;
     end record;
 
     type DcacheEventType is record
@@ -810,9 +683,6 @@ package common is
 	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
         interrupt : std_ulogic;
-        alt_intr : std_ulogic;
-        hv_intr : std_ulogic;
-        is_scv : std_ulogic;
         intr_vec : intr_vector_t;
 	redirect: std_ulogic;
         redir_mode: std_ulogic_vector(3 downto 0);
@@ -821,6 +691,7 @@ package common is
         br_taken: std_ulogic;
         abs_br: std_ulogic;
         srr1: std_ulogic_vector(15 downto 0);
+        msr: std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToWritebackInit : Execute1ToWritebackType :=
         (valid => '0', instr_tag => instr_tag_init, rc => '0', mode_32bit => '0',
@@ -828,11 +699,10 @@ package common is
          write_xerc_enable => '0', xerc => xerc_init,
          write_data => (others => '0'), write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'), write_reg => (others => '0'),
-         interrupt => '0', alt_intr => '0', hv_intr => '0', is_scv => '0', intr_vec => 0,
-         redirect => '0', redir_mode => "0000",
+         interrupt => '0', intr_vec => 0, redirect => '0', redir_mode => "0000",
          last_nia => (others => '0'),
          br_last => '0', br_taken => '0', abs_br => '0',
-         srr1 => (others => '0'));
+         srr1 => (others => '0'), msr => (others => '0'));
 
     type Execute1ToFPUType is record
         valid     : std_ulogic;
@@ -917,14 +787,13 @@ package common is
         br_last : std_ulogic;
         br_taken : std_ulogic;
         interrupt : std_ulogic;
-        alt_intr : std_ulogic;
-        intr_vec : std_ulogic_vector(63 downto 0);
+        intr_vec : std_ulogic_vector(11 downto 0);
     end record;
     constant WritebackToFetch1Init : WritebackToFetch1Type :=
         (redirect => '0', virt_mode => '0', priv_mode => '0', big_endian => '0',
          mode_32bit => '0', redirect_nia => (others => '0'),
          br_last => '0', br_taken => '0', br_nia => (others => '0'),
-         interrupt => '0', alt_intr => '0', intr_vec => 64x"0");
+         interrupt => '0', intr_vec => x"000");
 
     type WritebackToRegisterFileType is record
 	write_reg : gspr_index_t;
@@ -947,11 +816,8 @@ package common is
 							       write_cr_data => (others => '0'));
 
     type WritebackToExecute1Type is record
-        intr    : std_ulogic;
-        hv_intr : std_ulogic;
-        scv_int : std_ulogic;
-        alt_int : std_ulogic;
-        srr1    : std_ulogic_vector(15 downto 0);
+        intr : std_ulogic;
+        srr1 : std_ulogic_vector(15 downto 0);
     end record;
 
     type WritebackEventType is record

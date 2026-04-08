@@ -20,7 +20,11 @@ entity mmu is
         d_out : out MmuToDcacheType;
         d_in  : in DcacheToMmuType;
 
-        i_out : out MmuToITLBType
+        i_out : out MmuToITLBType;
+
+        -- MMU sandbox SPR interface (from execute1)
+        spr_in  : in Execute1ToMmuSprType;
+        spr_out : out MmuToExecute1SprType
         );
 end mmu;
 
@@ -28,6 +32,7 @@ architecture behave of mmu is
 
     type state_t is (IDLE,
                      DO_TLBIE,
+                     TLB_WAIT,
                      PART_TBL_READ,
                      PART_TBL_WAIT,
                      PART_TBL_DONE,
@@ -77,6 +82,10 @@ architecture behave of mmu is
     signal addrsh  : std_ulogic_vector(15 downto 0);
     signal mask    : std_ulogic_vector(15 downto 0);
     signal finalmask : std_ulogic_vector(43 downto 0);
+
+    -- Sandbox SPR register bank (32 x 64-bit registers, SPR 704-735)
+    type spr_bank_t is array(0 to 31) of std_ulogic_vector(63 downto 0);
+    signal spr_bank : spr_bank_t := (others => (others => '0'));
 
 begin
     -- Multiplex internal SPR values back to loadstore1, selected
@@ -194,6 +203,7 @@ begin
         variable v : reg_stage_t;
         variable dcreq : std_ulogic;
         variable tlb_load : std_ulogic;
+        variable itlb_load : std_ulogic;
         variable tlbie_req : std_ulogic;
         variable ptbl_rd : std_ulogic;
         variable prtbl_rd : std_ulogic;
@@ -223,6 +233,7 @@ begin
         v.perm_err := '0';
         v.rc_error := '0';
         tlb_load := '0';
+        itlb_load := '0';
         tlbie_req := '0';
         v.inval_all := '0';
         ptbl_rd := '0';
@@ -306,8 +317,14 @@ begin
             end if;
 
         when DO_TLBIE =>
+            dcreq := '1';
             tlbie_req := '1';
-            v.state := RADIX_FINISH;
+            v.state := TLB_WAIT;
+
+        when TLB_WAIT =>
+            if d_in.done = '1' then
+                v.state := RADIX_FINISH;
+            end if;
 
         when PART_TBL_READ =>
             dcreq := '1';
@@ -429,14 +446,20 @@ begin
 
         when RADIX_LOAD_TLB =>
             tlb_load := '1';
-            v.state := RADIX_FINISH;
+            if r.iside = '0' then
+                dcreq := '1';
+                v.state := TLB_WAIT;
+            else
+                itlb_load := '1';
+                v.state := IDLE;
+            end if;
 
         when RADIX_FINISH =>
             v.state := IDLE;
 
         end case;
 
-        if v.state = RADIX_FINISH then
+        if v.state = RADIX_FINISH or (v.state = RADIX_LOAD_TLB and r.iside = '1') then
             v.err := v.invalid or v.badtree or v.segerror or v.perm_err or v.rc_error;
             v.done := not v.err;
         end if;
@@ -490,15 +513,39 @@ begin
         d_out.valid <= dcreq;
         d_out.tlbie <= tlbie_req;
         d_out.doall <= r.inval_all;
-        d_out.tlbld <= tlb_load and not r.iside;
+        d_out.tlbld <= tlb_load;
         d_out.addr <= addr;
         d_out.pte <= tlb_data;
 
-        i_out.tlbld <= tlb_load and r.iside;
+        i_out.tlbld <= itlb_load;
         i_out.tlbie <= tlbie_req;
         i_out.doall <= r.inval_all;
         i_out.addr <= addr;
         i_out.pte <= tlb_data;
 
     end process;
+
+    -- MMU sandbox SPR register bank
+    -- Combinational read: always present data for addressed register
+    spr_out.rdata <= spr_bank(to_integer(unsigned(spr_in.sprn)))
+                     when not is_X(spr_in.sprn)
+                     else (others => 'X');
+
+    -- Synchronous write: update register on clock edge when valid write
+    spr_bank_write: process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' then
+                spr_bank <= (others => (others => '0'));
+            elsif spr_in.valid = '1' and spr_in.write = '1' then
+                if not is_X(spr_in.sprn) then
+                    spr_bank(to_integer(unsigned(spr_in.sprn))) <= spr_in.wdata;
+                    report "MMU sandbox SPR write: reg " &
+                        integer'image(to_integer(unsigned(spr_in.sprn))) &
+                        " <= " & to_hstring(spr_in.wdata);
+                end if;
+            end if;
+        end if;
+    end process;
+
 end;

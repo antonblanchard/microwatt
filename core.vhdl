@@ -9,8 +9,6 @@ use work.wishbone_types.all;
 entity core is
     generic (
         SIM : boolean := false;
-        CPU_INDEX : natural := 0;
-        NCPUS : positive := 1;
 	DISABLE_FLATTEN : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
@@ -32,9 +30,6 @@ entity core is
 	-- Alternate reset (0xffff0000) for use by DRAM init fw
 	alt_reset    : in std_ulogic;
 
-        -- Global timebase control
-        tb_ctrl      : in timebase_ctrl;
-
 	-- Wishbone interface
         wishbone_insn_in  : in wishbone_slave_out;
         wishbone_insn_out : out wishbone_master_out;
@@ -53,10 +48,6 @@ entity core is
 
 	ext_irq		: in std_ulogic;
 
-        msg_in          : in std_ulogic;
-        msg_out         : out std_ulogic_vector(NCPUS-1 downto 0);
-
-        run_out          : out std_ulogic;
 	terminated_out   : out std_logic
         );
 end core;
@@ -103,6 +94,10 @@ architecture behave of core is
     signal dcache_to_loadstore1: DcacheToLoadstore1Type;
     signal mmu_to_dcache: MmuToDcacheType;
     signal dcache_to_mmu: DcacheToMmuType;
+
+    -- MMU sandbox SPR signals
+    signal execute1_to_mmu_spr: Execute1ToMmuSprType;
+    signal mmu_to_execute1_spr: MmuToExecute1SprType;
 
     -- FPU signals
     signal execute1_to_fpu: Execute1ToFPUType;
@@ -313,7 +308,6 @@ begin
 	    busy_in => decode2_busy_in,
             stall_out => decode2_stall_out,
             flush_in => flush,
-            tb_ctrl => tb_ctrl,
             complete_in => complete,
 	    stopped_out => dbg_core_is_stopped,
             d_in => decode1_to_decode2,
@@ -373,8 +367,6 @@ begin
     execute1_0: entity work.execute1
         generic map (
             SIM => SIM,
-            CPU_INDEX => CPU_INDEX,
-            NCPUS => NCPUS,
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
             LOG_LENGTH => LOG_LENGTH
@@ -382,7 +374,6 @@ begin
         port map (
             clk => clk,
             rst => rst_ex1,
-            tb_ctrl => tb_ctrl,
             flush_in => flush,
 	    busy_out => ex1_busy_out,
             e_in => decode2_to_execute1,
@@ -403,9 +394,6 @@ begin
             ls_events => loadstore_events,
             dc_events => dcache_events,
             ic_events => icache_events,
-            msg_out => msg_out,
-            msg_in => msg_in,
-            run_out => run_out,
             terminate_out => terminate,
             dbg_spr_req => dbg_spr_req,
             dbg_spr_ack => dbg_spr_ack,
@@ -416,7 +404,9 @@ begin
             log_out => log_data(135 downto 124),
             log_rd_addr => log_rd_addr,
             log_rd_data => log_rd_data,
-            log_wr_addr => log_wr_addr
+            log_wr_addr => log_wr_addr,
+            mmu_spr_out => execute1_to_mmu_spr,
+            mmu_spr_in => mmu_to_execute1_spr
             );
 
     with_fpu: if HAS_FPU generate
@@ -470,12 +460,13 @@ begin
             l_out => mmu_to_loadstore1,
             d_out => mmu_to_dcache,
             d_in => dcache_to_mmu,
-            i_out => mmu_to_itlb
+            i_out => mmu_to_itlb,
+            spr_in => execute1_to_mmu_spr,
+            spr_out => mmu_to_execute1_spr
             );
 
     dcache_0: entity work.dcache
         generic map(
-            SIM => SIM,
             LINE_SIZE => 64,
             NUM_LINES => DCACHE_NUM_LINES,
             NUM_WAYS => DCACHE_NUM_WAYS,
