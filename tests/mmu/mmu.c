@@ -17,7 +17,7 @@ extern int test_exec(int testno, unsigned long pc, unsigned long msr);
 
 static inline void do_tlbie(unsigned long rb, unsigned long rs)
 {
-	__asm__ volatile("tlbie %0,%1" : : "r" (rb), "r" (rs) : "memory");
+	__asm__ volatile(".machine \"power10\"; tlbie %0,%1,0,1,1" : : "r" (rb), "r" (rs) : "memory");
 }
 
 #define DSISR	18
@@ -115,6 +115,7 @@ void zero_memory(void *ptr, unsigned long nbytes)
  * 8kB PGD level pointing to 4kB PTE pages.
  */
 unsigned long *pgdir = (unsigned long *) 0x10000;
+unsigned long *pmdir = (unsigned long *) 0x11000;
 unsigned long *proc_tbl = (unsigned long *) 0x12000;
 unsigned long *part_tbl = (unsigned long *) 0x13000;
 unsigned long free_ptr = 0x14000;
@@ -129,17 +130,20 @@ void init_mmu(void)
 	zero_memory(proc_tbl, 512 * sizeof(unsigned long));
 	mtspr(PTCR, (unsigned long)part_tbl);
 	mtspr(PID, 1);
-	zero_memory(pgdir, 1024 * sizeof(unsigned long));
-	/* RTS = 0 (2GB address space), RPDS = 10 (1024-entry top level) */
-	store_pte(&proc_tbl[2 * 1], (unsigned long) pgdir | 10);
+	zero_memory(pgdir, 512 * sizeof(unsigned long));
+	store_pte(&pgdir[0], 0x8000000000000000ul | (unsigned long) pmdir | 9);
+	zero_memory(pmdir, 512 * sizeof(unsigned long));
+	/* RTS = 8 (512GB address space), RPDS = 9 (512-entry top level) */
+	/* we only use the first 1GB of the space */
+	store_pte(&proc_tbl[2 * 1], (unsigned long) pgdir | 0xa000000000000009ul);
 	do_tlbie(0xc00, 0);	/* invalidate all TLB entries */
 }
 
-static unsigned long *read_pgd(unsigned long i)
+static unsigned long *read_pmd(unsigned long i)
 {
 	unsigned long ret;
 
-	__asm__ volatile("ldbrx %0,%1,%2" : "=r" (ret) : "b" (pgdir),
+	__asm__ volatile("ldbrx %0,%1,%2" : "=r" (ret) : "b" (pmdir),
 			 "r" (i * sizeof(unsigned long)));
 	return (unsigned long *) (ret & 0x00ffffffffffff00);
 }
@@ -150,14 +154,14 @@ void map(void *ea, void *pa, unsigned long perm_attr)
 	unsigned long i, j;
 	unsigned long *ptep;
 
-	i = (epn >> 9) & 0x3ff;
+	i = (epn >> 9) & 0x1ff;
 	j = epn & 0x1ff;
-	if (pgdir[i] == 0) {
+	if (pmdir[i] == 0) {
 		zero_memory((void *)free_ptr, 512 * sizeof(unsigned long));
-		store_pte(&pgdir[i], 0x8000000000000000 | free_ptr | 9);
+		store_pte(&pmdir[i], 0x8000000000000000 | free_ptr | 9);
 		free_ptr += 512 * sizeof(unsigned long);
 	}
-	ptep = read_pgd(i);
+	ptep = read_pmd(i);
 	store_pte(&ptep[j], 0xc000000000000000 | ((unsigned long)pa & 0x00fffffffffff000) | perm_attr);
 	eas_mapped[neas_mapped++] = ea;
 }
@@ -168,13 +172,13 @@ void unmap(void *ea)
 	unsigned long i, j;
 	unsigned long *ptep;
 
-	i = (epn >> 9) & 0x3ff;
+	i = (epn >> 9) & 0x1ff;
 	j = epn & 0x1ff;
-	if (pgdir[i] == 0)
+	if (pmdir[i] == 0)
 		return;
-	ptep = read_pgd(i);
+	ptep = read_pmd(i);
 	ptep[j] = 0;
-	do_tlbie(((unsigned long)ea & ~0xfff), 0);
+	do_tlbie(((unsigned long)ea & ~0xfff), 1ul << 32);
 }
 
 void unmap_all(void)
@@ -655,6 +659,36 @@ int mmu_test_20(void)
 	return 0;
 }
 
+int mmu_test_21(void)
+{
+	long *mem = (long *) 0x9000;
+	long *mem2 = (long *) 0xa000;
+	long *ptr = (long *) 0x14a000;
+	long val;
+
+	/* create PTE */
+	map(ptr, mem, DFLT_PERM);
+	/* initialize the memory content */
+	mem[45] = 0xfee1800d4ea;
+	mem2[45] = 0xabad78323c14;
+	/* this should succeed and be a cache miss */
+	if (test_read(&ptr[45], &val, 0xdeadbeefd0d0))
+		return 1;
+	/* dest reg of load should have the value from 0x9000 */
+	if (val != 0xfee1800d4ea)
+		return 2;
+	/* change the mapping to point to 0xa000 (without tlbie) */
+	map(ptr, mem2, DFLT_PERM);
+	/* flush the whole PID */
+	do_tlbie(0x400ul, 1ul << 32);
+	/* this should succeed and return the value from 0xa000 */
+	if (test_read(&ptr[45], &val, 0xdeadbeefd0d0))
+		return 3;
+	if (val != 0xabad78323c14)
+		return 4;
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -715,6 +749,7 @@ int main(void)
 	do_test(18, mmu_test_18);
 	do_test(19, mmu_test_19);
 	do_test(20, mmu_test_20);
+	do_test(21, mmu_test_21);
 
 	return fail;
 }
