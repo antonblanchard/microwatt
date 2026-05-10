@@ -3,8 +3,6 @@
 ## Clock & Reset
 set_property -dict { PACKAGE_PIN AD11  IOSTANDARD LVDS     } [get_ports { clk200_n }]
 set_property -dict { PACKAGE_PIN AD12  IOSTANDARD LVDS     } [get_ports { clk200_p }]
-create_clock -period 5.000 -name tc_clk100_p [get_ports clk200_p]
-create_clock -period 5.000 -name tc_clk100_n [get_ports clk200_n]
 
 set_property -dict { PACKAGE_PIN R19   IOSTANDARD LVCMOS33 } [get_ports { ext_rst_n }]
 
@@ -25,6 +23,25 @@ set_property -dict { PACKAGE_PIN R25   IOSTANDARD LVCMOS33 } [get_ports { spi_fl
 set_property -dict { PACKAGE_PIN R20   IOSTANDARD LVCMOS33 } [get_ports { spi_flash_wp_n   }]
 set_property -dict { PACKAGE_PIN R21   IOSTANDARD LVCMOS33 } [get_ports { spi_flash_hold_n }]
 
+## RGMII Ethernet
+
+set_property -dict { PACKAGE_PIN AE10  IOSTANDARD LVCMOS15 } [get_ports { eth_clocks_tx }]
+set_property -dict { PACKAGE_PIN AG10  IOSTANDARD LVCMOS15 } [get_ports { eth_clocks_rx }]
+set_property -dict { PACKAGE_PIN AH24  IOSTANDARD LVCMOS33 } [get_ports { eth_rst_n }]
+set_property -dict { PACKAGE_PIN AK16  IOSTANDARD LVCMOS18 } [get_ports { eth_int_n }]
+set_property -dict { PACKAGE_PIN AG12  IOSTANDARD LVCMOS15 } [get_ports { eth_mdio }]
+set_property -dict { PACKAGE_PIN AF12  IOSTANDARD LVCMOS15 } [get_ports { eth_mdc }]
+#set_property -dict { PACKAGE_PIN AK15  IOSTANDARD LVCMOS18 } [get_ports { eth_pme_b }]
+set_property -dict { PACKAGE_PIN AH11  IOSTANDARD LVCMOS15 } [get_ports { eth_rx_ctl }]
+set_property -dict { PACKAGE_PIN AJ14  IOSTANDARD LVCMOS15 } [get_ports { eth_rx_data[0] }]
+set_property -dict { PACKAGE_PIN AH14  IOSTANDARD LVCMOS15 } [get_ports { eth_rx_data[1] }]
+set_property -dict { PACKAGE_PIN AK13  IOSTANDARD LVCMOS15 } [get_ports { eth_rx_data[2] }]
+set_property -dict { PACKAGE_PIN AJ13  IOSTANDARD LVCMOS15 } [get_ports { eth_rx_data[3] }]
+set_property -dict { PACKAGE_PIN AJ12  IOSTANDARD LVCMOS15 } [get_ports { eth_tx_data[0] }]
+set_property -dict { PACKAGE_PIN AK11  IOSTANDARD LVCMOS15 } [get_ports { eth_tx_data[1] }]
+set_property -dict { PACKAGE_PIN AJ11  IOSTANDARD LVCMOS15 } [get_ports { eth_tx_data[2] }]
+set_property -dict { PACKAGE_PIN AK10  IOSTANDARD LVCMOS15 } [get_ports { eth_tx_data[3] }]
+set_property -dict { PACKAGE_PIN AK14  IOSTANDARD LVCMOS15 } [get_ports { eth_tx_ctl }]
 
 ## DRAM
 
@@ -457,7 +474,25 @@ set_property IOSTANDARD LVCMOS15 [get_ports {ddram_reset_n}]
 
 set_property INTERNAL_VREF 0.750 [get_iobanks 34]
 
-# False path constraints
+################################################################################
+# Clock constraints
+################################################################################
+
+create_clock -period 5.000 -name tc_clk100_p [get_ports clk200_p]
+create_clock -period 5.000 -name tc_clk100_n [get_ports clk200_n]
+
+create_clock -name eth_clocks_rx -period 8.0 [get_ports { eth_clocks_rx }]
+
+set_clock_groups -asynchronous \
+  -group [get_clocks tc_clk100_p   -include_generated_clocks]  \
+  -group [get_clocks eth_clocks_rx -include_generated_clocks]
+
+################################################################################
+# False path constraints (from LiteX as they relate to LiteDRAM and LiteEth)
+################################################################################
+  
 set_false_path -quiet -through [get_nets -hierarchical -filter {mr_ff == TRUE}]
+
 set_false_path -quiet -to [get_pins -filter {REF_PIN_NAME == PRE} -of_objects [get_cells -hierarchical -filter {ars_ff1 == TRUE || ars_ff2 == TRUE}]]
+
 set_max_delay 2 -quiet -from [get_pins -filter {REF_PIN_NAME == C} -of_objects [get_cells -hierarchical -filter {ars_ff1 == TRUE}]] -to [get_pins -filter {REF_PIN_NAME == D} -of_objects [get_cells -hierarchical -filter {ars_ff2 == TRUE}]]
