@@ -7,9 +7,11 @@
 //                   https://github.com/enjoy-digital/litex
 //
 // Filename   : litedram_core.v
+// Top        : LiteDRAMCore
 // Device     : 
-// LiteX sha1 : bc1f1f52b
-// Date       : 2025-02-15 19:54:40
+// Hierarchy  : disabled
+// LiteX sha1 : 0c82be25e
+// Date       : 2026-06-01 05:55:42
 //------------------------------------------------------------------------------
 
 `timescale 1ns / 1ps
@@ -72,329 +74,331 @@ module litedram_core (
 
 /*
 LiteDRAMCore
-└─── bus (SoCBusHandler)
-│    └─── _interconnect (InterconnectPointToPoint)
-└─── csr (SoCCSRHandler)
-└─── irq (SoCIRQHandler)
-└─── cpu (CPUNone)
-└─── crg (LiteDRAMS7DDRPHYCRG)
-│    └─── pll (S7PLL)
-│    │    └─── [FDCE]
-│    │    └─── [FDCE]
-│    │    └─── [FDCE]
-│    │    └─── [FDCE]
-│    │    └─── [FDCE]
-│    │    └─── [FDCE]
-│    │    └─── [FDCE]
-│    │    └─── [FDCE]
-│    │    └─── [PLLE2_ADV]
-│    │    └─── [BUFG]
-│    │    └─── [BUFG]
-│    │    └─── [BUFG]
-│    │    └─── [BUFG]
-│    └─── idelayctrl (S7IDELAYCTRL)
-│    │    └─── [IDELAYCTRL]
-└─── ddrphy (A7DDRPHY)
-│    └─── tappeddelayline_0* (TappedDelayLine)
-│    └─── dqspattern_0* (DQSPattern)
-│    └─── bitslip_0* (BitSlip)
-│    └─── bitslip_1* (BitSlip)
-│    └─── bitslip_2* (BitSlip)
-│    └─── bitslip_3* (BitSlip)
-│    └─── tappeddelayline_1* (TappedDelayLine)
-│    └─── bitslip_4* (BitSlip)
-│    └─── bitslip_5* (BitSlip)
-│    └─── bitslip_6* (BitSlip)
-│    └─── bitslip_7* (BitSlip)
-│    └─── bitslip_8* (BitSlip)
-│    └─── bitslip_9* (BitSlip)
-│    └─── bitslip_10* (BitSlip)
-│    └─── bitslip_11* (BitSlip)
-│    └─── bitslip_12* (BitSlip)
-│    └─── bitslip_13* (BitSlip)
-│    └─── bitslip_14* (BitSlip)
-│    └─── bitslip_15* (BitSlip)
-│    └─── bitslip_16* (BitSlip)
-│    └─── bitslip_17* (BitSlip)
-│    └─── bitslip_18* (BitSlip)
-│    └─── bitslip_19* (BitSlip)
-│    └─── bitslip_20* (BitSlip)
-│    └─── bitslip_21* (BitSlip)
-│    └─── bitslip_22* (BitSlip)
-│    └─── bitslip_23* (BitSlip)
-│    └─── bitslip_24* (BitSlip)
-│    └─── bitslip_25* (BitSlip)
-│    └─── bitslip_26* (BitSlip)
-│    └─── bitslip_27* (BitSlip)
-│    └─── bitslip_28* (BitSlip)
-│    └─── bitslip_29* (BitSlip)
-│    └─── bitslip_30* (BitSlip)
-│    └─── bitslip_31* (BitSlip)
-│    └─── bitslip_32* (BitSlip)
-│    └─── bitslip_33* (BitSlip)
-│    └─── bitslip_34* (BitSlip)
-│    └─── bitslip_35* (BitSlip)
-│    └─── tappeddelayline_2* (TappedDelayLine)
-│    └─── tappeddelayline_3* (TappedDelayLine)
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [IOBUFDS]
-│    └─── [OSERDESE2]
-│    └─── [IOBUFDS]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [IDELAYE2]
-│    └─── [IOBUF]
-│    └─── [OSERDESE2]
-│    └─── [ISERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OBUFDS]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-│    └─── [OSERDESE2]
-└─── sdram (LiteDRAMCore)
-│    └─── dfii (DFIInjector)
-│    │    └─── pi0 (PhaseInjector)
-│    │    └─── pi1 (PhaseInjector)
-│    │    └─── pi2 (PhaseInjector)
-│    │    └─── pi3 (PhaseInjector)
-│    └─── controller (LiteDRAMController)
-│    │    └─── refresher (Refresher)
-│    │    │    └─── timer (RefreshTimer)
-│    │    │    └─── postponer (RefreshPostponer)
-│    │    │    └─── sequencer (RefreshSequencer)
-│    │    │    │    └─── refreshexecuter_0* (RefreshExecuter)
-│    │    │    └─── zqcs_timer (RefreshTimer)
-│    │    │    └─── zqs_executer (ZQCSExecuter)
-│    │    │    └─── fsm (FSM)
-│    │    └─── bankmachine_0* (BankMachine)
-│    │    │    └─── syncfifo_0* (SyncFIFO)
-│    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    └─── buffer_0* (Buffer)
-│    │    │    │    └─── pipe_valid (PipeValid)
-│    │    │    │    └─── pipeline (Pipeline)
-│    │    │    └─── twtpcon (tXXDController)
-│    │    │    └─── trccon (tXXDController)
-│    │    │    └─── trascon (tXXDController)
-│    │    │    └─── fsm (FSM)
-│    │    └─── bankmachine_1* (BankMachine)
-│    │    │    └─── syncfifo_0* (SyncFIFO)
-│    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    └─── buffer_0* (Buffer)
-│    │    │    │    └─── pipe_valid (PipeValid)
-│    │    │    │    └─── pipeline (Pipeline)
-│    │    │    └─── twtpcon (tXXDController)
-│    │    │    └─── trccon (tXXDController)
-│    │    │    └─── trascon (tXXDController)
-│    │    │    └─── fsm (FSM)
-│    │    └─── bankmachine_2* (BankMachine)
-│    │    │    └─── syncfifo_0* (SyncFIFO)
-│    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    └─── buffer_0* (Buffer)
-│    │    │    │    └─── pipe_valid (PipeValid)
-│    │    │    │    └─── pipeline (Pipeline)
-│    │    │    └─── twtpcon (tXXDController)
-│    │    │    └─── trccon (tXXDController)
-│    │    │    └─── trascon (tXXDController)
-│    │    │    └─── fsm (FSM)
-│    │    └─── bankmachine_3* (BankMachine)
-│    │    │    └─── syncfifo_0* (SyncFIFO)
-│    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    └─── buffer_0* (Buffer)
-│    │    │    │    └─── pipe_valid (PipeValid)
-│    │    │    │    └─── pipeline (Pipeline)
-│    │    │    └─── twtpcon (tXXDController)
-│    │    │    └─── trccon (tXXDController)
-│    │    │    └─── trascon (tXXDController)
-│    │    │    └─── fsm (FSM)
-│    │    └─── bankmachine_4* (BankMachine)
-│    │    │    └─── syncfifo_0* (SyncFIFO)
-│    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    └─── buffer_0* (Buffer)
-│    │    │    │    └─── pipe_valid (PipeValid)
-│    │    │    │    └─── pipeline (Pipeline)
-│    │    │    └─── twtpcon (tXXDController)
-│    │    │    └─── trccon (tXXDController)
-│    │    │    └─── trascon (tXXDController)
-│    │    │    └─── fsm (FSM)
-│    │    └─── bankmachine_5* (BankMachine)
-│    │    │    └─── syncfifo_0* (SyncFIFO)
-│    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    └─── buffer_0* (Buffer)
-│    │    │    │    └─── pipe_valid (PipeValid)
-│    │    │    │    └─── pipeline (Pipeline)
-│    │    │    └─── twtpcon (tXXDController)
-│    │    │    └─── trccon (tXXDController)
-│    │    │    └─── trascon (tXXDController)
-│    │    │    └─── fsm (FSM)
-│    │    └─── bankmachine_6* (BankMachine)
-│    │    │    └─── syncfifo_0* (SyncFIFO)
-│    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    └─── buffer_0* (Buffer)
-│    │    │    │    └─── pipe_valid (PipeValid)
-│    │    │    │    └─── pipeline (Pipeline)
-│    │    │    └─── twtpcon (tXXDController)
-│    │    │    └─── trccon (tXXDController)
-│    │    │    └─── trascon (tXXDController)
-│    │    │    └─── fsm (FSM)
-│    │    └─── bankmachine_7* (BankMachine)
-│    │    │    └─── syncfifo_0* (SyncFIFO)
-│    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    └─── buffer_0* (Buffer)
-│    │    │    │    └─── pipe_valid (PipeValid)
-│    │    │    │    └─── pipeline (Pipeline)
-│    │    │    └─── twtpcon (tXXDController)
-│    │    │    └─── trccon (tXXDController)
-│    │    │    └─── trascon (tXXDController)
-│    │    │    └─── fsm (FSM)
-│    │    └─── multiplexer (Multiplexer)
-│    │    │    └─── choose_cmd (_CommandChooser)
-│    │    │    │    └─── roundrobin_0* (RoundRobin)
-│    │    │    └─── choose_req (_CommandChooser)
-│    │    │    │    └─── roundrobin_0* (RoundRobin)
-│    │    │    └─── _steerer_0* (_Steerer)
-│    │    │    └─── trrdcon (tXXDController)
-│    │    │    └─── tfawcon (tFAWController)
-│    │    │    └─── tccdcon (tXXDController)
-│    │    │    └─── twtrcon (tXXDController)
-│    │    │    └─── fsm (FSM)
-│    └─── crossbar (LiteDRAMCrossbar)
-│    │    └─── roundrobin_0* (RoundRobin)
-│    │    └─── roundrobin_1* (RoundRobin)
-│    │    └─── roundrobin_2* (RoundRobin)
-│    │    └─── roundrobin_3* (RoundRobin)
-│    │    └─── roundrobin_4* (RoundRobin)
-│    │    └─── roundrobin_5* (RoundRobin)
-│    │    └─── roundrobin_6* (RoundRobin)
-│    │    └─── roundrobin_7* (RoundRobin)
-└─── ddrctrl (LiteDRAMCoreControl)
-└─── csr_bridge (Wishbone2CSR)
-│    └─── fsm (FSM)
-└─── csr_bankarray (CSRBankArray)
-│    └─── csrbank_0* (CSRBank)
-│    │    └─── csrstorage_0* (CSRStorage)
-│    │    └─── csrstorage_1* (CSRStorage)
-│    └─── csrbank_1* (CSRBank)
-│    │    └─── csrstorage_0* (CSRStorage)
-│    │    └─── csrstorage_1* (CSRStorage)
-│    │    └─── csrstorage_2* (CSRStorage)
-│    │    └─── csrstorage_3* (CSRStorage)
-│    │    └─── csrstorage_4* (CSRStorage)
-│    │    └─── csrstorage_5* (CSRStorage)
-│    └─── csrbank_2* (CSRBank)
-│    │    └─── csrstorage_0* (CSRStorage)
-│    │    └─── csrstorage_1* (CSRStorage)
-│    │    └─── csrstorage_2* (CSRStorage)
-│    │    └─── csrstorage_3* (CSRStorage)
-│    │    └─── csrstorage_4* (CSRStorage)
-│    │    └─── csrstatus_0* (CSRStatus)
-│    │    └─── csrstorage_5* (CSRStorage)
-│    │    └─── csrstorage_6* (CSRStorage)
-│    │    └─── csrstorage_7* (CSRStorage)
-│    │    └─── csrstorage_8* (CSRStorage)
-│    │    └─── csrstatus_1* (CSRStatus)
-│    │    └─── csrstorage_9* (CSRStorage)
-│    │    └─── csrstorage_10* (CSRStorage)
-│    │    └─── csrstorage_11* (CSRStorage)
-│    │    └─── csrstorage_12* (CSRStorage)
-│    │    └─── csrstatus_2* (CSRStatus)
-│    │    └─── csrstorage_13* (CSRStorage)
-│    │    └─── csrstorage_14* (CSRStorage)
-│    │    └─── csrstorage_15* (CSRStorage)
-│    │    └─── csrstorage_16* (CSRStorage)
-│    │    └─── csrstatus_3* (CSRStatus)
-└─── csr_interconnect (InterconnectShared)
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-* : Generated name.
-[]: BlackBox.
+├── bus (SoCBusHandler)
+│    └── _interconnect (InterconnectPointToPoint)
+├── csr (SoCCSRHandler)
+├── irq (SoCIRQHandler)
+├── cpu (CPUNone)
+├── crg (LiteDRAMS7DDRPHYCRG)
+│    ├── pll (S7PLL)
+│    │    ├── [BB:FDCE]
+│    │    ├── [BB:FDCE]
+│    │    ├── [BB:FDCE]
+│    │    ├── [BB:FDCE]
+│    │    ├── [BB:FDCE]
+│    │    ├── [BB:FDCE]
+│    │    ├── [BB:FDCE]
+│    │    ├── [BB:FDCE]
+│    │    ├── [BB:PLLE2_ADV]
+│    │    ├── [BB:BUFG]
+│    │    ├── [BB:BUFG]
+│    │    ├── [BB:BUFG]
+│    │    └── [BB:BUFG]
+│    └── idelayctrl (S7IDELAYCTRL)
+│         └── [BB:IDELAYCTRL]
+├── ddrphy (A7DDRPHY)
+│    ├── tappeddelayline_0 (TappedDelayLine) [Gen]
+│    ├── dqspattern_0 (DQSPattern) [Gen]
+│    ├── bitslip_0 (BitSlip) [Gen]
+│    ├── bitslip_1 (BitSlip) [Gen]
+│    ├── bitslip_2 (BitSlip) [Gen]
+│    ├── bitslip_3 (BitSlip) [Gen]
+│    ├── tappeddelayline_1 (TappedDelayLine) [Gen]
+│    ├── bitslip_4 (BitSlip) [Gen]
+│    ├── bitslip_5 (BitSlip) [Gen]
+│    ├── bitslip_6 (BitSlip) [Gen]
+│    ├── bitslip_7 (BitSlip) [Gen]
+│    ├── bitslip_8 (BitSlip) [Gen]
+│    ├── bitslip_9 (BitSlip) [Gen]
+│    ├── bitslip_10 (BitSlip) [Gen]
+│    ├── bitslip_11 (BitSlip) [Gen]
+│    ├── bitslip_12 (BitSlip) [Gen]
+│    ├── bitslip_13 (BitSlip) [Gen]
+│    ├── bitslip_14 (BitSlip) [Gen]
+│    ├── bitslip_15 (BitSlip) [Gen]
+│    ├── bitslip_16 (BitSlip) [Gen]
+│    ├── bitslip_17 (BitSlip) [Gen]
+│    ├── bitslip_18 (BitSlip) [Gen]
+│    ├── bitslip_19 (BitSlip) [Gen]
+│    ├── bitslip_20 (BitSlip) [Gen]
+│    ├── bitslip_21 (BitSlip) [Gen]
+│    ├── bitslip_22 (BitSlip) [Gen]
+│    ├── bitslip_23 (BitSlip) [Gen]
+│    ├── bitslip_24 (BitSlip) [Gen]
+│    ├── bitslip_25 (BitSlip) [Gen]
+│    ├── bitslip_26 (BitSlip) [Gen]
+│    ├── bitslip_27 (BitSlip) [Gen]
+│    ├── bitslip_28 (BitSlip) [Gen]
+│    ├── bitslip_29 (BitSlip) [Gen]
+│    ├── bitslip_30 (BitSlip) [Gen]
+│    ├── bitslip_31 (BitSlip) [Gen]
+│    ├── bitslip_32 (BitSlip) [Gen]
+│    ├── bitslip_33 (BitSlip) [Gen]
+│    ├── bitslip_34 (BitSlip) [Gen]
+│    ├── bitslip_35 (BitSlip) [Gen]
+│    ├── tappeddelayline_2 (TappedDelayLine) [Gen]
+│    ├── tappeddelayline_3 (TappedDelayLine) [Gen]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:IOBUFDS]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:IOBUFDS]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IDELAYE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:ISERDESE2]
+│    ├── [BB:IOBUF]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OSERDESE2]
+│    ├── [BB:OBUFDS]
+│    └── [BB:OSERDESE2]
+├── sdram (LiteDRAMCore)
+│    ├── dfii (DFIInjector)
+│    │    ├── pi0 (PhaseInjector)
+│    │    ├── pi1 (PhaseInjector)
+│    │    ├── pi2 (PhaseInjector)
+│    │    └── pi3 (PhaseInjector)
+│    ├── controller (LiteDRAMController)
+│    │    ├── refresher (Refresher)
+│    │    │    ├── timer (RefreshTimer)
+│    │    │    ├── postponer (RefreshPostponer)
+│    │    │    ├── sequencer (RefreshSequencer)
+│    │    │    │    └── refreshexecuter_0 (RefreshExecuter) [Gen]
+│    │    │    ├── zqcs_timer (RefreshTimer)
+│    │    │    ├── zqs_executer (ZQCSExecuter)
+│    │    │    └── fsm (FSM)
+│    │    ├── bankmachine_0 (BankMachine) [Gen]
+│    │    │    ├── syncfifo_0 (SyncFIFO) [Gen]
+│    │    │    │    └── fifo (SyncFIFO)
+│    │    │    ├── buffer_0 (Buffer) [Gen]
+│    │    │    │    ├── pipe_valid (PipeValid)
+│    │    │    │    └── pipeline (Pipeline)
+│    │    │    ├── twtpcon (tXXDController)
+│    │    │    ├── trccon (tXXDController)
+│    │    │    ├── trascon (tXXDController)
+│    │    │    └── fsm (FSM)
+│    │    ├── bankmachine_1 (BankMachine) [Gen]
+│    │    │    ├── syncfifo_0 (SyncFIFO) [Gen]
+│    │    │    │    └── fifo (SyncFIFO)
+│    │    │    ├── buffer_0 (Buffer) [Gen]
+│    │    │    │    ├── pipe_valid (PipeValid)
+│    │    │    │    └── pipeline (Pipeline)
+│    │    │    ├── twtpcon (tXXDController)
+│    │    │    ├── trccon (tXXDController)
+│    │    │    ├── trascon (tXXDController)
+│    │    │    └── fsm (FSM)
+│    │    ├── bankmachine_2 (BankMachine) [Gen]
+│    │    │    ├── syncfifo_0 (SyncFIFO) [Gen]
+│    │    │    │    └── fifo (SyncFIFO)
+│    │    │    ├── buffer_0 (Buffer) [Gen]
+│    │    │    │    ├── pipe_valid (PipeValid)
+│    │    │    │    └── pipeline (Pipeline)
+│    │    │    ├── twtpcon (tXXDController)
+│    │    │    ├── trccon (tXXDController)
+│    │    │    ├── trascon (tXXDController)
+│    │    │    └── fsm (FSM)
+│    │    ├── bankmachine_3 (BankMachine) [Gen]
+│    │    │    ├── syncfifo_0 (SyncFIFO) [Gen]
+│    │    │    │    └── fifo (SyncFIFO)
+│    │    │    ├── buffer_0 (Buffer) [Gen]
+│    │    │    │    ├── pipe_valid (PipeValid)
+│    │    │    │    └── pipeline (Pipeline)
+│    │    │    ├── twtpcon (tXXDController)
+│    │    │    ├── trccon (tXXDController)
+│    │    │    ├── trascon (tXXDController)
+│    │    │    └── fsm (FSM)
+│    │    ├── bankmachine_4 (BankMachine) [Gen]
+│    │    │    ├── syncfifo_0 (SyncFIFO) [Gen]
+│    │    │    │    └── fifo (SyncFIFO)
+│    │    │    ├── buffer_0 (Buffer) [Gen]
+│    │    │    │    ├── pipe_valid (PipeValid)
+│    │    │    │    └── pipeline (Pipeline)
+│    │    │    ├── twtpcon (tXXDController)
+│    │    │    ├── trccon (tXXDController)
+│    │    │    ├── trascon (tXXDController)
+│    │    │    └── fsm (FSM)
+│    │    ├── bankmachine_5 (BankMachine) [Gen]
+│    │    │    ├── syncfifo_0 (SyncFIFO) [Gen]
+│    │    │    │    └── fifo (SyncFIFO)
+│    │    │    ├── buffer_0 (Buffer) [Gen]
+│    │    │    │    ├── pipe_valid (PipeValid)
+│    │    │    │    └── pipeline (Pipeline)
+│    │    │    ├── twtpcon (tXXDController)
+│    │    │    ├── trccon (tXXDController)
+│    │    │    ├── trascon (tXXDController)
+│    │    │    └── fsm (FSM)
+│    │    ├── bankmachine_6 (BankMachine) [Gen]
+│    │    │    ├── syncfifo_0 (SyncFIFO) [Gen]
+│    │    │    │    └── fifo (SyncFIFO)
+│    │    │    ├── buffer_0 (Buffer) [Gen]
+│    │    │    │    ├── pipe_valid (PipeValid)
+│    │    │    │    └── pipeline (Pipeline)
+│    │    │    ├── twtpcon (tXXDController)
+│    │    │    ├── trccon (tXXDController)
+│    │    │    ├── trascon (tXXDController)
+│    │    │    └── fsm (FSM)
+│    │    ├── bankmachine_7 (BankMachine) [Gen]
+│    │    │    ├── syncfifo_0 (SyncFIFO) [Gen]
+│    │    │    │    └── fifo (SyncFIFO)
+│    │    │    ├── buffer_0 (Buffer) [Gen]
+│    │    │    │    ├── pipe_valid (PipeValid)
+│    │    │    │    └── pipeline (Pipeline)
+│    │    │    ├── twtpcon (tXXDController)
+│    │    │    ├── trccon (tXXDController)
+│    │    │    ├── trascon (tXXDController)
+│    │    │    └── fsm (FSM)
+│    │    └── multiplexer (Multiplexer)
+│    │         ├── choose_cmd (_CommandChooser)
+│    │         │    └── roundrobin_0 (RoundRobin) [Gen]
+│    │         ├── choose_req (_CommandChooser)
+│    │         │    └── roundrobin_0 (RoundRobin) [Gen]
+│    │         ├── _steerer_0 (_Steerer) [Gen]
+│    │         ├── trrdcon (tXXDController)
+│    │         ├── tfawcon (tFAWController)
+│    │         ├── tccdcon (tXXDController)
+│    │         ├── twtrcon (tXXDController)
+│    │         └── fsm (FSM)
+│    └── crossbar (LiteDRAMCrossbar)
+│         ├── roundrobin_0 (RoundRobin) [Gen]
+│         ├── roundrobin_1 (RoundRobin) [Gen]
+│         ├── roundrobin_2 (RoundRobin) [Gen]
+│         ├── roundrobin_3 (RoundRobin) [Gen]
+│         ├── roundrobin_4 (RoundRobin) [Gen]
+│         ├── roundrobin_5 (RoundRobin) [Gen]
+│         ├── roundrobin_6 (RoundRobin) [Gen]
+│         └── roundrobin_7 (RoundRobin) [Gen]
+├── ddrctrl (LiteDRAMCoreControl)
+├── csr_bridge (Wishbone2CSR)
+│    └── fsm (FSM)
+├── csr_bankarray (CSRBankArray)
+│    ├── csrbank_0 (CSRBank) [Gen]
+│    │    ├── csrstorage_0 (CSRStorage) [Gen]
+│    │    └── csrstorage_1 (CSRStorage) [Gen]
+│    ├── csrbank_1 (CSRBank) [Gen]
+│    │    ├── csrstorage_0 (CSRStorage) [Gen]
+│    │    ├── csrstorage_1 (CSRStorage) [Gen]
+│    │    ├── csrstorage_2 (CSRStorage) [Gen]
+│    │    ├── csrstorage_3 (CSRStorage) [Gen]
+│    │    ├── csrstorage_4 (CSRStorage) [Gen]
+│    │    └── csrstorage_5 (CSRStorage) [Gen]
+│    └── csrbank_2 (CSRBank) [Gen]
+│         ├── csrstorage_0 (CSRStorage) [Gen]
+│         ├── csrstorage_1 (CSRStorage) [Gen]
+│         ├── csrstorage_2 (CSRStorage) [Gen]
+│         ├── csrstorage_3 (CSRStorage) [Gen]
+│         ├── csrstorage_4 (CSRStorage) [Gen]
+│         ├── csrstatus_0 (CSRStatus) [Gen]
+│         ├── csrstorage_5 (CSRStorage) [Gen]
+│         ├── csrstorage_6 (CSRStorage) [Gen]
+│         ├── csrstorage_7 (CSRStorage) [Gen]
+│         ├── csrstorage_8 (CSRStorage) [Gen]
+│         ├── csrstatus_1 (CSRStatus) [Gen]
+│         ├── csrstorage_9 (CSRStorage) [Gen]
+│         ├── csrstorage_10 (CSRStorage) [Gen]
+│         ├── csrstorage_11 (CSRStorage) [Gen]
+│         ├── csrstorage_12 (CSRStorage) [Gen]
+│         ├── csrstatus_2 (CSRStatus) [Gen]
+│         ├── csrstorage_13 (CSRStorage) [Gen]
+│         ├── csrstorage_14 (CSRStorage) [Gen]
+│         ├── csrstorage_15 (CSRStorage) [Gen]
+│         ├── csrstorage_16 (CSRStorage) [Gen]
+│         └── csrstatus_3 (CSRStatus) [Gen]
+├── csr_interconnect (InterconnectShared)
+├── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+└── [BB:FDPE]
+Legend:
+  [Gen]: Auto-generated instance name.
+  [BB:NAME]: Blackbox instance (verilog Instance).
+
 */
 
 //------------------------------------------------------------------------------
@@ -17205,7 +17209,7 @@ IOBUF IOBUF_15(
 //------------------------------------------------------------------------------
 // Memory storage: 16-words x 25-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 25 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [24:0] storage[0:15];
 reg [24:0] storage_dat0;
@@ -17223,7 +17227,7 @@ assign main_litedramcore_bankmachine0_rdport_dat_r = storage[main_litedramcore_b
 //------------------------------------------------------------------------------
 // Memory storage_1: 16-words x 25-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 25 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [24:0] storage_1[0:15];
 reg [24:0] storage_1_dat0;
@@ -17241,7 +17245,7 @@ assign main_litedramcore_bankmachine1_rdport_dat_r = storage_1[main_litedramcore
 //------------------------------------------------------------------------------
 // Memory storage_2: 16-words x 25-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 25 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [24:0] storage_2[0:15];
 reg [24:0] storage_2_dat0;
@@ -17259,7 +17263,7 @@ assign main_litedramcore_bankmachine2_rdport_dat_r = storage_2[main_litedramcore
 //------------------------------------------------------------------------------
 // Memory storage_3: 16-words x 25-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 25 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [24:0] storage_3[0:15];
 reg [24:0] storage_3_dat0;
@@ -17277,7 +17281,7 @@ assign main_litedramcore_bankmachine3_rdport_dat_r = storage_3[main_litedramcore
 //------------------------------------------------------------------------------
 // Memory storage_4: 16-words x 25-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 25 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [24:0] storage_4[0:15];
 reg [24:0] storage_4_dat0;
@@ -17295,7 +17299,7 @@ assign main_litedramcore_bankmachine4_rdport_dat_r = storage_4[main_litedramcore
 //------------------------------------------------------------------------------
 // Memory storage_5: 16-words x 25-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 25 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [24:0] storage_5[0:15];
 reg [24:0] storage_5_dat0;
@@ -17313,7 +17317,7 @@ assign main_litedramcore_bankmachine5_rdport_dat_r = storage_5[main_litedramcore
 //------------------------------------------------------------------------------
 // Memory storage_6: 16-words x 25-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 25 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [24:0] storage_6[0:15];
 reg [24:0] storage_6_dat0;
@@ -17331,7 +17335,7 @@ assign main_litedramcore_bankmachine6_rdport_dat_r = storage_6[main_litedramcore
 //------------------------------------------------------------------------------
 // Memory storage_7: 16-words x 25-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 25 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [24:0] storage_7[0:15];
 reg [24:0] storage_7_dat0;
@@ -17639,5 +17643,5 @@ FDPE #(
 endmodule
 
 // -----------------------------------------------------------------------------
-//  Auto-Generated by LiteX on 2025-02-15 19:54:41.
+//  Auto-Generated by LiteX on 2026-06-01 05:55:42.
 //------------------------------------------------------------------------------
