@@ -2,6 +2,7 @@
 #define __SYSTEM_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include "microwatt_soc.h"
 #include "io.h"
@@ -20,6 +21,10 @@
 extern void flush_cpu_dcache(void);
 extern void flush_cpu_icache(void);
 static inline void flush_l2_cache(void) { }
+static inline void flush_cpu_dcache_range(void *start_addr, size_t size)
+{
+	flush_cpu_dcache();
+}
 
 /* Fake timer stuff. LiteX should abstract this */
 static inline void timer0_en_write(int e) { }
