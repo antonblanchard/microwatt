@@ -7,9 +7,11 @@
 //                   https://github.com/enjoy-digital/litex
 //
 // Filename   : liteeth_core.v
+// Top        : MACCore
 // Device     : 
-// LiteX sha1 : bc1f1f52b
-// Date       : 2025-02-15 16:17:45
+// Hierarchy  : disabled
+// LiteX sha1 : 0c82be25e
+// Date       : 2026-06-01 05:29:26
 //------------------------------------------------------------------------------
 
 `timescale 1ns / 1ps
@@ -52,176 +54,179 @@ module liteeth_core (
 
 /*
 MACCore
-└─── bus (SoCBusHandler)
-│    └─── _interconnect (InterconnectShared)
-│    │    └─── arbiter (Arbiter)
-│    │    │    └─── rr (RoundRobin)
-│    │    └─── decoder (Decoder)
-│    │    └─── timeout (Timeout)
-│    │    │    └─── waittimer_0* (WaitTimer)
-└─── csr (SoCCSRHandler)
-└─── irq (SoCIRQHandler)
-└─── ctrl (SoCController)
-└─── cpu (CPUNone)
-└─── crg (CRG)
-└─── ethphy (LiteEthPHYRGMII)
-│    └─── crg (LiteEthPHYRGMIICRG)
-│    │    └─── pll (S7PLL)
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [FDCE]
-│    │    │    └─── [PLLE2_ADV]
-│    │    │    └─── [BUFG]
-│    │    │    └─── [BUFG]
-│    │    └─── [OBUF]
-│    │    └─── [ODDR]
-│    │    └─── [BUFG]
-│    │    └─── [IBUF]
-│    └─── tx (LiteEthPHYRGMIITX)
-│    │    └─── [ODDR]
-│    │    └─── [OBUF]
-│    │    └─── [ODDR]
-│    │    └─── [OBUF]
-│    │    └─── [ODDR]
-│    │    └─── [OBUF]
-│    │    └─── [ODDR]
-│    │    └─── [ODDR]
-│    │    └─── [OBUF]
-│    │    └─── [OBUF]
-│    └─── rx (LiteEthPHYRGMIIRX)
-│    │    └─── [IBUF]
-│    │    └─── [IDELAYE2]
-│    │    └─── [IBUF]
-│    │    └─── [IDELAYE2]
-│    │    └─── [IDDR]
-│    │    └─── [IBUF]
-│    │    └─── [IDELAYE2]
-│    │    └─── [IDDR]
-│    │    └─── [IBUF]
-│    │    └─── [IDELAYE2]
-│    │    └─── [IDDR]
-│    │    └─── [IDELAYE2]
-│    │    └─── [IDDR]
-│    │    └─── [IBUF]
-│    │    └─── [IDDR]
-│    └─── mdio (LiteEthPHYMDIO)
-└─── ethmac (LiteEthMAC)
-│    └─── core (LiteEthMACCore)
-│    │    └─── tx_datapath (TXDatapath)
-│    │    │    └─── clockdomaincrossing_0* (ClockDomainCrossing)
-│    │    │    │    └─── asyncfifo_0* (AsyncFIFO)
-│    │    │    │    │    └─── fifo (AsyncFIFO)
-│    │    │    │    │    │    └─── graycounter_0* (GrayCounter)
-│    │    │    │    │    │    └─── graycounter_1* (GrayCounter)
-│    │    │    └─── strideconverter_0* (StrideConverter)
-│    │    │    │    └─── converter_0* (Converter)
-│    │    │    │    │    └─── _downconverter_0* (_DownConverter)
-│    │    │    └─── liteethmactxlastbe_0* (LiteEthMACTXLastBE)
-│    │    │    │    └─── last_handler (LiteEthLastHandler)
-│    │    │    │    │    └─── fsm (FSM)
-│    │    │    └─── liteethmacpaddinginserter_0* (LiteEthMACPaddingInserter)
-│    │    │    │    └─── fsm (FSM)
-│    │    │    └─── liteethmaccrc32inserter_0* (LiteEthMACCRC32Inserter)
-│    │    │    │    └─── crc (LiteEthMACCRC32)
-│    │    │    │    │    └─── liteethmaccrcengine_0* (LiteEthMACCRCEngine)
-│    │    │    │    └─── fsm (FSM)
-│    │    │    │    └─── buffer_0* (Buffer)
-│    │    │    │    │    └─── pipe_valid (PipeValid)
-│    │    │    │    │    └─── pipeline (Pipeline)
-│    │    │    └─── liteethmacpreambleinserter_0* (LiteEthMACPreambleInserter)
-│    │    │    │    └─── fsm (FSM)
-│    │    │    └─── liteethmacgap_0* (LiteEthMACGap)
-│    │    │    │    └─── fsm (FSM)
-│    │    │    └─── pipeline_0* (Pipeline)
-│    │    └─── rx_datapath (RXDatapath)
-│    │    │    └─── liteethmacpreamblechecker_0* (LiteEthMACPreambleChecker)
-│    │    │    │    └─── fsm (FSM)
-│    │    │    └─── pulsesynchronizer_0* (PulseSynchronizer)
-│    │    │    └─── liteethmaccrc32checker_0* (LiteEthMACCRC32Checker)
-│    │    │    │    └─── crc (LiteEthMACCRC32)
-│    │    │    │    │    └─── liteethmaccrcengine_0* (LiteEthMACCRCEngine)
-│    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    │    └─── fsm (FSM)
-│    │    │    │    └─── buffer_0* (Buffer)
-│    │    │    │    │    └─── pipe_valid (PipeValid)
-│    │    │    │    │    └─── pipeline (Pipeline)
-│    │    │    └─── pulsesynchronizer_1* (PulseSynchronizer)
-│    │    │    └─── liteethmacpaddingchecker_0* (LiteEthMACPaddingChecker)
-│    │    │    └─── liteethmacrxlastbe_0* (LiteEthMACRXLastBE)
-│    │    │    └─── strideconverter_0* (StrideConverter)
-│    │    │    │    └─── converter_0* (Converter)
-│    │    │    │    │    └─── _upconverter_0* (_UpConverter)
-│    │    │    └─── clockdomaincrossing_0* (ClockDomainCrossing)
-│    │    │    │    └─── asyncfifo_0* (AsyncFIFO)
-│    │    │    │    │    └─── fifo (AsyncFIFO)
-│    │    │    │    │    │    └─── graycounter_0* (GrayCounter)
-│    │    │    │    │    │    └─── graycounter_1* (GrayCounter)
-│    │    │    └─── pipeline_0* (Pipeline)
-│    └─── interface (LiteEthMACWishboneInterface)
-│    │    └─── sram (LiteEthMACSRAM)
-│    │    │    └─── writer (LiteEthMACSRAMWriter)
-│    │    │    │    └─── ev (EventManager)
-│    │    │    │    │    └─── eventsourcelevel_0* (EventSourceLevel)
-│    │    │    │    └─── stat_fifo (SyncFIFO)
-│    │    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    │    └─── fsm (FSM)
-│    │    │    └─── reader (LiteEthMACSRAMReader)
-│    │    │    │    └─── ev (EventManager)
-│    │    │    │    │    └─── eventsourcepulse_0* (EventSourcePulse)
-│    │    │    │    └─── syncfifo_0* (SyncFIFO)
-│    │    │    │    │    └─── fifo (SyncFIFO)
-│    │    │    │    └─── fsm (FSM)
-│    │    │    └─── ev (SharedIRQ)
-│    │    └─── sram_0* (SRAM)
-│    │    └─── sram_1* (SRAM)
-│    │    └─── decoder_0* (Decoder)
-│    │    └─── sram_2* (SRAM)
-│    │    └─── sram_3* (SRAM)
-│    │    └─── decoder_1* (Decoder)
-│    └─── ev (SharedIRQ)
-└─── csr_bridge (Wishbone2CSR)
-│    └─── fsm (FSM)
-└─── csr_bankarray (CSRBankArray)
-│    └─── csrbank_0* (CSRBank)
-│    │    └─── csrstorage_0* (CSRStorage)
-│    │    └─── csrstorage_1* (CSRStorage)
-│    │    └─── csrstatus_0* (CSRStatus)
-│    └─── csrbank_1* (CSRBank)
-│    │    └─── csrstatus_0* (CSRStatus)
-│    │    └─── csrstatus_1* (CSRStatus)
-│    │    └─── csrstatus_2* (CSRStatus)
-│    │    └─── csrstatus_3* (CSRStatus)
-│    │    └─── csrstatus_4* (CSRStatus)
-│    │    └─── csrstorage_0* (CSRStorage)
-│    │    └─── csrstatus_5* (CSRStatus)
-│    │    └─── csrstatus_6* (CSRStatus)
-│    │    └─── csrstorage_1* (CSRStorage)
-│    │    └─── csrstorage_2* (CSRStorage)
-│    │    └─── csrstatus_7* (CSRStatus)
-│    │    └─── csrstatus_8* (CSRStatus)
-│    │    └─── csrstorage_3* (CSRStorage)
-│    │    └─── csrstatus_9* (CSRStatus)
-│    │    └─── csrstatus_10* (CSRStatus)
-│    │    └─── csrstatus_11* (CSRStatus)
-│    └─── csrbank_2* (CSRBank)
-│    │    └─── csrstorage_0* (CSRStorage)
-│    │    └─── csrstorage_1* (CSRStorage)
-│    │    └─── csrstatus_0* (CSRStatus)
-└─── csr_interconnect (InterconnectShared)
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-└─── [FDPE]
-* : Generated name.
-[]: BlackBox.
+├── bus (SoCBusHandler)
+│    └── _interconnect (InterconnectShared)
+│         ├── arbiter (Arbiter)
+│         │    └── rr (RoundRobin)
+│         ├── decoder (Decoder)
+│         └── timeout (Timeout)
+│              └── waittimer_0 (WaitTimer) [Gen]
+├── csr (SoCCSRHandler)
+├── irq (SoCIRQHandler)
+├── ctrl (SoCController)
+├── cpu (CPUNone)
+├── crg (CRG)
+├── ethphy (LiteEthPHYRGMII)
+│    ├── crg (LiteEthPHYRGMIICRG)
+│    │    ├── pll (S7PLL)
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:PLLE2_ADV]
+│    │    │    ├── [BB:BUFG]
+│    │    │    └── [BB:BUFG]
+│    │    ├── [BB:ODDR]
+│    │    ├── [BB:IBUF]
+│    │    ├── [BB:BUFG]
+│    │    └── [BB:OBUF]
+│    ├── tx (LiteEthPHYRGMIITX)
+│    │    ├── [BB:ODDR]
+│    │    ├── [BB:OBUF]
+│    │    ├── [BB:ODDR]
+│    │    ├── [BB:ODDR]
+│    │    ├── [BB:OBUF]
+│    │    ├── [BB:OBUF]
+│    │    ├── [BB:ODDR]
+│    │    ├── [BB:OBUF]
+│    │    ├── [BB:ODDR]
+│    │    └── [BB:OBUF]
+│    ├── rx (LiteEthPHYRGMIIRX)
+│    │    ├── [BB:IBUF]
+│    │    ├── [BB:IDELAYE2]
+│    │    ├── [BB:IBUF]
+│    │    ├── [BB:IDELAYE2]
+│    │    ├── [BB:IDDR]
+│    │    ├── [BB:IBUF]
+│    │    ├── [BB:IDELAYE2]
+│    │    ├── [BB:IDDR]
+│    │    ├── [BB:IBUF]
+│    │    ├── [BB:IDELAYE2]
+│    │    ├── [BB:IDDR]
+│    │    ├── [BB:IDELAYE2]
+│    │    ├── [BB:IDDR]
+│    │    ├── [BB:IDDR]
+│    │    └── [BB:IBUF]
+│    └── mdio (LiteEthPHYMDIO)
+├── ethmac (LiteEthMAC)
+│    ├── core (LiteEthMACCore)
+│    │    ├── tx_datapath (TXDatapath)
+│    │    │    ├── clockdomaincrossing_0 (ClockDomainCrossing) [Gen]
+│    │    │    │    └── asyncfifo_0 (AsyncFIFO) [Gen]
+│    │    │    │         └── fifo (AsyncFIFO)
+│    │    │    │              ├── graycounter_0 (GrayCounter) [Gen]
+│    │    │    │              └── graycounter_1 (GrayCounter) [Gen]
+│    │    │    ├── strideconverter_0 (StrideConverter) [Gen]
+│    │    │    │    └── converter_0 (Converter) [Gen]
+│    │    │    │         └── _downconverter_0 (_DownConverter) [Gen]
+│    │    │    ├── liteethmactxlastbe_0 (LiteEthMACTXLastBE) [Gen]
+│    │    │    │    └── last_handler (LiteEthLastHandler)
+│    │    │    │         └── fsm (FSM)
+│    │    │    ├── liteethmacpaddinginserter_0 (LiteEthMACPaddingInserter) [Gen]
+│    │    │    │    └── fsm (FSM)
+│    │    │    ├── liteethmaccrc32inserter_0 (LiteEthMACCRC32Inserter) [Gen]
+│    │    │    │    ├── crc (LiteEthMACCRC32)
+│    │    │    │    │    └── liteethmaccrcengine_0 (LiteEthMACCRCEngine) [Gen]
+│    │    │    │    ├── fsm (FSM)
+│    │    │    │    └── buffer_0 (Buffer) [Gen]
+│    │    │    │         ├── pipe_valid (PipeValid)
+│    │    │    │         └── pipeline (Pipeline)
+│    │    │    ├── liteethmacpreambleinserter_0 (LiteEthMACPreambleInserter) [Gen]
+│    │    │    │    └── fsm (FSM)
+│    │    │    ├── liteethmacgap_0 (LiteEthMACGap) [Gen]
+│    │    │    │    └── fsm (FSM)
+│    │    │    └── pipeline_0 (Pipeline) [Gen]
+│    │    └── rx_datapath (RXDatapath)
+│    │         ├── liteethmacpreamblechecker_0 (LiteEthMACPreambleChecker) [Gen]
+│    │         │    └── fsm (FSM)
+│    │         ├── pulsesynchronizer_0 (PulseSynchronizer) [Gen]
+│    │         ├── liteethmaccrc32checker_0 (LiteEthMACCRC32Checker) [Gen]
+│    │         │    ├── crc (LiteEthMACCRC32Check)
+│    │         │    │    └── engine (LiteEthMACCRCEngine)
+│    │         │    ├── fifo (SyncFIFO)
+│    │         │    │    └── fifo (SyncFIFO)
+│    │         │    ├── fsm (FSM)
+│    │         │    └── buffer_0 (Buffer) [Gen]
+│    │         │         ├── pipe_valid (PipeValid)
+│    │         │         └── pipeline (Pipeline)
+│    │         ├── pulsesynchronizer_1 (PulseSynchronizer) [Gen]
+│    │         ├── liteethmacpaddingchecker_0 (LiteEthMACPaddingChecker) [Gen]
+│    │         ├── liteethmacrxlastbe_0 (LiteEthMACRXLastBE) [Gen]
+│    │         ├── strideconverter_0 (StrideConverter) [Gen]
+│    │         │    └── converter_0 (Converter) [Gen]
+│    │         │         └── _upconverter_0 (_UpConverter) [Gen]
+│    │         ├── clockdomaincrossing_0 (ClockDomainCrossing) [Gen]
+│    │         │    └── asyncfifo_0 (AsyncFIFO) [Gen]
+│    │         │         └── fifo (AsyncFIFO)
+│    │         │              ├── graycounter_0 (GrayCounter) [Gen]
+│    │         │              └── graycounter_1 (GrayCounter) [Gen]
+│    │         └── pipeline_0 (Pipeline) [Gen]
+│    ├── interface (LiteEthMACWishboneInterface)
+│    │    ├── sram (LiteEthMACSRAM)
+│    │    │    ├── writer (LiteEthMACSRAMWriter)
+│    │    │    │    ├── ev (EventManager)
+│    │    │    │    │    └── eventsourcelevel_0 (EventSourceLevel) [Gen]
+│    │    │    │    ├── stat_fifo (SyncFIFO)
+│    │    │    │    │    └── fifo (SyncFIFO)
+│    │    │    │    └── fsm (FSM)
+│    │    │    ├── reader (LiteEthMACSRAMReader)
+│    │    │    │    ├── ev (EventManager)
+│    │    │    │    │    └── eventsourcepulse_0 (EventSourcePulse) [Gen]
+│    │    │    │    ├── syncfifo_0 (SyncFIFO) [Gen]
+│    │    │    │    │    └── fifo (SyncFIFO)
+│    │    │    │    └── fsm (FSM)
+│    │    │    └── ev (SharedIRQ)
+│    │    ├── sram_0 (SRAM) [Gen]
+│    │    ├── sram_1 (SRAM) [Gen]
+│    │    ├── decoder_0 (Decoder) [Gen]
+│    │    ├── sram_2 (SRAM) [Gen]
+│    │    ├── sram_3 (SRAM) [Gen]
+│    │    └── decoder_1 (Decoder) [Gen]
+│    └── ev (SharedIRQ)
+├── csr_bridge (Wishbone2CSR)
+│    └── fsm (FSM)
+├── csr_bankarray (CSRBankArray)
+│    ├── csrbank_0 (CSRBank) [Gen]
+│    │    ├── csrstorage_0 (CSRStorage) [Gen]
+│    │    ├── csrstorage_1 (CSRStorage) [Gen]
+│    │    └── csrstatus_0 (CSRStatus) [Gen]
+│    ├── csrbank_1 (CSRBank) [Gen]
+│    │    ├── csrstatus_0 (CSRStatus) [Gen]
+│    │    ├── csrstatus_1 (CSRStatus) [Gen]
+│    │    ├── csrstatus_2 (CSRStatus) [Gen]
+│    │    ├── csrstatus_3 (CSRStatus) [Gen]
+│    │    ├── csrstatus_4 (CSRStatus) [Gen]
+│    │    ├── csrstorage_0 (CSRStorage) [Gen]
+│    │    ├── csrstatus_5 (CSRStatus) [Gen]
+│    │    ├── csrstatus_6 (CSRStatus) [Gen]
+│    │    ├── csrstorage_1 (CSRStorage) [Gen]
+│    │    ├── csrstorage_2 (CSRStorage) [Gen]
+│    │    ├── csrstatus_7 (CSRStatus) [Gen]
+│    │    ├── csrstatus_8 (CSRStatus) [Gen]
+│    │    ├── csrstorage_3 (CSRStorage) [Gen]
+│    │    ├── csrstatus_9 (CSRStatus) [Gen]
+│    │    ├── csrstatus_10 (CSRStatus) [Gen]
+│    │    └── csrstatus_11 (CSRStatus) [Gen]
+│    └── csrbank_2 (CSRBank) [Gen]
+│         ├── csrstorage_0 (CSRStorage) [Gen]
+│         ├── csrstorage_1 (CSRStorage) [Gen]
+│         └── csrstatus_0 (CSRStatus) [Gen]
+├── csr_interconnect (InterconnectShared)
+├── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+└── [BB:IOBUF]
+Legend:
+  [Gen]: Auto-generated instance name.
+  [BB:NAME]: Blackbox instance (verilog Instance).
+
 */
 
 //------------------------------------------------------------------------------
@@ -265,14 +270,13 @@ reg           core_liteethmaccrc32checker_crc_ce = 1'd0;
 reg    [31:0] core_liteethmaccrc32checker_crc_crc_next = 32'd0;
 wire   [31:0] core_liteethmaccrc32checker_crc_crc_prev;
 wire    [7:0] core_liteethmaccrc32checker_crc_data0;
-wire    [7:0] core_liteethmaccrc32checker_crc_data1;
+reg     [7:0] core_liteethmaccrc32checker_crc_data1 = 8'd0;
 reg           core_liteethmaccrc32checker_crc_error0 = 1'd0;
 reg           core_liteethmaccrc32checker_crc_error1 = 1'd0;
 reg           core_liteethmaccrc32checker_crc_error1_next_value1 = 1'd0;
 reg           core_liteethmaccrc32checker_crc_error1_next_value_ce1 = 1'd0;
 reg    [31:0] core_liteethmaccrc32checker_crc_reg = 32'd4294967295;
 reg           core_liteethmaccrc32checker_crc_reset = 1'd0;
-reg    [31:0] core_liteethmaccrc32checker_crc_value = 32'd0;
 reg           core_liteethmaccrc32checker_error = 1'd0;
 wire          core_liteethmaccrc32checker_fifo_full;
 wire          core_liteethmaccrc32checker_fifo_in;
@@ -461,6 +465,8 @@ wire          core_rx_last_be_source_payload_error;
 reg           core_rx_last_be_source_payload_last_be = 1'd0;
 wire          core_rx_last_be_source_ready;
 wire          core_rx_last_be_source_valid;
+reg    [10:0] core_rx_padding_length = 11'd0;
+reg     [3:0] core_rx_padding_length_inc = 4'd0;
 wire          core_rx_padding_sink_first;
 wire          core_rx_padding_sink_last;
 wire    [7:0] core_rx_padding_sink_payload_data;
@@ -471,7 +477,7 @@ wire          core_rx_padding_sink_valid;
 wire          core_rx_padding_source_first;
 wire          core_rx_padding_source_last;
 wire    [7:0] core_rx_padding_source_payload_data;
-wire          core_rx_padding_source_payload_error;
+reg           core_rx_padding_source_payload_error = 1'd0;
 wire          core_rx_padding_source_payload_last_be;
 wire          core_rx_padding_source_ready;
 wire          core_rx_padding_source_valid;
@@ -1222,13 +1228,13 @@ reg           wishbone_interface_writer_length_liteethmacsramwriter_t_next_value
 reg           wishbone_interface_writer_length_re = 1'd0;
 wire   [10:0] wishbone_interface_writer_length_status;
 wire          wishbone_interface_writer_length_we;
-reg     [8:0] wishbone_interface_writer_memory0_adr = 9'd0;
+wire    [8:0] wishbone_interface_writer_memory0_adr;
 wire   [31:0] wishbone_interface_writer_memory0_dat_r;
-reg    [31:0] wishbone_interface_writer_memory0_dat_w = 32'd0;
+wire   [31:0] wishbone_interface_writer_memory0_dat_w;
 reg           wishbone_interface_writer_memory0_we = 1'd0;
-reg     [8:0] wishbone_interface_writer_memory1_adr = 9'd0;
+wire    [8:0] wishbone_interface_writer_memory1_adr;
 wire   [31:0] wishbone_interface_writer_memory1_dat_r;
-reg    [31:0] wishbone_interface_writer_memory1_dat_w = 32'd0;
+wire   [31:0] wishbone_interface_writer_memory1_dat_w;
 reg           wishbone_interface_writer_memory1_we = 1'd0;
 reg           wishbone_interface_writer_pending_r = 1'd0;
 reg           wishbone_interface_writer_pending_re = 1'd0;
@@ -2035,13 +2041,13 @@ assign core_liteethmaccrc32checker_sink_sink_last = core_bufferizeendpoints_sour
 assign core_liteethmaccrc32checker_sink_sink_payload_data = core_bufferizeendpoints_source_source_payload_data;
 assign core_liteethmaccrc32checker_sink_sink_payload_last_be = core_bufferizeendpoints_source_source_payload_last_be;
 assign core_liteethmaccrc32checker_sink_sink_payload_error = core_bufferizeendpoints_source_source_payload_error;
-assign core_liteethmaccrc32checker_crc_data1 = core_liteethmaccrc32checker_crc_data0;
 assign core_liteethmaccrc32checker_crc_crc_prev = core_liteethmaccrc32checker_crc_reg;
 always @(*) begin
+    core_liteethmaccrc32checker_crc_data1 <= 8'd0;
     core_liteethmaccrc32checker_crc_error0 <= 1'd0;
-    core_liteethmaccrc32checker_crc_value <= 32'd0;
+    core_liteethmaccrc32checker_crc_data1 <= core_liteethmaccrc32checker_crc_data0;
     if (core_liteethmaccrc32checker_crc_be) begin
-        core_liteethmaccrc32checker_crc_value <= ({core_liteethmaccrc32checker_crc_crc_next[0], core_liteethmaccrc32checker_crc_crc_next[1], core_liteethmaccrc32checker_crc_crc_next[2], core_liteethmaccrc32checker_crc_crc_next[3], core_liteethmaccrc32checker_crc_crc_next[4], core_liteethmaccrc32checker_crc_crc_next[5], core_liteethmaccrc32checker_crc_crc_next[6], core_liteethmaccrc32checker_crc_crc_next[7], core_liteethmaccrc32checker_crc_crc_next[8], core_liteethmaccrc32checker_crc_crc_next[9], core_liteethmaccrc32checker_crc_crc_next[10], core_liteethmaccrc32checker_crc_crc_next[11], core_liteethmaccrc32checker_crc_crc_next[12], core_liteethmaccrc32checker_crc_crc_next[13], core_liteethmaccrc32checker_crc_crc_next[14], core_liteethmaccrc32checker_crc_crc_next[15], core_liteethmaccrc32checker_crc_crc_next[16], core_liteethmaccrc32checker_crc_crc_next[17], core_liteethmaccrc32checker_crc_crc_next[18], core_liteethmaccrc32checker_crc_crc_next[19], core_liteethmaccrc32checker_crc_crc_next[20], core_liteethmaccrc32checker_crc_crc_next[21], core_liteethmaccrc32checker_crc_crc_next[22], core_liteethmaccrc32checker_crc_crc_next[23], core_liteethmaccrc32checker_crc_crc_next[24], core_liteethmaccrc32checker_crc_crc_next[25], core_liteethmaccrc32checker_crc_crc_next[26], core_liteethmaccrc32checker_crc_crc_next[27], core_liteethmaccrc32checker_crc_crc_next[28], core_liteethmaccrc32checker_crc_crc_next[29], core_liteethmaccrc32checker_crc_crc_next[30], core_liteethmaccrc32checker_crc_crc_next[31]} ^ 32'd4294967295);
+        core_liteethmaccrc32checker_crc_data1 <= (core_liteethmaccrc32checker_crc_data0 & 8'd255);
         core_liteethmaccrc32checker_crc_error0 <= (core_liteethmaccrc32checker_crc_crc_next != 32'd3338984827);
     end
 end
@@ -2198,13 +2204,49 @@ assign core_bufferizeendpoints_source_source_payload_data = core_bufferizeendpoi
 assign core_bufferizeendpoints_source_source_payload_last_be = core_bufferizeendpoints_pipe_valid_source_payload_last_be;
 assign core_bufferizeendpoints_source_source_payload_error = core_bufferizeendpoints_pipe_valid_source_payload_error;
 assign core_pulsesynchronizer1_o = (core_pulsesynchronizer1_toggle_o ^ core_pulsesynchronizer1_toggle_o_r);
+always @(*) begin
+    core_rx_padding_length_inc <= 4'd0;
+    case (core_rx_padding_sink_payload_last_be)
+        1'd1: begin
+            core_rx_padding_length_inc <= 1'd1;
+        end
+        2'd2: begin
+            core_rx_padding_length_inc <= 2'd2;
+        end
+        3'd4: begin
+            core_rx_padding_length_inc <= 2'd3;
+        end
+        4'd8: begin
+            core_rx_padding_length_inc <= 3'd4;
+        end
+        5'd16: begin
+            core_rx_padding_length_inc <= 3'd5;
+        end
+        6'd32: begin
+            core_rx_padding_length_inc <= 3'd6;
+        end
+        7'd64: begin
+            core_rx_padding_length_inc <= 3'd7;
+        end
+        default: begin
+            core_rx_padding_length_inc <= 1'd1;
+        end
+    endcase
+end
 assign core_rx_padding_source_valid = core_rx_padding_sink_valid;
 assign core_rx_padding_sink_ready = core_rx_padding_source_ready;
 assign core_rx_padding_source_first = core_rx_padding_sink_first;
 assign core_rx_padding_source_last = core_rx_padding_sink_last;
 assign core_rx_padding_source_payload_data = core_rx_padding_sink_payload_data;
 assign core_rx_padding_source_payload_last_be = core_rx_padding_sink_payload_last_be;
-assign core_rx_padding_source_payload_error = core_rx_padding_sink_payload_error;
+always @(*) begin
+    core_rx_padding_source_payload_error <= 1'd0;
+    if (((core_rx_padding_sink_valid & core_rx_padding_sink_last) & ((core_rx_padding_length + core_rx_padding_length_inc) < 6'd60))) begin
+        core_rx_padding_source_payload_error <= {1{1'd1}};
+    end else begin
+        core_rx_padding_source_payload_error <= core_rx_padding_sink_payload_error;
+    end
+end
 assign core_rx_last_be_source_valid = core_rx_last_be_sink_valid;
 assign core_rx_last_be_sink_ready = core_rx_last_be_source_ready;
 assign core_rx_last_be_source_first = core_rx_last_be_sink_first;
@@ -2410,29 +2452,23 @@ assign wishbone_interface_writer_available_trigger = wishbone_interface_writer_s
 assign wishbone_interface_writer_slot_status = wishbone_interface_writer_stat_fifo_source_payload_slot;
 assign wishbone_interface_writer_length_status = wishbone_interface_writer_stat_fifo_source_payload_length;
 assign wishbone_interface_writer_wr_data = wishbone_interface_writer_sink_sink_payload_data;
+assign wishbone_interface_writer_memory0_adr = wishbone_interface_writer_length[10:2];
+assign wishbone_interface_writer_memory0_dat_w = wishbone_interface_writer_wr_data;
+assign wishbone_interface_writer_memory1_adr = wishbone_interface_writer_length[10:2];
+assign wishbone_interface_writer_memory1_dat_w = wishbone_interface_writer_wr_data;
 always @(*) begin
-    wishbone_interface_writer_memory0_adr <= 9'd0;
-    wishbone_interface_writer_memory0_dat_w <= 32'd0;
     wishbone_interface_writer_memory0_we <= 1'd0;
-    wishbone_interface_writer_memory1_adr <= 9'd0;
-    wishbone_interface_writer_memory1_dat_w <= 32'd0;
     wishbone_interface_writer_memory1_we <= 1'd0;
-    case (wishbone_interface_writer_slot)
-        1'd0: begin
-            wishbone_interface_writer_memory0_adr <= wishbone_interface_writer_length[10:2];
-            wishbone_interface_writer_memory0_dat_w <= wishbone_interface_writer_wr_data;
-            if ((wishbone_interface_writer_sink_sink_valid & wishbone_interface_writer_write)) begin
+    if ((wishbone_interface_writer_sink_sink_valid & wishbone_interface_writer_write)) begin
+        case (wishbone_interface_writer_slot)
+            1'd0: begin
                 wishbone_interface_writer_memory0_we <= 1'd1;
             end
-        end
-        1'd1: begin
-            wishbone_interface_writer_memory1_adr <= wishbone_interface_writer_length[10:2];
-            wishbone_interface_writer_memory1_dat_w <= wishbone_interface_writer_wr_data;
-            if ((wishbone_interface_writer_sink_sink_valid & wishbone_interface_writer_write)) begin
+            1'd1: begin
                 wishbone_interface_writer_memory1_we <= 1'd1;
             end
-        end
-    endcase
+        endcase
+    end
 end
 assign wishbone_interface_writer_available0 = wishbone_interface_writer_available_status;
 assign wishbone_interface_writer_available1 = wishbone_interface_writer_available_pending;
@@ -3200,6 +3236,15 @@ always @(posedge eth_rx_clk) begin
     if (core_pulsesynchronizer1_i) begin
         core_pulsesynchronizer1_toggle_i <= (~core_pulsesynchronizer1_toggle_i);
     end
+    if ((core_rx_padding_sink_valid & core_rx_padding_sink_ready)) begin
+        if (core_rx_padding_sink_last) begin
+            core_rx_padding_length <= 1'd0;
+        end else begin
+            core_rx_padding_length <= (core_rx_padding_length + core_rx_padding_length_inc);
+        end
+    end
+    if ((core_rx_converter_converter_sink_valid & core_rx_converter_converter_sink_ready)) begin
+    end
     if (core_rx_converter_converter_source_ready) begin
         core_rx_converter_converter_strobe_all <= 1'd0;
     end
@@ -3260,6 +3305,7 @@ always @(posedge eth_rx_clk) begin
         core_bufferizeendpoints_pipe_valid_source_payload_data <= 8'd0;
         core_bufferizeendpoints_pipe_valid_source_payload_last_be <= 1'd0;
         core_bufferizeendpoints_pipe_valid_source_payload_error <= 1'd0;
+        core_rx_padding_length <= 11'd0;
         core_rx_converter_converter_source_payload_data <= 40'd0;
         core_rx_converter_converter_source_payload_valid_token_count <= 3'd0;
         core_rx_converter_converter_demux <= 2'd0;
@@ -4137,13 +4183,10 @@ IDDR #(
 	.Q2 (maccore_ethphy_liteethphyrgmiirx_rx_data[7])
 );
 
-assign rgmii_mdio = maccore_ethphy_data_oe ? maccore_ethphy_data_w : 1'bz;
-assign maccore_ethphy_data_r = rgmii_mdio;
-
 //------------------------------------------------------------------------------
 // Memory storage: 32-words x 42-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 42 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Sync  | Write: ---- | 
 reg [41:0] storage[0:31];
 reg [41:0] storage_dat0;
@@ -4163,7 +4206,7 @@ assign core_tx_cdc_cdc_rdport_dat_r = storage_dat1;
 //------------------------------------------------------------------------------
 // Memory storage_1: 5-words x 12-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 12 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [11:0] storage_1[0:4];
 reg [11:0] storage_1_dat0;
@@ -4181,7 +4224,7 @@ assign core_liteethmaccrc32checker_syncfifo_rdport_dat_r = storage_1[core_liteet
 //------------------------------------------------------------------------------
 // Memory storage_2: 32-words x 42-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 42 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Sync  | Write: ---- | 
 reg [41:0] storage_2[0:31];
 reg [41:0] storage_2_dat0;
@@ -4201,7 +4244,7 @@ assign core_rx_cdc_cdc_rdport_dat_r = storage_2_dat1;
 //------------------------------------------------------------------------------
 // Memory storage_3: 2-words x 14-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 14 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [13:0] storage_3[0:1];
 reg [13:0] storage_3_dat0;
@@ -4217,49 +4260,49 @@ assign wishbone_interface_writer_stat_fifo_rdport_dat_r = storage_3[wishbone_int
 
 
 //------------------------------------------------------------------------------
-// Memory mem: 383-words x 32-bit
+// Memory mac_sram_writer_slot0: 383-words x 32-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Write-First | Write-Granularity: 32 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Write-First
 // Port 1 | Read: Sync  | Write: ---- | 
-reg [31:0] mem[0:382];
-reg [8:0] mem_adr0;
-reg [31:0] mem_dat1;
+reg [31:0] mac_sram_writer_slot0[0:382];
+reg [8:0] mac_sram_writer_slot0_adr0;
+reg [31:0] mac_sram_writer_slot0_dat1;
 always @(posedge sys_clk) begin
 	if (wishbone_interface_writer_memory0_we)
-		mem[wishbone_interface_writer_memory0_adr] <= wishbone_interface_writer_memory0_dat_w;
-	mem_adr0 <= wishbone_interface_writer_memory0_adr;
+		mac_sram_writer_slot0[wishbone_interface_writer_memory0_adr] <= wishbone_interface_writer_memory0_dat_w;
+	mac_sram_writer_slot0_adr0 <= wishbone_interface_writer_memory0_adr;
 end
 always @(posedge sys_clk) begin
-	mem_dat1 <= mem[wishbone_interface_sram0_adr];
+	mac_sram_writer_slot0_dat1 <= mac_sram_writer_slot0[wishbone_interface_sram0_adr];
 end
-assign wishbone_interface_writer_memory0_dat_r = mem[mem_adr0];
-assign wishbone_interface_sram0_dat_r = mem_dat1;
+assign wishbone_interface_writer_memory0_dat_r = mac_sram_writer_slot0[mac_sram_writer_slot0_adr0];
+assign wishbone_interface_sram0_dat_r = mac_sram_writer_slot0_dat1;
 
 
 //------------------------------------------------------------------------------
-// Memory mem_1: 383-words x 32-bit
+// Memory mac_sram_writer_slot1: 383-words x 32-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Write-First | Write-Granularity: 32 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Write-First
 // Port 1 | Read: Sync  | Write: ---- | 
-reg [31:0] mem_1[0:382];
-reg [8:0] mem_1_adr0;
-reg [31:0] mem_1_dat1;
+reg [31:0] mac_sram_writer_slot1[0:382];
+reg [8:0] mac_sram_writer_slot1_adr0;
+reg [31:0] mac_sram_writer_slot1_dat1;
 always @(posedge sys_clk) begin
 	if (wishbone_interface_writer_memory1_we)
-		mem_1[wishbone_interface_writer_memory1_adr] <= wishbone_interface_writer_memory1_dat_w;
-	mem_1_adr0 <= wishbone_interface_writer_memory1_adr;
+		mac_sram_writer_slot1[wishbone_interface_writer_memory1_adr] <= wishbone_interface_writer_memory1_dat_w;
+	mac_sram_writer_slot1_adr0 <= wishbone_interface_writer_memory1_adr;
 end
 always @(posedge sys_clk) begin
-	mem_1_dat1 <= mem_1[wishbone_interface_sram1_adr];
+	mac_sram_writer_slot1_dat1 <= mac_sram_writer_slot1[wishbone_interface_sram1_adr];
 end
-assign wishbone_interface_writer_memory1_dat_r = mem_1[mem_1_adr0];
-assign wishbone_interface_sram1_dat_r = mem_1_dat1;
+assign wishbone_interface_writer_memory1_dat_r = mac_sram_writer_slot1[mac_sram_writer_slot1_adr0];
+assign wishbone_interface_sram1_dat_r = mac_sram_writer_slot1_dat1;
 
 
 //------------------------------------------------------------------------------
 // Memory storage_4: 2-words x 14-bit
 //------------------------------------------------------------------------------
-// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First  | Write-Granularity: 14 
+// Port 0 | Read: Sync  | Write: Sync | Mode: Read-First 
 // Port 1 | Read: Async | Write: ---- | 
 reg [13:0] storage_4[0:1];
 reg [13:0] storage_4_dat0;
@@ -4275,57 +4318,49 @@ assign wishbone_interface_reader_cmd_fifo_rdport_dat_r = storage_4[wishbone_inte
 
 
 //------------------------------------------------------------------------------
-// Memory mem_2: 383-words x 32-bit
+// Memory mac_sram_reader_slot0: 383-words x 32-bit
 //------------------------------------------------------------------------------
 // Port 0 | Read: Sync  | Write: ---- | 
-// Port 1 | Read: Sync  | Write: Sync | Mode: Write-First | Write-Granularity: 8 
-reg [31:0] mem_2[0:382];
-reg [31:0] mem_2_dat0;
-reg [8:0] mem_2_adr1;
+// Port 1 | Read: Sync  | Write: Sync | Mode: Write-First | Write-Granularity: 8
+reg [31:0] mac_sram_reader_slot0[0:382];
+reg [31:0] mac_sram_reader_slot0_dat0;
+reg [8:0] mac_sram_reader_slot0_adr1;
 always @(posedge sys_clk) begin
 	if (wishbone_interface_reader_memory0_re)
-		mem_2_dat0 <= mem_2[wishbone_interface_reader_memory0_adr];
+		mac_sram_reader_slot0_dat0 <= mac_sram_reader_slot0[wishbone_interface_reader_memory0_adr];
 end
-always @(posedge sys_clk) begin
-	if (wishbone_interface_sram2_we[0])
-		mem_2[wishbone_interface_sram2_adr][7:0] <= wishbone_interface_sram2_dat_w[7:0];
-	if (wishbone_interface_sram2_we[1])
-		mem_2[wishbone_interface_sram2_adr][15:8] <= wishbone_interface_sram2_dat_w[15:8];
-	if (wishbone_interface_sram2_we[2])
-		mem_2[wishbone_interface_sram2_adr][23:16] <= wishbone_interface_sram2_dat_w[23:16];
-	if (wishbone_interface_sram2_we[3])
-		mem_2[wishbone_interface_sram2_adr][31:24] <= wishbone_interface_sram2_dat_w[31:24];
-	mem_2_adr1 <= wishbone_interface_sram2_adr;
+always @(posedge sys_clk) begin : mem_write_block
+	integer we_index;
+	for(we_index = 0; we_index < 4; we_index=we_index+1)
+		if (wishbone_interface_sram2_we[we_index])
+			mac_sram_reader_slot0[wishbone_interface_sram2_adr][we_index*8 +: 8] <= wishbone_interface_sram2_dat_w[we_index*8 +: 8];
+	mac_sram_reader_slot0_adr1 <= wishbone_interface_sram2_adr;
 end
-assign wishbone_interface_reader_memory0_dat_r = mem_2_dat0;
-assign wishbone_interface_sram2_dat_r = mem_2[mem_2_adr1];
+assign wishbone_interface_reader_memory0_dat_r = mac_sram_reader_slot0_dat0;
+assign wishbone_interface_sram2_dat_r = mac_sram_reader_slot0[mac_sram_reader_slot0_adr1];
 
 
 //------------------------------------------------------------------------------
-// Memory mem_3: 383-words x 32-bit
+// Memory mac_sram_reader_slot1: 383-words x 32-bit
 //------------------------------------------------------------------------------
 // Port 0 | Read: Sync  | Write: ---- | 
-// Port 1 | Read: Sync  | Write: Sync | Mode: Write-First | Write-Granularity: 8 
-reg [31:0] mem_3[0:382];
-reg [31:0] mem_3_dat0;
-reg [8:0] mem_3_adr1;
+// Port 1 | Read: Sync  | Write: Sync | Mode: Write-First | Write-Granularity: 8
+reg [31:0] mac_sram_reader_slot1[0:382];
+reg [31:0] mac_sram_reader_slot1_dat0;
+reg [8:0] mac_sram_reader_slot1_adr1;
 always @(posedge sys_clk) begin
 	if (wishbone_interface_reader_memory1_re)
-		mem_3_dat0 <= mem_3[wishbone_interface_reader_memory1_adr];
+		mac_sram_reader_slot1_dat0 <= mac_sram_reader_slot1[wishbone_interface_reader_memory1_adr];
 end
-always @(posedge sys_clk) begin
-	if (wishbone_interface_sram3_we[0])
-		mem_3[wishbone_interface_sram3_adr][7:0] <= wishbone_interface_sram3_dat_w[7:0];
-	if (wishbone_interface_sram3_we[1])
-		mem_3[wishbone_interface_sram3_adr][15:8] <= wishbone_interface_sram3_dat_w[15:8];
-	if (wishbone_interface_sram3_we[2])
-		mem_3[wishbone_interface_sram3_adr][23:16] <= wishbone_interface_sram3_dat_w[23:16];
-	if (wishbone_interface_sram3_we[3])
-		mem_3[wishbone_interface_sram3_adr][31:24] <= wishbone_interface_sram3_dat_w[31:24];
-	mem_3_adr1 <= wishbone_interface_sram3_adr;
+always @(posedge sys_clk) begin : mem_write_block_1
+	integer we_index_1;
+	for(we_index_1 = 0; we_index_1 < 4; we_index_1=we_index_1+1)
+		if (wishbone_interface_sram3_we[we_index_1])
+			mac_sram_reader_slot1[wishbone_interface_sram3_adr][we_index_1*8 +: 8] <= wishbone_interface_sram3_dat_w[we_index_1*8 +: 8];
+	mac_sram_reader_slot1_adr1 <= wishbone_interface_sram3_adr;
 end
-assign wishbone_interface_reader_memory1_dat_r = mem_3_dat0;
-assign wishbone_interface_sram3_dat_r = mem_3[mem_3_adr1];
+assign wishbone_interface_reader_memory1_dat_r = mac_sram_reader_slot1_dat0;
+assign wishbone_interface_sram3_dat_r = mac_sram_reader_slot1[mac_sram_reader_slot1_adr1];
 
 
 //------------------------------------------------------------------------------
@@ -4576,8 +4611,23 @@ FDPE #(
 	.Q   (eth_rx_rst)
 );
 
+//------------------------------------------------------------------------------
+// Instance IOBUF of IOBUF Module.
+//------------------------------------------------------------------------------
+IOBUF IOBUF(
+	// Inputs.
+	.I  (maccore_ethphy_data_w),
+	.T  ((~maccore_ethphy_data_oe)),
+
+	// Outputs.
+	.O  (maccore_ethphy_data_r),
+
+	// InOuts.
+	.IO (rgmii_mdio)
+);
+
 endmodule
 
 // -----------------------------------------------------------------------------
-//  Auto-Generated by LiteX on 2025-02-15 16:17:45.
+//  Auto-Generated by LiteX on 2026-06-01 05:29:26.
 //------------------------------------------------------------------------------
