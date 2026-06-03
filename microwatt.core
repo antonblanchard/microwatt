@@ -191,7 +191,7 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=12582912
       - log_length=2048
-      - uart_is_16550=false
+      - uart_is_16550
     generate: [git_hash]
     tools:
       vivado: {part : xc7k325tffg900-2}
@@ -219,17 +219,18 @@ targets:
 
   genesys2:
     default_tool: vivado
-    filesets: [core, genesys2, soc, fpga, debug_xilinx, litedram, uart16550, xilinx_specific]
+    filesets: [core, genesys2, soc, fpga, debug_xilinx, litedram, liteeth, uart16550, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
       - use_litedram=true
+      - use_liteeth=true
       - disable_flatten_core
       - no_bram
       - spi_flash_offset=12582912
       - log_length=2048
-      - uart_is_16550=false
-    generate: [litedram_genesys2, git_hash]
+      - uart_is_16550
+    generate: [litedram_genesys2, liteeth_genesys2, git_hash]
     tools:
       vivado: {part : xc7k325tffg900-2}
     toplevel : toplevel
@@ -490,6 +491,10 @@ generate:
 
   litedram_genesys2:
     generator: litedram_gen
+    parameters: {board : genesys2}
+
+  liteeth_genesys2:
+    generator: liteeth_gen
     parameters: {board : genesys2}
 
   litedram_wukong-v2:

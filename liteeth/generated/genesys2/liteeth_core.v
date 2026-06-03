@@ -8,10 +8,10 @@
 //
 // Filename   : liteeth_core.v
 // Top        : MACCore
-// Device     : xc7
+// Device     : 
 // Hierarchy  : disabled
 // LiteX sha1 : 0c82be25e
-// Date       : 2026-06-01 05:29:26
+// Date       : 2026-06-01 05:29:27
 //------------------------------------------------------------------------------
 
 `timescale 1ns / 1ps
@@ -21,22 +21,17 @@
 //------------------------------------------------------------------------------
 
 module liteeth_core (
-    output wire          gmii_clocks_gtx,
-    input  wire          gmii_clocks_rx,
-    input  wire          gmii_clocks_tx,
-    input  wire          gmii_col,
-    input  wire          gmii_crs,
-    input  wire          gmii_int_n,
-    output wire          gmii_mdc,
-    inout  wire          gmii_mdio,
-    output wire          gmii_rst_n,
-    input  wire    [7:0] gmii_rx_data,
-    input  wire          gmii_rx_dv,
-    input  wire          gmii_rx_er,
-    output reg     [7:0] gmii_tx_data,
-    output reg           gmii_tx_en,
-    output wire          gmii_tx_er,
     output wire          interrupt,
+    input  wire          rgmii_clocks_rx,
+    output wire          rgmii_clocks_tx,
+    input  wire          rgmii_int_n,
+    output wire          rgmii_mdc,
+    inout  wire          rgmii_mdio,
+    output wire          rgmii_rst_n,
+    input  wire          rgmii_rx_ctl,
+    input  wire    [3:0] rgmii_rx_data,
+    output wire          rgmii_tx_ctl,
+    output wire    [3:0] rgmii_tx_data,
     input  wire          sys_clock,
     input  wire          sys_reset,
     output wire          wishbone_ack,
@@ -71,26 +66,51 @@ MACCore
 ├── ctrl (SoCController)
 ├── cpu (CPUNone)
 ├── crg (CRG)
-├── ethphy (LiteEthPHYGMIIMII)
-│    ├── mode_detection (LiteEthGMIIMIIModeDetection)
-│    │    ├── eth_ps (PulseSynchronizer)
-│    │    └── fsm (FSM)
-│    ├── crg (LiteEthPHYGMIICRG)
-│    │    ├── hw_reset (LiteEthPHYHWReset)
+├── ethphy (LiteEthPHYRGMII)
+│    ├── crg (LiteEthPHYRGMIICRG)
+│    │    ├── pll (S7PLL)
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:FDCE]
+│    │    │    ├── [BB:PLLE2_ADV]
+│    │    │    ├── [BB:BUFG]
+│    │    │    └── [BB:BUFG]
+│    │    ├── [BB:ODDR]
+│    │    ├── [BB:IBUF]
 │    │    ├── [BB:BUFG]
-│    │    └── [BB:BUFG]
-│    ├── tx (LiteEthPHYGMIIMIITX)
-│    │    ├── liteethphygmiitx_0 (LiteEthPHYGMIITX) [Gen]
-│    │    ├── liteethphymiitx_0 (LiteEthPHYMIITX) [Gen]
-│    │    │    └── converter (Converter)
-│    │    │         └── _downconverter_0 (_DownConverter) [Gen]
-│    │    └── demultiplexer_0 (Demultiplexer) [Gen]
-│    ├── rx (LiteEthPHYGMIIMIIRX)
-│    │    ├── gmii_rx (LiteEthPHYGMIIRX)
-│    │    ├── mii_rx (LiteEthPHYMIIRX)
-│    │    │    └── converter_0 (Converter) [Gen]
-│    │    │         └── _upconverter_0 (_UpConverter) [Gen]
-│    │    └── mux (Multiplexer)
+│    │    └── [BB:OBUF]
+│    ├── tx (LiteEthPHYRGMIITX)
+│    │    ├── [BB:ODDR]
+│    │    ├── [BB:OBUF]
+│    │    ├── [BB:ODDR]
+│    │    ├── [BB:ODDR]
+│    │    ├── [BB:OBUF]
+│    │    ├── [BB:OBUF]
+│    │    ├── [BB:OBUF]
+│    │    ├── [BB:ODDR]
+│    │    ├── [BB:OBUF]
+│    │    └── [BB:ODDR]
+│    ├── rx (LiteEthPHYRGMIIRX)
+│    │    ├── [BB:IBUF]
+│    │    ├── [BB:IDELAYE2]
+│    │    ├── [BB:IBUF]
+│    │    ├── [BB:IDELAYE2]
+│    │    ├── [BB:IDDR]
+│    │    ├── [BB:IBUF]
+│    │    ├── [BB:IDELAYE2]
+│    │    ├── [BB:IDDR]
+│    │    ├── [BB:IBUF]
+│    │    ├── [BB:IDELAYE2]
+│    │    ├── [BB:IDDR]
+│    │    ├── [BB:IBUF]
+│    │    ├── [BB:IDELAYE2]
+│    │    ├── [BB:IDDR]
+│    │    └── [BB:IDDR]
 │    └── mdio (LiteEthPHYMDIO)
 ├── ethmac (LiteEthMAC)
 │    ├── core (LiteEthMACCore)
@@ -192,17 +212,17 @@ MACCore
 │    │    ├── csrstatus_10 (CSRStatus) [Gen]
 │    │    └── csrstatus_11 (CSRStatus) [Gen]
 │    └── csrbank_2 (CSRBank) [Gen]
-│         ├── csrstatus_0 (CSRStatus) [Gen]
 │         ├── csrstorage_0 (CSRStorage) [Gen]
 │         ├── csrstorage_1 (CSRStorage) [Gen]
-│         └── csrstatus_1 (CSRStatus) [Gen]
+│         └── csrstatus_0 (CSRStatus) [Gen]
 ├── csr_interconnect (InterconnectShared)
-├── [BB:IOBUF]
 ├── [BB:FDPE]
 ├── [BB:FDPE]
 ├── [BB:FDPE]
-├── [BB:ODDR]
-└── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+├── [BB:FDPE]
+└── [BB:IOBUF]
 Legend:
   [Gen]: Auto-generated instance name.
   [BB:NAME]: Blackbox instance (verilog Instance).
@@ -824,10 +844,6 @@ wire    [2:0] csrbank2_mdio_w0_r;
 reg           csrbank2_mdio_w0_re = 1'd0;
 wire    [2:0] csrbank2_mdio_w0_w;
 reg           csrbank2_mdio_w0_we = 1'd0;
-wire          csrbank2_mode_detection_mode_r;
-reg           csrbank2_mode_detection_mode_re = 1'd0;
-wire          csrbank2_mode_detection_mode_w;
-reg           csrbank2_mode_detection_mode_we = 1'd0;
 wire          csrbank2_sel;
 wire   [31:0] dat_r;
 wire   [31:0] dat_w;
@@ -838,6 +854,7 @@ wire          eth_rx_clk;
 wire          eth_rx_rst;
 (* dont_touch = "true" *)
 wire          eth_tx_clk;
+wire          eth_tx_delayed_clk;
 wire          eth_tx_rst;
 wire          grant;
 reg           interface0_ack = 1'd0;
@@ -875,178 +892,55 @@ reg     [1:0] liteethmacsramreader_next_state = 2'd0;
 reg     [1:0] liteethmacsramreader_state = 2'd0;
 reg     [2:0] liteethmacsramwriter_next_state = 3'd0;
 reg     [2:0] liteethmacsramwriter_state = 3'd0;
-reg     [1:0] liteethphygmiimii_next_state = 2'd0;
-reg     [1:0] liteethphygmiimii_state = 2'd0;
 reg           maccore_ethphy__r_re = 1'd0;
 reg           maccore_ethphy__r_status = 1'd0;
 wire          maccore_ethphy__r_we;
 reg           maccore_ethphy__w_re = 1'd0;
 reg     [2:0] maccore_ethphy__w_storage = 3'd0;
-reg     [8:0] maccore_ethphy_counter = 9'd0;
-wire          maccore_ethphy_counter_ce;
-wire          maccore_ethphy_counter_done;
+wire          maccore_ethphy_clkin;
+wire          maccore_ethphy_clkout0;
+wire          maccore_ethphy_clkout1;
+wire          maccore_ethphy_clkout_buf0;
+wire          maccore_ethphy_clkout_buf1;
 wire          maccore_ethphy_data_oe;
 wire          maccore_ethphy_data_r;
 wire          maccore_ethphy_data_w;
-reg           maccore_ethphy_demux_endpoint0_source_first = 1'd0;
-reg           maccore_ethphy_demux_endpoint0_source_last = 1'd0;
-reg     [7:0] maccore_ethphy_demux_endpoint0_source_payload_data = 8'd0;
-reg           maccore_ethphy_demux_endpoint0_source_payload_error = 1'd0;
-reg           maccore_ethphy_demux_endpoint0_source_payload_last_be = 1'd0;
-wire          maccore_ethphy_demux_endpoint0_source_ready;
-reg           maccore_ethphy_demux_endpoint0_source_valid = 1'd0;
-reg           maccore_ethphy_demux_endpoint1_source_first = 1'd0;
-reg           maccore_ethphy_demux_endpoint1_source_last = 1'd0;
-reg     [7:0] maccore_ethphy_demux_endpoint1_source_payload_data = 8'd0;
-reg           maccore_ethphy_demux_endpoint1_source_payload_error = 1'd0;
-reg           maccore_ethphy_demux_endpoint1_source_payload_last_be = 1'd0;
-wire          maccore_ethphy_demux_endpoint1_source_ready;
-reg           maccore_ethphy_demux_endpoint1_source_valid = 1'd0;
-wire          maccore_ethphy_demux_sel;
-wire          maccore_ethphy_demux_sink_first;
-wire          maccore_ethphy_demux_sink_last;
-wire    [7:0] maccore_ethphy_demux_sink_payload_data;
-wire          maccore_ethphy_demux_sink_payload_error;
-wire          maccore_ethphy_demux_sink_payload_last_be;
-reg           maccore_ethphy_demux_sink_ready = 1'd0;
-wire          maccore_ethphy_demux_sink_valid;
-reg     [9:0] maccore_ethphy_eth_counter = 10'd0;
-wire          maccore_ethphy_eth_tick;
-reg           maccore_ethphy_eth_tx_clk = 1'd0;
-reg           maccore_ethphy_gmii_rx_dv_d = 1'd0;
-reg           maccore_ethphy_gmii_rx_source_first = 1'd0;
-wire          maccore_ethphy_gmii_rx_source_last;
-reg     [7:0] maccore_ethphy_gmii_rx_source_payload_data = 8'd0;
-reg           maccore_ethphy_gmii_rx_source_payload_error = 1'd0;
-reg           maccore_ethphy_gmii_rx_source_payload_last_be = 1'd0;
-wire          maccore_ethphy_gmii_rx_source_ready;
-reg           maccore_ethphy_gmii_rx_source_valid = 1'd0;
-reg     [7:0] maccore_ethphy_gmii_tx_pads_tx_data = 8'd0;
-reg           maccore_ethphy_gmii_tx_pads_tx_en = 1'd0;
-reg           maccore_ethphy_gmii_tx_pads_tx_er = 1'd0;
-wire          maccore_ethphy_gmii_tx_sink_first;
-wire          maccore_ethphy_gmii_tx_sink_last;
-wire    [7:0] maccore_ethphy_gmii_tx_sink_payload_data;
-wire          maccore_ethphy_gmii_tx_sink_payload_error;
-wire          maccore_ethphy_gmii_tx_sink_payload_last_be;
-reg           maccore_ethphy_gmii_tx_sink_ready = 1'd0;
-wire          maccore_ethphy_gmii_tx_sink_valid;
-wire          maccore_ethphy_i;
+wire          maccore_ethphy_eth_rx_clk_ibuf;
+wire          maccore_ethphy_eth_tx_clk_obuf;
+wire          maccore_ethphy_liteethphyrgmiirx;
+wire          maccore_ethphy_liteethphyrgmiirx_last;
+wire          maccore_ethphy_liteethphyrgmiirx_rx_ctl;
+reg           maccore_ethphy_liteethphyrgmiirx_rx_ctl_d = 1'd0;
+wire          maccore_ethphy_liteethphyrgmiirx_rx_ctl_ibuf;
+wire          maccore_ethphy_liteethphyrgmiirx_rx_ctl_idelay;
+wire    [7:0] maccore_ethphy_liteethphyrgmiirx_rx_data;
+wire    [3:0] maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf;
+wire    [3:0] maccore_ethphy_liteethphyrgmiirx_rx_data_idelay;
+reg           maccore_ethphy_liteethphyrgmiirx_source_first = 1'd0;
+wire          maccore_ethphy_liteethphyrgmiirx_source_last;
+reg     [7:0] maccore_ethphy_liteethphyrgmiirx_source_payload_data = 8'd0;
+reg           maccore_ethphy_liteethphyrgmiirx_source_payload_error = 1'd0;
+reg           maccore_ethphy_liteethphyrgmiirx_source_payload_last_be = 1'd0;
+wire          maccore_ethphy_liteethphyrgmiirx_source_ready;
+reg           maccore_ethphy_liteethphyrgmiirx_source_valid = 1'd0;
+wire          maccore_ethphy_locked;
 wire          maccore_ethphy_mdc;
-reg           maccore_ethphy_mii_rx_converter_demux = 1'd0;
-wire          maccore_ethphy_mii_rx_converter_load_part;
-reg           maccore_ethphy_mii_rx_converter_sink_first = 1'd0;
-wire          maccore_ethphy_mii_rx_converter_sink_last;
-reg     [3:0] maccore_ethphy_mii_rx_converter_sink_payload_data = 4'd0;
-wire          maccore_ethphy_mii_rx_converter_sink_ready;
-reg           maccore_ethphy_mii_rx_converter_sink_valid = 1'd0;
-reg           maccore_ethphy_mii_rx_converter_source_first = 1'd0;
-reg           maccore_ethphy_mii_rx_converter_source_last = 1'd0;
-reg     [7:0] maccore_ethphy_mii_rx_converter_source_payload_data = 8'd0;
-reg     [1:0] maccore_ethphy_mii_rx_converter_source_payload_valid_token_count = 2'd0;
-wire          maccore_ethphy_mii_rx_converter_source_ready;
-wire          maccore_ethphy_mii_rx_converter_source_valid;
-reg           maccore_ethphy_mii_rx_converter_strobe_all = 1'd0;
-reg           maccore_ethphy_mii_rx_reset = 1'd0;
-wire          maccore_ethphy_mii_rx_source_first;
-wire          maccore_ethphy_mii_rx_source_last;
-wire    [7:0] maccore_ethphy_mii_rx_source_payload_data;
-reg           maccore_ethphy_mii_rx_source_payload_error = 1'd0;
-reg           maccore_ethphy_mii_rx_source_payload_last_be = 1'd0;
-wire          maccore_ethphy_mii_rx_source_ready;
-wire          maccore_ethphy_mii_rx_source_source_first;
-wire          maccore_ethphy_mii_rx_source_source_last;
-wire    [7:0] maccore_ethphy_mii_rx_source_source_payload_data;
-wire          maccore_ethphy_mii_rx_source_source_ready;
-wire          maccore_ethphy_mii_rx_source_source_valid;
-wire          maccore_ethphy_mii_rx_source_valid;
-wire          maccore_ethphy_mii_tx_converter_first;
-wire          maccore_ethphy_mii_tx_converter_last;
-reg           maccore_ethphy_mii_tx_converter_mux = 1'd0;
-reg           maccore_ethphy_mii_tx_converter_sink_first = 1'd0;
-reg           maccore_ethphy_mii_tx_converter_sink_last = 1'd0;
-wire    [7:0] maccore_ethphy_mii_tx_converter_sink_payload_data;
-wire          maccore_ethphy_mii_tx_converter_sink_ready;
-wire          maccore_ethphy_mii_tx_converter_sink_valid;
-wire          maccore_ethphy_mii_tx_converter_source_first;
-wire          maccore_ethphy_mii_tx_converter_source_last;
-reg     [3:0] maccore_ethphy_mii_tx_converter_source_payload_data = 4'd0;
-wire          maccore_ethphy_mii_tx_converter_source_payload_valid_token_count;
-wire          maccore_ethphy_mii_tx_converter_source_ready;
-wire          maccore_ethphy_mii_tx_converter_source_valid;
-reg     [7:0] maccore_ethphy_mii_tx_pads_tx_data = 8'd0;
-reg           maccore_ethphy_mii_tx_pads_tx_en = 1'd0;
-reg           maccore_ethphy_mii_tx_pads_tx_er = 1'd0;
-wire          maccore_ethphy_mii_tx_sink_first;
-wire          maccore_ethphy_mii_tx_sink_last;
-wire    [7:0] maccore_ethphy_mii_tx_sink_payload_data;
-wire          maccore_ethphy_mii_tx_sink_payload_error;
-wire          maccore_ethphy_mii_tx_sink_payload_last_be;
-wire          maccore_ethphy_mii_tx_sink_ready;
-wire          maccore_ethphy_mii_tx_sink_valid;
-wire          maccore_ethphy_mii_tx_source_source_first;
-wire          maccore_ethphy_mii_tx_source_source_last;
-wire    [3:0] maccore_ethphy_mii_tx_source_source_payload_data;
-wire          maccore_ethphy_mii_tx_source_source_ready;
-wire          maccore_ethphy_mii_tx_source_source_valid;
-reg           maccore_ethphy_mode0 = 1'd0;
-reg           maccore_ethphy_mode1 = 1'd0;
-reg           maccore_ethphy_mode_re = 1'd0;
-wire          maccore_ethphy_mode_status;
-wire          maccore_ethphy_mode_we;
-wire          maccore_ethphy_mux_endpoint0_sink_first;
-wire          maccore_ethphy_mux_endpoint0_sink_last;
-wire    [7:0] maccore_ethphy_mux_endpoint0_sink_payload_data;
-wire          maccore_ethphy_mux_endpoint0_sink_payload_error;
-wire          maccore_ethphy_mux_endpoint0_sink_payload_last_be;
-reg           maccore_ethphy_mux_endpoint0_sink_ready = 1'd0;
-wire          maccore_ethphy_mux_endpoint0_sink_valid;
-wire          maccore_ethphy_mux_endpoint1_sink_first;
-wire          maccore_ethphy_mux_endpoint1_sink_last;
-wire    [7:0] maccore_ethphy_mux_endpoint1_sink_payload_data;
-wire          maccore_ethphy_mux_endpoint1_sink_payload_error;
-wire          maccore_ethphy_mux_endpoint1_sink_payload_last_be;
-reg           maccore_ethphy_mux_endpoint1_sink_ready = 1'd0;
-wire          maccore_ethphy_mux_endpoint1_sink_valid;
-wire          maccore_ethphy_mux_sel;
-reg           maccore_ethphy_mux_source_first = 1'd0;
-reg           maccore_ethphy_mux_source_last = 1'd0;
-reg     [7:0] maccore_ethphy_mux_source_payload_data = 8'd0;
-reg           maccore_ethphy_mux_source_payload_error = 1'd0;
-reg           maccore_ethphy_mux_source_payload_last_be = 1'd0;
-wire          maccore_ethphy_mux_source_ready;
-reg           maccore_ethphy_mux_source_valid = 1'd0;
-wire          maccore_ethphy_o;
 wire          maccore_ethphy_oe;
-reg     [7:0] maccore_ethphy_pads_d_rx_data = 8'd0;
-reg           maccore_ethphy_pads_d_rx_dv = 1'd0;
+reg           maccore_ethphy_power_down = 1'd0;
 reg           maccore_ethphy_r = 1'd0;
-wire          maccore_ethphy_reset0;
+reg           maccore_ethphy_reset0 = 1'd0;
 wire          maccore_ethphy_reset1;
 reg           maccore_ethphy_reset_re = 1'd0;
 reg           maccore_ethphy_reset_storage = 1'd0;
-wire          maccore_ethphy_sink_sink_first;
-wire          maccore_ethphy_sink_sink_last;
-wire    [7:0] maccore_ethphy_sink_sink_payload_data;
-wire          maccore_ethphy_sink_sink_payload_error;
-wire          maccore_ethphy_sink_sink_payload_last_be;
-wire          maccore_ethphy_sink_sink_ready;
-wire          maccore_ethphy_sink_sink_valid;
-wire          maccore_ethphy_source_source_first;
-wire          maccore_ethphy_source_source_last;
-wire    [7:0] maccore_ethphy_source_source_payload_data;
-wire          maccore_ethphy_source_source_payload_error;
-wire          maccore_ethphy_source_source_payload_last_be;
-wire          maccore_ethphy_source_source_ready;
-wire          maccore_ethphy_source_source_valid;
-reg    [23:0] maccore_ethphy_sys_counter = 24'd0;
-reg           maccore_ethphy_sys_counter_ce = 1'd0;
-reg           maccore_ethphy_sys_counter_reset = 1'd0;
-wire          maccore_ethphy_sys_tick;
-reg           maccore_ethphy_toggle_i = 1'd0;
-wire          maccore_ethphy_toggle_o;
-reg           maccore_ethphy_toggle_o_r = 1'd0;
-reg           maccore_ethphy_update_mode = 1'd0;
+wire          maccore_ethphy_sink_first;
+wire          maccore_ethphy_sink_last;
+wire    [7:0] maccore_ethphy_sink_payload_data;
+wire          maccore_ethphy_sink_payload_error;
+wire          maccore_ethphy_sink_payload_last_be;
+wire          maccore_ethphy_sink_ready;
+wire          maccore_ethphy_sink_valid;
+wire          maccore_ethphy_tx_ctl_obuf;
+wire    [3:0] maccore_ethphy_tx_data_obuf;
 wire          maccore_ethphy_w;
 reg           maccore_int_rst = 1'd1;
 wire          maccore_maccore_bus_error;
@@ -1060,11 +954,19 @@ reg     [1:0] maccore_maccore_reset_storage = 2'd0;
 reg           maccore_maccore_scratch_re = 1'd0;
 reg    [31:0] maccore_maccore_scratch_storage = 32'd305419896;
 reg           maccore_maccore_soc_rst = 1'd0;
+reg           next_state = 1'd0;
+wire          pll_fb;
 wire          por_clk;
 wire          re;
 wire          request;
-wire          rst_meta0;
-wire          rst_meta1;
+wire          reset0;
+wire          reset1;
+wire          reset2;
+wire          reset3;
+wire          reset4;
+wire          reset5;
+wire          reset6;
+wire          reset7;
 reg     [1:0] rxdatapath_bufferizeendpoints_next_state = 2'd0;
 reg     [1:0] rxdatapath_bufferizeendpoints_state = 2'd0;
 reg           rxdatapath_liteethmacpreamblechecker_next_state = 1'd0;
@@ -1090,6 +992,7 @@ wire          shared_stb;
 wire          shared_we;
 reg     [2:0] slave_sel = 3'd0;
 reg     [2:0] slave_sel_r = 3'd0;
+reg           state = 1'd0;
 (* dont_touch = "true" *)
 wire          sys_clk;
 wire          sys_rst;
@@ -1116,8 +1019,6 @@ wire    [3:0] wb_bus_sel;
 wire          wb_bus_stb;
 wire          wb_bus_we;
 wire          we;
-reg           wishbone2csr_next_state = 1'd0;
-reg           wishbone2csr_state = 1'd0;
 wire          wishbone_interface_bus_rx_ack;
 wire   [29:0] wishbone_interface_bus_rx_adr;
 wire    [1:0] wishbone_interface_bus_rx_bte;
@@ -1394,38 +1295,39 @@ wire          wishbone_interface_writer_status_status;
 wire          wishbone_interface_writer_status_we;
 wire   [31:0] wishbone_interface_writer_wr_data;
 reg           wishbone_interface_writer_write = 1'd0;
+wire          xilinxasyncresetsynchronizerimpl0;
+wire          xilinxasyncresetsynchronizerimpl0_expr;
+wire          xilinxasyncresetsynchronizerimpl0_rst_meta;
+wire          xilinxasyncresetsynchronizerimpl1_rst_meta;
+wire          xilinxasyncresetsynchronizerimpl2_rst_meta;
 (* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
 reg           xilinxmultiregimpl00 = 1'd0;
 (* async_reg = "true", dont_touch = "true" *)
 reg           xilinxmultiregimpl01 = 1'd0;
 (* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg           xilinxmultiregimpl10 = 1'd0;
+reg     [5:0] xilinxmultiregimpl10 = 6'd0;
 (* async_reg = "true", dont_touch = "true" *)
-reg           xilinxmultiregimpl11 = 1'd0;
+reg     [5:0] xilinxmultiregimpl11 = 6'd0;
 (* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
 reg     [5:0] xilinxmultiregimpl20 = 6'd0;
 (* async_reg = "true", dont_touch = "true" *)
 reg     [5:0] xilinxmultiregimpl21 = 6'd0;
 (* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg     [5:0] xilinxmultiregimpl30 = 6'd0;
+reg           xilinxmultiregimpl30 = 1'd0;
 (* async_reg = "true", dont_touch = "true" *)
-reg     [5:0] xilinxmultiregimpl31 = 6'd0;
+reg           xilinxmultiregimpl31 = 1'd0;
 (* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
 reg           xilinxmultiregimpl40 = 1'd0;
 (* async_reg = "true", dont_touch = "true" *)
 reg           xilinxmultiregimpl41 = 1'd0;
 (* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg           xilinxmultiregimpl50 = 1'd0;
+reg     [5:0] xilinxmultiregimpl50 = 6'd0;
 (* async_reg = "true", dont_touch = "true" *)
-reg           xilinxmultiregimpl51 = 1'd0;
+reg     [5:0] xilinxmultiregimpl51 = 6'd0;
 (* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
 reg     [5:0] xilinxmultiregimpl60 = 6'd0;
 (* async_reg = "true", dont_touch = "true" *)
 reg     [5:0] xilinxmultiregimpl61 = 6'd0;
-(* async_reg = "true", mr_ff = "true", dont_touch = "true" *)
-reg     [5:0] xilinxmultiregimpl70 = 6'd0;
-(* async_reg = "true", dont_touch = "true" *)
-reg     [5:0] xilinxmultiregimpl71 = 6'd0;
 
 //------------------------------------------------------------------------------
 // Combinatorial Logic
@@ -1506,218 +1408,15 @@ assign maccore_maccore_bus_errors_status = maccore_maccore_bus_errors;
 assign sys_clk = sys_clock;
 assign por_clk = sys_clock;
 assign sys_rst = maccore_int_rst;
-assign maccore_ethphy_mode_status = maccore_ethphy_mode0;
-assign maccore_ethphy_eth_tick = (maccore_ethphy_eth_counter == 1'd0);
-assign maccore_ethphy_i = maccore_ethphy_eth_tick;
-assign maccore_ethphy_sys_tick = maccore_ethphy_o;
-assign maccore_ethphy_o = (maccore_ethphy_toggle_o ^ maccore_ethphy_toggle_o_r);
-always @(*) begin
-    liteethphygmiimii_next_state <= 2'd0;
-    maccore_ethphy_mode1 <= 1'd0;
-    maccore_ethphy_sys_counter_ce <= 1'd0;
-    maccore_ethphy_sys_counter_reset <= 1'd0;
-    maccore_ethphy_update_mode <= 1'd0;
-    liteethphygmiimii_next_state <= liteethphygmiimii_state;
-    case (liteethphygmiimii_state)
-        1'd1: begin
-            maccore_ethphy_sys_counter_ce <= 1'd1;
-            if (maccore_ethphy_sys_tick) begin
-                liteethphygmiimii_next_state <= 2'd2;
-            end
-        end
-        2'd2: begin
-            maccore_ethphy_update_mode <= 1'd1;
-            if ((maccore_ethphy_sys_counter > 10'd860)) begin
-                maccore_ethphy_mode1 <= 1'd1;
-            end else begin
-                maccore_ethphy_mode1 <= 1'd0;
-            end
-            liteethphygmiimii_next_state <= 1'd0;
-        end
-        default: begin
-            maccore_ethphy_sys_counter_reset <= 1'd1;
-            if (maccore_ethphy_sys_tick) begin
-                liteethphygmiimii_next_state <= 1'd1;
-            end
-        end
-    endcase
-end
-always @(*) begin
-    maccore_ethphy_eth_tx_clk <= 1'd0;
-    if ((maccore_ethphy_mode0 == 1'd1)) begin
-        maccore_ethphy_eth_tx_clk <= gmii_clocks_tx;
-    end else begin
-        maccore_ethphy_eth_tx_clk <= gmii_clocks_rx;
-    end
-end
-assign maccore_ethphy_reset0 = (maccore_ethphy_reset_storage | maccore_ethphy_reset1);
-assign gmii_rst_n = (~maccore_ethphy_reset0);
-assign maccore_ethphy_counter_done = (maccore_ethphy_counter == 9'd256);
-assign maccore_ethphy_counter_ce = (~maccore_ethphy_counter_done);
-assign maccore_ethphy_reset1 = (~maccore_ethphy_counter_done);
-assign maccore_ethphy_demux_sel = (maccore_ethphy_mode0 == 1'd1);
-assign maccore_ethphy_demux_sink_valid = maccore_ethphy_sink_sink_valid;
-assign maccore_ethphy_sink_sink_ready = maccore_ethphy_demux_sink_ready;
-assign maccore_ethphy_demux_sink_first = maccore_ethphy_sink_sink_first;
-assign maccore_ethphy_demux_sink_last = maccore_ethphy_sink_sink_last;
-assign maccore_ethphy_demux_sink_payload_data = maccore_ethphy_sink_sink_payload_data;
-assign maccore_ethphy_demux_sink_payload_last_be = maccore_ethphy_sink_sink_payload_last_be;
-assign maccore_ethphy_demux_sink_payload_error = maccore_ethphy_sink_sink_payload_error;
-assign maccore_ethphy_gmii_tx_sink_valid = maccore_ethphy_demux_endpoint0_source_valid;
-assign maccore_ethphy_demux_endpoint0_source_ready = maccore_ethphy_gmii_tx_sink_ready;
-assign maccore_ethphy_gmii_tx_sink_first = maccore_ethphy_demux_endpoint0_source_first;
-assign maccore_ethphy_gmii_tx_sink_last = maccore_ethphy_demux_endpoint0_source_last;
-assign maccore_ethphy_gmii_tx_sink_payload_data = maccore_ethphy_demux_endpoint0_source_payload_data;
-assign maccore_ethphy_gmii_tx_sink_payload_last_be = maccore_ethphy_demux_endpoint0_source_payload_last_be;
-assign maccore_ethphy_gmii_tx_sink_payload_error = maccore_ethphy_demux_endpoint0_source_payload_error;
-assign maccore_ethphy_mii_tx_sink_valid = maccore_ethphy_demux_endpoint1_source_valid;
-assign maccore_ethphy_demux_endpoint1_source_ready = maccore_ethphy_mii_tx_sink_ready;
-assign maccore_ethphy_mii_tx_sink_first = maccore_ethphy_demux_endpoint1_source_first;
-assign maccore_ethphy_mii_tx_sink_last = maccore_ethphy_demux_endpoint1_source_last;
-assign maccore_ethphy_mii_tx_sink_payload_data = maccore_ethphy_demux_endpoint1_source_payload_data;
-assign maccore_ethphy_mii_tx_sink_payload_last_be = maccore_ethphy_demux_endpoint1_source_payload_last_be;
-assign maccore_ethphy_mii_tx_sink_payload_error = maccore_ethphy_demux_endpoint1_source_payload_error;
-assign gmii_tx_er = 1'd0;
-assign maccore_ethphy_mii_tx_converter_sink_valid = maccore_ethphy_mii_tx_sink_valid;
-assign maccore_ethphy_mii_tx_converter_sink_payload_data = maccore_ethphy_mii_tx_sink_payload_data;
-assign maccore_ethphy_mii_tx_sink_ready = maccore_ethphy_mii_tx_converter_sink_ready;
-assign maccore_ethphy_mii_tx_source_source_ready = 1'd1;
-assign maccore_ethphy_mii_tx_source_source_valid = maccore_ethphy_mii_tx_converter_source_valid;
-assign maccore_ethphy_mii_tx_converter_source_ready = maccore_ethphy_mii_tx_source_source_ready;
-assign maccore_ethphy_mii_tx_source_source_first = maccore_ethphy_mii_tx_converter_source_first;
-assign maccore_ethphy_mii_tx_source_source_last = maccore_ethphy_mii_tx_converter_source_last;
-assign maccore_ethphy_mii_tx_source_source_payload_data = maccore_ethphy_mii_tx_converter_source_payload_data;
-assign maccore_ethphy_mii_tx_converter_first = (maccore_ethphy_mii_tx_converter_mux == 1'd0);
-assign maccore_ethphy_mii_tx_converter_last = (maccore_ethphy_mii_tx_converter_mux == 1'd1);
-assign maccore_ethphy_mii_tx_converter_source_valid = maccore_ethphy_mii_tx_converter_sink_valid;
-assign maccore_ethphy_mii_tx_converter_source_first = (maccore_ethphy_mii_tx_converter_sink_first & maccore_ethphy_mii_tx_converter_first);
-assign maccore_ethphy_mii_tx_converter_source_last = (maccore_ethphy_mii_tx_converter_sink_last & maccore_ethphy_mii_tx_converter_last);
-assign maccore_ethphy_mii_tx_converter_sink_ready = (maccore_ethphy_mii_tx_converter_last & maccore_ethphy_mii_tx_converter_source_ready);
-always @(*) begin
-    maccore_ethphy_mii_tx_converter_source_payload_data <= 4'd0;
-    case (maccore_ethphy_mii_tx_converter_mux)
-        1'd0: begin
-            maccore_ethphy_mii_tx_converter_source_payload_data <= maccore_ethphy_mii_tx_converter_sink_payload_data[3:0];
-        end
-        default: begin
-            maccore_ethphy_mii_tx_converter_source_payload_data <= maccore_ethphy_mii_tx_converter_sink_payload_data[7:4];
-        end
-    endcase
-end
-assign maccore_ethphy_mii_tx_converter_source_payload_valid_token_count = maccore_ethphy_mii_tx_converter_last;
-always @(*) begin
-    maccore_ethphy_demux_endpoint0_source_first <= 1'd0;
-    maccore_ethphy_demux_endpoint0_source_last <= 1'd0;
-    maccore_ethphy_demux_endpoint0_source_payload_data <= 8'd0;
-    maccore_ethphy_demux_endpoint0_source_payload_error <= 1'd0;
-    maccore_ethphy_demux_endpoint0_source_payload_last_be <= 1'd0;
-    maccore_ethphy_demux_endpoint0_source_valid <= 1'd0;
-    maccore_ethphy_demux_endpoint1_source_first <= 1'd0;
-    maccore_ethphy_demux_endpoint1_source_last <= 1'd0;
-    maccore_ethphy_demux_endpoint1_source_payload_data <= 8'd0;
-    maccore_ethphy_demux_endpoint1_source_payload_error <= 1'd0;
-    maccore_ethphy_demux_endpoint1_source_payload_last_be <= 1'd0;
-    maccore_ethphy_demux_endpoint1_source_valid <= 1'd0;
-    maccore_ethphy_demux_sink_ready <= 1'd0;
-    case (maccore_ethphy_demux_sel)
-        1'd0: begin
-            maccore_ethphy_demux_endpoint0_source_valid <= maccore_ethphy_demux_sink_valid;
-            maccore_ethphy_demux_sink_ready <= maccore_ethphy_demux_endpoint0_source_ready;
-            maccore_ethphy_demux_endpoint0_source_first <= maccore_ethphy_demux_sink_first;
-            maccore_ethphy_demux_endpoint0_source_last <= maccore_ethphy_demux_sink_last;
-            maccore_ethphy_demux_endpoint0_source_payload_data <= maccore_ethphy_demux_sink_payload_data;
-            maccore_ethphy_demux_endpoint0_source_payload_last_be <= maccore_ethphy_demux_sink_payload_last_be;
-            maccore_ethphy_demux_endpoint0_source_payload_error <= maccore_ethphy_demux_sink_payload_error;
-        end
-        1'd1: begin
-            maccore_ethphy_demux_endpoint1_source_valid <= maccore_ethphy_demux_sink_valid;
-            maccore_ethphy_demux_sink_ready <= maccore_ethphy_demux_endpoint1_source_ready;
-            maccore_ethphy_demux_endpoint1_source_first <= maccore_ethphy_demux_sink_first;
-            maccore_ethphy_demux_endpoint1_source_last <= maccore_ethphy_demux_sink_last;
-            maccore_ethphy_demux_endpoint1_source_payload_data <= maccore_ethphy_demux_sink_payload_data;
-            maccore_ethphy_demux_endpoint1_source_payload_last_be <= maccore_ethphy_demux_sink_payload_last_be;
-            maccore_ethphy_demux_endpoint1_source_payload_error <= maccore_ethphy_demux_sink_payload_error;
-        end
-        default: begin
-            maccore_ethphy_demux_sink_ready <= 1'd0;
-            maccore_ethphy_demux_endpoint0_source_valid <= 1'd0;
-            maccore_ethphy_demux_endpoint1_source_valid <= 1'd0;
-        end
-    endcase
-end
-assign maccore_ethphy_mux_sel = (maccore_ethphy_mode0 == 1'd1);
-assign maccore_ethphy_mux_endpoint0_sink_valid = maccore_ethphy_gmii_rx_source_valid;
-assign maccore_ethphy_gmii_rx_source_ready = maccore_ethphy_mux_endpoint0_sink_ready;
-assign maccore_ethphy_mux_endpoint0_sink_first = maccore_ethphy_gmii_rx_source_first;
-assign maccore_ethphy_mux_endpoint0_sink_last = maccore_ethphy_gmii_rx_source_last;
-assign maccore_ethphy_mux_endpoint0_sink_payload_data = maccore_ethphy_gmii_rx_source_payload_data;
-assign maccore_ethphy_mux_endpoint0_sink_payload_last_be = maccore_ethphy_gmii_rx_source_payload_last_be;
-assign maccore_ethphy_mux_endpoint0_sink_payload_error = maccore_ethphy_gmii_rx_source_payload_error;
-assign maccore_ethphy_mux_endpoint1_sink_valid = maccore_ethphy_mii_rx_source_valid;
-assign maccore_ethphy_mii_rx_source_ready = maccore_ethphy_mux_endpoint1_sink_ready;
-assign maccore_ethphy_mux_endpoint1_sink_first = maccore_ethphy_mii_rx_source_first;
-assign maccore_ethphy_mux_endpoint1_sink_last = maccore_ethphy_mii_rx_source_last;
-assign maccore_ethphy_mux_endpoint1_sink_payload_data = maccore_ethphy_mii_rx_source_payload_data;
-assign maccore_ethphy_mux_endpoint1_sink_payload_last_be = maccore_ethphy_mii_rx_source_payload_last_be;
-assign maccore_ethphy_mux_endpoint1_sink_payload_error = maccore_ethphy_mii_rx_source_payload_error;
-assign maccore_ethphy_source_source_valid = maccore_ethphy_mux_source_valid;
-assign maccore_ethphy_mux_source_ready = maccore_ethphy_source_source_ready;
-assign maccore_ethphy_source_source_first = maccore_ethphy_mux_source_first;
-assign maccore_ethphy_source_source_last = maccore_ethphy_mux_source_last;
-assign maccore_ethphy_source_source_payload_data = maccore_ethphy_mux_source_payload_data;
-assign maccore_ethphy_source_source_payload_last_be = maccore_ethphy_mux_source_payload_last_be;
-assign maccore_ethphy_source_source_payload_error = maccore_ethphy_mux_source_payload_error;
-assign maccore_ethphy_gmii_rx_source_last = ((~maccore_ethphy_pads_d_rx_dv) & maccore_ethphy_gmii_rx_dv_d);
-assign maccore_ethphy_mii_rx_converter_sink_last = (~maccore_ethphy_pads_d_rx_dv);
-assign maccore_ethphy_mii_rx_source_valid = maccore_ethphy_mii_rx_source_source_valid;
-assign maccore_ethphy_mii_rx_source_source_ready = maccore_ethphy_mii_rx_source_ready;
-assign maccore_ethphy_mii_rx_source_first = maccore_ethphy_mii_rx_source_source_first;
-assign maccore_ethphy_mii_rx_source_last = maccore_ethphy_mii_rx_source_source_last;
-assign maccore_ethphy_mii_rx_source_payload_data = maccore_ethphy_mii_rx_source_source_payload_data;
-assign maccore_ethphy_mii_rx_source_source_valid = maccore_ethphy_mii_rx_converter_source_valid;
-assign maccore_ethphy_mii_rx_converter_source_ready = maccore_ethphy_mii_rx_source_source_ready;
-assign maccore_ethphy_mii_rx_source_source_first = maccore_ethphy_mii_rx_converter_source_first;
-assign maccore_ethphy_mii_rx_source_source_last = maccore_ethphy_mii_rx_converter_source_last;
-assign maccore_ethphy_mii_rx_source_source_payload_data = maccore_ethphy_mii_rx_converter_source_payload_data;
-assign maccore_ethphy_mii_rx_converter_sink_ready = ((~maccore_ethphy_mii_rx_converter_strobe_all) | maccore_ethphy_mii_rx_converter_source_ready);
-assign maccore_ethphy_mii_rx_converter_source_valid = maccore_ethphy_mii_rx_converter_strobe_all;
-assign maccore_ethphy_mii_rx_converter_load_part = (maccore_ethphy_mii_rx_converter_sink_valid & maccore_ethphy_mii_rx_converter_sink_ready);
-always @(*) begin
-    maccore_ethphy_mux_endpoint0_sink_ready <= 1'd0;
-    maccore_ethphy_mux_endpoint1_sink_ready <= 1'd0;
-    maccore_ethphy_mux_source_first <= 1'd0;
-    maccore_ethphy_mux_source_last <= 1'd0;
-    maccore_ethphy_mux_source_payload_data <= 8'd0;
-    maccore_ethphy_mux_source_payload_error <= 1'd0;
-    maccore_ethphy_mux_source_payload_last_be <= 1'd0;
-    maccore_ethphy_mux_source_valid <= 1'd0;
-    case (maccore_ethphy_mux_sel)
-        1'd0: begin
-            maccore_ethphy_mux_source_valid <= maccore_ethphy_mux_endpoint0_sink_valid;
-            maccore_ethphy_mux_endpoint0_sink_ready <= maccore_ethphy_mux_source_ready;
-            maccore_ethphy_mux_source_first <= maccore_ethphy_mux_endpoint0_sink_first;
-            maccore_ethphy_mux_source_last <= maccore_ethphy_mux_endpoint0_sink_last;
-            maccore_ethphy_mux_source_payload_data <= maccore_ethphy_mux_endpoint0_sink_payload_data;
-            maccore_ethphy_mux_source_payload_last_be <= maccore_ethphy_mux_endpoint0_sink_payload_last_be;
-            maccore_ethphy_mux_source_payload_error <= maccore_ethphy_mux_endpoint0_sink_payload_error;
-        end
-        1'd1: begin
-            maccore_ethphy_mux_source_valid <= maccore_ethphy_mux_endpoint1_sink_valid;
-            maccore_ethphy_mux_endpoint1_sink_ready <= maccore_ethphy_mux_source_ready;
-            maccore_ethphy_mux_source_first <= maccore_ethphy_mux_endpoint1_sink_first;
-            maccore_ethphy_mux_source_last <= maccore_ethphy_mux_endpoint1_sink_last;
-            maccore_ethphy_mux_source_payload_data <= maccore_ethphy_mux_endpoint1_sink_payload_data;
-            maccore_ethphy_mux_source_payload_last_be <= maccore_ethphy_mux_endpoint1_sink_payload_last_be;
-            maccore_ethphy_mux_source_payload_error <= maccore_ethphy_mux_endpoint1_sink_payload_error;
-        end
-        default: begin
-            maccore_ethphy_mux_source_valid <= 1'd0;
-            maccore_ethphy_mux_endpoint0_sink_ready <= 1'd0;
-            maccore_ethphy_mux_endpoint1_sink_ready <= 1'd0;
-        end
-    endcase
-end
-assign gmii_mdc = maccore_ethphy__w_storage[0];
+assign maccore_ethphy_reset1 = maccore_ethphy_reset_storage;
+assign rgmii_rst_n = (~maccore_ethphy_reset1);
+assign maccore_ethphy_clkin = eth_rx_clk;
+assign eth_tx_clk = maccore_ethphy_clkout_buf0;
+assign eth_tx_delayed_clk = maccore_ethphy_clkout_buf1;
+assign maccore_ethphy_sink_ready = 1'd1;
+assign maccore_ethphy_liteethphyrgmiirx_last = ((~maccore_ethphy_liteethphyrgmiirx_rx_ctl) & maccore_ethphy_liteethphyrgmiirx_rx_ctl_d);
+assign maccore_ethphy_liteethphyrgmiirx_source_last = maccore_ethphy_liteethphyrgmiirx_last;
+assign rgmii_mdc = maccore_ethphy__w_storage[0];
 assign maccore_ethphy_data_oe = maccore_ethphy__w_storage[1];
 assign maccore_ethphy_data_w = maccore_ethphy__w_storage[2];
 assign core_sink_valid = wishbone_interface_source_valid;
@@ -2270,13 +1969,13 @@ assign core_tx_gap_sink_last = core_tx_preamble_source_last;
 assign core_tx_gap_sink_payload_data = core_tx_preamble_source_payload_data;
 assign core_tx_gap_sink_payload_last_be = core_tx_preamble_source_payload_last_be;
 assign core_tx_gap_sink_payload_error = core_tx_preamble_source_payload_error;
-assign maccore_ethphy_sink_sink_valid = core_tx_gap_source_valid;
-assign core_tx_gap_source_ready = maccore_ethphy_sink_sink_ready;
-assign maccore_ethphy_sink_sink_first = core_tx_gap_source_first;
-assign maccore_ethphy_sink_sink_last = core_tx_gap_source_last;
-assign maccore_ethphy_sink_sink_payload_data = core_tx_gap_source_payload_data;
-assign maccore_ethphy_sink_sink_payload_last_be = core_tx_gap_source_payload_last_be;
-assign maccore_ethphy_sink_sink_payload_error = core_tx_gap_source_payload_error;
+assign maccore_ethphy_sink_valid = core_tx_gap_source_valid;
+assign core_tx_gap_source_ready = maccore_ethphy_sink_ready;
+assign maccore_ethphy_sink_first = core_tx_gap_source_first;
+assign maccore_ethphy_sink_last = core_tx_gap_source_last;
+assign maccore_ethphy_sink_payload_data = core_tx_gap_source_payload_data;
+assign maccore_ethphy_sink_payload_last_be = core_tx_gap_source_payload_last_be;
+assign maccore_ethphy_sink_payload_error = core_tx_gap_source_payload_error;
 assign core_pulsesynchronizer0_i = core_rx_preamble_error;
 assign core_pulsesynchronizer1_i = core_liteethmaccrc32checker_error;
 assign core_rx_preamble_source_payload_data = core_rx_preamble_sink_payload_data;
@@ -2656,13 +2355,13 @@ always @(*) begin
     end
 end
 assign core_rx_cdc_cdc_graycounter1_q_next = (core_rx_cdc_cdc_graycounter1_q_next_binary ^ core_rx_cdc_cdc_graycounter1_q_next_binary[5:1]);
-assign core_rx_preamble_sink_valid = maccore_ethphy_source_source_valid;
-assign maccore_ethphy_source_source_ready = core_rx_preamble_sink_ready;
-assign core_rx_preamble_sink_first = maccore_ethphy_source_source_first;
-assign core_rx_preamble_sink_last = maccore_ethphy_source_source_last;
-assign core_rx_preamble_sink_payload_data = maccore_ethphy_source_source_payload_data;
-assign core_rx_preamble_sink_payload_last_be = maccore_ethphy_source_source_payload_last_be;
-assign core_rx_preamble_sink_payload_error = maccore_ethphy_source_source_payload_error;
+assign core_rx_preamble_sink_valid = maccore_ethphy_liteethphyrgmiirx_source_valid;
+assign maccore_ethphy_liteethphyrgmiirx_source_ready = core_rx_preamble_sink_ready;
+assign core_rx_preamble_sink_first = maccore_ethphy_liteethphyrgmiirx_source_first;
+assign core_rx_preamble_sink_last = maccore_ethphy_liteethphyrgmiirx_source_last;
+assign core_rx_preamble_sink_payload_data = maccore_ethphy_liteethphyrgmiirx_source_payload_data;
+assign core_rx_preamble_sink_payload_last_be = maccore_ethphy_liteethphyrgmiirx_source_payload_last_be;
+assign core_rx_preamble_sink_payload_error = maccore_ethphy_liteethphyrgmiirx_source_payload_error;
 assign core_bufferizeendpoints_sink_sink_valid = core_rx_preamble_source_valid;
 assign core_rx_preamble_source_ready = core_bufferizeendpoints_sink_sink_ready;
 assign core_bufferizeendpoints_sink_sink_first = core_rx_preamble_source_first;
@@ -3096,13 +2795,13 @@ always @(*) begin
     interface1_dat_w <= 32'd0;
     interface1_re <= 1'd0;
     interface1_we <= 1'd0;
-    wishbone2csr_next_state <= 1'd0;
-    wishbone2csr_next_state <= wishbone2csr_state;
-    case (wishbone2csr_state)
+    next_state <= 1'd0;
+    next_state <= state;
+    case (state)
         1'd1: begin
             interface0_ack <= 1'd1;
             interface0_dat_r <= interface1_dat_r;
-            wishbone2csr_next_state <= 1'd0;
+            next_state <= 1'd0;
         end
         default: begin
             interface1_dat_w <= interface0_dat_w;
@@ -3110,7 +2809,7 @@ always @(*) begin
                 interface1_adr <= interface0_adr;
                 interface1_re <= ((~interface0_we) & (interface0_sel != 1'd0));
                 interface1_we <= (interface0_we & (interface0_sel != 1'd0));
-                wishbone2csr_next_state <= 1'd1;
+                next_state <= 1'd1;
             end
         end
     endcase
@@ -3343,20 +3042,11 @@ assign core_preamble_errors_we = csrbank1_rx_datapath_preamble_errors_we;
 assign csrbank1_rx_datapath_crc_errors_w = core_crc_errors_status;
 assign core_crc_errors_we = csrbank1_rx_datapath_crc_errors_we;
 assign csrbank2_sel = (interface2_bank_bus_adr[13:9] == 1'd1);
-assign csrbank2_mode_detection_mode_r = interface2_bank_bus_dat_w[0];
-always @(*) begin
-    csrbank2_mode_detection_mode_re <= 1'd0;
-    csrbank2_mode_detection_mode_we <= 1'd0;
-    if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 1'd0))) begin
-        csrbank2_mode_detection_mode_re <= interface2_bank_bus_we;
-        csrbank2_mode_detection_mode_we <= interface2_bank_bus_re;
-    end
-end
 assign csrbank2_crg_reset0_r = interface2_bank_bus_dat_w[0];
 always @(*) begin
     csrbank2_crg_reset0_re <= 1'd0;
     csrbank2_crg_reset0_we <= 1'd0;
-    if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 1'd1))) begin
+    if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 1'd0))) begin
         csrbank2_crg_reset0_re <= interface2_bank_bus_we;
         csrbank2_crg_reset0_we <= interface2_bank_bus_re;
     end
@@ -3365,7 +3055,7 @@ assign csrbank2_mdio_w0_r = interface2_bank_bus_dat_w[2:0];
 always @(*) begin
     csrbank2_mdio_w0_re <= 1'd0;
     csrbank2_mdio_w0_we <= 1'd0;
-    if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 2'd2))) begin
+    if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 1'd1))) begin
         csrbank2_mdio_w0_re <= interface2_bank_bus_we;
         csrbank2_mdio_w0_we <= interface2_bank_bus_re;
     end
@@ -3374,13 +3064,11 @@ assign csrbank2_mdio_r_r = interface2_bank_bus_dat_w[0];
 always @(*) begin
     csrbank2_mdio_r_re <= 1'd0;
     csrbank2_mdio_r_we <= 1'd0;
-    if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 2'd3))) begin
+    if ((csrbank2_sel & (interface2_bank_bus_adr[8:0] == 2'd2))) begin
         csrbank2_mdio_r_re <= interface2_bank_bus_we;
         csrbank2_mdio_r_we <= interface2_bank_bus_re;
     end
 end
-assign csrbank2_mode_detection_mode_w = maccore_ethphy_mode_status;
-assign maccore_ethphy_mode_we = csrbank2_mode_detection_mode_we;
 assign csrbank2_crg_reset0_w = maccore_ethphy_reset_storage;
 assign maccore_ethphy_mdc = maccore_ethphy__w_storage[0];
 assign maccore_ethphy_oe = maccore_ethphy__w_storage[1];
@@ -3470,18 +3158,18 @@ always @(*) begin
         end
     endcase
 end
-assign maccore_ethphy_toggle_o = xilinxmultiregimpl01;
+assign xilinxasyncresetsynchronizerimpl0 = (~maccore_ethphy_locked);
 always @(*) begin
     maccore_ethphy__r_status <= 1'd0;
     maccore_ethphy__r_status <= maccore_ethphy_r;
-    maccore_ethphy__r_status <= xilinxmultiregimpl11;
+    maccore_ethphy__r_status <= xilinxmultiregimpl01;
 end
-assign core_tx_cdc_cdc_produce_rdomain = xilinxmultiregimpl21;
-assign core_tx_cdc_cdc_consume_wdomain = xilinxmultiregimpl31;
-assign core_pulsesynchronizer0_toggle_o = xilinxmultiregimpl41;
-assign core_pulsesynchronizer1_toggle_o = xilinxmultiregimpl51;
-assign core_rx_cdc_cdc_produce_rdomain = xilinxmultiregimpl61;
-assign core_rx_cdc_cdc_consume_wdomain = xilinxmultiregimpl71;
+assign core_tx_cdc_cdc_produce_rdomain = xilinxmultiregimpl11;
+assign core_tx_cdc_cdc_consume_wdomain = xilinxmultiregimpl21;
+assign core_pulsesynchronizer0_toggle_o = xilinxmultiregimpl31;
+assign core_pulsesynchronizer1_toggle_o = xilinxmultiregimpl41;
+assign core_rx_cdc_cdc_produce_rdomain = xilinxmultiregimpl51;
+assign core_rx_cdc_cdc_consume_wdomain = xilinxmultiregimpl61;
 
 
 //------------------------------------------------------------------------------
@@ -3489,62 +3177,9 @@ assign core_rx_cdc_cdc_consume_wdomain = xilinxmultiregimpl71;
 //------------------------------------------------------------------------------
 
 always @(posedge eth_rx_clk) begin
-    maccore_ethphy_eth_counter <= (maccore_ethphy_eth_counter + 1'd1);
-    if (maccore_ethphy_i) begin
-        maccore_ethphy_toggle_i <= (~maccore_ethphy_toggle_i);
-    end
-    maccore_ethphy_pads_d_rx_dv <= gmii_rx_dv;
-    maccore_ethphy_pads_d_rx_data <= gmii_rx_data;
-    maccore_ethphy_gmii_rx_dv_d <= maccore_ethphy_pads_d_rx_dv;
-    maccore_ethphy_gmii_rx_source_valid <= maccore_ethphy_pads_d_rx_dv;
-    maccore_ethphy_gmii_rx_source_payload_data <= maccore_ethphy_pads_d_rx_data;
-    maccore_ethphy_mii_rx_reset <= (~maccore_ethphy_pads_d_rx_dv);
-    maccore_ethphy_mii_rx_converter_sink_valid <= 1'd1;
-    maccore_ethphy_mii_rx_converter_sink_payload_data <= maccore_ethphy_pads_d_rx_data;
-    if (maccore_ethphy_mii_rx_converter_source_ready) begin
-        maccore_ethphy_mii_rx_converter_strobe_all <= 1'd0;
-    end
-    if (maccore_ethphy_mii_rx_converter_load_part) begin
-        if (((maccore_ethphy_mii_rx_converter_demux == 1'd1) | maccore_ethphy_mii_rx_converter_sink_last)) begin
-            maccore_ethphy_mii_rx_converter_demux <= 1'd0;
-            maccore_ethphy_mii_rx_converter_strobe_all <= 1'd1;
-        end else begin
-            maccore_ethphy_mii_rx_converter_demux <= (maccore_ethphy_mii_rx_converter_demux + 1'd1);
-        end
-    end
-    if ((maccore_ethphy_mii_rx_converter_source_valid & maccore_ethphy_mii_rx_converter_source_ready)) begin
-        if ((maccore_ethphy_mii_rx_converter_sink_valid & maccore_ethphy_mii_rx_converter_sink_ready)) begin
-            maccore_ethphy_mii_rx_converter_source_first <= maccore_ethphy_mii_rx_converter_sink_first;
-            maccore_ethphy_mii_rx_converter_source_last <= maccore_ethphy_mii_rx_converter_sink_last;
-        end else begin
-            maccore_ethphy_mii_rx_converter_source_first <= 1'd0;
-            maccore_ethphy_mii_rx_converter_source_last <= 1'd0;
-        end
-    end else begin
-        if ((maccore_ethphy_mii_rx_converter_sink_valid & maccore_ethphy_mii_rx_converter_sink_ready)) begin
-            maccore_ethphy_mii_rx_converter_source_first <= (maccore_ethphy_mii_rx_converter_sink_first | maccore_ethphy_mii_rx_converter_source_first);
-            maccore_ethphy_mii_rx_converter_source_last <= (maccore_ethphy_mii_rx_converter_sink_last | maccore_ethphy_mii_rx_converter_source_last);
-        end
-    end
-    if (maccore_ethphy_mii_rx_converter_load_part) begin
-        case (maccore_ethphy_mii_rx_converter_demux)
-            1'd0: begin
-                maccore_ethphy_mii_rx_converter_source_payload_data[3:0] <= maccore_ethphy_mii_rx_converter_sink_payload_data;
-            end
-            1'd1: begin
-                maccore_ethphy_mii_rx_converter_source_payload_data[7:4] <= maccore_ethphy_mii_rx_converter_sink_payload_data;
-            end
-        endcase
-    end
-    if (maccore_ethphy_mii_rx_converter_load_part) begin
-        maccore_ethphy_mii_rx_converter_source_payload_valid_token_count <= (maccore_ethphy_mii_rx_converter_demux + 1'd1);
-    end
-    if (maccore_ethphy_mii_rx_reset) begin
-        maccore_ethphy_mii_rx_converter_source_payload_data <= 8'd0;
-        maccore_ethphy_mii_rx_converter_source_payload_valid_token_count <= 2'd0;
-        maccore_ethphy_mii_rx_converter_demux <= 1'd0;
-        maccore_ethphy_mii_rx_converter_strobe_all <= 1'd0;
-    end
+    maccore_ethphy_liteethphyrgmiirx_rx_ctl_d <= maccore_ethphy_liteethphyrgmiirx_rx_ctl;
+    maccore_ethphy_liteethphyrgmiirx_source_valid <= maccore_ethphy_liteethphyrgmiirx_rx_ctl;
+    maccore_ethphy_liteethphyrgmiirx_source_payload_data <= maccore_ethphy_liteethphyrgmiirx_rx_data;
     rxdatapath_liteethmacpreamblechecker_state <= rxdatapath_liteethmacpreamblechecker_next_state;
     if (core_pulsesynchronizer0_i) begin
         core_pulsesynchronizer0_toggle_i <= (~core_pulsesynchronizer0_toggle_i);
@@ -3657,16 +3292,9 @@ always @(posedge eth_rx_clk) begin
     core_rx_cdc_cdc_graycounter0_q_binary <= core_rx_cdc_cdc_graycounter0_q_next_binary;
     core_rx_cdc_cdc_graycounter0_q <= core_rx_cdc_cdc_graycounter0_q_next;
     if (eth_rx_rst) begin
-        maccore_ethphy_gmii_rx_source_valid <= 1'd0;
-        maccore_ethphy_gmii_rx_source_payload_data <= 8'd0;
-        maccore_ethphy_gmii_rx_dv_d <= 1'd0;
-        maccore_ethphy_mii_rx_converter_sink_valid <= 1'd0;
-        maccore_ethphy_mii_rx_converter_sink_payload_data <= 4'd0;
-        maccore_ethphy_mii_rx_converter_source_payload_data <= 8'd0;
-        maccore_ethphy_mii_rx_converter_source_payload_valid_token_count <= 2'd0;
-        maccore_ethphy_mii_rx_converter_demux <= 1'd0;
-        maccore_ethphy_mii_rx_converter_strobe_all <= 1'd0;
-        maccore_ethphy_mii_rx_reset <= 1'd0;
+        maccore_ethphy_liteethphyrgmiirx_source_valid <= 1'd0;
+        maccore_ethphy_liteethphyrgmiirx_source_payload_data <= 8'd0;
+        maccore_ethphy_liteethphyrgmiirx_rx_ctl_d <= 1'd0;
         core_liteethmaccrc32checker_crc_reg <= 32'd4294967295;
         core_liteethmaccrc32checker_syncfifo_level <= 3'd0;
         core_liteethmaccrc32checker_syncfifo_produce <= 3'd0;
@@ -3687,32 +3315,11 @@ always @(posedge eth_rx_clk) begin
         rxdatapath_liteethmacpreamblechecker_state <= 1'd0;
         rxdatapath_bufferizeendpoints_state <= 2'd0;
     end
-    xilinxmultiregimpl70 <= core_rx_cdc_cdc_graycounter1_q;
-    xilinxmultiregimpl71 <= xilinxmultiregimpl70;
+    xilinxmultiregimpl60 <= core_rx_cdc_cdc_graycounter1_q;
+    xilinxmultiregimpl61 <= xilinxmultiregimpl60;
 end
 
 always @(posedge eth_tx_clk) begin
-    if ((maccore_ethphy_mode0 == 1'd1)) begin
-        gmii_tx_en <= maccore_ethphy_mii_tx_pads_tx_en;
-        gmii_tx_data <= maccore_ethphy_mii_tx_pads_tx_data;
-    end else begin
-        gmii_tx_en <= maccore_ethphy_gmii_tx_pads_tx_en;
-        gmii_tx_data <= maccore_ethphy_gmii_tx_pads_tx_data;
-    end
-    maccore_ethphy_gmii_tx_pads_tx_er <= 1'd0;
-    maccore_ethphy_gmii_tx_pads_tx_en <= maccore_ethphy_gmii_tx_sink_valid;
-    maccore_ethphy_gmii_tx_pads_tx_data <= maccore_ethphy_gmii_tx_sink_payload_data;
-    maccore_ethphy_gmii_tx_sink_ready <= 1'd1;
-    maccore_ethphy_mii_tx_pads_tx_er <= 1'd0;
-    maccore_ethphy_mii_tx_pads_tx_en <= maccore_ethphy_mii_tx_source_source_valid;
-    maccore_ethphy_mii_tx_pads_tx_data <= maccore_ethphy_mii_tx_source_source_payload_data;
-    if ((maccore_ethphy_mii_tx_converter_source_valid & maccore_ethphy_mii_tx_converter_source_ready)) begin
-        if (maccore_ethphy_mii_tx_converter_last) begin
-            maccore_ethphy_mii_tx_converter_mux <= 1'd0;
-        end else begin
-            maccore_ethphy_mii_tx_converter_mux <= (maccore_ethphy_mii_tx_converter_mux + 1'd1);
-        end
-    end
     core_tx_cdc_cdc_graycounter1_q_binary <= core_tx_cdc_cdc_graycounter1_q_next_binary;
     core_tx_cdc_cdc_graycounter1_q <= core_tx_cdc_cdc_graycounter1_q_next;
     if ((core_tx_converter_converter_source_valid & core_tx_converter_converter_source_ready)) begin
@@ -3764,8 +3371,6 @@ always @(posedge eth_tx_clk) begin
         core_tx_gap_counter <= core_tx_gap_counter_clockdomainsrenamer3_next_value;
     end
     if (eth_tx_rst) begin
-        maccore_ethphy_gmii_tx_sink_ready <= 1'd0;
-        maccore_ethphy_mii_tx_converter_mux <= 1'd0;
         core_tx_cdc_cdc_graycounter1_q <= 6'd0;
         core_tx_cdc_cdc_graycounter1_q_binary <= 6'd0;
         core_tx_converter_converter_mux <= 2'd0;
@@ -3782,8 +3387,8 @@ always @(posedge eth_tx_clk) begin
         txdatapath_liteethmacpreambleinserter_state <= 2'd0;
         txdatapath_liteethmacgap_state <= 1'd0;
     end
-    xilinxmultiregimpl20 <= core_tx_cdc_cdc_graycounter0_q;
-    xilinxmultiregimpl21 <= xilinxmultiregimpl20;
+    xilinxmultiregimpl10 <= core_tx_cdc_cdc_graycounter0_q;
+    xilinxmultiregimpl11 <= xilinxmultiregimpl10;
 end
 
 always @(posedge por_clk) begin
@@ -3803,21 +3408,6 @@ always @(posedge sys_clk) begin
         if (maccore_maccore_bus_error) begin
             maccore_maccore_bus_errors <= (maccore_maccore_bus_errors + 1'd1);
         end
-    end
-    if (maccore_ethphy_update_mode) begin
-        maccore_ethphy_mode0 <= maccore_ethphy_mode1;
-    end
-    if (maccore_ethphy_sys_counter_reset) begin
-        maccore_ethphy_sys_counter <= 1'd0;
-    end else begin
-        if (maccore_ethphy_sys_counter_ce) begin
-            maccore_ethphy_sys_counter <= (maccore_ethphy_sys_counter + 1'd1);
-        end
-    end
-    maccore_ethphy_toggle_o_r <= maccore_ethphy_toggle_o;
-    liteethphygmiimii_state <= liteethphygmiimii_next_state;
-    if (maccore_ethphy_counter_ce) begin
-        maccore_ethphy_counter <= (maccore_ethphy_counter + 1'd1);
     end
     core_tx_cdc_cdc_graycounter0_q_binary <= core_tx_cdc_cdc_graycounter0_q_next_binary;
     core_tx_cdc_cdc_graycounter0_q <= core_tx_cdc_cdc_graycounter0_q_next;
@@ -3899,7 +3489,7 @@ always @(posedge sys_clk) begin
         wishbone_interface_interface3_ack <= 1'd1;
     end
     wishbone_interface_decoder1_slave_sel_r <= wishbone_interface_decoder1_slave_sel;
-    wishbone2csr_state <= wishbone2csr_next_state;
+    state <= next_state;
     interface0_bank_bus_dat_r <= 1'd0;
     if (csrbank0_sel) begin
         case (interface0_bank_bus_adr[8:0])
@@ -4017,20 +3607,16 @@ always @(posedge sys_clk) begin
     if (csrbank2_sel) begin
         case (interface2_bank_bus_adr[8:0])
             1'd0: begin
-                interface2_bank_bus_dat_r <= csrbank2_mode_detection_mode_w;
-            end
-            1'd1: begin
                 interface2_bank_bus_dat_r <= csrbank2_crg_reset0_w;
             end
-            2'd2: begin
+            1'd1: begin
                 interface2_bank_bus_dat_r <= csrbank2_mdio_w0_w;
             end
-            2'd3: begin
+            2'd2: begin
                 interface2_bank_bus_dat_r <= csrbank2_mdio_r_w;
             end
         endcase
     end
-    maccore_ethphy_mode_re <= csrbank2_mode_detection_mode_re;
     if (csrbank2_crg_reset0_re) begin
         maccore_ethphy_reset_storage <= csrbank2_crg_reset0_r;
     end
@@ -4047,11 +3633,8 @@ always @(posedge sys_clk) begin
         maccore_maccore_scratch_re <= 1'd0;
         maccore_maccore_bus_errors_re <= 1'd0;
         maccore_maccore_bus_errors <= 32'd0;
-        maccore_ethphy_mode0 <= 1'd0;
-        maccore_ethphy_mode_re <= 1'd0;
         maccore_ethphy_reset_storage <= 1'd0;
         maccore_ethphy_reset_re <= 1'd0;
-        maccore_ethphy_counter <= 9'd0;
         maccore_ethphy__w_storage <= 3'd0;
         maccore_ethphy__w_re <= 1'd0;
         maccore_ethphy__r_re <= 1'd0;
@@ -4100,23 +3683,20 @@ always @(posedge sys_clk) begin
         wishbone_interface_decoder1_slave_sel_r <= 2'd0;
         slave_sel_r <= 3'd0;
         count <= 20'd1000000;
-        liteethphygmiimii_state <= 2'd0;
         liteethmacsramwriter_state <= 3'd0;
         liteethmacsramreader_state <= 2'd0;
-        wishbone2csr_state <= 1'd0;
+        state <= 1'd0;
     end
-    xilinxmultiregimpl00 <= maccore_ethphy_toggle_i;
+    xilinxmultiregimpl00 <= maccore_ethphy_data_r;
     xilinxmultiregimpl01 <= xilinxmultiregimpl00;
-    xilinxmultiregimpl10 <= maccore_ethphy_data_r;
-    xilinxmultiregimpl11 <= xilinxmultiregimpl10;
-    xilinxmultiregimpl30 <= core_tx_cdc_cdc_graycounter1_q;
+    xilinxmultiregimpl20 <= core_tx_cdc_cdc_graycounter1_q;
+    xilinxmultiregimpl21 <= xilinxmultiregimpl20;
+    xilinxmultiregimpl30 <= core_pulsesynchronizer0_toggle_i;
     xilinxmultiregimpl31 <= xilinxmultiregimpl30;
-    xilinxmultiregimpl40 <= core_pulsesynchronizer0_toggle_i;
+    xilinxmultiregimpl40 <= core_pulsesynchronizer1_toggle_i;
     xilinxmultiregimpl41 <= xilinxmultiregimpl40;
-    xilinxmultiregimpl50 <= core_pulsesynchronizer1_toggle_i;
+    xilinxmultiregimpl50 <= core_rx_cdc_cdc_graycounter0_q;
     xilinxmultiregimpl51 <= xilinxmultiregimpl50;
-    xilinxmultiregimpl60 <= core_rx_cdc_cdc_graycounter0_q;
-    xilinxmultiregimpl61 <= xilinxmultiregimpl60;
 end
 
 
@@ -4125,11 +3705,22 @@ end
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
+// Instance IBUF of IBUF Module.
+//------------------------------------------------------------------------------
+IBUF IBUF(
+	// Inputs.
+	.I (rgmii_clocks_rx),
+
+	// Outputs.
+	.O (maccore_ethphy_eth_rx_clk_ibuf)
+);
+
+//------------------------------------------------------------------------------
 // Instance BUFG of BUFG Module.
 //------------------------------------------------------------------------------
 BUFG BUFG(
 	// Inputs.
-	.I (gmii_clocks_rx),
+	.I (maccore_ethphy_eth_rx_clk_ibuf),
 
 	// Outputs.
 	.O (eth_rx_clk)
@@ -4140,10 +3731,456 @@ BUFG BUFG(
 //------------------------------------------------------------------------------
 BUFG BUFG_1(
 	// Inputs.
-	.I (maccore_ethphy_eth_tx_clk),
+	.I (maccore_ethphy_clkout0),
 
 	// Outputs.
-	.O (eth_tx_clk)
+	.O (maccore_ethphy_clkout_buf0)
+);
+
+//------------------------------------------------------------------------------
+// Instance BUFG_2 of BUFG Module.
+//------------------------------------------------------------------------------
+BUFG BUFG_2(
+	// Inputs.
+	.I (maccore_ethphy_clkout1),
+
+	// Outputs.
+	.O (maccore_ethphy_clkout_buf1)
+);
+
+//------------------------------------------------------------------------------
+// Instance ODDR of ODDR Module.
+//------------------------------------------------------------------------------
+ODDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE")
+) ODDR (
+	// Inputs.
+	.C  (eth_tx_delayed_clk),
+	.CE (1'd1),
+	.D1 (1'd1),
+	.D2 (1'd0),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q  (maccore_ethphy_eth_tx_clk_obuf)
+);
+
+//------------------------------------------------------------------------------
+// Instance OBUF of OBUF Module.
+//------------------------------------------------------------------------------
+OBUF OBUF(
+	// Inputs.
+	.I (maccore_ethphy_eth_tx_clk_obuf),
+
+	// Outputs.
+	.O (rgmii_clocks_tx)
+);
+
+//------------------------------------------------------------------------------
+// Instance ODDR_1 of ODDR Module.
+//------------------------------------------------------------------------------
+ODDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE")
+) ODDR_1 (
+	// Inputs.
+	.C  (eth_tx_clk),
+	.CE (1'd1),
+	.D1 (maccore_ethphy_sink_valid),
+	.D2 (maccore_ethphy_sink_valid),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q  (maccore_ethphy_tx_ctl_obuf)
+);
+
+//------------------------------------------------------------------------------
+// Instance OBUF_1 of OBUF Module.
+//------------------------------------------------------------------------------
+OBUF OBUF_1(
+	// Inputs.
+	.I (maccore_ethphy_tx_ctl_obuf),
+
+	// Outputs.
+	.O (rgmii_tx_ctl)
+);
+
+//------------------------------------------------------------------------------
+// Instance ODDR_2 of ODDR Module.
+//------------------------------------------------------------------------------
+ODDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE")
+) ODDR_2 (
+	// Inputs.
+	.C  (eth_tx_clk),
+	.CE (1'd1),
+	.D1 (maccore_ethphy_sink_payload_data[0]),
+	.D2 (maccore_ethphy_sink_payload_data[4]),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q  (maccore_ethphy_tx_data_obuf[0])
+);
+
+//------------------------------------------------------------------------------
+// Instance OBUF_2 of OBUF Module.
+//------------------------------------------------------------------------------
+OBUF OBUF_2(
+	// Inputs.
+	.I (maccore_ethphy_tx_data_obuf[0]),
+
+	// Outputs.
+	.O (rgmii_tx_data[0])
+);
+
+//------------------------------------------------------------------------------
+// Instance ODDR_3 of ODDR Module.
+//------------------------------------------------------------------------------
+ODDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE")
+) ODDR_3 (
+	// Inputs.
+	.C  (eth_tx_clk),
+	.CE (1'd1),
+	.D1 (maccore_ethphy_sink_payload_data[1]),
+	.D2 (maccore_ethphy_sink_payload_data[5]),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q  (maccore_ethphy_tx_data_obuf[1])
+);
+
+//------------------------------------------------------------------------------
+// Instance OBUF_3 of OBUF Module.
+//------------------------------------------------------------------------------
+OBUF OBUF_3(
+	// Inputs.
+	.I (maccore_ethphy_tx_data_obuf[1]),
+
+	// Outputs.
+	.O (rgmii_tx_data[1])
+);
+
+//------------------------------------------------------------------------------
+// Instance ODDR_4 of ODDR Module.
+//------------------------------------------------------------------------------
+ODDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE")
+) ODDR_4 (
+	// Inputs.
+	.C  (eth_tx_clk),
+	.CE (1'd1),
+	.D1 (maccore_ethphy_sink_payload_data[2]),
+	.D2 (maccore_ethphy_sink_payload_data[6]),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q  (maccore_ethphy_tx_data_obuf[2])
+);
+
+//------------------------------------------------------------------------------
+// Instance OBUF_4 of OBUF Module.
+//------------------------------------------------------------------------------
+OBUF OBUF_4(
+	// Inputs.
+	.I (maccore_ethphy_tx_data_obuf[2]),
+
+	// Outputs.
+	.O (rgmii_tx_data[2])
+);
+
+//------------------------------------------------------------------------------
+// Instance ODDR_5 of ODDR Module.
+//------------------------------------------------------------------------------
+ODDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE")
+) ODDR_5 (
+	// Inputs.
+	.C  (eth_tx_clk),
+	.CE (1'd1),
+	.D1 (maccore_ethphy_sink_payload_data[3]),
+	.D2 (maccore_ethphy_sink_payload_data[7]),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q  (maccore_ethphy_tx_data_obuf[3])
+);
+
+//------------------------------------------------------------------------------
+// Instance OBUF_5 of OBUF Module.
+//------------------------------------------------------------------------------
+OBUF OBUF_5(
+	// Inputs.
+	.I (maccore_ethphy_tx_data_obuf[3]),
+
+	// Outputs.
+	.O (rgmii_tx_data[3])
+);
+
+//------------------------------------------------------------------------------
+// Instance IBUF_1 of IBUF Module.
+//------------------------------------------------------------------------------
+IBUF IBUF_1(
+	// Inputs.
+	.I (rgmii_rx_ctl),
+
+	// Outputs.
+	.O (maccore_ethphy_liteethphyrgmiirx_rx_ctl_ibuf)
+);
+
+//------------------------------------------------------------------------------
+// Instance IDELAYE2 of IDELAYE2 Module.
+//------------------------------------------------------------------------------
+IDELAYE2 #(
+	// Parameters.
+	.IDELAY_TYPE      ("FIXED"),
+	.IDELAY_VALUE     (5'd26),
+	.REFCLK_FREQUENCY (200.0)
+) IDELAYE2 (
+	// Inputs.
+	.C        (1'd0),
+	.CE       (1'd0),
+	.IDATAIN  (maccore_ethphy_liteethphyrgmiirx_rx_ctl_ibuf),
+	.INC      (1'd0),
+	.LD       (1'd0),
+	.LDPIPEEN (1'd0),
+
+	// Outputs.
+	.DATAOUT  (maccore_ethphy_liteethphyrgmiirx_rx_ctl_idelay)
+);
+
+//------------------------------------------------------------------------------
+// Instance IDDR of IDDR Module.
+//------------------------------------------------------------------------------
+IDDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE_PIPELINED")
+) IDDR (
+	// Inputs.
+	.C  (eth_rx_clk),
+	.CE (1'd1),
+	.D  (maccore_ethphy_liteethphyrgmiirx_rx_ctl_idelay),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q1 (maccore_ethphy_liteethphyrgmiirx_rx_ctl),
+	.Q2 (maccore_ethphy_liteethphyrgmiirx)
+);
+
+//------------------------------------------------------------------------------
+// Instance IBUF_2 of IBUF Module.
+//------------------------------------------------------------------------------
+IBUF IBUF_2(
+	// Inputs.
+	.I (rgmii_rx_data[0]),
+
+	// Outputs.
+	.O (maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[0])
+);
+
+//------------------------------------------------------------------------------
+// Instance IDELAYE2_1 of IDELAYE2 Module.
+//------------------------------------------------------------------------------
+IDELAYE2 #(
+	// Parameters.
+	.IDELAY_TYPE      ("FIXED"),
+	.IDELAY_VALUE     (5'd26),
+	.REFCLK_FREQUENCY (200.0)
+) IDELAYE2_1 (
+	// Inputs.
+	.C        (1'd0),
+	.CE       (1'd0),
+	.IDATAIN  (maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[0]),
+	.INC      (1'd0),
+	.LD       (1'd0),
+	.LDPIPEEN (1'd0),
+
+	// Outputs.
+	.DATAOUT  (maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[0])
+);
+
+//------------------------------------------------------------------------------
+// Instance IDDR_1 of IDDR Module.
+//------------------------------------------------------------------------------
+IDDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE_PIPELINED")
+) IDDR_1 (
+	// Inputs.
+	.C  (eth_rx_clk),
+	.CE (1'd1),
+	.D  (maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[0]),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q1 (maccore_ethphy_liteethphyrgmiirx_rx_data[0]),
+	.Q2 (maccore_ethphy_liteethphyrgmiirx_rx_data[4])
+);
+
+//------------------------------------------------------------------------------
+// Instance IBUF_3 of IBUF Module.
+//------------------------------------------------------------------------------
+IBUF IBUF_3(
+	// Inputs.
+	.I (rgmii_rx_data[1]),
+
+	// Outputs.
+	.O (maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[1])
+);
+
+//------------------------------------------------------------------------------
+// Instance IDELAYE2_2 of IDELAYE2 Module.
+//------------------------------------------------------------------------------
+IDELAYE2 #(
+	// Parameters.
+	.IDELAY_TYPE      ("FIXED"),
+	.IDELAY_VALUE     (5'd26),
+	.REFCLK_FREQUENCY (200.0)
+) IDELAYE2_2 (
+	// Inputs.
+	.C        (1'd0),
+	.CE       (1'd0),
+	.IDATAIN  (maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[1]),
+	.INC      (1'd0),
+	.LD       (1'd0),
+	.LDPIPEEN (1'd0),
+
+	// Outputs.
+	.DATAOUT  (maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[1])
+);
+
+//------------------------------------------------------------------------------
+// Instance IDDR_2 of IDDR Module.
+//------------------------------------------------------------------------------
+IDDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE_PIPELINED")
+) IDDR_2 (
+	// Inputs.
+	.C  (eth_rx_clk),
+	.CE (1'd1),
+	.D  (maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[1]),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q1 (maccore_ethphy_liteethphyrgmiirx_rx_data[1]),
+	.Q2 (maccore_ethphy_liteethphyrgmiirx_rx_data[5])
+);
+
+//------------------------------------------------------------------------------
+// Instance IBUF_4 of IBUF Module.
+//------------------------------------------------------------------------------
+IBUF IBUF_4(
+	// Inputs.
+	.I (rgmii_rx_data[2]),
+
+	// Outputs.
+	.O (maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[2])
+);
+
+//------------------------------------------------------------------------------
+// Instance IDELAYE2_3 of IDELAYE2 Module.
+//------------------------------------------------------------------------------
+IDELAYE2 #(
+	// Parameters.
+	.IDELAY_TYPE      ("FIXED"),
+	.IDELAY_VALUE     (5'd26),
+	.REFCLK_FREQUENCY (200.0)
+) IDELAYE2_3 (
+	// Inputs.
+	.C        (1'd0),
+	.CE       (1'd0),
+	.IDATAIN  (maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[2]),
+	.INC      (1'd0),
+	.LD       (1'd0),
+	.LDPIPEEN (1'd0),
+
+	// Outputs.
+	.DATAOUT  (maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[2])
+);
+
+//------------------------------------------------------------------------------
+// Instance IDDR_3 of IDDR Module.
+//------------------------------------------------------------------------------
+IDDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE_PIPELINED")
+) IDDR_3 (
+	// Inputs.
+	.C  (eth_rx_clk),
+	.CE (1'd1),
+	.D  (maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[2]),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q1 (maccore_ethphy_liteethphyrgmiirx_rx_data[2]),
+	.Q2 (maccore_ethphy_liteethphyrgmiirx_rx_data[6])
+);
+
+//------------------------------------------------------------------------------
+// Instance IBUF_5 of IBUF Module.
+//------------------------------------------------------------------------------
+IBUF IBUF_5(
+	// Inputs.
+	.I (rgmii_rx_data[3]),
+
+	// Outputs.
+	.O (maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[3])
+);
+
+//------------------------------------------------------------------------------
+// Instance IDELAYE2_4 of IDELAYE2 Module.
+//------------------------------------------------------------------------------
+IDELAYE2 #(
+	// Parameters.
+	.IDELAY_TYPE      ("FIXED"),
+	.IDELAY_VALUE     (5'd26),
+	.REFCLK_FREQUENCY (200.0)
+) IDELAYE2_4 (
+	// Inputs.
+	.C        (1'd0),
+	.CE       (1'd0),
+	.IDATAIN  (maccore_ethphy_liteethphyrgmiirx_rx_data_ibuf[3]),
+	.INC      (1'd0),
+	.LD       (1'd0),
+	.LDPIPEEN (1'd0),
+
+	// Outputs.
+	.DATAOUT  (maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[3])
+);
+
+//------------------------------------------------------------------------------
+// Instance IDDR_4 of IDDR Module.
+//------------------------------------------------------------------------------
+IDDR #(
+	// Parameters.
+	.DDR_CLK_EDGE ("SAME_EDGE_PIPELINED")
+) IDDR_4 (
+	// Inputs.
+	.C  (eth_rx_clk),
+	.CE (1'd1),
+	.D  (maccore_ethphy_liteethphyrgmiirx_rx_data_idelay[3]),
+	.R  (1'd0),
+	.S  (1'd0),
+
+	// Outputs.
+	.Q1 (maccore_ethphy_liteethphyrgmiirx_rx_data[3]),
+	.Q2 (maccore_ethphy_liteethphyrgmiirx_rx_data[7])
 );
 
 //------------------------------------------------------------------------------
@@ -4327,22 +4364,143 @@ assign wishbone_interface_sram3_dat_r = mac_sram_reader_slot1[mac_sram_reader_sl
 
 
 //------------------------------------------------------------------------------
-// Instance ODDR of ODDR Module.
+// Instance FDCE of FDCE Module.
 //------------------------------------------------------------------------------
-ODDR #(
-	// Parameters.
-	.DDR_CLK_EDGE ("SAME_EDGE")
-) ODDR (
+FDCE FDCE(
 	// Inputs.
-	.C  (eth_tx_clk),
-	.CE (1'd1),
-	.D1 (1'd1),
-	.D2 ((maccore_ethphy_mode0 == 1'd1)),
-	.R  (1'd0),
-	.S  (1'd0),
+	.C   (maccore_ethphy_clkin),
+	.CE  (1'd1),
+	.CLR (1'd0),
+	.D   (maccore_ethphy_reset0),
 
 	// Outputs.
-	.Q  (gmii_clocks_gtx)
+	.Q   (reset0)
+);
+
+//------------------------------------------------------------------------------
+// Instance FDCE_1 of FDCE Module.
+//------------------------------------------------------------------------------
+FDCE FDCE_1(
+	// Inputs.
+	.C   (maccore_ethphy_clkin),
+	.CE  (1'd1),
+	.CLR (1'd0),
+	.D   (reset0),
+
+	// Outputs.
+	.Q   (reset1)
+);
+
+//------------------------------------------------------------------------------
+// Instance FDCE_2 of FDCE Module.
+//------------------------------------------------------------------------------
+FDCE FDCE_2(
+	// Inputs.
+	.C   (maccore_ethphy_clkin),
+	.CE  (1'd1),
+	.CLR (1'd0),
+	.D   (reset1),
+
+	// Outputs.
+	.Q   (reset2)
+);
+
+//------------------------------------------------------------------------------
+// Instance FDCE_3 of FDCE Module.
+//------------------------------------------------------------------------------
+FDCE FDCE_3(
+	// Inputs.
+	.C   (maccore_ethphy_clkin),
+	.CE  (1'd1),
+	.CLR (1'd0),
+	.D   (reset2),
+
+	// Outputs.
+	.Q   (reset3)
+);
+
+//------------------------------------------------------------------------------
+// Instance FDCE_4 of FDCE Module.
+//------------------------------------------------------------------------------
+FDCE FDCE_4(
+	// Inputs.
+	.C   (maccore_ethphy_clkin),
+	.CE  (1'd1),
+	.CLR (1'd0),
+	.D   (reset3),
+
+	// Outputs.
+	.Q   (reset4)
+);
+
+//------------------------------------------------------------------------------
+// Instance FDCE_5 of FDCE Module.
+//------------------------------------------------------------------------------
+FDCE FDCE_5(
+	// Inputs.
+	.C   (maccore_ethphy_clkin),
+	.CE  (1'd1),
+	.CLR (1'd0),
+	.D   (reset4),
+
+	// Outputs.
+	.Q   (reset5)
+);
+
+//------------------------------------------------------------------------------
+// Instance FDCE_6 of FDCE Module.
+//------------------------------------------------------------------------------
+FDCE FDCE_6(
+	// Inputs.
+	.C   (maccore_ethphy_clkin),
+	.CE  (1'd1),
+	.CLR (1'd0),
+	.D   (reset5),
+
+	// Outputs.
+	.Q   (reset6)
+);
+
+//------------------------------------------------------------------------------
+// Instance FDCE_7 of FDCE Module.
+//------------------------------------------------------------------------------
+FDCE FDCE_7(
+	// Inputs.
+	.C   (maccore_ethphy_clkin),
+	.CE  (1'd1),
+	.CLR (1'd0),
+	.D   (reset6),
+
+	// Outputs.
+	.Q   (reset7)
+);
+
+//------------------------------------------------------------------------------
+// Instance PLLE2_ADV of PLLE2_ADV Module.
+//------------------------------------------------------------------------------
+PLLE2_ADV #(
+	// Parameters.
+	.CLKFBOUT_MULT  (4'd12),
+	.CLKIN1_PERIOD  (8.0),
+	.CLKOUT0_DIVIDE (4'd12),
+	.CLKOUT0_PHASE  (1'd0),
+	.CLKOUT1_DIVIDE (4'd12),
+	.CLKOUT1_PHASE  (90.0),
+	.DIVCLK_DIVIDE  (1'd1),
+	.REF_JITTER1    (0.01),
+	.STARTUP_WAIT   ("FALSE")
+) PLLE2_ADV (
+	// Inputs.
+	.CLKFBIN  (pll_fb),
+	.CLKIN1   (maccore_ethphy_clkin),
+	.PWRDWN   (maccore_ethphy_power_down),
+	.RST      (reset7),
+
+	// Outputs.
+	.CLKFBOUT (pll_fb),
+	.CLKOUT0  (maccore_ethphy_clkout0),
+	.CLKOUT1  (maccore_ethphy_clkout1),
+	.LOCKED   (maccore_ethphy_locked)
 );
 
 (* ars_ff1 = "true", async_reg = "true" *)
@@ -4354,13 +4512,13 @@ FDPE #(
 	.INIT (1'd1)
 ) FDPE (
 	// Inputs.
-	.C   (eth_tx_clk),
+	.C   (eth_tx_delayed_clk),
 	.CE  (1'd1),
 	.D   (1'd0),
-	.PRE (maccore_ethphy_reset0),
+	.PRE (xilinxasyncresetsynchronizerimpl0),
 
 	// Outputs.
-	.Q   (rst_meta0)
+	.Q   (xilinxasyncresetsynchronizerimpl0_rst_meta)
 );
 
 (* ars_ff2 = "true", async_reg = "true" *)
@@ -4372,13 +4530,13 @@ FDPE #(
 	.INIT (1'd1)
 ) FDPE_1 (
 	// Inputs.
-	.C   (eth_tx_clk),
+	.C   (eth_tx_delayed_clk),
 	.CE  (1'd1),
-	.D   (rst_meta0),
-	.PRE (maccore_ethphy_reset0),
+	.D   (xilinxasyncresetsynchronizerimpl0_rst_meta),
+	.PRE (xilinxasyncresetsynchronizerimpl0),
 
 	// Outputs.
-	.Q   (eth_tx_rst)
+	.Q   (xilinxasyncresetsynchronizerimpl0_expr)
 );
 
 (* ars_ff1 = "true", async_reg = "true" *)
@@ -4390,13 +4548,13 @@ FDPE #(
 	.INIT (1'd1)
 ) FDPE_2 (
 	// Inputs.
-	.C   (eth_rx_clk),
+	.C   (eth_tx_clk),
 	.CE  (1'd1),
 	.D   (1'd0),
-	.PRE (maccore_ethphy_reset0),
+	.PRE (maccore_ethphy_reset1),
 
 	// Outputs.
-	.Q   (rst_meta1)
+	.Q   (xilinxasyncresetsynchronizerimpl1_rst_meta)
 );
 
 (* ars_ff2 = "true", async_reg = "true" *)
@@ -4408,10 +4566,46 @@ FDPE #(
 	.INIT (1'd1)
 ) FDPE_3 (
 	// Inputs.
+	.C   (eth_tx_clk),
+	.CE  (1'd1),
+	.D   (xilinxasyncresetsynchronizerimpl1_rst_meta),
+	.PRE (maccore_ethphy_reset1),
+
+	// Outputs.
+	.Q   (eth_tx_rst)
+);
+
+(* ars_ff1 = "true", async_reg = "true" *)
+//------------------------------------------------------------------------------
+// Instance FDPE_4 of FDPE Module.
+//------------------------------------------------------------------------------
+FDPE #(
+	// Parameters.
+	.INIT (1'd1)
+) FDPE_4 (
+	// Inputs.
 	.C   (eth_rx_clk),
 	.CE  (1'd1),
-	.D   (rst_meta1),
-	.PRE (maccore_ethphy_reset0),
+	.D   (1'd0),
+	.PRE (maccore_ethphy_reset1),
+
+	// Outputs.
+	.Q   (xilinxasyncresetsynchronizerimpl2_rst_meta)
+);
+
+(* ars_ff2 = "true", async_reg = "true" *)
+//------------------------------------------------------------------------------
+// Instance FDPE_5 of FDPE Module.
+//------------------------------------------------------------------------------
+FDPE #(
+	// Parameters.
+	.INIT (1'd1)
+) FDPE_5 (
+	// Inputs.
+	.C   (eth_rx_clk),
+	.CE  (1'd1),
+	.D   (xilinxasyncresetsynchronizerimpl2_rst_meta),
+	.PRE (maccore_ethphy_reset1),
 
 	// Outputs.
 	.Q   (eth_rx_rst)
@@ -4429,7 +4623,7 @@ IOBUF IOBUF(
 	.O  (maccore_ethphy_data_r),
 
 	// InOuts.
-	.IO (gmii_mdio)
+	.IO (rgmii_mdio)
 );
 
 endmodule
