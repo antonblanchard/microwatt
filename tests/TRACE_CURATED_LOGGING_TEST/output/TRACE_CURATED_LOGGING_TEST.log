@@ -1,0 +1,58 @@
+
+========================================================================
+  TRACE_CURATED_LOGGING_TEST  (2026-07-12)
+  curated data-ready MMU trace + one-shot stop-on-full
+========================================================================
+
+[Test 01] WALK_START anchor: one record per translation, EA = VA
+          VA_A      : 0x0000000000124000
+          walk_start at rec : 0
+          result    : PASS
+------------------------------------------------------------------------
+[Test 02] PTE_READ (data-ready) holds a freshly-fetched directory PDE, not stale
+          expected  : rec before TLB_LOAD is EV_PTE_READ, valid non-leaf directory
+          pte_read event    : 8
+          directory (word2) : 0x8000000000014009
+          result    : PASS
+------------------------------------------------------------------------
+[Test 03] No issue-edge noise: EV_RADIX_LOOKUP never appears
+          expected  : no EV_RADIX_LOOKUP record in scan window
+          got       : none — issue edge correctly skipped
+          result    : PASS
+------------------------------------------------------------------------
+[Test 04] TLB_LOAD: EA=VA_A, state=RADIX_LOAD_TLB, pde=leaf PTE
+          rec               : 5
+          EA                : 0x0000000000124000
+          state             : 10
+          pde (leaf)        : 0xc000000000008186
+          result    : PASS
+------------------------------------------------------------------------
+[Test 05] Cold walk: EV_PROC_READ present with a valid tree root in word2
+          expected  : EV_PROC_READ record, word2 root has valid bit set
+          proc_read at rec  : 2
+          root (word2)      : 0xa000000000010009
+          result    : PASS
+------------------------------------------------------------------------
+[Test 06] Fault walk (unmapped VA): EV_ERROR(invalid) and no TLB_LOAD
+          VA_U (unmapped)   : 0x0000000000200000
+          error at rec      : 7
+          invalid flag      : 1
+          no TLB_LOAD       : confirmed
+          result    : PASS
+------------------------------------------------------------------------
+[Test 07] Success FINISH suppressed: no EV_FINISH record for a good walk
+          expected  : no EV_FINISH record (redundant with EV_TLB_LOAD)
+          got       : none — success finish correctly skipped
+          result    : PASS
+------------------------------------------------------------------------
+[Test 08] One-shot stop-on-full: freeze at 2048, keep first-N, re-arm to 0
+          expected  : misc[25]=1 @2047; rec0=VA_A; after re-arm rec0=VA_B
+          misc[25] full     : 1
+          rec0 EA (kept)    : 0x0000000000124000
+          rec0 EA (re-arm)  : 0x0000000000125000
+          VA_A / VA_B       : 0x0000000000124000
+          result    : PASS
+------------------------------------------------------------------------
+========================================================================
+  SUMMARY : 8 PASS / 0 FAIL   ->  ALL TESTS PASSED
+========================================================================

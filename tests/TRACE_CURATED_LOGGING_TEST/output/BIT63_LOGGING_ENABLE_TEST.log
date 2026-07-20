@@ -1,0 +1,47 @@
+
+========================================================================
+  BIT63_LOGGING_ENABLE_TEST
+  SPR 704 bit 63 : 1 = capture ON, 0 = capture FROZEN
+========================================================================
+
+[Test 01] Disable stops FSM writes: walk while capture=0 leaves no record
+          VA_A EA   : 0x0000000000124000
+          expected  : no EV_TLB_LOAD for VA_A in scan [0..63]
+          got       : not found — capture was correctly frozen
+          result    : PASS
+------------------------------------------------------------------------
+[Test 02] Enable resumes FSM writes: walk while capture=1 produces a record
+          record    : #1
+          event     : 9 EV_TLB_LOAD
+          state     : 10 RADIX_LOAD_TLB
+          EA        : 0x0000000000125000
+          PTE/PDE   : 0xc000000000009186
+          VA_B EA   : 0x0000000000125000
+          expected  : EV_TLB_LOAD for VA_B found in scan
+          got       : found at record #1
+          result    : PASS
+------------------------------------------------------------------------
+[Test 03] Read-while-disabled: MFSPR 705 returns correct data when capture=0
+          expected  : w0=0x125000, event=9 EV_TLB_LOAD, state=10 RADIX_LOAD_TLB
+          w0  (EA)  : 0x0000000000125000
+          event     : 9 EV_TLB_LOAD
+          state     : 10 RADIX_LOAD_TLB
+          result    : PASS
+------------------------------------------------------------------------
+[Test 04] Write pointer resumes from frozen index after re-enable (not from 0)
+          expected  : VA_A idx > VA_B idx AND VA_B slot still holds VA_B EA
+          VA_B record idx   : 1
+          VA_A new idx      : 3
+          VA_B slot re-read : 0x0000000000125000
+          expected VA_B EA  : 0x0000000000125000
+          result    : PASS
+------------------------------------------------------------------------
+[Test 05] Re-seek resets sub-word mux while capture is frozen
+          expected (both reads): 0x0000000000125000
+          first seek  word0   : 0x0000000000125000
+          re-seek     word0   : 0x0000000000125000
+          result    : PASS
+------------------------------------------------------------------------
+========================================================================
+  SUMMARY : 5 PASS / 0 FAIL   ->  ALL TESTS PASSED
+========================================================================
