@@ -383,7 +383,7 @@ begin
             generic map(
                 RESET_LOW => RESET_LOW,
                 PLL_RESET_BITS => 18,
-                SOC_RESET_BITS => 20
+                SOC_RESET_BITS => 1
                 )
             port map(
                 ext_clk => ext_clk,
@@ -391,15 +391,13 @@ begin
                 pll_locked_in => system_clk_locked and not dram_sys_rst,
                 ext_rst_in => ext_rst_n and gsrn,
                 pll_rst_out => pll_rst,
-                rst_out => soc_rst
+                rst_out => open
                 );
 
         -- Generate SoC reset
         soc_rst_gen: process(system_clk)
         begin
-            if ext_rst_n = '0' then
-                soc_rst <= '1';
-            elsif rising_edge(system_clk) then
+            if rising_edge(system_clk) then
                 soc_rst <= dram_sys_rst or not system_clk_locked;
             end if;
         end process;
