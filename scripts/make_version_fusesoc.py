@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 #
 # Simple wrapper around make_version.sh that fusesoc needs
 # Just pulls out the files_root from yaml so we know where to run.
