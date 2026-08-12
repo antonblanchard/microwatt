@@ -155,6 +155,7 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
       - has_fpu
       - has_btc
@@ -174,6 +175,7 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=10485760
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
     tools:
       vivado: {part : xc7a200tsbg484-2}
@@ -191,6 +193,7 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=12582912
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
     generate: [git_hash]
     tools:
@@ -209,6 +212,7 @@ targets:
       - no_bram
       - spi_flash_offset=10485760
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
       - has_fpu
       - has_btc
@@ -229,6 +233,7 @@ targets:
       - no_bram
       - spi_flash_offset=12582912
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
     generate: [litedram_genesys2, liteeth_genesys2, git_hash]
     tools:
@@ -246,6 +251,7 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=10485760
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
       - has_fpu
       - has_btc
@@ -267,6 +273,7 @@ targets:
       - no_bram
       - spi_flash_offset=10485760
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
       - has_fpu
       - has_btc
@@ -286,6 +293,7 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=3145728
       - log_length=512
+      - has_dmi_counters
       - uart_is_16550
       - has_uart1
       - has_fpu=false
@@ -309,6 +317,7 @@ targets:
       - no_bram
       - spi_flash_offset=3145728
       - log_length=512
+      - has_dmi_counters
       - uart_is_16550
       - has_uart1
       - has_fpu=false
@@ -329,6 +338,7 @@ targets:
       - disable_flatten_core
       - spi_flash_offset=4194304
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
       - has_uart1
       - has_fpu
@@ -354,6 +364,7 @@ targets:
       - no_bram
       - spi_flash_offset=4194304
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
       - has_uart1
       - has_fpu
@@ -376,6 +387,7 @@ targets:
       - disable_flatten_core
       - no_bram
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
       - has_uart1
       - has_fpu
@@ -398,6 +410,7 @@ targets:
       - spi_flash_offset=4194304
       - clk_frequency=100000000
       - log_length=2048
+      - has_dmi_counters
       - uart_is_16550
       - has_fpu
       - has_btc
@@ -419,6 +432,7 @@ targets:
       - no_bram=true
       - spi_flash_offset=4194304
       - log_length=0
+      - has_dmi_counters
       - uart_is_16550
       - has_fpu
       - has_btc
@@ -438,6 +452,7 @@ targets:
       - clk_frequency
       - disable_flatten_core
       - log_length=512
+      - has_dmi_counters
       - uart_is_16550
       - has_fpu=false
       - has_btc=false
@@ -613,3 +628,9 @@ parameters:
     datatype    : int
     description : Length of the core log buffer in entries (32 bytes each)
     paramtype   : generic
+
+  has_dmi_counters:
+    datatype    : bool
+    description : Include DMI-accessible performance counters
+    paramtype   : generic
+    default     : false

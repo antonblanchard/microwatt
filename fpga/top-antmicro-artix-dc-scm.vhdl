@@ -24,6 +24,7 @@ entity toplevel is
         SPI_FLASH_DEF_CKDV : natural := 1;
         SPI_FLASH_DEF_QUAD : boolean := true;
         LOG_LENGTH         : natural := 512;
+        HAS_DMI_COUNTERS   : boolean := false;
         USE_LITEETH        : boolean  := true;
         UART_IS_16550      : boolean  := false;
         HAS_UART1          : boolean  := true;
@@ -187,6 +188,7 @@ begin
             SPI_FLASH_DEF_CKDV => SPI_FLASH_DEF_CKDV,
             SPI_FLASH_DEF_QUAD => SPI_FLASH_DEF_QUAD,
             LOG_LENGTH         => LOG_LENGTH,
+            HAS_DMI_COUNTERS   => HAS_DMI_COUNTERS,
             HAS_LITEETH        => USE_LITEETH,
             UART0_IS_16550     => UART_IS_16550,
             HAS_UART1          => HAS_UART1,

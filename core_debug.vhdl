@@ -10,7 +10,9 @@ use work.wishbone_types.all;
 entity core_debug is
     generic (
         -- Length of log buffer
-        LOG_LENGTH : natural := 512
+        LOG_LENGTH       : natural := 512;
+        -- Include logic for DMI-accessible performance counters
+        HAS_DMI_COUNTERS : boolean := false
         );
     port (
         clk             : in std_logic;
@@ -32,7 +34,7 @@ entity core_debug is
         terminate       : in std_ulogic;
         core_stopped    : in std_ulogic;
         nia             : in std_ulogic_vector(63 downto 0);
-        msr             : in std_ulogic_vector(63 downto 0);
+        ctrl            : in ctrl_t;
         wb_snoop_in     : in wishbone_master_out := wishbone_master_out_init;
 
         -- GPR/FPR register read port
@@ -60,7 +62,12 @@ entity core_debug is
         log_write_addr  : out std_ulogic_vector(31 downto 0);
 
         -- Misc
-        terminated_out  : out std_ulogic
+        terminated_out  : out std_ulogic;
+        fetch_events    : in FetchEventType;
+        icache_events   : in IcacheEventType;
+        dcache_events   : in DcacheEventType;
+        wback_events    : in WritebackEventType;
+        mmu_events      : in MMUEventType
         );
 end core_debug;
 
@@ -110,6 +117,10 @@ architecture behave of core_debug is
 
     constant LOG_INDEX_BITS : natural := log2(LOG_LENGTH);
 
+    -- debug counter index and data registers
+    constant DBG_CORE_CNT_ADDR       : std_ulogic_vector(3 downto 0) := "1100";
+    constant DBG_CORE_CNT_DATA       : std_ulogic_vector(3 downto 0) := "1101";
+
     -- Some internal wires
     signal stat_reg : std_ulogic_vector(63 downto 0);
 
@@ -138,6 +149,10 @@ architecture behave of core_debug is
     signal dmi_read_log_data_1 : std_ulogic;
     signal log_trigger_delay   : integer range 0 to 255 := 0;
 
+    signal cnt_addr_lo        : std_ulogic_vector(2 downto 0) := "000";
+    signal cnt_addr_hi        : std_ulogic_vector(2 downto 0) := "000";
+    signal cnt_data           : unsigned(47 downto 0) := 48x"0";
+
 begin
        -- Single cycle register accesses on DMI except for GSPR data
     dmi_ack <= dmi_req when dmi_addr /= DBG_CORE_GSPR_DATA
@@ -158,12 +173,14 @@ begin
     with dmi_addr select dmi_dout <=
         stat_reg        when DBG_CORE_STAT,
         nia             when DBG_CORE_NIA,
-        msr             when DBG_CORE_MSR,
+        ctrl.msr        when DBG_CORE_MSR,
         gspr_data       when DBG_CORE_GSPR_DATA,
         log_write_addr & log_dmi_addr when DBG_CORE_LOG_ADDR,
         log_dmi_data    when DBG_CORE_LOG_DATA,
         log_dmi_trigger when DBG_CORE_LOG_TRIGGER,
         log_mem_trigger when DBG_CORE_LOG_MTRIGGER,
+        58x"0" & cnt_addr_hi & cnt_addr_lo when DBG_CORE_CNT_ADDR,
+        16x"0" & std_ulogic_vector(cnt_data) when DBG_CORE_CNT_DATA,
         (others => '0') when others;
 
     -- DMI writes
@@ -238,6 +255,9 @@ begin
                             log_dmi_trigger <= dmi_din;
                         elsif dmi_addr = DBG_CORE_LOG_MTRIGGER then
                             log_mem_trigger <= dmi_din;
+                        elsif dmi_addr = DBG_CORE_CNT_ADDR then
+                            cnt_addr_hi <= dmi_din(5 downto 3);
+                            cnt_addr_lo <= dmi_din(2 downto 0);
                         end if;
                     else
                         report("DMI read from " & to_string(dmi_addr));
@@ -353,6 +373,228 @@ begin
     core_rst <= do_reset;
     icache_rst <= do_icreset;
     terminated_out <= terminated;
+
+    -- DMI-accessible performance counters
+    dmi_ctrs : if HAS_DMI_COUNTERS generate
+        signal cnt_dat0           : unsigned(47 downto 0);
+        signal cnt_dat1           : unsigned(47 downto 0);
+        signal cnt_dat2           : unsigned(47 downto 0);
+        signal cnt_dat3           : unsigned(47 downto 0);
+        signal cnt_dat4           : unsigned(47 downto 0);
+        signal cnt_data_r0        : unsigned(47 downto 0);
+        signal cnt_data_r1        : unsigned(47 downto 0);
+        signal cnt_data_r2        : unsigned(47 downto 0);
+        signal cnt_data_r3        : unsigned(47 downto 0);
+        signal tlbsrch_cnt        : unsigned(39 downto 0) := 40x"0";
+        signal tlbsrch_cyc_cnt    : unsigned(47 downto 0) := 48x"0";
+        signal tlbmiss_cnt        : unsigned(39 downto 0) := 40x"0";
+        signal tlbhit_cnt         : unsigned(39 downto 0) := 40x"0";
+        signal tlb_evict_cnt      : unsigned(39 downto 0) := 40x"0";
+        signal pagewalk_cnt       : unsigned(39 downto 0) := 40x"0";
+        signal pgwalk_cyc_cnt     : unsigned(47 downto 0) := 48x"0";
+        signal nonwait_cycles     : unsigned(47 downto 0) := 48x"0";
+        signal icache_hit_cnt     : unsigned(39 downto 0) := 40x"0";
+        signal icache_miss_cnt    : unsigned(39 downto 0) := 40x"0";
+        signal icache_miss_cycles : unsigned(47 downto 0) := 48x"0";
+        signal dcache_hit_cnt     : unsigned(39 downto 0) := 40x"0";
+        signal dcache_miss_cnt    : unsigned(39 downto 0) := 40x"0";
+        signal dcache_miss_cycles : unsigned(47 downto 0) := 48x"0";
+        signal dtlb_hit_cnt       : unsigned(39 downto 0) := 40x"0";
+        signal dtlb_miss_cnt      : unsigned(39 downto 0) := 40x"0";
+        signal ierat_hit_cnt      : unsigned(39 downto 0) := 40x"0";
+        signal ierat_miss_cnt     : unsigned(39 downto 0) := 40x"0";
+        signal ierat_miss_cycles  : unsigned(47 downto 0) := 48x"0";
+        signal itlb_hit_cnt       : unsigned(39 downto 0) := 40x"0";
+        signal itlb_miss_cnt      : unsigned(39 downto 0) := 40x"0";
+        signal instr_cmp_cnt      : unsigned(39 downto 0) := 40x"0";
+        signal pwcsrch_cnt        : unsigned(39 downto 0) := 40x"0";
+        signal pwcsrch_cyc_cnt    : unsigned(47 downto 0) := 48x"0";
+        signal pwcmiss_cnt        : unsigned(39 downto 0) := 40x"0";
+        signal pwchit_2M_cnt      : unsigned(39 downto 0) := 40x"0";
+        signal pwchit_1G_cnt      : unsigned(39 downto 0) := 40x"0";
+        signal pwchit_512G_cnt    : unsigned(39 downto 0) := 40x"0";
+        signal pwc_evict_cnt      : unsigned(39 downto 0) := 40x"0";
+        signal tlbhit_2M_cnt      : unsigned(39 downto 0) := 40x"0";
+        signal mmu_dc_miss_cnt    : unsigned(39 downto 0) := 40x"0";
+
+    begin
+        cnt_dat0 <= x"00" & tlbsrch_cnt     when cnt_addr_lo = 3x"0" else
+                    tlbsrch_cyc_cnt         when cnt_addr_lo = 3x"1" else
+                    x"00" & tlbmiss_cnt     when cnt_addr_lo = 3x"2" else
+                    x"00" & tlbhit_cnt      when cnt_addr_lo = 3x"3" else
+                    x"00" & tlbhit_2M_cnt   when cnt_addr_lo = 3x"4" else
+                    x"00" & pagewalk_cnt    when cnt_addr_lo = 3x"5" else
+                    pgwalk_cyc_cnt          when cnt_addr_lo = 3x"6" else
+                    x"00" & pwcsrch_cnt     when cnt_addr_lo = 3x"7" else
+                    48x"0";
+        cnt_dat1 <= pwcsrch_cyc_cnt         when cnt_addr_lo = 3x"0" else
+                    x"00" & pwcmiss_cnt     when cnt_addr_lo = 3x"1" else
+                    x"00" & pwchit_2M_cnt   when cnt_addr_lo = 3x"2" else
+                    x"00" & pwchit_1G_cnt   when cnt_addr_lo = 3x"3" else
+                    x"00" & pwchit_512G_cnt when cnt_addr_lo = 3x"4" else
+                    x"00" & pwc_evict_cnt   when cnt_addr_lo = 3x"5" else
+                    x"00" & tlb_evict_cnt   when cnt_addr_lo = 3x"6" else
+                    x"00" & mmu_dc_miss_cnt when cnt_addr_lo = 3x"7" else
+                    48x"0";
+        cnt_dat2 <= x"00" & instr_cmp_cnt   when cnt_addr_lo = 3x"0" else
+                    nonwait_cycles          when cnt_addr_lo = 3x"1" else
+                    x"00" & icache_hit_cnt  when cnt_addr_lo = 3x"2" else
+                    x"00" & icache_miss_cnt when cnt_addr_lo = 3x"3" else
+                    icache_miss_cycles      when cnt_addr_lo = 3x"4" else
+                    x"00" & ierat_hit_cnt   when cnt_addr_lo = 3x"5" else
+                    x"00" & ierat_miss_cnt  when cnt_addr_lo = 3x"6" else
+                    ierat_miss_cycles       when cnt_addr_lo = 3x"7" else
+                    48x"0";
+        cnt_dat3 <= x"00" & itlb_hit_cnt    when cnt_addr_lo = 3x"0" else
+                    x"00" & itlb_miss_cnt   when cnt_addr_lo = 3x"1" else
+                    x"00" & dcache_hit_cnt  when cnt_addr_lo = 3x"2" else
+                    x"00" & dcache_miss_cnt when cnt_addr_lo = 3x"3" else
+                    dcache_miss_cycles      when cnt_addr_lo = 3x"4" else
+                    x"00" & dtlb_hit_cnt    when cnt_addr_lo = 3x"5" else
+                    x"00" & dtlb_miss_cnt   when cnt_addr_lo = 3x"6" else
+                    48x"0";
+        cnt_data <= cnt_data_r0 when cnt_addr_hi = "000" else
+                    cnt_data_r1 when cnt_addr_hi = "001" else
+                    cnt_data_r2 when cnt_addr_hi = "010" else
+                    cnt_data_r3;
+
+        process(clk)
+        begin
+            if rising_edge(clk) then
+                if rst = '1' then
+                    tlbsrch_cnt <= 40x"0";
+                    tlbsrch_cyc_cnt <= 48x"0";
+                    tlbmiss_cnt <= 40x"0";
+                    tlbhit_cnt <= 40x"0";
+                    tlbhit_2M_cnt <= 40x"0";
+                    pagewalk_cnt <= 40x"0";
+                    pgwalk_cyc_cnt <= 48x"0";
+                    pwcsrch_cnt <= 40x"0";
+                    pwcsrch_cyc_cnt <= 48x"0";
+                    pwcmiss_cnt <= 40x"0";
+                    pwchit_2M_cnt <= 40x"0";
+                    pwchit_1G_cnt <= 40x"0";
+                    pwchit_512G_cnt <= 40x"0";
+                    pwc_evict_cnt <= 40x"0";
+                    tlb_evict_cnt <= 40x"0";
+                    mmu_dc_miss_cnt <= 40x"0";
+                    instr_cmp_cnt <= 40x"0";
+                    nonwait_cycles <= 48x"0";
+                    icache_hit_cnt <= 40x"0";
+                    icache_miss_cnt <= 40x"0";
+                    icache_miss_cycles <= 48x"0";
+                    ierat_hit_cnt <= 40x"0";
+                    ierat_miss_cnt <= 40x"0";
+                    ierat_miss_cycles <= 48x"0";
+                    itlb_hit_cnt <= 40x"0";
+                    itlb_miss_cnt <= 40x"0";
+                    dcache_hit_cnt <= 40x"0";
+                    dcache_miss_cnt <= 40x"0";
+                    dcache_miss_cycles <= 48x"0";
+                    dtlb_hit_cnt <= 40x"0";
+                    dtlb_miss_cnt <= 40x"0";
+                else
+                    if mmu_events.tlbsearch = '1' then
+                        tlbsrch_cnt <= tlbsrch_cnt + 1;
+                    end if;
+                    if mmu_events.tlbsrch_cycles = '1' then
+                        tlbsrch_cyc_cnt <= tlbsrch_cyc_cnt + 1;
+                    end if;
+                    if mmu_events.tlbmiss = '1' then
+                        tlbmiss_cnt <= tlbmiss_cnt + 1;
+                    end if;
+                    if mmu_events.tlbhit = '1' then
+                        tlbhit_cnt <= tlbhit_cnt + 1;
+                    end if;
+                    if mmu_events.tlbhit_2M = '1' then
+                        tlbhit_2M_cnt <= tlbhit_2M_cnt + 1;
+                    end if;
+                    if mmu_events.pagewalk = '1' then
+                        pagewalk_cnt <= pagewalk_cnt + 1;
+                    end if;
+                    if mmu_events.pgwalk_cycles = '1' then
+                        pgwalk_cyc_cnt <= pgwalk_cyc_cnt + 1;
+                    end if;
+                    if mmu_events.pwcsearch = '1' then
+                        pwcsrch_cnt <= pwcsrch_cnt + 1;
+                    end if;
+                    if mmu_events.pwcsrch_cycles = '1' then
+                        pwcsrch_cyc_cnt <= pwcsrch_cyc_cnt + 1;
+                    end if;
+                    if mmu_events.pwcmiss = '1' then
+                        pwcmiss_cnt <= pwcmiss_cnt + 1;
+                    end if;
+                    if mmu_events.pwchit_2M = '1' then
+                        pwchit_2M_cnt <= pwchit_2M_cnt + 1;
+                    end if;
+                    if mmu_events.pwchit_1G = '1' then
+                        pwchit_1G_cnt <= pwchit_1G_cnt + 1;
+                    end if;
+                    if mmu_events.pwchit_512G = '1' then
+                        pwchit_512G_cnt <= pwchit_512G_cnt + 1;
+                    end if;
+                    if mmu_events.pwc_evictions = '1' then
+                        pwc_evict_cnt <= pwc_evict_cnt + 1;
+                    end if;
+                    if mmu_events.tlb_evictions = '1' then
+                        tlb_evict_cnt <= tlb_evict_cnt + 1;
+                    end if;
+                    if mmu_events.pgwalk_miss = '1' then
+                        mmu_dc_miss_cnt <= mmu_dc_miss_cnt + 1;
+                    end if;
+                    if wback_events.instr_complete = '1' then
+                        instr_cmp_cnt <= instr_cmp_cnt + 1;
+                    end if;
+                    if ctrl.wait_state = '0' then
+                        nonwait_cycles <= nonwait_cycles + 1;
+                    end if;
+                    if icache_events.icache_hit = '1' then
+                        icache_hit_cnt <= icache_hit_cnt + 1;
+                    end if;
+                    if icache_events.icache_miss = '1' then
+                        icache_miss_cnt <= icache_miss_cnt + 1;
+                    end if;
+                    if icache_events.icache_miss_cycles = '1' then
+                        icache_miss_cycles <= icache_miss_cycles + 1;
+                    end if;
+                    if fetch_events.ierat_hit = '1' then
+                        ierat_hit_cnt <= ierat_hit_cnt + 1;
+                    end if;
+                    if fetch_events.ierat_miss = '1' then
+                        ierat_miss_cnt <= ierat_miss_cnt + 1;
+                    end if;
+                    if fetch_events.ierat_miss_cycles = '1' then
+                        ierat_miss_cycles <= ierat_miss_cycles + 1;
+                    end if;
+                    if fetch_events.itlb_hit = '1' then
+                        itlb_hit_cnt <= itlb_hit_cnt + 1;
+                    end if;
+                    if fetch_events.itlb_miss = '1' then
+                        itlb_miss_cnt <= itlb_miss_cnt + 1;
+                    end if;
+                    if dcache_events.load_hit = '1' then
+                        dcache_hit_cnt <= dcache_hit_cnt + 1;
+                    end if;
+                    if dcache_events.load_miss = '1' then
+                        dcache_miss_cnt <= dcache_miss_cnt + 1;
+                    end if;
+                    if dcache_events.load_miss_cycles = '1' then
+                        dcache_miss_cycles <= dcache_miss_cycles + 1;
+                    end if;
+                    if dcache_events.dtlb_hit = '1' then
+                        dtlb_hit_cnt <= dtlb_hit_cnt + 1;
+                    end if;
+                    if dcache_events.dtlb_miss = '1' then
+                        dtlb_miss_cnt <= dtlb_miss_cnt + 1;
+                    end if;
+                end if;
+                cnt_data_r0 <= cnt_dat0;
+                cnt_data_r1 <= cnt_dat1;
+                cnt_data_r2 <= cnt_dat2;
+                cnt_data_r3 <= cnt_dat3;
+            end if;
+        end process;
+    end generate;
 
     -- Logging RAM
     maybe_log: if LOG_LENGTH > 0 generate

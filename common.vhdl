@@ -360,6 +360,15 @@ package common is
         next_rpn: std_ulogic_vector(REAL_ADDR_BITS - MIN_LG_PGSZ - 1 downto 0);
     end record;
 
+    type FetchEventType is record
+        ierat_hit          : std_ulogic;
+        ierat_miss         : std_ulogic;
+        ierat_miss_cycles  : std_ulogic;
+        itlb_hit           : std_ulogic;
+        itlb_miss          : std_ulogic;
+        itlb_miss_resolved : std_ulogic;
+    end record;
+
     type IcacheToDecode1Type is record
 	valid: std_ulogic;
 	stop_mark: std_ulogic;
@@ -375,8 +384,9 @@ package common is
         (nia => (others => '0'), insn => (others => '0'), icode => INSN_illegal, others => '0');
 
     type IcacheEventType is record
-        icache_miss : std_ulogic;
-        itlb_miss_resolved : std_ulogic;
+        icache_hit         : std_ulogic;
+        icache_miss        : std_ulogic;
+        icache_miss_cycles : std_ulogic;
     end record;
 
     type Decode1ToDecode2Type is record
@@ -713,9 +723,12 @@ package common is
     end record;
 
     type DcacheEventType is record
+        load_hit           : std_ulogic;
         load_miss          : std_ulogic;
+        load_miss_cycles   : std_ulogic;
         store_miss         : std_ulogic;
         dcache_refill      : std_ulogic;
+        dtlb_hit           : std_ulogic;
         dtlb_miss          : std_ulogic;
         dtlb_miss_resolved : std_ulogic;
     end record;
@@ -759,6 +772,7 @@ package common is
         stall : std_ulogic;
         done  : std_ulogic;
         err   : std_ulogic;
+        miss  : std_ulogic;
         data  : std_ulogic_vector(63 downto 0);
     end record;
 
@@ -768,6 +782,25 @@ package common is
         doall : std_ulogic;
         addr  : std_ulogic_vector(63 downto 0);
         pte   : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type MMUEventType is record
+        tlbsearch      : std_ulogic;
+        tlbsrch_cycles : std_ulogic;
+        tlbmiss        : std_ulogic;
+        tlbhit         : std_ulogic;
+        tlb_evictions  : std_ulogic;
+        pwcsearch      : std_ulogic;
+        pwcsrch_cycles : std_ulogic;
+        pwcmiss        : std_ulogic;
+        pwchit_2M      : std_ulogic;
+        pwchit_1G      : std_ulogic;
+        pwchit_512G    : std_ulogic;
+        tlbhit_2M      : std_ulogic;
+        pwc_evictions  : std_ulogic;
+        pagewalk       : std_ulogic;
+        pgwalk_cycles  : std_ulogic;
+        pgwalk_miss    : std_ulogic;
     end record;
 
     type Loadstore1ToWritebackType is record

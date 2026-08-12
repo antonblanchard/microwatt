@@ -17,6 +17,7 @@ entity core is
         HAS_BTC : boolean := true;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512;
+        HAS_DMI_COUNTERS : boolean := false;
         ICACHE_NUM_LINES : natural := 64;
         ICACHE_NUM_WAYS : natural := 2;
         ICACHE_TLB_SIZE : natural := 64;
@@ -171,10 +172,12 @@ architecture behave of core is
     signal ctrl_debug : ctrl_t;
 
     -- PMU event bus
+    signal fetch_events     : FetchEventType;
     signal icache_events    : IcacheEventType;
     signal loadstore_events : Loadstore1EventType;
     signal dcache_events    : DcacheEventType;
     signal writeback_events : WritebackEventType;
+    signal mmu_events       : MMUEventType;
 
     -- Debug status
     signal dbg_core_is_stopped: std_ulogic;
@@ -247,6 +250,7 @@ begin
             d_in => decode1_to_fetch1,
             w_in => writeback_to_fetch1,
             i_out => fetch1_to_icache,
+            events => fetch_events,
             log_out => log_data(42 downto 0)
             );
 
@@ -403,6 +407,7 @@ begin
             ls_events => loadstore_events,
             dc_events => dcache_events,
             ic_events => icache_events,
+            f_events => fetch_events,
             msg_out => msg_out,
             msg_in => msg_in,
             run_out => run_out,
@@ -470,7 +475,8 @@ begin
             l_out => mmu_to_loadstore1,
             d_out => mmu_to_dcache,
             d_in => dcache_to_mmu,
-            i_out => mmu_to_itlb
+            i_out => mmu_to_itlb,
+            ev => mmu_events
             );
 
     dcache_0: entity work.dcache
@@ -520,7 +526,8 @@ begin
 
     debug_0: entity work.core_debug
         generic map (
-            LOG_LENGTH => LOG_LENGTH
+            LOG_LENGTH => LOG_LENGTH,
+            HAS_DMI_COUNTERS => HAS_DMI_COUNTERS
             )
 	port map (
 	    clk => clk,
@@ -537,7 +544,7 @@ begin
 	    terminate => terminate,
 	    core_stopped => dbg_core_is_stopped,
 	    nia => fetch1_to_icache.nia,
-            msr => ctrl_debug.msr,
+            ctrl => ctrl_debug,
             wb_snoop_in => wb_snoop_in,
             dbg_gpr_req => dbg_gpr_req,
             dbg_gpr_ack => dbg_gpr_ack,
@@ -555,7 +562,12 @@ begin
             log_read_addr => log_rd_addr,
             log_read_data => log_rd_data,
             log_write_addr => log_wr_addr,
-	    terminated_out => terminated_out
+	    terminated_out => terminated_out,
+            fetch_events => fetch_events,
+            icache_events => icache_events,
+            dcache_events => dcache_events,
+            wback_events => writeback_events,
+            mmu_events => mmu_events
 	    );
 
 end behave;

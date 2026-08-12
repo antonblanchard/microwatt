@@ -61,6 +61,7 @@ entity execute1 is
         ls_events    : in Loadstore1EventType;
         dc_events    : in DcacheEventType;
         ic_events    : in IcacheEventType;
+        f_events     : in FetchEventType;
 
         -- Access to SPRs from core_debug module
         dbg_spr_req   : in std_ulogic;
@@ -651,7 +652,7 @@ begin
                        dtlb_miss => dc_events.dtlb_miss,
                        dtlb_miss_resolved => dc_events.dtlb_miss_resolved,
                        icache_miss => ic_events.icache_miss,
-                       itlb_miss_resolved => ic_events.itlb_miss_resolved,
+                       itlb_miss_resolved => f_events.itlb_miss_resolved,
                        no_instr_avail => ex1.no_instr_avail,
                        dispatch => ex1.instr_dispatch,
                        ext_interrupt => ex2.ext_interrupt,

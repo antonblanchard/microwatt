@@ -34,6 +34,9 @@ entity fetch1 is
 	-- Request to icache
 	i_out         : out Fetch1ToIcacheType;
 
+        -- Events for performance analysis
+        events        : out FetchEventType;
+
         -- outputs to logger
         log_out       : out std_ulogic_vector(42 downto 0)
 	);
@@ -102,6 +105,8 @@ architecture behaviour of fetch1 is
     signal itlb_pte : tlb_pte_t;
     signal itlb_hit : std_ulogic;
 
+    signal ev : FetchEventType;
+
     -- Simple hash for direct-mapped TLB index
     function hash_ea(addr: std_ulogic_vector(63 downto 0)) return std_ulogic_vector is
         variable hash : std_ulogic_vector(TLB_BITS - 1 downto 0);
@@ -142,6 +147,11 @@ begin
             r.fetch_fail <= r_next.fetch_fail;
             r_int.tlbcheck <= r_next_int.tlbcheck;
             r_int.tlbstall <= r_next_int.tlbstall;
+            ev.ierat_miss <= r_next_int.tlbcheck;
+            ev.ierat_miss_cycles <= r_next_int.tlbcheck or r_next.fetch_fail;
+            ev.ierat_hit <= erat_hit;
+            ev.itlb_hit <= itlb_hit and r_int.tlbcheck;
+            ev.itlb_miss <= not itlb_hit and r_int.tlbcheck and not r.fetch_fail;
 	end if;
     end process;
     log_out <= log_nia;
@@ -277,7 +287,7 @@ begin
                 itlb_ptes(to_integer(unsigned(wr_index))) <= m_in.pte;
                 itlb_valids(to_integer(unsigned(wr_index))) <= '1';
             end if;
-            --ev.itlb_miss_resolved <= m_in.tlbld and not rst;
+            ev.itlb_miss_resolved <= m_in.tlbld and not rst;
         end if;
     end process;
 
@@ -437,6 +447,7 @@ begin
         i_out.next_nia <= next_nia;
         i_out.next_rpn <= v.rpn;
 
+        events <= ev;
     end process;
 
 end architecture behaviour;

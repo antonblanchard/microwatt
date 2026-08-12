@@ -84,6 +84,7 @@ entity soc is
         SPI_FLASH_DEF_QUAD : boolean := false;
         SPI_BOOT_CLOCKS    : boolean := true;
         LOG_LENGTH         : natural := 512;
+        HAS_DMI_COUNTERS   : boolean := false;
         HAS_LITEETH        : boolean := false;
 	UART0_IS_16550     : boolean := true;
 	HAS_UART1          : boolean := false;
@@ -377,6 +378,7 @@ begin
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
 	    ALT_RESET_ADDRESS => ALT_RESET_ADDRESS,
             LOG_LENGTH => LOG_LENGTH,
+            HAS_DMI_COUNTERS => HAS_DMI_COUNTERS,
             ICACHE_NUM_LINES => ICACHE_NUM_LINES,
             ICACHE_NUM_WAYS => ICACHE_NUM_WAYS,
             ICACHE_TLB_SIZE => ICACHE_TLB_SIZE,
