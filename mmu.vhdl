@@ -10,6 +10,10 @@ use work.common.all;
 -- guests under a hypervisor (i.e. there is no gRA -> hRA translation).
 
 entity mmu is
+    generic (
+        -- Include the MMU trace array (SPR 704/705); costs 16 block RAM tiles
+        HAS_MMU_TRACE : boolean := false
+        );
     port (
         clk   : in std_ulogic;
         rst   : in std_ulogic;
@@ -120,6 +124,17 @@ architecture behave of mmu is
     signal trace_en       : std_ulogic := '1';   -- SPR704[63]: 1=capture, 0=frozen
     signal trace_full     : std_ulogic := '0';   -- one-shot: set when array fills, freezes capture
     signal trace_read_data : std_ulogic_vector(63 downto 0);
+    -- Force block RAM rather than distributed LUT RAM for the four arrays
+    attribute ram_style : string;
+    attribute ram_style of trace_mem_addr : signal is "block";
+    attribute ram_style of trace_mem_ptcr : signal is "block";
+    attribute ram_style of trace_mem_pde  : signal is "block";
+    attribute ram_style of trace_mem_misc : signal is "block";
+    attribute ram_decomp : string;
+    attribute ram_decomp of trace_mem_addr : signal is "power";
+    attribute ram_decomp of trace_mem_ptcr : signal is "power";
+    attribute ram_decomp of trace_mem_pde  : signal is "power";
+    attribute ram_decomp of trace_mem_misc : signal is "power";
     ---- TRACE ARRAY CODE (BRAM signals and pointers) end ----
 
     signal addrsh  : std_ulogic_vector(15 downto 0);
@@ -1185,13 +1200,17 @@ begin
     trace_read_mux: process(all)
         variable w : std_ulogic_vector(63 downto 0);
     begin
-        case trace_rd_mux is
-            when "00"   => w := trace_mem_addr(to_integer(trace_rd_ptr));
-            when "01"   => w := trace_mem_ptcr(to_integer(trace_rd_ptr));
-            when "10"   => w := trace_mem_pde (to_integer(trace_rd_ptr));
-            when others => w := trace_mem_misc(to_integer(trace_rd_ptr));
-        end case;
-        if is_x(w) then
+        if HAS_MMU_TRACE then
+            case trace_rd_mux is
+                when "00"   => w := trace_mem_addr(to_integer(trace_rd_ptr));
+                when "01"   => w := trace_mem_ptcr(to_integer(trace_rd_ptr));
+                when "10"   => w := trace_mem_pde (to_integer(trace_rd_ptr));
+                when others => w := trace_mem_misc(to_integer(trace_rd_ptr));
+            end case;
+            if is_x(w) then
+                w := (others => '0');
+            end if;
+        else
             w := (others => '0');
         end if;
         trace_read_data <= w;
@@ -1222,11 +1241,13 @@ begin
                 r.trace_wr <= '0';
                 r.is_trace_seek <= '0';
                 ---- TRACE ARRAY CODE (pointer reset on rst) begin ----
-                trace_wr_ptr <= (others => '0');
-                trace_rd_ptr <= (others => '0');
-                trace_rd_mux <= "00";
-                trace_en     <= '1';
-                trace_full   <= '0';
+                if HAS_MMU_TRACE then
+                    trace_wr_ptr <= (others => '0');
+                    trace_rd_ptr <= (others => '0');
+                    trace_rd_mux <= "00";
+                    trace_en     <= '1';
+                    trace_full   <= '0';
+                end if;
                 ---- TRACE ARRAY CODE (pointer reset on rst) end ----
             else
                 if rin.valid = '1' then
@@ -1252,124 +1273,126 @@ begin
                 end if;
                 r <= rin;
 
-                ---- TRACE ARRAY CODE (MFSPR 705 read pointer auto-advance) begin ----
-                -- Each MFSPR 705 read returns the currently-selected word, then advances
-                -- the sub-word mux; after the 4th word (mux "11") the record pointer
-                -- increments and the mux wraps to "00".  MTSPR 704 sets the starting point
-                -- (trace_rd_ptr = index, trace_rd_mux = word-select); 705 then streams
-                -- from there.  The combinational read already captured the word for the OLD
-                -- mux/ptr, so back-to-back 705 reads are correctly sequenced.
-                if l_in.sprnf = "11" then
-                    if trace_rd_mux = "11" then
-                        trace_rd_mux <= "00";
-                        trace_rd_ptr <= trace_rd_ptr + 1;
-                    else
-                        trace_rd_mux <= std_ulogic_vector(unsigned(trace_rd_mux) + 1);
-                    end if;
-                end if;
-                ---- TRACE ARRAY CODE (MFSPR 705 read pointer auto-advance) end ----
-
-                ---- TRACE ARRAY CODE (MTSPR 704 address + packed write) begin ----
-                -- MTSPR 704 carries a packed address-and-data word:
-                --   rs[12:11] = word/BRAM select  (00=EA 01=PTCR 10=PDE 11=Misc)
-                --   rs[10:0]  = record index (0..2047)
-                --   rs[63:13] = sample data (51 bits)
-                -- It always seeks the read pointer/select so a following MFSPR 705 reads
-                -- the same location.  "data!=0 => write": when the data field is non-zero
-                -- the data (zero-extended to 64 bits) is written into the selected BRAM at
-                -- the index.  A data field of 0 is therefore address-only (read setup) and
-                -- never clobbers the slot.
-                if l_in.mtspr = '1' and l_in.sprnt = "10" then
-                    trace_en     <= l_in.rs(63);   -- SPR704[63]: capture enable/freeze
-                    trace_rd_ptr <= unsigned(l_in.rs(10 downto 0));
-                    trace_rd_mux <= l_in.rs(12 downto 11);
-                    -- One-shot re-arm: enabling capture (rs[63]=1) while the array is FULL
-                    -- restarts the fill from slot 0 and clears trace_full.  Guarded by
-                    -- trace_full so a normal trace_enable_seek (array not yet full, e.g. in
-                    -- BIT63_LOGGING_ENABLE_TEST) never disturbs trace_wr_ptr.
-                    if l_in.rs(63) = '1' and trace_full = '1' then
-                        trace_wr_ptr <= (others => '0');
-                        trace_full   <= '0';
-                    end if;
-                    if l_in.rs(62 downto 13) /= 50x"0" then
-                        trace_wdata := (others => '0');
-                        trace_wdata(49 downto 0) := l_in.rs(62 downto 13);
-                        case l_in.rs(12 downto 11) is
-                            when "00"   =>
-                                trace_mem_addr(to_integer(unsigned(l_in.rs(10 downto 0)))) <= trace_wdata;
-                            when "01"   =>
-                                trace_mem_ptcr(to_integer(unsigned(l_in.rs(10 downto 0)))) <= trace_wdata;
-                            when "10"   =>
-                                trace_mem_pde (to_integer(unsigned(l_in.rs(10 downto 0)))) <= trace_wdata;
-                            when others =>
-                                trace_mem_misc(to_integer(unsigned(l_in.rs(10 downto 0)))) <= trace_wdata;
-                        end case;
-                    end if;
-                end if;
-                ---- TRACE ARRAY CODE (MTSPR 704 address + packed write) end ----
-
-                ---- TRACE ARRAY CODE (BRAM write, driven by FSM event flag) begin ----
-                -- mmu_1 has already chosen the event for this transition (rin.trace_event)
-                -- and asserted rin.trace_wr when a record is due.  Write one 4-word record.
-                if rin.trace_wr = '1' and trace_en = '1' then
-                    -- Word 0: effective address being translated
-                    trace_mem_addr(to_integer(trace_wr_ptr)) <= rin.addr;
-                    -- Word 1: PTCR snapshot
-                    trace_mem_ptcr(to_integer(trace_wr_ptr)) <= rin.ptcr;
-                    -- Word 2: the descriptor freshly fetched for THIS event.  For a PTE read
-                    -- (and the leaf load / error that follow it) rin.pde already holds the
-                    -- value read from memory; for the table-read completions the freshly
-                    -- latched root lives in rin.prtbl / rin.pgtbl{0,3}.
-                    case rin.trace_event is
-                        when EV_PART_DONE => pde_word := rin.prtbl;
-                        when EV_PROC_READ =>
-                            if rin.addr(63) = '1' then pde_word := rin.pgtbl3;
-                            else                       pde_word := rin.pgtbl0;
-                            end if;
-                        when others       => pde_word := rin.pde;
-                    end case;
-                    trace_mem_pde (to_integer(trace_wr_ptr)) <= pde_word;
-                    -- Word 3: packed status/event
-                    misc_word := (others => '0');
-                    misc_word(63 downto 52) := rin.pid;
-                    misc_word(51 downto 48) := std_ulogic_vector(
-                                                   to_unsigned(mmu_event_t'pos(rin.trace_event), 4));
-                    misc_word(47 downto 44) := std_ulogic_vector(
-                                                   to_unsigned(state_t'pos(rin.state), 4));
-                    misc_word(43 downto 38) := std_ulogic_vector(rin.shift);
-                    misc_word(37 downto 33) := std_ulogic_vector(rin.mask_size);
-                    misc_word(32)           := rin.priv;
-                    misc_word(31)           := rin.done;
-                    misc_word(30)           := rin.invalid;
-                    misc_word(29)           := rin.badtree;
-                    misc_word(28)           := rin.segerror;
-                    misc_word(27)           := rin.perm_err;
-                    misc_word(26)           := rin.rc_error;
-                    -- bit 25: this record fills the last slot -> capture is about to freeze
-                    if trace_wr_ptr = to_unsigned(TRACE_DEPTH - 1, trace_wr_ptr'length) then
-                        misc_word(25) := '1';
-                    end if;
-                    -- shift/mask_size (and flags) are 'U' for non-radix events (tlbie,
-                    -- mtspr, partition/process-table reads); force any X/U bit to 0 so the
-                    -- packed event/state fields survive the is_x read guard and decode cleanly.
-                    for b in misc_word'range loop
-                        if misc_word(b) /= '0' and misc_word(b) /= '1' then
-                            misc_word(b) := '0';
+                if HAS_MMU_TRACE then
+                    ---- TRACE ARRAY CODE (MFSPR 705 read pointer auto-advance) begin ----
+                    -- Each MFSPR 705 read returns the currently-selected word, then advances
+                    -- the sub-word mux; after the 4th word (mux "11") the record pointer
+                    -- increments and the mux wraps to "00".  MTSPR 704 sets the starting point
+                    -- (trace_rd_ptr = index, trace_rd_mux = word-select); 705 then streams
+                    -- from there.  The combinational read already captured the word for the OLD
+                    -- mux/ptr, so back-to-back 705 reads are correctly sequenced.
+                    if l_in.sprnf = "11" then
+                        if trace_rd_mux = "11" then
+                            trace_rd_mux <= "00";
+                            trace_rd_ptr <= trace_rd_ptr + 1;
+                        else
+                            trace_rd_mux <= std_ulogic_vector(unsigned(trace_rd_mux) + 1);
                         end if;
-                    end loop;
-                    trace_mem_misc(to_integer(trace_wr_ptr)) <= misc_word;
-                    -- One-shot stop-on-full: on writing the last slot, freeze capture and
-                    -- latch trace_full instead of wrapping, so the FIRST TRACE_DEPTH records
-                    -- are preserved.  Firmware re-arms with trace_enable_seek(0) (see the
-                    -- MTSPR-704 re-arm below).
-                    if trace_wr_ptr = to_unsigned(TRACE_DEPTH - 1, trace_wr_ptr'length) then
-                        trace_en   <= '0';
-                        trace_full <= '1';
-                    else
-                        trace_wr_ptr <= trace_wr_ptr + 1;
                     end if;
+                    ---- TRACE ARRAY CODE (MFSPR 705 read pointer auto-advance) end ----
+
+                    ---- TRACE ARRAY CODE (MTSPR 704 address + packed write) begin ----
+                    -- MTSPR 704 carries a packed address-and-data word:
+                    --   rs[12:11] = word/BRAM select  (00=EA 01=PTCR 10=PDE 11=Misc)
+                    --   rs[10:0]  = record index (0..2047)
+                    --   rs[63:13] = sample data (51 bits)
+                    -- It always seeks the read pointer/select so a following MFSPR 705 reads
+                    -- the same location.  "data!=0 => write": when the data field is non-zero
+                    -- the data (zero-extended to 64 bits) is written into the selected BRAM at
+                    -- the index.  A data field of 0 is therefore address-only (read setup) and
+                    -- never clobbers the slot.
+                    if l_in.mtspr = '1' and l_in.sprnt = "10" then
+                        trace_en     <= l_in.rs(63);   -- SPR704[63]: capture enable/freeze
+                        trace_rd_ptr <= unsigned(l_in.rs(10 downto 0));
+                        trace_rd_mux <= l_in.rs(12 downto 11);
+                        -- One-shot re-arm: enabling capture (rs[63]=1) while the array is FULL
+                        -- restarts the fill from slot 0 and clears trace_full.  Guarded by
+                        -- trace_full so a normal trace_enable_seek (array not yet full, e.g. in
+                        -- BIT63_LOGGING_ENABLE_TEST) never disturbs trace_wr_ptr.
+                        if l_in.rs(63) = '1' and trace_full = '1' then
+                            trace_wr_ptr <= (others => '0');
+                            trace_full   <= '0';
+                        end if;
+                        if l_in.rs(62 downto 13) /= 50x"0" then
+                            trace_wdata := (others => '0');
+                            trace_wdata(49 downto 0) := l_in.rs(62 downto 13);
+                            case l_in.rs(12 downto 11) is
+                                when "00"   =>
+                                    trace_mem_addr(to_integer(unsigned(l_in.rs(10 downto 0)))) <= trace_wdata;
+                                when "01"   =>
+                                    trace_mem_ptcr(to_integer(unsigned(l_in.rs(10 downto 0)))) <= trace_wdata;
+                                when "10"   =>
+                                    trace_mem_pde (to_integer(unsigned(l_in.rs(10 downto 0)))) <= trace_wdata;
+                                when others =>
+                                    trace_mem_misc(to_integer(unsigned(l_in.rs(10 downto 0)))) <= trace_wdata;
+                            end case;
+                        end if;
+                    end if;
+                    ---- TRACE ARRAY CODE (MTSPR 704 address + packed write) end ----
+
+                    ---- TRACE ARRAY CODE (BRAM write, driven by FSM event flag) begin ----
+                    -- mmu_1 has already chosen the event for this transition (rin.trace_event)
+                    -- and asserted rin.trace_wr when a record is due.  Write one 4-word record.
+                    if rin.trace_wr = '1' and trace_en = '1' then
+                        -- Word 0: effective address being translated
+                        trace_mem_addr(to_integer(trace_wr_ptr)) <= rin.addr;
+                        -- Word 1: PTCR snapshot
+                        trace_mem_ptcr(to_integer(trace_wr_ptr)) <= rin.ptcr;
+                        -- Word 2: the descriptor freshly fetched for THIS event.  For a PTE read
+                        -- (and the leaf load / error that follow it) rin.pde already holds the
+                        -- value read from memory; for the table-read completions the freshly
+                        -- latched root lives in rin.prtbl / rin.pgtbl{0,3}.
+                        case rin.trace_event is
+                            when EV_PART_DONE => pde_word := rin.prtbl;
+                            when EV_PROC_READ =>
+                                if rin.addr(63) = '1' then pde_word := rin.pgtbl3;
+                                else                       pde_word := rin.pgtbl0;
+                                end if;
+                            when others       => pde_word := rin.pde;
+                        end case;
+                        trace_mem_pde (to_integer(trace_wr_ptr)) <= pde_word;
+                        -- Word 3: packed status/event
+                        misc_word := (others => '0');
+                        misc_word(63 downto 52) := rin.pid;
+                        misc_word(51 downto 48) := std_ulogic_vector(
+                                                       to_unsigned(mmu_event_t'pos(rin.trace_event), 4));
+                        misc_word(47 downto 44) := std_ulogic_vector(
+                                                       to_unsigned(state_t'pos(rin.state), 4));
+                        misc_word(43 downto 38) := std_ulogic_vector(rin.shift);
+                        misc_word(37 downto 33) := std_ulogic_vector(rin.mask_size);
+                        misc_word(32)           := rin.priv;
+                        misc_word(31)           := rin.done;
+                        misc_word(30)           := rin.invalid;
+                        misc_word(29)           := rin.badtree;
+                        misc_word(28)           := rin.segerror;
+                        misc_word(27)           := rin.perm_err;
+                        misc_word(26)           := rin.rc_error;
+                        -- bit 25: this record fills the last slot -> capture is about to freeze
+                        if trace_wr_ptr = to_unsigned(TRACE_DEPTH - 1, trace_wr_ptr'length) then
+                            misc_word(25) := '1';
+                        end if;
+                        -- shift/mask_size (and flags) are 'U' for non-radix events (tlbie,
+                        -- mtspr, partition/process-table reads); force any X/U bit to 0 so the
+                        -- packed event/state fields survive the is_x read guard and decode cleanly.
+                        for b in misc_word'range loop
+                            if misc_word(b) /= '0' and misc_word(b) /= '1' then
+                                misc_word(b) := '0';
+                            end if;
+                        end loop;
+                        trace_mem_misc(to_integer(trace_wr_ptr)) <= misc_word;
+                        -- One-shot stop-on-full: on writing the last slot, freeze capture and
+                        -- latch trace_full instead of wrapping, so the FIRST TRACE_DEPTH records
+                        -- are preserved.  Firmware re-arms with trace_enable_seek(0) (see the
+                        -- MTSPR-704 re-arm below).
+                        if trace_wr_ptr = to_unsigned(TRACE_DEPTH - 1, trace_wr_ptr'length) then
+                            trace_en   <= '0';
+                            trace_full <= '1';
+                        else
+                            trace_wr_ptr <= trace_wr_ptr + 1;
+                        end if;
+                    end if;
+                    ---- TRACE ARRAY CODE (BRAM write, driven by FSM event flag) end ----
                 end if;
-                ---- TRACE ARRAY CODE (BRAM write, driven by FSM event flag) end ----
 
             end if;
         end if;

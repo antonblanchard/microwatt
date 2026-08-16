@@ -1392,8 +1392,11 @@ begin
 if r1.req.valid = '1' and r1.req.read_spr = '1' then
     m_out.sprnf <= r1.req.is_trace_spr & r1.req.sprsel(0);
 else
-    -- Debug SPR read path: dbg_spr_addr "00"/"01" = PID/PTCR, "10"/"11" = SPR704/705.
-    m_out.sprnf <= dbg_spr_addr;  -- same 2-bit encoding as sprnf
+    -- Debug SPR read path: dbg_spr_addr "00"/"01" = PID/PTCR, "10"/"11" = DSISR/DAR.
+    -- DSISR and DAR are answered locally from r3, so only bit 0 reaches the MMU.
+    -- Forwarding both bits would present sprnf="11" (an MFSPR 705) on a debug read
+    -- of DAR and advance the trace read pointer.
+    m_out.sprnf <= '0' & dbg_spr_addr(0);
 end if;
 
         -- Update outputs to writeback

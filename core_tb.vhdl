@@ -21,7 +21,11 @@ begin
             SIM => true,
             MEMORY_SIZE => (384*1024),
             RAM_INIT_FILE => "main_ram.bin",
-            CLK_FREQ => 100000000
+            CLK_FREQ => 100000000,
+            -- The MMU trace array (SPR 704/705) is off by default because of its
+            -- block RAM cost; enable it in simulation so tests/TRACE_CURATED_LOGGING_TEST
+            -- actually exercises it.
+            HAS_MMU_TRACE => true
             )
         port map(
             rst => rst,

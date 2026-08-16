@@ -13,6 +13,7 @@ entity toplevel is
 	CLK_FREQUENCY : positive := 100000000;
         HAS_FPU       : boolean  := true;
         HAS_BTC       : boolean  := false;
+        HAS_MMU_TRACE : boolean  := false;
         ICACHE_NUM_LINES : natural := 64;
         LOG_LENGTH    : natural := 512;
 	DISABLE_FLATTEN_CORE : boolean := false;
@@ -74,6 +75,7 @@ begin
 	    CLK_FREQ      => CLK_FREQUENCY,
             HAS_FPU       => HAS_FPU,
             HAS_BTC       => HAS_BTC,
+            HAS_MMU_TRACE => HAS_MMU_TRACE,
 	    ICACHE_NUM_LINES => ICACHE_NUM_LINES,
             LOG_LENGTH    => LOG_LENGTH,
 	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
