@@ -72,6 +72,7 @@ entity soc is
         NCPUS              : positive := 1;
         HAS_FPU            : boolean := true;
         HAS_BTC            : boolean := true;
+        HAS_MMU_TRACE      : boolean := false;
 	DISABLE_FLATTEN_CORE : boolean := false;
         ALT_RESET_ADDRESS  : std_logic_vector(63 downto 0) := (23 downto 0 => '0', others => '1');
 	HAS_DRAM           : boolean  := false;
@@ -374,6 +375,7 @@ begin
             NCPUS => NCPUS,
             HAS_FPU => HAS_FPU,
             HAS_BTC => HAS_BTC,
+            HAS_MMU_TRACE => HAS_MMU_TRACE,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
 	    ALT_RESET_ADDRESS => ALT_RESET_ADDRESS,
             LOG_LENGTH => LOG_LENGTH,

@@ -102,6 +102,7 @@ architecture behave of loadstore1 is
         sprsel       : std_ulogic_vector(2 downto 0);
         ric          : std_ulogic_vector(1 downto 0);
         is_slbia     : std_ulogic;
+        is_trace_spr : std_ulogic;
         align_intr   : std_ulogic;
         dawr_intr    : std_ulogic;
         dword_index  : std_ulogic;
@@ -348,6 +349,7 @@ begin
                 r1.req.incomplete <= '0';
                 r1.req.tlbie <= '0';
                 r1.req.is_slbia <= '0';
+                r1.req.is_trace_spr <= '0';
                 r1.req.instr_fault <= '0';
                 r1.req.load <= '0';
                 r1.req.priv_mode <= '0';
@@ -368,6 +370,7 @@ begin
                 r2.req.sprsel <= "000";
                 r2.req.ric <= "00";
                 r2.req.xerc <= xerc_init;
+                r2.req.is_trace_spr <= '0';
 
                 r2.wait_dc <= '0';
                 r2.wait_mmu <= '0';
@@ -590,15 +593,55 @@ begin
         v.virt_mode := l_in.virt_mode;
         v.priv_mode := l_in.priv_mode;
         v.ric := l_in.insn(19 downto 18);
-        if sprn(8 downto 7) = "01" then
+        -- ── SPR DECODE TABLE (loadstore1 pipeline, stage 0 / combinational) ────────
+        -- Maps sprn bits → (sprsel[2:0], is_trace_spr) → sprnf/sprnt sent to MMU.
+        -- Local SPRs (DSISR, DAR, DAWR*) are resolved entirely inside loadstore1.
+        -- MMU SPRs (PID, PTCR, SPR704/705) are forwarded via m_out.sprnf/sprnt.
+        --
+        --  is_trace_spr | sprsel | SPR            | sprnf/sprnt (= is_trace_spr & sprsel(0))
+        --       0       |  000   | PID            |  "00"  → MMU r.pid
+        --       0       |  001   | PTCR           |  "01"  → MMU r.ptcr
+        --       0       |  010   | DSISR          |  local (r3.dsisr)
+        --       0       |  011   | DAR            |  local (r3.dar)
+        --       0       |  100   | DAWR0          |  local (r3.dawr(0))
+        --       0       |  101   | DAWR1          |  local (r3.dawr(1))
+        --       0       |  110   | DAWRX0         |  local (r3.dawrx(0))
+        --       0       |  111   | DAWRX1         |  local (r3.dawrx(1))
+        --       1       |  000   | SPR 704 write  |  "10"  → MMU temp_trace_array (MTSPR)
+        --       1       |  001   | SPR 705 read   |  "11"  → MMU temp_trace_array (MFSPR)
+        --
+        -- MTSPR 704 write path (3 cycles):
+        --   stage0: sprsel="000", is_trace_spr='1', write_spr='1', mmu_op='1'
+        --   stage2: sprnt="10" driven on m_out
+        --   stage3: mmu_mtspr='1', m_out.rs = store_data → MMU stores to temp_trace_array
+        --
+        -- MFSPR 705 read path (combinational MMU read, no MMU transaction):
+        --   stage0: sprsel="001", is_trace_spr='1', read_spr='1', mmu_op='0'
+        --   stage1: m_out.sprnf="11" driven from r1.req → MMU comb. returns temp_trace_array
+        --   stage2: sprval=m_in.sprval captured into v.addr0
+        --   stage3: write_data=r2.addr0 → written back to destination register
+        -- ─────────────────────────────────────────────────────────────────────────────
+        if sprn(9) = '1' then
+            -- SPR 704 (trace write) and SPR 705 (trace read) — MMU sandbox.
+            -- sprn(9)=1 is unique to 704/705 among all LDST-routed SPRs (PID, PTCR,
+            -- DSISR, DAR, DAWR* all have sprn(9)=0), so this MUST be tested first:
+            -- 704/705 also satisfy sprn(8 downto 7)="01", which would otherwise alias
+            -- them onto the DAWR0/DAWR1 branch below.
+            -- We reuse sprsel "000"/"001" (same as PID/PTCR) because the 3-bit sprsel
+            -- space is full.  is_trace_spr='1' distinguishes them at the m_out.sprnf/sprnt
+            -- assignment below, setting the top bit to "1x" for the MMU.
+            -- sprsel(0)=0 for 704, sprsel(0)=1 for 705.
+            v.sprsel := "00" & sprn(0);  -- "000"=704, "001"=705
+            v.is_trace_spr := '1';
+        elsif sprn(8 downto 7) = "01" then
             -- debug registers DAWR[X][01]
             v.sprsel := "1" & sprn(3) & sprn(0);
         elsif sprn(1) = '1' then
-            -- DSISR and DAR
-            v.sprsel := "01" & sprn(0);
+            -- DSISR and DAR (handled inside loadstore1, not sent to MMU)
+            v.sprsel := "01" & sprn(0);  -- "010"=DSISR, "011"=DAR
         else
-            -- PID and PTCR
-            v.sprsel := "00" & sprn(8);
+            -- PID (sprsel "000") and PTCR (sprsel "001")
+            v.sprsel := "00" & sprn(8);  -- "000"=PID, "001"=PTCR
         end if;
 
         disp := l_in.addr2;
@@ -912,7 +955,15 @@ begin
             when "011" =>
                 sprval := r3.dar;
             when others =>
-                sprval := m_in.sprval;  -- MMU regs
+    -- Stage 2 / MFSPR read-back from MMU (combinational).
+    -- sprnf = is_trace_spr & sprsel(0) is driven by loadstore1_3 from r1.req
+    -- one cycle earlier, so m_in.sprval already reflects MMU's combinational output:
+    --   sprnf="00" → r.pid       (PID,  sprsel="000", is_trace_spr=0)
+    --   sprnf="01" → r.ptcr      (PTCR, sprsel="001", is_trace_spr=0)
+    --   sprnf="10" → invalid for MFSPR (SPR 704 is write-only)
+    --   sprnf="11" → r.temp_trace_array  (SPR 705, sprsel="001", is_trace_spr=1)
+    -- v.addr0 is set to sprval below; stage 3 writes r2.addr0 to the dest register.
+    sprval := m_in.sprval;  -- MMU regs: PID, PTCR, SPR704/705 trace sandbox
         end case;
         if dbg_spr_req = '0' then
             v.dbg_spr_ack := '0';
@@ -1160,6 +1211,11 @@ begin
             end if;
         end if;
 
+        -- Stage 3 / MTSPR write path to MMU:
+        -- For SPR 704: mmu_op='1', write_spr='1', sprnt="10"
+        --   → mmu_mtspr='1', m_out.rs=store_data → MMU stores to temp_trace_array
+        --   → MMU transitions DO_TLBIE→RADIX_FINISH, returns done='1'
+        -- For PID/PTCR: same path, sprnt="00"/"01", MMU updates r.pid/r.ptcr
         if r3.state = IDLE and r2.req.valid = '1' and r2.req.mmu_op = '1' then
             -- send request (tlbie, mtspr, itlb miss) to MMU
             mmureq := not r2.req.write_spr;
@@ -1323,15 +1379,25 @@ begin
         m_out.tlbie <= r2.req.tlbie;
         m_out.ric <= r2.req.ric;
         m_out.mtspr <= mmu_mtspr;
-        m_out.sprnt <= r2.req.sprsel(0);
+        m_out.sprnt <= r2.req.is_trace_spr & r2.req.sprsel(0);
+        -- "00"=PID, "01"=PTCR (is_trace_spr='0'), "10"=SPR704, "11"=SPR705 (is_trace_spr='1')
         m_out.addr <= r2.req.addr;
         m_out.slbia <= r2.req.is_slbia;
         m_out.rs <= r2.req.store_data;
-        if r1.req.valid = '1' and r1.req.read_spr = '1' then
-            m_out.sprnf <= r1.req.sprsel(0);
-        else
-            m_out.sprnf <= dbg_spr_addr(0);
-        end if;
+-- Stage 3 / MFSPR combinational read path:
+-- sprnf drives the MMU's sprval mux one cycle ahead (r1 → MMU → stage2 capture).
+-- "00"=PID, "01"=PTCR (is_trace_spr='0')
+-- "10"=SPR704 (write-only, not a valid MFSPR source)
+-- "11"=SPR705 → MMU returns r.temp_trace_array on l_out.sprval
+if r1.req.valid = '1' and r1.req.read_spr = '1' then
+    m_out.sprnf <= r1.req.is_trace_spr & r1.req.sprsel(0);
+else
+    -- Debug SPR read path: dbg_spr_addr "00"/"01" = PID/PTCR, "10"/"11" = DSISR/DAR.
+    -- DSISR and DAR are answered locally from r3, so only bit 0 reaches the MMU.
+    -- Forwarding both bits would present sprnf="11" (an MFSPR 705) on a debug read
+    -- of DAR and advance the trace read pointer.
+    m_out.sprnf <= '0' & dbg_spr_addr(0);
+end if;
 
         -- Update outputs to writeback
         l_out.valid <= complete;

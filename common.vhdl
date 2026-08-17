@@ -57,6 +57,8 @@ package common is
     constant SPR_PID    : spr_num_t := 48;
     constant SPR_PTCR   : spr_num_t := 464;
     constant SPR_LPCR   : spr_num_t := 318;
+    constant SPR_704_MMMU_TRACE_in :spr_num_t := 704;  -- MTSPR target: write into MMU sandbox / trace ctrl
+    constant SPR_705_MMMU_TRACE_out :spr_num_t := 705; -- MFSPR source: read from MMU sandbox / trace data
     constant SPR_PVR	: spr_num_t := 287;
     constant SPR_FSCR   : spr_num_t := 153;
     constant SPR_HFSCR  : spr_num_t := 190;
@@ -729,8 +731,8 @@ package common is
         load  : std_ulogic;
         priv  : std_ulogic;
         ric   : std_ulogic_vector(1 downto 0);
-        sprnf : std_ulogic;
-        sprnt : std_ulogic;
+        sprnf : std_ulogic_vector(1 downto 0); --widening of sprnt and sprnf to allow for SPR 704/705 for MFSPR and MTSPR
+        sprnt : std_ulogic_vector(1 downto 0);
         addr  : std_ulogic_vector(63 downto 0);
         rs    : std_ulogic_vector(63 downto 0);
     end record;

@@ -556,6 +556,12 @@ parameters:
     paramtype   : generic
     default     : true
 
+  has_mmu_trace:
+    datatype    : bool
+    description : Include the MMU page-walk trace array (SPR 704/705); costs 16 block RAM tiles
+    paramtype   : generic
+    default     : false
+
   disable_flatten_core:
     datatype    : bool
     description : Prevent Vivado from flattening the main core components
