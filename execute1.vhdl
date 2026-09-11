@@ -226,6 +226,13 @@ architecture behaviour of execute1 is
     signal adder_result: std_ulogic_vector(63 downto 0);
     signal misc_result: std_ulogic_vector(63 downto 0);
     signal multicyc_result: std_ulogic_vector(63 downto 0);
+        -- MMA accelerator signals
+    signal mma_start  : std_ulogic;
+    signal mma_clear  : std_ulogic;
+    signal mma_busy   : std_ulogic;
+    signal mma_done   : std_ulogic;
+    signal mma_result : std_ulogic_vector(31 downto 0);
+
     signal bsort_result: std_ulogic_vector(63 downto 0);
     signal spr_result: std_ulogic_vector(63 downto 0);
     signal next_nia : std_ulogic_vector(63 downto 0);
@@ -532,6 +539,30 @@ begin
             m_in => x_to_multiply,
             m_out => multiply_to_x
             );
+
+       ------------------------------------------------
+    -- Matrix Multiply-Accumulate Accelerator
+    ------------------------------------------------
+    mma_0: entity work.mma_unit
+        port map (
+            clk    => clk,
+            rst    => rst,
+
+            start  => mma_start,
+            clear  => mma_clear,
+
+            a      => a_in(7 downto 0),
+            b      => b_in(7 downto 0),
+
+            busy   => mma_busy,
+            done   => mma_done,
+
+            result => mma_result
+        );
+   
+       -- Temporary default MMA controls
+    mma_start <= '0';
+    mma_clear <= '0';
 
     mult_32s_0: entity work.multiply_32s
         port map (
