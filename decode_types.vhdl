@@ -16,7 +16,7 @@ package decode_types is
 			 OP_MCRXRX, OP_MFMSR, OP_MFSPR,
                          OP_MSG,
 			 OP_MTCRF, OP_MTMSRD, OP_MTSPR, OP_MUL_L64,
-			 OP_MUL_H64, OP_MUL_H32,
+			 OP_MUL_H64, OP_MUL_H32, OP_MMA,
 			 OP_RFID,
 			 OP_SC,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
@@ -286,7 +286,7 @@ package decode_types is
         INSN_xor,
 
         -- pad to 248 to simplify comparison logic
-        INSN_242, INSN_243, INSN_244, INSN_245, INSN_246, INSN_247,
+        INSN_242, INSN_243, INSN_244, INSN_245, INSN_246, INSN_mma,
 
         -- The following instructions have a third input addressed by RC
         INSN_maddld,
@@ -544,6 +544,7 @@ package body decode_types is
             when INSN_lwz       => return "100000";
             when INSN_lwzu      => return "100001";
             when INSN_mulli     => return "000111";
+            when INSN_mma       => return "011111";
             when INSN_nop       => return "011000";
             when INSN_ori       => return "011000";
             when INSN_oris      => return "011001";

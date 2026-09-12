@@ -253,6 +253,7 @@ architecture behaviour of decode1 is
         INSN_lwzu        =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, IMM, CONST_SI,    NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', '0', DUPD),
         INSN_lwzux       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', '0', DUPD),
         INSN_lwzx        =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_mma         =>  (ALU,  NONE, OP_MMA,       RA, RB, NONE, NONE, RT, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', NONE, '0', '0', '0', NONE),
         INSN_maddhd      =>  (ALU,  NONE, OP_MUL_H64,   RA,         RB,  NONE,        RCR,  RT,   ADD, "010", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
         INSN_maddhdu     =>  (ALU,  NONE, OP_MUL_H64,   RA,         RB,  NONE,        RCR,  RT,   ADD, "010", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_maddld      =>  (ALU,  NONE, OP_MUL_L64,   RA,         RB,  NONE,        RCR,  RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
