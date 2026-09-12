@@ -72,7 +72,7 @@ core_files = decode_types.vhdl common.vhdl wishbone_types.vhdl fetch1.vhdl \
 	predecode.vhdl decode1.vhdl helpers.vhdl insn_helpers.vhdl \
 	control.vhdl decode2.vhdl register_file.vhdl \
 	cr_file.vhdl crhelpers.vhdl ppc_fx_insns.vhdl rotator.vhdl \
-	logical.vhdl countbits.vhdl multiply.vhdl multiply-32s.vhdl divider.vhdl \
+	logical.vhdl countbits.vhdl multiply.vhdl multiply-32s.vhdl mma_unit.vhdl divider.vhdl \
 	execute1.vhdl loadstore1.vhdl mmu.vhdl dcache.vhdl writeback.vhdl \
 	core_debug.vhdl core.vhdl fpu.vhdl pmu.vhdl bitsort.vhdl
 

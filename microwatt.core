@@ -22,6 +22,7 @@ filesets:
       - countbits.vhdl
       - bitsort.vhdl
       - control.vhdl
+      - mma_unit.vhdl
       - execute1.vhdl
       - fpu.vhdl
       - loadstore1.vhdl

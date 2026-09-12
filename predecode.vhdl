@@ -366,6 +366,7 @@ architecture behaviour of predecoder is
         2#0_10111_01001#  =>  INSN_mulld, -- mulldo
         2#0_00111_01011#  =>  INSN_mullw,
         2#0_10111_01011#  =>  INSN_mullw, -- mullwo
+        2#0_00000_00001#  =>  INSN_mma,
         2#0_01110_11100#  =>  INSN_nand,
         2#0_00011_01000#  =>  INSN_neg,
         2#0_10011_01000#  =>  INSN_neg, -- nego

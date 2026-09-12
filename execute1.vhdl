@@ -123,6 +123,7 @@ architecture behaviour of execute1 is
         take_branch : std_ulogic;
         direct_branch : std_ulogic;
         start_mul : std_ulogic;
+        start_mma : std_ulogic;
         start_div : std_ulogic;
         start_bsort : std_ulogic;
         start_bperm : std_ulogic;
@@ -157,6 +158,7 @@ architecture behaviour of execute1 is
         advance_nia : std_ulogic;
         lr_from_next : std_ulogic;
 	mul_in_progress : std_ulogic;
+        mma_in_progress : std_ulogic;
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         bsort_in_progress : std_ulogic;
@@ -184,7 +186,7 @@ architecture behaviour of execute1 is
          oe => '0', mul_select => "000", res2_sel => "00",
          spr_select => spr_id_init, pmu_spr_num => 5x"0",
          redir_to_next => '0', advance_nia => '0', lr_from_next => '0',
-         mul_in_progress => '0', mul_finish => '0', div_in_progress => '0',
+         mul_in_progress => '0', mma_in_progress => '0', mul_finish => '0', div_in_progress => '0',
          bsort_in_progress => '0', bperm_in_progress => '0',
          no_instr_avail => '0', instr_dispatch => '0', ext_interrupt => '0',
          taken_branch_event => '0', br_mispredict => '0',
@@ -226,6 +228,13 @@ architecture behaviour of execute1 is
     signal adder_result: std_ulogic_vector(63 downto 0);
     signal misc_result: std_ulogic_vector(63 downto 0);
     signal multicyc_result: std_ulogic_vector(63 downto 0);
+        -- MMA accelerator signals
+    signal mma_start  : std_ulogic;
+    signal mma_clear  : std_ulogic;
+    signal mma_busy   : std_ulogic;
+    signal mma_done   : std_ulogic;
+    signal mma_result : std_ulogic_vector(31 downto 0);
+
     signal bsort_result: std_ulogic_vector(63 downto 0);
     signal spr_result: std_ulogic_vector(63 downto 0);
     signal next_nia : std_ulogic_vector(63 downto 0);
@@ -532,6 +541,30 @@ begin
             m_in => x_to_multiply,
             m_out => multiply_to_x
             );
+
+       ------------------------------------------------
+    -- Matrix Multiply-Accumulate Accelerator
+    ------------------------------------------------
+    mma_0: entity work.mma_unit
+        port map (
+            clk    => clk,
+            rst    => rst,
+
+            start  => mma_start,
+            clear  => mma_clear,
+
+            a      => a_in(7 downto 0),
+            b      => b_in(7 downto 0),
+
+            busy   => mma_busy,
+            done   => mma_done,
+
+            result => mma_result
+        );
+   
+       -- MMA controls
+    mma_start <= actions.start_mma;
+    mma_clear <= '0';
 
     mult_32s_0: entity work.multiply_32s
         port map (
@@ -1575,6 +1608,11 @@ begin
                 slow_op := '1';
                 owait := '1';
 
+            when OP_MMA =>
+                v.start_mma := '1';
+                slow_op := '1';
+                owait := '1';
+
 	    when OP_MUL_L64 =>
                 if e_in.is_32bit = '1' then
                     v.se.mult_32s := '1';
@@ -1832,6 +1870,7 @@ begin
             x_to_multiply.valid <= actions.start_mul;
             x_to_mult_32s.valid <= actions.se.mult_32s;
             v.mul_in_progress := actions.start_mul;
+            v.mma_in_progress := actions.start_mma;
             x_to_divider.valid <= actions.start_div;
             v.div_in_progress := actions.start_div;
             v.bsort_in_progress := actions.start_bsort;
@@ -1847,6 +1886,7 @@ begin
             -- instructions from using the wrong XER value
             -- (and for simplicity in the OE=0 case).
             v.busy := actions.start_div or actions.start_mul or
+                      actions.start_mma or
                       actions.start_bsort or actions.start_bperm;
 
             -- instruction for other units, i.e. LDST
@@ -1891,6 +1931,13 @@ begin
             v.e.write_data := alu_result;
             bypass_valid := v.e.valid;
         end if;
+       if ex1.mma_in_progress = '1' then
+    v.mma_in_progress := not mma_done;
+    v.e.valid := mma_done;
+    v.busy := not mma_done;
+    v.e.write_data := std_ulogic_vector(resize(signed(mma_result), 64));
+    bypass_valid := mma_done;
+end if;
         if ex1.mul_finish = '1' then
             v.mul_finish := '0';
             v.e.xerc.ov := multiply_to_x.overflow;
@@ -1936,6 +1983,7 @@ begin
             v.busy := '0';
             v.div_in_progress := '0';
             v.mul_in_progress := '0';
+            v.mma_in_progress := '0';
             v.mul_finish := '0';
             v.xerc_valid := '0';
         end if;
