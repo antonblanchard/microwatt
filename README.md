@@ -1,10 +1,17 @@
 <!-- Reformatted for readability: layout and formatting only, original content unchanged. -->
+<p align="center">
+<img src="media/microwatt-title.png" alt="Microwatt">
+</p>
 
 # ⚡ Microwatt
 
 > A tiny Open POWER ISA softcore written in VHDL 2008. It aims to be simple and easy to understand.
 
 ---
+<p align="center">
+<img src="http://neuling.org/microwatt-micropython.gif" alt="MicroPython running on Microwatt"/>
+</p>
+
 
 ## 📑 Table of Contents
 
