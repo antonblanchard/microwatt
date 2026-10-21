@@ -1090,6 +1090,7 @@ begin
             end if;
         end if;
 
+        nc := r0.req.nc or perm_attr.nocache;
         req_go <= go;
         req_nc <= nc;
 
@@ -1109,7 +1110,6 @@ begin
 	-- Combine the request and cache hit status to decide what
 	-- operation needs to be done
 	--
-        nc := r0.req.nc or perm_attr.nocache;
         req_op_bad <= '0';
         req_op_load_hit <= '0';
         req_op_load_miss <= '0';
