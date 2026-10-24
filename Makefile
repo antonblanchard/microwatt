@@ -57,7 +57,7 @@ endif
 
 VUNITARGS += -p10
 
-all = core_tb icache_tb dcache_tb dmi_dtm_tb \
+all = core_tb icache_tb dcache_tb dcache_nc_tb dmi_dtm_tb \
 	wishbone_bram_tb soc_reset_tb
 
 all: $(all)
@@ -126,6 +126,9 @@ $(soc_flash_tbs): %: $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) $(fmf_l
 
 $(soc_tbs): %: $(soc_sim_files) $(soc_sim_obj_files) $(unisim_lib) %.vhdl
 	$(GHDL) -c $(GHDLFLAGS) $(soc_sim_link) $(soc_sim_files) $@.vhdl -e $@
+
+dcache_nc_tb: $(core_files) dcache_nc_tb.vhdl
+	$(GHDL) -c $(GHDLFLAGS) $(core_files) $@.vhdl -e $@
 
 soc_reset_tb: fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl
 	$(GHDL) -c $(GHDLFLAGS) fpga/soc_reset_tb.vhdl fpga/soc_reset.vhdl -e $@
@@ -302,7 +305,7 @@ tests_console: $(tests_console)
 check_vunit:
 	$(VUNITRUN) $(VUNITARGS)
 
-check: $(tests) tests_console test_micropython test_micropython_long tests_unit
+check: $(tests) tests_console test_micropython test_micropython_long tests_unit dcache_nc_tb_test
 
 check_light: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 test_micropython tests_console tests_unit
 
@@ -328,6 +331,9 @@ tests_soc_tb = $(patsubst %_tb,%_tb_test,$(soc_tbs))
 
 %_test: %
 	./$< --assert-level=error > /dev/null
+
+dcache_nc_tb_test: dcache_nc_tb
+	./dcache_nc_tb --assert-level=error > /dev/null
 
 tests_soc: $(tests_soc_tb)
 
