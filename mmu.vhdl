@@ -4,12 +4,17 @@ use ieee.numeric_std.all;
 
 library work;
 use work.common.all;
+use work.utils.all;
 
 -- Radix MMU
 -- Supports 4-level trees as in arch 3.0B, but not the two-step translation for
 -- guests under a hypervisor (i.e. there is no gRA -> hRA translation).
 
 entity mmu is
+    generic (
+        -- Number of entries in the MMU trace array; 0 = no trace array
+        MMU_TRACE_LENGTH : natural := 0
+        );
     port (
         clk   : in std_ulogic;
         rst   : in std_ulogic;
@@ -39,6 +44,12 @@ architecture behave of mmu is
                      RADIX_LOAD_TLB,
                      RADIX_FINISH
                      );
+
+    -- MMU trace event codes, recorded in bits 51:48 of record word 3:
+    -- 1 = walk start, 2 = partition table entry read, 3 = process table
+    -- entry read, 4 = PDE/PTE read, 5 = TLB load, 6 = error.
+    type mmu_event_t is (EV_NONE, EV_WALK_START, EV_PART_DONE, EV_PROC_READ,
+                         EV_PTE_READ, EV_TLB_LOAD, EV_ERROR);
 
     type reg_stage_t is record
         -- latched request from loadstore1
@@ -77,9 +88,16 @@ architecture behave of mmu is
         wr_tlbram : std_ulogic;
         wr_pwcram : std_ulogic;
         pwc_level : std_ulogic_vector(1 downto 0);
+        -- MMU trace: event to be recorded in the next cycle
+        trace_event : mmu_event_t;
+        trace_wr  : std_ulogic;
     end record;
 
     signal r, rin : reg_stage_t;
+
+    -- MMU trace values read via MTRD and MTRC
+    signal trace_rdata  : std_ulogic_vector(63 downto 0);
+    signal trace_status : std_ulogic_vector(63 downto 0);
 
     signal addrsh  : std_ulogic_vector(15 downto 0);
     signal mask    : std_ulogic_vector(15 downto 0);
@@ -1136,7 +1154,166 @@ begin
 
     -- Multiplex internal SPR values back to loadstore1, selected
     -- by l_in.sprnf.
-    l_out.sprval <= r.ptcr when l_in.sprnf = '1' else x"0000000000000" & r.pid;
+    with l_in.sprnf select l_out.sprval <=
+        x"0000000000000" & r.pid when "00",
+        r.ptcr when "01",
+        trace_status when "10",
+        trace_rdata when others;
+
+    -- MMU trace array.  Records page-walk events in block RAM so that
+    -- software can read back what the MMU did, using MTRC and MTRD.
+    -- Each record is 4 doublewords: EA, PTCR, the table entry read,
+    -- and a status word.  Capture stops when the array is full.
+    -- The write happens the cycle after mmu_1 picks the event, using
+    -- the registered state, to keep it off the mmu_1 critical paths.
+    maybe_trace: if MMU_TRACE_LENGTH > 0 generate
+        constant TRACE_BITS : natural := log2(MMU_TRACE_LENGTH);
+        subtype trace_ptr_t is unsigned(TRACE_BITS - 1 downto 0);
+        -- doubleword address: record index & word number
+        subtype trace_addr_t is unsigned(TRACE_BITS + 1 downto 0);
+        type trace_array_t is array(0 to MMU_TRACE_LENGTH - 1) of std_ulogic_vector(255 downto 0);
+
+        signal trace_array   : trace_array_t := (others => (others => '0'));
+        signal trace_wdata   : std_ulogic_vector(255 downto 0);
+        signal trace_we      : std_ulogic;
+        signal trace_last    : std_ulogic;
+        signal trace_wr_ptr  : trace_ptr_t := (others => '0');
+        signal trace_rd_addr : trace_addr_t := (others => '0');
+        signal trace_rd_next : trace_addr_t;
+        signal trace_rd_inc  : trace_addr_t := to_unsigned(1, TRACE_BITS + 2);
+        signal trace_rd      : std_ulogic_vector(255 downto 0) := (others => '0');
+        signal trace_en      : std_ulogic := '1';
+        signal trace_full    : std_ulogic := '0';
+        signal trace_count   : unsigned(15 downto 0);
+
+        attribute ram_style : string;
+        attribute ram_style of trace_array : signal is "block";
+        attribute ram_decomp : string;
+        attribute ram_decomp of trace_array : signal is "power";
+
+        -- Turn U/X bits (fields not set yet) into 0 so that reading the
+        -- trace never puts X into a GPR in simulation.  No logic in synthesis.
+        function zero_x(d : std_ulogic_vector) return std_ulogic_vector is
+            variable ret : std_ulogic_vector(d'range);
+        begin
+            for i in d'range loop
+                if d(i) = '1' then
+                    ret(i) := '1';
+                else
+                    ret(i) := '0';
+                end if;
+            end loop;
+            return ret;
+        end;
+
+    begin
+        assert ispow2(MMU_TRACE_LENGTH) and MMU_TRACE_LENGTH >= 2 and MMU_TRACE_LENGTH <= 16384
+            report "MMU_TRACE_LENGTH must be 0 or a power of 2 from 2 to 16384"
+            severity failure;
+
+        trace_we <= r.trace_wr and trace_en and not trace_full;
+        trace_last <= '1' when trace_wr_ptr = to_unsigned(MMU_TRACE_LENGTH - 1, TRACE_BITS) else '0';
+
+        trace_record: process(all)
+            variable entry : std_ulogic_vector(63 downto 0);
+            variable stat  : std_ulogic_vector(63 downto 0);
+        begin
+            case r.trace_event is
+                when EV_PART_DONE =>
+                    entry := r.prtbl;
+                when EV_PROC_READ =>
+                    if r.addr(63) = '1' then
+                        entry := r.pgtbl3;
+                    else
+                        entry := r.pgtbl0;
+                    end if;
+                when others =>
+                    entry := r.pde;
+            end case;
+            stat := (others => '0');
+            stat(63 downto 52) := r.pid;
+            stat(51 downto 48) := std_ulogic_vector(to_unsigned(mmu_event_t'pos(r.trace_event), 4));
+            -- state that the MMU moved to after this event
+            stat(47 downto 44) := std_ulogic_vector(to_unsigned(state_t'pos(r.state), 4));
+            stat(43 downto 38) := std_ulogic_vector(r.shift);
+            stat(37 downto 33) := std_ulogic_vector(r.mask_size);
+            stat(32) := r.priv;
+            stat(31) := r.done;
+            stat(30) := r.invalid;
+            stat(29) := r.badtree;
+            stat(28) := r.segerror;
+            stat(27) := r.perm_err;
+            stat(26) := r.rc_error;
+            stat(25) := trace_last;
+            trace_wdata <= zero_x(stat & entry & r.ptcr & r.addr);
+        end process;
+
+        -- mtspr MTRC sets the read address; each mfspr MTRD advances it
+        trace_rd_next <= unsigned(l_in.rs(TRACE_BITS + 1 downto 0))
+                             when l_in.mtspr = '1' and l_in.sprnt = "10" else
+                         trace_rd_inc when l_in.mtrd_adv = '1' else
+                         trace_rd_addr;
+
+        trace_ram: process(clk)
+        begin
+            if rising_edge(clk) then
+                if trace_we = '1' then
+                    trace_array(to_integer(trace_wr_ptr)) <= trace_wdata;
+                end if;
+                trace_rd <= trace_array(to_integer(trace_rd_next(TRACE_BITS + 1 downto 2)));
+            end if;
+        end process;
+
+        trace_ctrl: process(clk)
+            variable w : integer range 0 to 3;
+        begin
+            if rising_edge(clk) then
+                if rst = '1' then
+                    trace_wr_ptr <= (others => '0');
+                    trace_rd_addr <= (others => '0');
+                    trace_rd_inc <= to_unsigned(1, TRACE_BITS + 2);
+                    trace_en <= '1';
+                    trace_full <= '0';
+                    trace_rdata <= (others => '0');
+                else
+                    trace_rd_addr <= trace_rd_next;
+                    trace_rd_inc <= trace_rd_next + 1;
+                    if trace_we = '1' then
+                        if trace_last = '1' then
+                            trace_full <= '1';
+                        else
+                            trace_wr_ptr <= trace_wr_ptr + 1;
+                        end if;
+                    end if;
+                    -- MTRC: bit 63 = capture enable, bit 62 = restart from entry 0
+                    if l_in.mtspr = '1' and l_in.sprnt = "10" then
+                        trace_en <= l_in.rs(63);
+                        if l_in.rs(62) = '1' then
+                            trace_wr_ptr <= (others => '0');
+                            trace_full <= '0';
+                        end if;
+                    end if;
+                    -- trace_rdata is valid 2 cycles after the read address
+                    -- advances.  That is the earliest a following mfspr MTRD
+                    -- can sample it, since MTRD reads are single-issue (see
+                    -- decode2), so don't add latency here without slowing
+                    -- MTRD reads down.  tests/mmu_trace checks this case.
+                    w := to_integer(trace_rd_addr(1 downto 0));
+                    trace_rdata <= trace_rd(w * 64 + 63 downto w * 64);
+                end if;
+            end if;
+        end process;
+
+        trace_count <= to_unsigned(MMU_TRACE_LENGTH, 16) when trace_full = '1' else
+                       resize(trace_wr_ptr, 16);
+        trace_status <= trace_en & trace_full & 14x"0" & std_ulogic_vector(trace_count) &
+                        16x"0" & std_ulogic_vector(resize(trace_rd_addr, 16));
+    end generate;
+
+    no_trace: if MMU_TRACE_LENGTH = 0 generate
+        trace_rdata <= (others => '0');
+        trace_status <= (others => '0');
+    end generate;
 
     mmu_0: process(clk)
     begin
@@ -1150,6 +1327,7 @@ begin
                 r.ptcr <= (others => '0');
                 r.pid <= (others => '0');
                 r.wr_tlbram <= '0';
+                r.trace_wr <= '0';
             else
                 if rin.valid = '1' then
                     report "MMU got tlb miss for " & to_hstring(rin.addr);
@@ -1341,16 +1519,20 @@ begin
                 -- Move to PID needs to invalidate L1 TLBs and cached
                 -- pgtbl0 value.  Move to PTCR does that plus
                 -- invalidating the cached pgtbl3 and prtbl values as well.
-                if l_in.sprnt = '0' then
+                -- Moves to MTRC/MTRD are handled by the trace logic and
+                -- just go through DO_TLBIE to complete.
+                if l_in.sprnt = "00" then
                     v.pid := l_in.rs(11 downto 0);
-                else
+                elsif l_in.sprnt = "01" then
                     v.ptcr := l_in.rs;
                     v.pt3_valid := '0';
                     v.ptb_valid := '0';
                 end if;
-                v.pt0_valid := '0';
-                v.inval_all := '1';
-                v.tlbie_req := '1';
+                if l_in.sprnt(1) = '0' then
+                    v.pt0_valid := '0';
+                    v.inval_all := '1';
+                    v.tlbie_req := '1';
+                end if;
                 v.state := DO_TLBIE;
             end if;
 
@@ -1545,6 +1727,37 @@ begin
         if v.state = RADIX_FINISH then
             v.err := v.invalid or v.badtree or v.segerror or v.perm_err or v.rc_error;
             v.done := not v.err;
+        end if;
+
+        -- MMU trace: choose the event, if any, to record for this cycle.
+        -- Table reads are recorded when the data arrives, so the record
+        -- holds the entry that was read.  A PTE read that ends the walk
+        -- is recorded as TLB_LOAD or ERROR rather than PTE_READ.
+        v.trace_event := EV_NONE;
+        if r.state = RADIX_READ_WAIT and d_in.done = '1' then
+            if v.state = RADIX_LOAD_TLB then
+                v.trace_event := EV_TLB_LOAD;
+            elsif v.state = RADIX_FINISH then
+                v.trace_event := EV_ERROR;
+            else
+                v.trace_event := EV_PTE_READ;
+            end if;
+        elsif r.state = PROC_TBL_WAIT and d_in.done = '1' then
+            v.trace_event := EV_PROC_READ;
+        elsif r.state = PART_TBL_WAIT and d_in.done = '1' then
+            v.trace_event := EV_PART_DONE;
+        elsif v.state /= r.state then
+            if v.state = RADIX_LOAD_TLB then
+                v.trace_event := EV_TLB_LOAD;
+            elsif v.state = RADIX_FINISH and v.err = '1' then
+                v.trace_event := EV_ERROR;
+            elsif r.state = IDLE and v.valid = '1' then
+                v.trace_event := EV_WALK_START;
+            end if;
+        end if;
+        v.trace_wr := '0';
+        if v.trace_event /= EV_NONE then
+            v.trace_wr := '1';
         end if;
 
         if r.addr(63) = '1' then

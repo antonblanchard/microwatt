@@ -57,6 +57,8 @@ package common is
     constant SPR_PID    : spr_num_t := 48;
     constant SPR_PTCR   : spr_num_t := 464;
     constant SPR_LPCR   : spr_num_t := 318;
+    constant SPR_MTRC   : spr_num_t := 730;     -- MMU trace control/status
+    constant SPR_MTRD   : spr_num_t := 731;     -- MMU trace data
     constant SPR_PVR	: spr_num_t := 287;
     constant SPR_FSCR   : spr_num_t := 153;
     constant SPR_HFSCR  : spr_num_t := 190;
@@ -729,8 +731,9 @@ package common is
         load  : std_ulogic;
         priv  : std_ulogic;
         ric   : std_ulogic_vector(1 downto 0);
-        sprnf : std_ulogic;
-        sprnt : std_ulogic;
+        sprnf : std_ulogic_vector(1 downto 0);  -- 00=PID 01=PTCR 10=MTRC 11=MTRD
+        sprnt : std_ulogic_vector(1 downto 0);
+        mtrd_adv : std_ulogic;                  -- an mfspr MTRD was accepted
         addr  : std_ulogic_vector(63 downto 0);
         rs    : std_ulogic_vector(63 downto 0);
     end record;

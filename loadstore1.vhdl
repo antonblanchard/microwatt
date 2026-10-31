@@ -102,6 +102,7 @@ architecture behave of loadstore1 is
         sprsel       : std_ulogic_vector(2 downto 0);
         ric          : std_ulogic_vector(1 downto 0);
         is_slbia     : std_ulogic;
+        is_mtr       : std_ulogic;
         align_intr   : std_ulogic;
         dawr_intr    : std_ulogic;
         dword_index  : std_ulogic;
@@ -143,6 +144,7 @@ architecture behave of loadstore1 is
         sprsel     : std_ulogic_vector(2 downto 0);
         dbg_spr    : std_ulogic_vector(63 downto 0);
         dbg_spr_ack: std_ulogic;
+        mtrd_adv   : std_ulogic;
     end record;
 
     type dawr_array_t is array(0 to num_dawr - 1) of std_ulogic_vector(63 downto 3);
@@ -348,6 +350,7 @@ begin
                 r1.req.incomplete <= '0';
                 r1.req.tlbie <= '0';
                 r1.req.is_slbia <= '0';
+                r1.req.is_mtr <= '0';
                 r1.req.instr_fault <= '0';
                 r1.req.load <= '0';
                 r1.req.priv_mode <= '0';
@@ -368,6 +371,8 @@ begin
                 r2.req.sprsel <= "000";
                 r2.req.ric <= "00";
                 r2.req.xerc <= xerc_init;
+                r2.req.is_mtr <= '0';
+                r2.mtrd_adv <= '0';
 
                 r2.wait_dc <= '0';
                 r2.wait_mmu <= '0';
@@ -590,7 +595,12 @@ begin
         v.virt_mode := l_in.virt_mode;
         v.priv_mode := l_in.priv_mode;
         v.ric := l_in.insn(19 downto 18);
-        if sprn(8 downto 7) = "01" then
+        if sprn(9) = '1' then
+            -- MMU trace SPRs: MTRC -> sprsel 000, MTRD -> sprsel 001.
+            -- Test this first, since sprn(8 downto 7) is also "01" for these.
+            v.sprsel := "00" & sprn(0);
+            v.is_mtr := '1';
+        elsif sprn(8 downto 7) = "01" then
             -- debug registers DAWR[X][01]
             v.sprsel := "1" & sprn(3) & sprn(0);
         elsif sprn(1) = '1' then
@@ -715,7 +725,8 @@ begin
                 v.ea_valid := '0';
             when OP_MTSPR =>
                 v.write_spr := '1';
-                v.mmu_op := not (sprn(1) or sprn(2));
+                -- PID, PTCR, MTRC and MTRD are in the MMU
+                v.mmu_op := sprn(9) or not (sprn(1) or sprn(2));
                 v.ea_valid := '0';
             when OP_FETCH_FAILED =>
                 -- send it to the MMU to do the radix walk
@@ -866,6 +877,7 @@ begin
         variable dawr_match : std_ulogic;
     begin
         v := r2;
+        v.mtrd_adv := '0';
 
         -- Byte reversing and rotating for stores.
         -- Done in the second cycle (the cycle after l_in.valid = 1).
@@ -946,6 +958,7 @@ begin
                 end if;
                 if r1.req.read_spr = '1' then
                     v.addr0 := sprval;
+                    v.mtrd_adv := r1.req.valid and r1.req.is_mtr and r1.req.sprsel(0);
                 end if;
                 -- tlbie has req.dc_req set in order to send the TLB probe to
                 -- the dcache, but since there is no acknowledgement to wait for,
@@ -1323,14 +1336,16 @@ begin
         m_out.tlbie <= r2.req.tlbie;
         m_out.ric <= r2.req.ric;
         m_out.mtspr <= mmu_mtspr;
-        m_out.sprnt <= r2.req.sprsel(0);
+        m_out.sprnt <= r2.req.is_mtr & r2.req.sprsel(0);
+        m_out.mtrd_adv <= r2.mtrd_adv;
         m_out.addr <= r2.req.addr;
         m_out.slbia <= r2.req.is_slbia;
         m_out.rs <= r2.req.store_data;
         if r1.req.valid = '1' and r1.req.read_spr = '1' then
-            m_out.sprnf <= r1.req.sprsel(0);
+            m_out.sprnf <= r1.req.is_mtr & r1.req.sprsel(0);
         else
-            m_out.sprnf <= dbg_spr_addr(0);
+            -- debug SPR reads only access PID/PTCR in the MMU, never MTRC/MTRD
+            m_out.sprnf <= '0' & dbg_spr_addr(0);
         end if;
 
         -- Update outputs to writeback
