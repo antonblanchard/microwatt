@@ -1136,7 +1136,10 @@ begin
 
     -- Multiplex internal SPR values back to loadstore1, selected
     -- by l_in.sprnf.
-    l_out.sprval <= r.ptcr when l_in.sprnf = '1' else x"0000000000000" & r.pid;
+    with l_in.sprnf select l_out.sprval <=
+        x"0000000000000" & r.pid when "00",
+        r.ptcr when "01",
+        (others => '0') when others;
 
     mmu_0: process(clk)
     begin
@@ -1341,16 +1344,20 @@ begin
                 -- Move to PID needs to invalidate L1 TLBs and cached
                 -- pgtbl0 value.  Move to PTCR does that plus
                 -- invalidating the cached pgtbl3 and prtbl values as well.
-                if l_in.sprnt = '0' then
+                -- Moves to MTRC/MTRD are handled by the trace logic and
+                -- just go through DO_TLBIE to complete.
+                if l_in.sprnt = "00" then
                     v.pid := l_in.rs(11 downto 0);
-                else
+                elsif l_in.sprnt = "01" then
                     v.ptcr := l_in.rs;
                     v.pt3_valid := '0';
                     v.ptb_valid := '0';
                 end if;
-                v.pt0_valid := '0';
-                v.inval_all := '1';
-                v.tlbie_req := '1';
+                if l_in.sprnt(1) = '0' then
+                    v.pt0_valid := '0';
+                    v.inval_all := '1';
+                    v.tlbie_req := '1';
+                end if;
                 v.state := DO_TLBIE;
             end if;
 

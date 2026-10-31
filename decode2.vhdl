@@ -440,8 +440,16 @@ begin
                             when SPR_XER =>
                                 v.input_ov := '1';
                             when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR |
-                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 =>
+                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 |
+                                SPR_MTRC =>
                                 unit := LDST;
+                            when SPR_MTRD =>
+                                -- Reading MTRD advances the MMU trace read address,
+                                -- so let it complete before the next read is issued.
+                                unit := LDST;
+                                if d_in.valid = '1' then
+                                    v.sgl_pipe := '1';
+                                end if;
                             when SPR_TAR =>
                                 v.e.uses_tar := '1';
                             when SPR_UDSCR =>
@@ -463,7 +471,8 @@ begin
                                 v.e.output_xer := '1';
                                 v.output_ov := '1';
                             when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR |
-                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 =>
+                                SPR_DAWR0 | SPR_DAWR1 | SPR_DAWRX0 | SPR_DAWRX1 |
+                                SPR_MTRC | SPR_MTRD =>
                                 unit := LDST;
                                 if d_in.valid = '1' then
                                     v.sgl_pipe := '1';
