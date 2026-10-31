@@ -15,6 +15,7 @@ entity core is
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
         HAS_BTC : boolean := true;
+        MMU_TRACE_LENGTH : natural := 0;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512;
         ICACHE_NUM_LINES : natural := 64;
@@ -463,6 +464,9 @@ begin
             );
 
     mmu_0: entity work.mmu
+        generic map (
+            MMU_TRACE_LENGTH => MMU_TRACE_LENGTH
+            )
         port map (
             clk => clk,
             rst => core_rst,
