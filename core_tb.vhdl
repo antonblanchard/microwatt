@@ -21,7 +21,8 @@ begin
             SIM => true,
             MEMORY_SIZE => (384*1024),
             RAM_INIT_FILE => "main_ram.bin",
-            CLK_FREQ => 100000000
+            CLK_FREQ => 100000000,
+            MMU_TRACE_LENGTH => 2048
             )
         port map(
             rst => rst,
